@@ -99,7 +99,7 @@ function doGet(e) {
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
   }
 
-  var templateIndex = HtmlService.createTemplateFromFile('Index');
+  var templateIndex = HtmlService.createTemplateFromFile('App');
   templateIndex.usuarioLogado = usuario || { nome: "Usuário", email: email, perfil: "Usuário", ome: "GBI", subunidade: "GERAL", cpf: "" }; 
   templateIndex.appUrl = appUrl;
 
@@ -801,9 +801,11 @@ function registrarEntradaEstoque(dados) {
     // Registra histórico de movimentação inicial (CADASTRO)
     try {
       var eventosCad = [];
+      var codigosCriadosCad = [];
       var localFormatadoCad = [dados.subunidade, dados.setor, localArmazenamentoFinal].filter(Boolean).join(" > ");
       for (var iCad = 0; iCad < quantidade; iCad++) {
         var codItemCad = prefixo + (proximoNumero + iCad);
+        codigosCriadosCad.push(codItemCad);
         var serieCad = (numerosSerie[iCad] !== undefined && numerosSerie[iCad] !== null) ? String(numerosSerie[iCad]).trim() : "";
         var patCad = (numerosPatrimonio[iCad] !== undefined && numerosPatrimonio[iCad] !== null && String(numerosPatrimonio[iCad]).trim() !== "") ? String(numerosPatrimonio[iCad]).trim() : (dados.nPatrimonio || "");
         var obsCad = dados.observacao || "Entrada no estoque registrada via sistema.";
@@ -833,7 +835,11 @@ function registrarEntradaEstoque(dados) {
     }
 
     try {
-      registrarLogAuditoria("ENTRADA_ESTOQUE", "Cadastrou " + quantidade + " un(s) de " + (dados.material || "") + " na OME " + (unidadePadronizada || ""));
+      var itensCadTxt = codigosCriadosCad.length <= 10 ? codigosCriadosCad.join(", ") : (codigosCriadosCad.slice(0, 10).join(", ") + " e mais " + (codigosCriadosCad.length - 10) + " itens");
+      registrarLogAuditoria(
+        "ENTRADA_ESTOQUE", 
+        "Cadastrou " + quantidade + " un(s) do material '" + (dados.material || "") + "'. Código(s) ITEM: [" + itensCadTxt + "] na OME " + (unidadePadronizada || "")
+      );
     } catch(eLogCad) {}
 
   } catch (errIns) {
@@ -964,11 +970,14 @@ function atualizarRegistro(dados) {
 
     var ehAdmin = ((usuario.perfil || "").trim() === "Administrador");
 
-    // Validação de OME para usuário comum
-    if (!ehAdmin) {
-      var sqlCheck = "SELECT UNIDADE FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` WHERE ITEM = '" + limpar(itemId) + "'";
-      var resCheck = executarConsultaBigQuerySegura(sqlCheck);
-      if (resCheck.rows && resCheck.rows.length > 0) {
+    var nomeMaterialAtual = "";
+    var sqlCheck = "SELECT UNIDADE, OBJETO FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` WHERE ITEM = '" + limpar(itemId) + "'";
+    var resCheck = executarConsultaBigQuerySegura(sqlCheck);
+    if (resCheck.rows && resCheck.rows.length > 0) {
+      if (resCheck.rows[0].f && resCheck.rows[0].f[1] && resCheck.rows[0].f[1].v) {
+        nomeMaterialAtual = String(resCheck.rows[0].f[1].v).trim();
+      }
+      if (!ehAdmin) {
         var omeItem = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(resCheck.rows[0].f[0].v).toUpperCase() : String(resCheck.rows[0].f[0].v || "").trim().toUpperCase();
         var omeUser = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(usuario.ome).toUpperCase() : String(usuario.ome || "").trim().toUpperCase();
         if (omeItem !== omeUser) {
@@ -1010,7 +1019,12 @@ function atualizarRegistro(dados) {
               " WHERE ITEM = '" + limpar(itemId) + "'";
 
     executarConsultaBigQuerySegura(sql, true);
-    registrarLogAuditoria("EDICAO_INDIVIDUAL", "Usuário " + usuario.nome + " (" + usuario.ome + ") atualizou o registro unitário: " + itemId);
+    var descMatFinal = dados.objeto || nomeMaterialAtual || "Material";
+    registrarLogAuditoria(
+      "EDICAO_INDIVIDUAL", 
+      "Atualizou item " + itemId + " (" + descMatFinal + ") por " + usuario.nome + " (" + usuario.ome + ")",
+      usuario
+    );
     return "Registro atualizado com sucesso!";
   } catch (err) {
     throw new Error("Erro ao atualizar registro: " + err.message);
@@ -1035,11 +1049,19 @@ function excluirRegistro(item) {
 
 
 
+  var descMaterial = "";
+  try {
+    var resObj = executarConsultaBigQuerySegura("SELECT OBJETO FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` WHERE ITEM = '" + String(item).replace(/'/g, "\\'") + "' LIMIT 1");
+    if (resObj.rows && resObj.rows.length > 0 && resObj.rows[0].f && resObj.rows[0].f[0].v) {
+      descMaterial = String(resObj.rows[0].f[0].v).trim();
+    }
+  } catch(eObj) {}
+
   var sql = "DELETE FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` WHERE ITEM = '" + item + "'";
 
   executarConsultaBigQuerySegura(sql, true);
 
-  registrarLogAuditoria("EXCLUSAO", "Removeu item ID: " + item);
+  registrarLogAuditoria("EXCLUSAO", "Removeu item " + item + (descMaterial ? " (" + descMaterial + ")" : ""), usuario);
 
   return "Registro excluído permanentemente.";
 
@@ -1203,7 +1225,21 @@ function atualizarLotePorIds(itensIds, novosDados) {
     console.warn("Aviso ao gravar histórico de edição em lote: " + eHEdit.message);
   }
 
-  registrarLogAuditoria("EDICAO_EM_MASSA", "Atualizou " + itensIds.length + " itens em lote.");
+  var descMatsLote = [];
+  if (novosDados.material || novosDados.objeto) {
+    descMatsLote.push(novosDados.material || novosDados.objeto);
+  } else {
+    try {
+      var idsSqlLote = itensIds.slice(0, 15).map(function(id) { return "'" + String(id).replace(/'/g, "\\'") + "'"; }).join(",");
+      var resMLote = executarConsultaBigQuerySegura("SELECT DISTINCT OBJETO FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` WHERE ITEM IN (" + idsSqlLote + ")");
+      if (resMLote.rows) {
+        resMLote.rows.forEach(function(r) { if (r.f && r.f[0] && r.f[0].v) descMatsLote.push(r.f[0].v); });
+      }
+    } catch(eM) {}
+  }
+  var descMatTxtLote = descMatsLote.length > 0 ? " (" + descMatsLote.join(", ") + ")" : "";
+  var itensTxtLote = itensIds.length <= 10 ? itensIds.join(", ") : (itensIds.slice(0, 10).join(", ") + " e mais " + (itensIds.length - 10) + " itens");
+  registrarLogAuditoria("EDICAO_EM_MASSA", "Atualizou " + itensIds.length + " item(ns) em lote" + descMatTxtLote + ". Código(s) ITEM: [" + itensTxtLote + "]", userLogadoLote);
 
   return "Atualização aplicada com sucesso em " + itensIds.length + " item(ns)!";
 
@@ -1245,13 +1281,22 @@ function excluirLotePorIds(itensIds) {
 
 
 
+    var descMatsExc = [];
+    try {
+      var idsSqlExc = itensIds.slice(0, 15).map(function(id) { return "'" + limpar(id) + "'"; }).join(",");
+      var resMExc = executarConsultaBigQuerySegura("SELECT DISTINCT OBJETO FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` WHERE ITEM IN (" + idsSqlExc + ")");
+      if (resMExc.rows) {
+        resMExc.rows.forEach(function(r) { if (r.f && r.f[0] && r.f[0].v) descMatsExc.push(r.f[0].v); });
+      }
+    } catch(eMExc) {}
+
     var sql = "DELETE FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` WHERE ITEM IN (" + listaItensSql + ")";
 
     executarConsultaBigQuerySegura(sql, true);
 
-    
-
-    registrarLogAuditoria("EXCLUSAO_EM_MASSA", "Removeu " + itensIds.length + " itens.");
+    var descMatTxtExc = descMatsExc.length > 0 ? " (" + descMatsExc.join(", ") + ")" : "";
+    var itensTxtExc = itensIds.length <= 10 ? itensIds.join(", ") : (itensIds.slice(0, 10).join(", ") + " e mais " + (itensIds.length - 10) + " itens");
+    registrarLogAuditoria("EXCLUSAO_EM_MASSA", "Removeu " + itensIds.length + " item(ns) em lote" + descMatTxtExc + ". Código(s) ITEM: [" + itensTxtExc + "]", usuario);
 
     return "Total de " + itensIds.length + " item(ns) excluído(s) com sucesso!";
 
@@ -2052,7 +2097,9 @@ function transferirMaterialEntreLocais(dadosTransferencia) {
 
 
 
-    registrarLogAuditoria("MOVIMENTACAO_LOCAL_ARVORE", "Moveu " + idsParaAtualizar.length + " un(s) de " + material + " para o " + nivelDestino + ": " + nomeDestinoTexto);
+    var itensLimposMv = idsParaAtualizar.map(function(id) { return String(id).replace(/'/g, ''); });
+    var itensTxtMv = itensLimposMv.length <= 10 ? itensLimposMv.join(", ") : (itensLimposMv.slice(0, 10).join(", ") + " e mais " + (itensLimposMv.length - 10) + " itens");
+    registrarLogAuditoria("MOVIMENTACAO_LOCAL_ARVORE", "Moveu " + idsParaAtualizar.length + " un(s) de " + material + " para o " + nivelDestino + ": " + nomeDestinoTexto + ". Código(s) ITEM: [" + itensTxtMv + "]");
 
     return "Materiais movidos com sucesso para " + nomeDestinoTexto + "!";
 
@@ -9777,7 +9824,12 @@ function registrarTransferenciaEntreOmes(dados) {
       referenciaCompleta
     ]);
 
-    registrarLogAuditoria("TRANSFERENCIA_OME", "OME " + omeOrigem + " despachou " + itensIds.length + " itens para " + omeDestino + " por " + remetenteValido);
+    var itensTxtTransf = itensIds.length <= 10 ? itensIds.join(", ") : (itensIds.slice(0, 10).join(", ") + " e mais " + (itensIds.length - 10) + " itens");
+    registrarLogAuditoria(
+      "TRANSFERENCIA_OME", 
+      "OME " + omeOrigem + " despachou " + itensIds.length + " un(s) do material '" + descMaterial + "' para " + omeDestino + " por " + remetenteValido + ". Código(s) ITEM: [" + itensTxtTransf + "]",
+      remetenteValido
+    );
 
     // Registra histórico de movimentação para cada item transferido
     try {
@@ -9889,7 +9941,12 @@ function registrarRemessaMovimentacaoInterna(dados) {
       referenciaCompleta
     ]);
 
-    registrarLogAuditoria("REM_INTERNA_GERADA", "OME " + omeUser + " iniciou remanejamento interno de " + itensIds.length + " itens para " + subunidadeDestino + " por " + remetenteValido);
+    var itensTxtRemInt = itensIds.length <= 10 ? itensIds.join(", ") : (itensIds.slice(0, 10).join(", ") + " e mais " + (itensIds.length - 10) + " itens");
+    registrarLogAuditoria(
+      "REM_INTERNA_GERADA", 
+      "OME " + omeUser + " iniciou remanejamento interno de " + itensIds.length + " un(s) do material '" + descMaterial + "' para " + subunidadeDestino + " por " + remetenteValido + ". Código(s) ITEM: [" + itensTxtRemInt + "]",
+      remetenteValido
+    );
     return { sucesso: true, mensagem: "Remessa de movimentação interna gerada com sucesso! Aguardando aceite do setor de destino." };
   } catch (err) {
     throw new Error("Erro ao registrar movimentação interna: " + err.message);
@@ -10311,9 +10368,12 @@ function confirmarRecebimentoRemessa(idRemessa, cpfRecebedor, nomeRecebedor, dad
       console.warn("Aviso ao sincronizar confirmação de remessa com #DIST: " + eDistConf.message);
     }
 
+    var itensRec = eventosRecebimento.map(function(ev) { return ev.item; });
+    var itensTxtRec = itensRec.length <= 10 ? itensRec.join(", ") : (itensRec.slice(0, 10).join(", ") + " e mais " + (itensRec.length - 10) + " itens");
     registrarLogAuditoria(
       "REMESSA_CONFIRMADA", 
-      "Remessa " + idRemessa + " confirmada com sucesso por " + nomeRecebedor + " (ECD: " + qEcd + ", SCD: " + qScd + ", EXTRAVIADO: " + qExtraviado + ")"
+      "Remessa " + idRemessa + " (" + remessaObj.material + ") confirmada por " + nomeRecebedor + " (ECD: " + qEcd + ", SCD: " + qScd + ", EXTRAVIADO: " + qExtraviado + "). Código(s) ITEM: [" + (itensTxtRec || "Conforme carga") + "]",
+      nomeRecebedor
     );
 
     var msgRetorno = qExtraviado > 0
@@ -10692,9 +10752,23 @@ function transferirItensDiretoPorIds(dados) {
     }
 
     try {
+      var descMatsDir = [];
+      if (dados.material) {
+        descMatsDir.push(dados.material);
+      } else {
+        try {
+          var idsSqlQDir = itensIds.slice(0, 10).map(function(id) { return "'" + limparSQL(id) + "'"; }).join(",");
+          var resMDir = executarConsultaBigQuerySegura("SELECT DISTINCT OBJETO FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` WHERE ITEM IN (" + idsSqlQDir + ")");
+          if (resMDir.rows) {
+            resMDir.rows.forEach(function(r) { if (r.f && r.f[0] && r.f[0].v) descMatsDir.push(r.f[0].v); });
+          }
+        } catch(eMDir) {}
+      }
+      var descMatTxtDir = descMatsDir.length > 0 ? " do material '" + descMatsDir.join(", ") + "'" : "";
+      var itensTxtDir = itensIds.length <= 10 ? itensIds.join(", ") : (itensIds.slice(0, 10).join(", ") + " e mais " + (itensIds.length - 10) + " itens");
       registrarLogAuditoria(
         "MOVIMENTACAO_LOCAL_ARVORE",
-        "Moveu " + itensIds.length + " item(ns) para " + (novoLocalFormatado || caminhoTexto),
+        "Moveu " + itensIds.length + " item(ns)" + descMatTxtDir + " para " + (novoLocalFormatado || caminhoTexto) + ". Código(s) ITEM: [" + itensTxtDir + "]",
         userLogadoDir
       );
     } catch(eLogMv) {}
@@ -11283,7 +11357,19 @@ function registrarAcautelamentoItens(dados) {
       console.warn("Aviso ao gravar histórico de acautelamento: " + eHCaut.message);
     }
 
-    registrarLogAuditoria("NOVO_ACAUTELAMENTO", "Itens acautelados para " + (postoMilitar ? postoMilitar + " " : "") + nomeMilitar + " (CPF/ID: " + identificacaoMilitarRegistro + ")" + (dataPrevista ? " [Prev. Devolução: " + dataPrevista + "]" : "") + (formaConfirmacao === "SEI" ? " via Template SEI: " + docSei : " via PIN"));
+    var descMatsCaut = [];
+    for (var kId in itensInfoMap) {
+      if (itensInfoMap[kId] && itensInfoMap[kId].objeto && descMatsCaut.indexOf(itensInfoMap[kId].objeto) === -1) {
+        descMatsCaut.push(itensInfoMap[kId].objeto);
+      }
+    }
+    var descMatTxtCaut = descMatsCaut.length > 0 ? " (" + descMatsCaut.join(", ") + ")" : "";
+    var itensTxtCaut = itensIds.length <= 10 ? itensIds.join(", ") : (itensIds.slice(0, 10).join(", ") + " e mais " + (itensIds.length - 10) + " itens");
+    registrarLogAuditoria(
+      "NOVO_ACAUTELAMENTO", 
+      "Acautelou " + itensIds.length + " item(ns)" + descMatTxtCaut + " para " + (postoMilitar ? postoMilitar + " " : "") + nomeMilitar + " (CPF/ID: " + identificacaoMilitarRegistro + "). Código(s) ITEM: [" + itensTxtCaut + "]" + (dataPrevista ? " [Prev. Devolução: " + dataPrevista + "]" : "") + (formaConfirmacao === "SEI" ? " via Template SEI: " + docSei : " via PIN"),
+      responsavelValido
+    );
     return { sucesso: true, mensagem: "Acautelamento concluído com sucesso para " + (postoMilitar ? postoMilitar + " " : "") + nomeMilitar + "!" };
   } catch (err) {
     throw new Error("Erro ao registrar acautelamento: " + err.message);
@@ -11598,7 +11684,21 @@ function processarBaixaAcautelamento(dados) {
       console.warn("Aviso ao gravar histórico de descautela: " + eHDesc.message);
     }
 
-    registrarLogAuditoria("BAIXA_ACAUTELAMENTO", "Baixa de cautela de " + itensIds.length + " item(ns) realizada por " + operadorValido + " com status " + novoStatus);
+    var descMatsBaixa = [];
+    try {
+      var idsSqlBaixa = itensIds.slice(0, 10).map(function(id) { return "'" + limparSQL(id) + "'"; }).join(",");
+      var resMBaixa = executarConsultaBigQuerySegura("SELECT DISTINCT OBJETO FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` WHERE ITEM IN (" + idsSqlBaixa + ")");
+      if (resMBaixa.rows) {
+        resMBaixa.rows.forEach(function(r) { if (r.f && r.f[0] && r.f[0].v) descMatsBaixa.push(r.f[0].v); });
+      }
+    } catch(eMBaixa) {}
+    var descMatTxtBaixa = descMatsBaixa.length > 0 ? " (" + descMatsBaixa.join(", ") + ")" : "";
+    var itensTxtBaixa = itensIds.length <= 10 ? itensIds.join(", ") : (itensIds.slice(0, 10).join(", ") + " e mais " + (itensIds.length - 10) + " itens");
+    registrarLogAuditoria(
+      "BAIXA_ACAUTELAMENTO", 
+      "Baixa de cautela de " + itensIds.length + " item(ns)" + descMatTxtBaixa + " realizada por " + operadorValido + " com status " + novoStatus + ". Código(s) ITEM: [" + itensTxtBaixa + "]",
+      operadorValido
+    );
     return { sucesso: true, mensagem: "Devolução registrada com sucesso! Os materiais retornaram ao estoque com status " + novoStatus + "." };
   } catch (err) {
     throw new Error("Erro ao registrar baixa de acautelamento: " + err.message);
@@ -12307,7 +12407,17 @@ function enviarChecklistInconsistencias(dados) {
     ? "Inspeção realizada com sucesso em " + dataFormatadaBr + " (Status: Vistoria Concluída sem alterações)." 
     : "Inspeção realizada com Registro de Avarias (" + inconsistencias.length + " itens) enviado para validação do Chefe de Setor!";
 
-  registrarLogAuditoria("CHECKLIST_ENVIO", "Militar CPF " + cpfMilitar + " realizou lançamento de " + tipoLancamento + " para a OME " + omeClean + " / Subunidade " + subunidadeClean);
+  var itensChecklistTxt = "";
+  if (inconsistencias.length > 0) {
+    var paresInc = inconsistencias.slice(0, 10).map(function(inc) {
+      return (inc.itemId ? inc.itemId + " " : "") + (inc.objeto ? "(" + inc.objeto + ")" : "");
+    }).filter(Boolean);
+    itensChecklistTxt = ". Avarias apontadas: [" + paresInc.join("; ") + (inconsistencias.length > 10 ? "; e mais " + (inconsistencias.length - 10) + " itens" : "") + "]";
+  }
+  registrarLogAuditoria(
+    "CHECKLIST_ENVIO", 
+    "Militar CPF " + cpfMilitar + " realizou lançamento de " + tipoLancamento + " para a OME " + omeClean + " / Subunidade " + subunidadeClean + itensChecklistTxt
+  );
   return { sucesso: true, mensagem: msgRetorno };
 }
 
@@ -12380,7 +12490,20 @@ function validarTicketChecklistChefe(dados) {
 
     executarConsultaBigQuerySegura(sqlUpdateChecklist, true);
 
-    registrarLogAuditoria("CHECKLIST_VALIDADO_CHEFE", "Chefe " + chefeValido + " validou baixa SCD para " + itensParaBaixa.length + " item(ns) com SEI " + templateSei);
+    var descMatsValCheck = [];
+    try {
+      var resMVal = executarConsultaBigQuerySegura("SELECT DISTINCT OBJETO FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` WHERE ITEM IN (" + listaSql + ")");
+      if (resMVal.rows) {
+        resMVal.rows.forEach(function(r) { if (r.f && r.f[0] && r.f[0].v) descMatsValCheck.push(r.f[0].v); });
+      }
+    } catch(eMVal) {}
+    var descMatTxtVal = descMatsValCheck.length > 0 ? " (" + descMatsValCheck.join(", ") + ")" : "";
+    var itensTxtVal = itensParaBaixa.length <= 10 ? itensParaBaixa.join(", ") : (itensParaBaixa.slice(0, 10).join(", ") + " e mais " + (itensParaBaixa.length - 10) + " itens");
+    registrarLogAuditoria(
+      "CHECKLIST_VALIDADO_CHEFE", 
+      "Chefe " + chefeValido + " validou baixa SCD para " + itensParaBaixa.length + " item(ns)" + descMatTxtVal + " com SEI " + templateSei + ". Código(s) ITEM: [" + itensTxtVal + "]",
+      chefeValido
+    );
     return { sucesso: true, mensagem: "Validação concluída! Os itens selecionados foram alterados para SCD." };
   } catch (err) {
     throw new Error("Erro ao validar checklist: " + err.message);
@@ -12474,7 +12597,23 @@ function invalidarTicketChecklistChefe(dados) {
     executarConsultaBigQuerySegura(sqlUpdateChecklist, true);
 
     var qtdItensAfetados = itensParaInvalidar.length || idsTickets.length;
-    registrarLogAuditoria("CHECKLIST_APONTAMENTO_INVALIDADO", "Chefe " + chefeValido + " (CPF " + cpfChefe + ") invalidou o apontamento de avaria de " + qtdItensAfetados + " item(ns). Motivo: " + justificativa);
+    var descMatsInv = [];
+    if (itensParaInvalidar.length > 0) {
+      try {
+        var lSqlInv = itensParaInvalidar.slice(0, 10).map(function(id) { return "'" + limparSQL(id) + "'"; }).join(",");
+        var resMInv = executarConsultaBigQuerySegura("SELECT DISTINCT OBJETO FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` WHERE ITEM IN (" + lSqlInv + ")");
+        if (resMInv.rows) {
+          resMInv.rows.forEach(function(r) { if (r.f && r.f[0] && r.f[0].v) descMatsInv.push(r.f[0].v); });
+        }
+      } catch(eMInv) {}
+    }
+    var descMatTxtInv = descMatsInv.length > 0 ? " (" + descMatsInv.join(", ") + ")" : "";
+    var itensTxtInv = itensParaInvalidar.length > 0 ? (". Código(s) ITEM: [" + (itensParaInvalidar.length <= 10 ? itensParaInvalidar.join(", ") : (itensParaInvalidar.slice(0, 10).join(", ") + " e mais " + (itensParaInvalidar.length - 10) + " itens")) + "]") : "";
+    registrarLogAuditoria(
+      "CHECKLIST_APONTAMENTO_INVALIDADO", 
+      "Chefe " + chefeValido + " (CPF " + cpfChefe + ") invalidou o apontamento de avaria de " + qtdItensAfetados + " item(ns)" + descMatTxtInv + itensTxtInv + ". Motivo: " + justificativa,
+      chefeValido
+    );
 
     return { 
       sucesso: true, 
