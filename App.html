@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <base target="_top">
+  <base target="_self">
   <title>Gestão de Inventário - CBMPE</title>
   
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -12557,7 +12557,7 @@ window.carregarLocaisArvoreGeral = function() {
               var target = (url || '').split('?')[0] + '?auth=false&logout=' + Date.now();
               var a = document.createElement('a');
               a.href = target;
-              a.target = '_top';
+              a.target = '_self';
               document.body.appendChild(a);
               a.click();
             })
@@ -12577,7 +12577,7 @@ window.carregarLocaisArvoreGeral = function() {
       html: `
         <p class="text-muted mb-4">Você será desconectado da sessão com segurança.</p>
         <div class="d-flex justify-content-center gap-2">
-          <a href="${urlLogout}" target="_top" class="btn btn-danger fw-bold px-4 py-2 text-decoration-none shadow-sm" onclick="this.innerHTML='<i class=\\'fa-solid fa-spinner fa-spin me-2\\'></i>Saindo...'; this.style.pointerEvents='none';">
+          <a href="${urlLogout}" target="_self" class="btn btn-danger fw-bold px-4 py-2 text-decoration-none shadow-sm" onclick="this.innerHTML='<i class=\\'fa-solid fa-spinner fa-spin me-2\\'></i>Saindo...'; this.style.pointerEvents='none';">
             <i class="fa-solid fa-right-from-bracket me-2"></i> Sim, Sair
           </a>
           <button type="button" class="btn btn-secondary fw-bold px-4 py-2" onclick="Swal.close()">

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <base target="_top">
+  <base target="_self">
   <title>Login - Gestão de Inventário</title>
   
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -74,7 +74,7 @@
   <? } ?>
 
   <div class="d-grid gap-2 mt-2">
-    <a id="btnEntrarGoogle" href="<?= (typeof appUrl !== 'undefined' && appUrl) ? appUrl.split('?')[0] + '?auth=true' : '#' ?>" target="_top" class="btn btn-danger-custom py-2.5 fw-bold shadow-sm text-decoration-none" onclick="return executarLoginGoogle(event)">
+    <a id="btnEntrarGoogle" href="<?= (typeof appUrl !== 'undefined' && appUrl) ? appUrl.split('?')[0] + '?auth=true' : '#' ?>" target="_self" class="btn btn-danger-custom py-2.5 fw-bold shadow-sm text-decoration-none" onclick="return executarLoginGoogle(event)">
       <i class="fa-brands fa-google me-2"></i> Entrar com Conta Google
     </a>
   </div>
@@ -113,17 +113,15 @@
     if (href && href !== '#') {
       btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-2"></i> Entrando...';
       btn.style.pointerEvents = 'none';
-      return true;
+      window.location.href = href;
+      if (event) event.preventDefault();
+      return false;
     }
     event.preventDefault();
     Swal.fire({ title: 'Entrando...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
     google.script.run
       .withSuccessHandler(url => {
-        var a = document.createElement('a');
-        a.href = url.split('?')[0] + '?auth=true';
-        a.target = '_top';
-        document.body.appendChild(a);
-        a.click();
+        window.location.href = url.split('?')[0] + '?auth=true';
       })
       .withFailureHandler(err => {
         Swal.fire('Erro', "Erro ao autenticar: " + err.message, 'error');
