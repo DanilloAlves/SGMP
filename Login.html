@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <base target="_top">
+  <title>Login - Gestão de Inventário</title>
+  
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.32/dist/sweetalert2.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <style>
+    body {
+      background-color: #f8fafc;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      color: #1e293b;
+      margin: 0;
+    }
+    .login-card {
+      width: 100%;
+      max-width: 440px;
+      padding: 35px;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+    }
+    .login-icon-box {
+      width: 65px;
+      height: 65px;
+      background-color: #fef2f2;
+      color: #991b1b;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 20px auto;
+      font-size: 1.75rem;
+    }
+    .btn-danger-custom {
+      background-color: #991b1b !important;
+      border-color: #991b1b !important;
+      color: #ffffff !important;
+      transition: background-color 0.2s;
+    }
+    .btn-danger-custom:hover {
+      background-color: #7f1d1d !important;
+      border-color: #7f1d1d !important;
+    }
+    .text-primary-custom {
+      color: #991b1b !important;
+    }
+  </style>
+</head>
+<body>
+
+<div class="login-card text-center">
+  <div class="login-icon-box">
+    <i class="fa-solid fa-fire"></i>
+  </div>
+  
+  <h3 class="fw-bold text-primary-custom mb-1">SGMP — CBMPE</h3>
+  <p class="text-muted small mb-4">Sistema de Gestão de Materiais e Patrimônio</p>
+
+  <? if (typeof erro !== 'undefined' && erro) { ?>
+    <div class="alert alert-danger py-2 fs-6 small shadow-sm mb-4" role="alert">
+      <i class="fa-solid fa-triangle-exclamation me-1"></i> <?= erro ?>
+    </div>
+  <? } ?>
+
+  <div class="d-grid gap-2 mt-2">
+    <a id="btnEntrarGoogle" href="<?= (typeof appUrl !== 'undefined' && appUrl) ? appUrl.split('?')[0] + '?auth=true' : '#' ?>" target="_top" class="btn btn-danger-custom py-2.5 fw-bold shadow-sm text-decoration-none" onclick="return executarLoginGoogle(event)">
+      <i class="fa-brands fa-google me-2"></i> Entrar com Conta Google
+    </a>
+  </div>
+
+  <div class="mt-3">
+    <button onclick="abrirModalSolicitarAcesso()" class="btn btn-outline-secondary btn-sm w-100 fw-bold py-2">
+      <i class="fa-solid fa-user-plus me-1"></i> Não tem acesso? Solicitar Acesso / Criar PIN
+    </button>
+  </div>
+  
+  <div class="mt-4 pt-3 border-top">
+    <p class="text-muted small mb-0"><i class="fa-solid fa-shield-halved me-1 text-secondary"></i> Acesso restrito a militares autorizados na base de dados.</p>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.32/dist/sweetalert2.all.min.js"></script>
+
+<script>
+  let APP_URL = "<?= (typeof appUrl !== 'undefined' && appUrl) ? appUrl : '' ?>";
+  if (!APP_URL) {
+    try {
+      google.script.run.withSuccessHandler(function(url) {
+        if (url) {
+          APP_URL = url;
+          var btn = document.getElementById('btnEntrarGoogle');
+          if (btn) btn.href = url.split('?')[0] + '?auth=true';
+        }
+      }).getAppUrl();
+    } catch (e) {}
+  }
+
+  function executarLoginGoogle(event) {
+    var btn = document.getElementById('btnEntrarGoogle');
+    var href = btn ? btn.getAttribute('href') : '';
+    if (href && href !== '#') {
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-2"></i> Entrando...';
+      btn.style.pointerEvents = 'none';
+      return true;
+    }
+    event.preventDefault();
+    Swal.fire({ title: 'Entrando...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    google.script.run
+      .withSuccessHandler(url => {
+        var a = document.createElement('a');
+        a.href = url.split('?')[0] + '?auth=true';
+        a.target = '_top';
+        document.body.appendChild(a);
+        a.click();
+      })
+      .withFailureHandler(err => {
+        Swal.fire('Erro', "Erro ao autenticar: " + err.message, 'error');
+      })
+      .getAppUrl();
+    return false;
+  }
+
+  function abrirModalSolicitarAcesso() {
+    let optionsOmes = '<option value="" disabled selected>Selecione a OME...</option>';
+    const listaOficialOmes = [
+      "1º GB Vitoria Stº Antão", "2º GB Caruaru", "3º GB Serra Talhada", "4º GB Petrolina", 
+      "5º GB Salgueiro", "6º GB Garanhuns", "7º GB Carpina", "9º GB Arcoverde", 
+      "ABMG", "AECI", "AjG", "CAT/AG", "CAT/RMR", "CAT/SE", "CAT/ZM", 
+      "CCS", "CEAO", "CEFD", "CI", "CINT", "CMAN", "CPO", "CPPA", "CPP", 
+      "DEIP", "DF", "DGO", "DIESP", "DIM", "DINTER I", "DINTER II", 
+      "DJD", "DLOG", "DGP", "DPLAG", "DTIC", "DVP", "GBAPH", "GBI", 
+      "GBMAR", "GBS", "GCG", "GSG"
+    ];
+    optionsOmes += listaOficialOmes.map(u => `<option value="${u}">${u}</option>`).join('');
+
+    Swal.fire({
+      title: '<i class="fa-solid fa-user-plus text-primary me-2"></i> Solicitação de Acesso',
+      html: `
+        <div class="text-start p-2 small">
+          <p class="text-muted mb-3">Preencha seus dados institucionais e cadastre um <strong>PIN de transação</strong> (4 a 6 números) que será exigido em assinaturas críticas do sistema.</p>
+          
+          <div class="mb-2">
+            <label class="form-label fw-bold">Nome Completo / Posto/Grad:</label>
+            <input type="text" id="cad_nome" class="form-control form-control-sm text-uppercase" placeholder="EX: CB BM SILVA...">
+          </div>
+          <div class="mb-2">
+            <label class="form-label fw-bold">E-mail Institucional / Google:</label>
+            <input type="email" id="cad_email" class="form-control form-control-sm" placeholder="seu.email@cbm.pe.gov.br">
+          </div>
+          <div class="row g-2 mb-2">
+            <div class="col-md-6">
+              <label class="form-label fw-bold">CPF:</label>
+              <input type="text" id="cad_cpf" class="form-control form-control-sm" placeholder="Somente números">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-bold">PIN de Assinatura (4-6 dígitos):</label>
+              <input type="password" id="cad_pin" class="form-control form-control-sm" maxlength="6" placeholder="Ex: 1234">
+            </div>
+          </div>
+          <div class="row g-2 mb-2">
+            <div class="col-md-6">
+              <label class="form-label fw-bold">OME:</label>
+              <select id="cad_ome" class="form-select form-select-sm">${optionsOmes}</select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-bold">Subunidade / Setor:</label>
+              <input type="text" id="cad_subunidade" class="form-control form-control-sm text-uppercase" placeholder="Ex: SEDE, ABT...">
+            </div>
+          </div>
+        </div>
+      `,
+      width: '520px',
+      showCancelButton: true,
+      confirmButtonText: 'Enviar Solicitação',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#991b1b',
+      preConfirm: () => {
+        const nome = document.getElementById('cad_nome').value.trim();
+        const email = document.getElementById('cad_email').value.trim();
+        let cpf = document.getElementById('cad_cpf').value.trim().replace(/\D/g, '');
+        const pin = document.getElementById('cad_pin').value.trim();
+        const ome = document.getElementById('cad_ome').value;
+        const subunidade = document.getElementById('cad_subunidade').value.trim() || 'GERAL';
+
+        if (!nome || !email || !cpf || !pin || !ome) {
+          Swal.showValidationMessage('Preencha todos os campos obrigatórios.');
+          return false;
+        }
+        if (cpf.length === 10) cpf = '0' + cpf;
+        if (cpf.length !== 11) {
+          Swal.showValidationMessage('Informe um CPF válido com 11 dígitos.');
+          return false;
+        }
+        if (pin.length < 4) {
+          Swal.showValidationMessage('O PIN deve conter pelo menos 4 dígitos.');
+          return false;
+        }
+
+        return { nome, email, cpf, pin, ome, subunidade };
+      }
+    }).then(res => {
+      if (res.isConfirmed && res.value) {
+        Swal.fire({ title: 'Enviando...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        google.script.run
+          .withSuccessHandler(r => Swal.fire('Solicitação Enviada', r.mensagem, 'success'))
+          .withFailureHandler(err => Swal.fire('Erro', err.message, 'error'))
+          .solicitarAcessoUsuario(res.value);
+      }
+    });
+  }
+</script>
+</body>
+</html>

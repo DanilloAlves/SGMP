@@ -1,0 +1,1167 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title><?= (dados && dados.setor ? dados.setor + ' - ' : '') ?>Checklist Público - CBMPE</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  
+  <!-- Bootstrap 5 CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- FontAwesome 6 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <style>
+    :root {
+      --cbmpe-red: #991b1b;
+      --cbmpe-dark-red: #7f1d1d;
+      --cbmpe-bg: #f8fafc;
+      --cbmpe-border: #e2e8f0;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+
+    body {
+      background-color: var(--cbmpe-bg);
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      color: #1e293b;
+      padding-bottom: 70px;
+    }
+
+    .navbar-cbmpe {
+      background: linear-gradient(135deg, var(--cbmpe-red) 0%, var(--cbmpe-dark-red) 100%);
+      color: white;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+    }
+
+    .header-logo {
+      width: 48px;
+      height: 48px;
+      object-fit: contain;
+    }
+
+    .badge-publico {
+      background: #fef3c7;
+      color: #92400e;
+      border: 1px solid #fde68a;
+      font-size: 0.78rem;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 20px;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .card-resumo-setor {
+      background: #ffffff;
+      border: 1px solid var(--cbmpe-border);
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    }
+
+    .kpi-box {
+      border-radius: 8px;
+      padding: 10px;
+      text-align: center;
+      background: #ffffff;
+      border: 1px solid var(--cbmpe-border);
+    }
+    .kpi-box .num {
+      font-size: 1.3rem;
+      font-weight: 800;
+      line-height: 1.2;
+    }
+    .kpi-box .lbl {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      font-weight: 700;
+      color: #64748b;
+    }
+
+    /* Tabela Desktop */
+    .tabela-desktop-container {
+      display: block;
+      background: #fff;
+      border: 1px solid var(--cbmpe-border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    /* Cards Mobile */
+    .cards-mobile-container {
+      display: none;
+    }
+
+    @media (max-width: 768px) {
+      .tabela-desktop-container { display: none !important; }
+      .cards-mobile-container { display: block !important; }
+      .kpi-box .num { font-size: 1.1rem; }
+    }
+
+    .card-item-mobile {
+      background: #ffffff;
+      border: 1px solid var(--cbmpe-border);
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 10px;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
+    }
+
+    .status-badge-ecd { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; font-weight: bold; }
+    .status-badge-cautela { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; font-weight: bold; }
+    .status-badge-scd { background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; font-weight: bold; }
+    .status-badge-ext { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; font-weight: bold; }
+ 
+    .tr-grupo-setor td {
+      background: #f1f5f9 !important;
+      border-top: 2px solid #cbd5e1 !important;
+      border-bottom: 1px solid #cbd5e1 !important;
+    }
+    .tr-grupo-local td {
+      background: #f8fafc !important;
+      border-top: 1px solid #e2e8f0 !important;
+      border-bottom: 1px solid #e2e8f0 !important;
+    }
+    .banner-setor-mobile {
+      background: #fee2e2;
+      border: 1px solid #fecaca;
+      font-size: 1.02rem;
+      font-weight: 700;
+    }
+    .banner-local-mobile {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      font-size: 0.92rem;
+      font-weight: 700;
+    }
+
+    /* Estilos para Agrupamento de Materiais */
+    .tr-grupo-objeto-publico {
+      cursor: pointer;
+      user-select: none;
+      transition: background-color 0.15s ease;
+    }
+    .tr-grupo-objeto-publico:hover {
+      background-color: #f1f5f9 !important;
+    }
+    .card-grupo-objeto-publico-mob {
+      background-color: #ffffff;
+      border: 1px solid var(--cbmpe-border);
+      border-radius: 8px;
+    }
+    .header-grupo-pub-mob {
+      cursor: pointer;
+      user-select: none;
+      transition: background-color 0.15s ease;
+    }
+    .header-grupo-pub-mob:active {
+      background-color: #f1f5f9 !important;
+    }
+    @media print {
+      .no-print { display: none !important; }
+      .tr-grupo-objeto-publico { display: none !important; }
+      .linha-item-publico { display: table-row !important; }
+      .corpo-grupo-pub-mob { display: block !important; }
+    }
+
+    /* Barra Fixa Inferior */
+    .barra-fixa-rodape {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: #ffffff;
+      border-top: 1px solid var(--cbmpe-border);
+      padding: 10px 16px;
+      z-index: 1050;
+      box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.08);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+    }
+
+    @media print {
+      .no-print { display: none !important; }
+      body { padding: 0 !important; background: #fff !important; }
+      .barra-fixa-rodape { display: none !important; }
+      .tabela-desktop-container { display: block !important; border: 1px solid #ccc; }
+      .cards-mobile-container { display: none !important; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- CABEÇALHO SUPERIOR INSTITUCIONAL -->
+  <header class="navbar-cbmpe py-2 px-3 no-print">
+    <div class="container-fluid d-flex align-items-center justify-content-between">
+      <div class="d-flex align-items-center gap-2">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/7/7c/NOVO_BRAS%C3%83O_2024_CBMPE.png/500px-NOVO_BRAS%C3%83O_2024_CBMPE.png" 
+             alt="CBMPE" class="header-logo" onerror="this.src='https://agendamento.bombeiros.pe.gov.br/assets/logo_cbmpe.png'">
+        <div>
+          <div class="fw-bold fs-6 text-uppercase" style="letter-spacing: 0.5px;">CBMPE &bull; SGMP</div>
+          <div class="small opacity-75" style="font-size: 0.75rem;">Sistema de Gestão de Materiais e Patrimônio</div>
+        </div>
+      </div>
+      <div>
+        <span class="badge-publico">
+          <i class="fa-solid fa-eye"></i> Somente Leitura
+        </span>
+      </div>
+    </div>
+  </header>
+
+  <!-- CONTEÚDO PRINCIPAL -->
+  <main class="container my-3" style="max-width: 960px;">
+
+    <!-- ALERTA DE MODO LEITURA PÚBLICA -->
+    <div class="alert alert-warning border-warning d-flex align-items-center gap-3 p-3 mb-3 shadow-xs rounded-3 no-print">
+      <div class="rounded-circle bg-warning bg-opacity-25 p-2 text-warning d-flex align-items-center justify-content-center" style="width: 40px; height: 40px; flex-shrink: 0;">
+        <i class="fa-solid fa-lock fs-5 text-dark"></i>
+      </div>
+      <div class="small flex-grow-1">
+        <strong>Visualização Pública em Modo Leitura:</strong> Esta página permite a qualquer pessoa consultar a relação oficial de materiais desta unidade/viatura. 
+        A marcação de itens, apontamento de avarias e assinatura física são restritas ao efetivo autenticado.
+      </div>
+      <div>
+        <a href="<?= appUrl ?>?auth=true" class="btn btn-sm btn-danger fw-bold text-nowrap shadow-sm">
+          <i class="fa-solid fa-right-to-bracket me-1"></i> Entrar
+        </a>
+      </div>
+    </div>
+
+    <!-- CARD DA IDENTIFICAÇÃO DO CHECKLIST -->
+    <div class="card-resumo-setor p-3 mb-3">
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2 pb-2 border-bottom">
+        <div class="d-flex align-items-center gap-2">
+          <div class="rounded-circle bg-danger bg-opacity-10 text-danger p-2 d-flex align-items-center justify-content-center" style="width: 42px; height: 42px;">
+            <i class="fa-solid <?= (dados && dados.setor && (dados.setor.includes('ABT') || dados.setor.includes('ABS') || dados.setor.includes('AR') || dados.setor.includes('ASE') || dados.setor.includes('AT'))) ? 'fa-truck-field' : 'fa-warehouse' ?> fs-5"></i>
+          </div>
+          <div>
+            <h5 class="fw-bold text-dark mb-0"><?= (dados && dados.setor) ? dados.setor : 'Checklist de Materiais' ?></h5>
+            <div class="text-muted small">
+              <span><?= (dados && dados.subunidade) ? dados.subunidade : 'Subunidade' ?></span>
+              <span class="mx-1">&bull;</span>
+              <span><?= (dados && dados.ome) ? dados.ome : 'Unidade CBMPE' ?></span>
+            </div>
+          </div>
+        </div>
+        <div class="text-end d-flex align-items-center gap-2">
+          <button type="button" class="btn btn-sm btn-outline-danger fw-bold shadow-sm d-none d-sm-inline-flex align-items-center" onclick="imprimirChecklistPublicoPdf()">
+            <i class="fa-solid fa-file-pdf me-1"></i> Imprimir (PDF)
+          </button>
+          <span class="badge bg-secondary px-2.5 py-1.5 fw-bold" style="font-size: 0.85rem;" id="badgeTotalGeralTopo">
+            <?= (dados && dados.totalItens) ? dados.totalItens : 0 ?> ite(ns)
+          </span>
+        </div>
+      </div>
+
+      <!-- CARDS DE KPIS -->
+      <div class="row g-2 mb-2">
+        <div class="col-6 col-sm-3">
+          <div class="kpi-box">
+            <div class="num text-primary" id="kpiTotal"><?= (dados && dados.totalItens) ? dados.totalItens : 0 ?></div>
+            <div class="lbl">Total Carga</div>
+          </div>
+        </div>
+        <div class="col-6 col-sm-3">
+          <div class="kpi-box">
+            <div class="num text-success" id="kpiEcd"><?= (dados && dados.contEcd) ? dados.contEcd : 0 ?></div>
+            <div class="lbl">Disponíveis (ECD)</div>
+          </div>
+        </div>
+        <div class="col-6 col-sm-3">
+          <div class="kpi-box">
+            <div class="num text-warning text-dark" id="kpiCautela"><?= (dados && dados.contAcautelado) ? dados.contAcautelado : 0 ?></div>
+            <div class="lbl">Acautelados</div>
+          </div>
+        </div>
+        <div class="col-6 col-sm-3">
+          <div class="kpi-box">
+            <div class="num text-danger" id="kpiScd"><?= (dados && dados.contScd) ? dados.contScd : 0 ?></div>
+            <div class="lbl">Inservíveis (SCD)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- BARRA DE BUSCA E FILTROS RÁPIDOS -->
+    <div class="card p-2 bg-white border rounded shadow-xs mb-3 no-print">
+      <div class="input-group input-group-sm mb-2">
+        <span class="input-group-text bg-white border-end-0"><i class="fa-solid fa-magnifying-glass text-muted"></i></span>
+        <input type="text" class="form-control border-start-0" id="inputBuscaPublica" placeholder="Buscar por material, patrimônio, ID ou compartimento..." oninput="filtrarItensPublicos(this.value)">
+        <button class="btn btn-outline-secondary" type="button" onclick="limparBuscaPublica()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+        <div class="btn-group btn-group-sm" role="group">
+          <button type="button" class="btn btn-outline-secondary active btn-filtro-st" data-status="TODOS" onclick="filtrarStatusPublico('TODOS', this)">Todos</button>
+          <button type="button" class="btn btn-outline-success btn-filtro-st" data-status="ECD" onclick="filtrarStatusPublico('ECD', this)">Disponíveis</button>
+          <button type="button" class="btn btn-outline-warning text-dark btn-filtro-st" data-status="ACAUTELADO" onclick="filtrarStatusPublico('ACAUTELADO', this)">Acautelados</button>
+          <button type="button" class="btn btn-outline-danger btn-filtro-st" data-status="SCD" onclick="filtrarStatusPublico('SCD', this)">Inservíveis</button>
+        </div>
+        <div class="small text-muted" id="contadorFiltradosPublico">
+          Exibindo <?= (dados && dados.itens) ? dados.itens.length : 0 ?> materiais
+        </div>
+      </div>
+    </div>
+
+    <!-- BARRA DE EXPANDIR / RECOLHER TODOS OS MATERIAIS -->
+    <div class="d-flex justify-content-between align-items-center mb-2 px-1 no-print flex-wrap gap-2">
+      <div class="small text-muted">
+        <i class="fa-solid fa-layer-group me-1 text-primary"></i>Materiais agrupados por nome
+      </div>
+      <div class="d-flex align-items-center gap-1">
+        <button type="button" class="btn btn-sm btn-outline-danger fw-bold py-1 px-2.5 shadow-sm" onclick="imprimirChecklistPublicoPdf()">
+          <i class="fa-solid fa-file-pdf me-1"></i> Imprimir (PDF)
+        </button>
+        <button type="button" class="btn btn-xs btn-outline-secondary py-1 px-2" style="font-size: 0.72rem;" onclick="toggleTodosPublico(true)">
+          <i class="fa-solid fa-expand me-1"></i>Expandir Todos
+        </button>
+        <button type="button" class="btn btn-xs btn-outline-secondary py-1 px-2" style="font-size: 0.72rem;" onclick="toggleTodosPublico(false)">
+          <i class="fa-solid fa-compress me-1"></i>Recolher Todos
+        </button>
+      </div>
+    </div>
+
+    <?
+      // Agrupar itens por Setor e por Local
+      var setoresMap = {};
+      var setoresOrdenados = [];
+      
+      if (dados && dados.itens && dados.itens.length > 0) {
+        for (var i = 0; i < dados.itens.length; i++) {
+          var it = dados.itens[i];
+          var sNome = (it.setor && String(it.setor).trim()) ? String(it.setor).trim() : ((dados.setor && dados.setor.trim() && dados.setor.trim().toUpperCase() !== "TODOS" && dados.setor.trim().toUpperCase() !== "GERAL") ? dados.setor.trim() : "Geral");
+          
+          var lBruto = String(it.localEspecifico || "").trim();
+          if (!lBruto && it.localizacao && String(it.localizacao).trim()) {
+            var locTest = String(it.localizacao).trim();
+            if (locTest.toUpperCase() !== sNome.toUpperCase() && locTest.toUpperCase() !== "SEDE" && locTest.toUpperCase() !== "GERAL") {
+              lBruto = locTest;
+            }
+          }
+          var lNome = (!lBruto || lBruto.toUpperCase() === "PRINCIPAL" || lBruto.toUpperCase() === "SEDE" || lBruto.toUpperCase() === "GERAL") ? "Geral do Setor" : lBruto;
+          
+          if (!setoresMap[sNome]) {
+            setoresMap[sNome] = { nome: sNome, locaisMap: {}, locaisOrdenados: [], total: 0 };
+            setoresOrdenados.push(sNome);
+          }
+          setoresMap[sNome].total++;
+          
+          if (!setoresMap[sNome].locaisMap[lNome]) {
+            setoresMap[sNome].locaisMap[lNome] = { nome: lNome, itens: [] };
+            setoresMap[sNome].locaisOrdenados.push(lNome);
+          }
+          setoresMap[sNome].locaisMap[lNome].itens.push(it);
+        }
+      }
+    ?>
+
+    <!-- 1. VISÃO DESKTOP / TABLET (TABELA) -->
+    <div class="tabela-desktop-container shadow-xs mb-4">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0 small" id="tabelaChecklistPublico">
+          <thead class="table-light border-bottom">
+            <tr class="text-secondary small">
+              <th style="width: 45px;" class="text-center">#</th>
+              <th style="width: 100px;">ID Item</th>
+              <th>Material / Descrição</th>
+              <th style="width: 130px;">Patrimônio</th>
+              <th>Compartimento / Local</th>
+              <th style="width: 110px;" class="text-center">Status</th>
+            </tr>
+          </thead>
+          <tbody id="corpoTabelaPublica">
+            <? if (!dados || !dados.itens || dados.itens.length === 0) { ?>
+              <tr>
+                <td colspan="6" class="text-center py-4 text-muted">
+                  <i class="fa-solid fa-box-open fa-2x mb-2 opacity-50 d-block"></i>
+                  Nenhum material encontrado para este checklist.
+                </td>
+              </tr>
+            <? } else { ?>
+              <? 
+                 var contadorGeral = 0;
+                 for (var s = 0; s < setoresOrdenados.length; s++) {
+                   var nomeSetor = setoresOrdenados[s];
+                   var setorObj = setoresMap[nomeSetor];
+                   var setorId = 'setor_' + s;
+              ?>
+                <!-- CABEÇALHO DO SETOR -->
+                <tr class="tr-grupo-setor table-light border-top border-bottom" data-setor-id="<?= setorId ?>">
+                  <td colspan="6" class="py-2.5 px-3 fw-bold bg-secondary bg-opacity-10 text-dark">
+                    <div class="d-flex justify-content-between align-items-center">
+                      <span>
+                        <i class="fa-solid fa-layer-group text-danger me-2"></i>
+                        <span class="fw-bold" style="font-size: 1.05rem;">Setor: <?= nomeSetor ?></span>
+                      </span>
+                      <span class="badge bg-danger rounded-pill px-2.5 py-1" style="font-size: 0.75rem;"><?= setorObj.total ?> ite(ns)</span>
+                    </div>
+                  </td>
+                </tr>
+
+                <? 
+                   for (var l = 0; l < setorObj.locaisOrdenados.length; l++) {
+                     var nomeLocal = setorObj.locaisOrdenados[l];
+                     var localObj = setorObj.locaisMap[nomeLocal];
+                     var localId = setorId + '_loc_' + l;
+                ?>
+                  <!-- CABEÇALHO DO LOCAL / COMPARTIMENTO -->
+                  <tr class="tr-grupo-local border-bottom" data-local-id="<?= localId ?>" data-setor-parent="<?= setorId ?>" style="background-color: #f8fafc;">
+                    <td colspan="6" class="py-2 px-3 fw-bold text-dark ps-4">
+                      <div class="d-flex justify-content-between align-items-center">
+                        <span>
+                          <i class="fa-solid fa-map-pin text-primary me-2"></i>
+                          <span class="fw-bold text-dark" style="font-size: 0.95rem;">Local: <?= nomeLocal ?></span>
+                        </span>
+                        <div class="d-flex align-items-center gap-2">
+                          <span class="badge bg-secondary rounded-pill px-2 py-1" style="font-size: 0.75rem;"><?= localObj.itens.length ?> ite(ns)</span>
+                          <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2 no-print" style="font-size: 0.72rem;" onclick="toggleTodosLocalPublico('<?= localId ?>', this)">
+                            <i class="fa-solid fa-expand me-1"></i>Expandir
+                          </button>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+
+                  <?
+                    var gruposPublico = {};
+                    var gruposPublicoNomes = [];
+                    for (var k = 0; k < localObj.itens.length; k++) {
+                      var itm = localObj.itens[k];
+                      var nObj = String(itm.objeto || "Sem Descrição").trim();
+                      if (!gruposPublico[nObj]) {
+                        gruposPublico[nObj] = [];
+                        gruposPublicoNomes.push(nObj);
+                      }
+                      gruposPublico[nObj].push(itm);
+                    }
+                  ?>
+
+                  <? for (var g = 0; g < gruposPublicoNomes.length; g++) {
+                       var nomeObjPub = gruposPublicoNomes[g];
+                       var itensGrpPub = gruposPublico[nomeObjPub];
+                       var grpPubId = localId + '_grp_' + g;
+                  ?>
+                    <!-- CABEÇALHO DO GRUPO DE MATERIAIS (DESKTOP) -->
+                    <tr class="tr-grupo-objeto-publico" data-grupo-id="<?= grpPubId ?>" data-local-parent="<?= localId ?>" data-setor-parent="<?= setorId ?>" data-expanded="false" onclick="toggleGrupoPublico('<?= grpPubId ?>')" style="cursor: pointer; background-color: #f8fafc; border-top: 1px solid #e2e8f0;">
+                      <td colspan="6" class="py-2 px-3 border-bottom ps-4">
+                        <div class="d-flex align-items-center justify-content-between">
+                          <div class="d-flex align-items-center flex-wrap gap-2">
+                            <i class="fa-solid fa-chevron-right text-secondary chevron-pub" id="chev_pub_<?= grpPubId ?>" style="transition: transform 0.2s; font-size: 0.8rem; width: 14px;"></i>
+                            <span class="fw-bold text-dark" style="font-size: 0.88rem;"><?= nomeObjPub ?></span>
+                            <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-0.5" style="font-size: 0.75rem;">
+                              <?= itensGrpPub.length ?> <?= itensGrpPub.length === 1 ? 'item' : 'itens' ?>
+                            </span>
+                          </div>
+                          <div>
+                            <span class="text-primary small fw-semibold link-exp-pub" id="lbl_pub_<?= grpPubId ?>" style="font-size: 0.75rem;">
+                              <i class="fa-solid fa-up-right-and-down-left-from-center me-1"></i>Expandir
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+
+                    <? for (var ki = 0; ki < itensGrpPub.length; ki++) {
+                         var item = itensGrpPub[ki];
+                         contadorGeral++;
+                         var stClass = "status-badge-ecd";
+                         if (item.status === "ACAUTELADO") stClass = "status-badge-cautela";
+                         else if (item.status === "SCD") stClass = "status-badge-scd";
+                         else if (item.status === "EXTRAVIADO") stClass = "status-badge-ext";
+                    ?>
+                      <tr class="linha-item-publico" data-status="<?= item.status ?>" data-grupo-parent="<?= grpPubId ?>" data-local-parent="<?= localId ?>" data-setor-parent="<?= setorId ?>" data-busca="<?= (item.objeto + ' ' + item.item + ' ' + (item.patrimonio || '') + ' ' + (item.localizacao || '') + ' ' + (item.localEspecifico || '') + ' ' + nomeSetor + ' ' + nomeLocal).toLowerCase() ?>" style="display: none; background-color: #ffffff;">
+                        <td class="text-center text-muted fw-bold ps-4" style="font-size: 0.75rem;"><?= contadorGeral ?></td>
+                        <td class="font-monospace text-secondary fw-semibold" style="font-size: 0.75rem;"><?= item.item ?></td>
+                        <td>
+                          <div class="fw-bold text-dark" style="font-size: 0.85rem; line-height: 1.25;"><?= item.objeto ?></div>
+                        </td>
+                        <td>
+                          <span class="badge bg-light text-dark border font-monospace" style="font-size: 0.75rem;"><?= item.patrimonio || '-' ?></span>
+                        </td>
+                        <td>
+                          <span class="text-muted" style="font-size: 0.75rem;"><i class="fa-solid fa-location-dot text-danger me-1"></i><?= item.localEspecifico || item.localizacao || nomeLocal || '-' ?></span>
+                        </td>
+                        <td class="text-center">
+                          <span class="badge <?= stClass ?> px-2 py-1" style="font-size: 0.75rem;"><?= item.status ?></span>
+                        </td>
+                      </tr>
+                    <? } ?>
+                  <? } ?>
+                <? } ?>
+              <? } ?>
+            <? } ?>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 2. VISÃO MOBILE (CARDS RESPONSIVOS PARA SMARTPHONES) -->
+    <div class="cards-mobile-container mb-4" id="cardsMobilePublico">
+      <? if (!dados || !dados.itens || dados.itens.length === 0) { ?>
+        <div class="p-4 text-center text-muted border rounded bg-white">
+          <i class="fa-solid fa-box-open fa-2x mb-2 opacity-50 d-block"></i>
+          Nenhum material cadastrado neste setor/viatura.
+        </div>
+      <? } else { ?>
+        <? 
+           var contadorMobile = 0;
+           for (var sm = 0; sm < setoresOrdenados.length; sm++) {
+             var mSetorNome = setoresOrdenados[sm];
+             var mSetorObj = setoresMap[mSetorNome];
+             var mSetorId = 'mob_setor_' + sm;
+        ?>
+          <!-- BANNER DO SETOR MOBILE -->
+          <div class="banner-setor-mobile p-2.5 mb-2 rounded bg-danger bg-opacity-10 border border-danger-subtle fw-bold text-dark d-flex justify-content-between align-items-center" data-setor-id="<?= mSetorId ?>">
+            <span><i class="fa-solid fa-layer-group text-danger me-2"></i>Setor: <?= mSetorNome ?></span>
+            <span class="badge bg-danger rounded-pill" style="font-size: 0.75rem;"><?= mSetorObj.total ?> item(ns)</span>
+          </div>
+
+          <? 
+             for (var lm = 0; lm < mSetorObj.locaisOrdenados.length; lm++) {
+               var mLocalNome = mSetorObj.locaisOrdenados[lm];
+               var mLocalObj = mSetorObj.locaisMap[mLocalNome];
+               var mLocalId = mSetorId + '_loc_' + lm;
+          ?>
+            <!-- BANNER DO LOCAL MOBILE -->
+            <div class="banner-local-mobile py-1.5 px-3 mb-2 rounded bg-light border fw-bold text-dark d-flex justify-content-between align-items-center" data-local-id="<?= mLocalId ?>" data-setor-parent="<?= mSetorId ?>">
+              <span><i class="fa-solid fa-map-pin text-primary me-2"></i>Local: <?= mLocalNome ?></span>
+              <div class="d-flex align-items-center gap-1">
+                <span class="badge bg-secondary rounded-pill" style="font-size: 0.72rem;"><?= mLocalObj.itens.length ?></span>
+                <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-1.5 no-print" style="font-size: 0.68rem;" onclick="toggleTodosLocalPublicoMob('<?= mLocalId ?>', this)">
+                  <i class="fa-solid fa-expand"></i>
+                </button>
+              </div>
+            </div>
+
+            <?
+              var mGruposPublico = {};
+              var mGruposPublicoNomes = [];
+              for (var km = 0; km < mLocalObj.itens.length; km++) {
+                var mItm = mLocalObj.itens[km];
+                var mnObj = String(mItm.objeto || "Sem Descrição").trim();
+                if (!mGruposPublico[mnObj]) {
+                  mGruposPublico[mnObj] = [];
+                  mGruposPublicoNomes.push(mnObj);
+                }
+                mGruposPublico[mnObj].push(mItm);
+              }
+            ?>
+
+            <? for (var gm = 0; gm < mGruposPublicoNomes.length; gm++) {
+                 var mNomeObjPub = mGruposPublicoNomes[gm];
+                 var mItensGrpPub = mGruposPublico[mNomeObjPub];
+                 var mGrpPubId = mLocalId + '_grp_' + gm;
+            ?>
+              <div class="card-grupo-objeto-publico-mob mb-2 border rounded shadow-xs overflow-hidden" data-grupo-id="<?= mGrpPubId ?>" data-local-parent="<?= mLocalId ?>" data-setor-parent="<?= mSetorId ?>" data-expanded="false">
+                <div class="p-2.5 bg-white d-flex align-items-center justify-content-between header-grupo-pub-mob" onclick="toggleGrupoPublicoMob('<?= mGrpPubId ?>')" style="cursor: pointer;">
+                  <div class="d-flex align-items-center flex-grow-1 me-2">
+                    <i class="fa-solid fa-chevron-right text-muted me-2 chevron-pub-mob" id="chev_pub_mob_<?= mGrpPubId ?>" style="transition: transform 0.2s; font-size: 0.8rem; width: 14px;"></i>
+                    <span class="fw-bold text-dark" style="font-size: 0.88rem; line-height: 1.25;"><?= mNomeObjPub ?></span>
+                    <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle ms-2" style="font-size: 0.75rem;"><?= mItensGrpPub.length ?> un.</span>
+                  </div>
+                  <div class="d-flex align-items-center">
+                    <i class="fa-solid fa-angle-down text-muted opacity-50 ms-1" style="font-size: 0.75rem;"></i>
+                  </div>
+                </div>
+                <div class="corpo-grupo-pub-mob p-2 bg-light border-top" id="corpo_pub_mob_<?= mGrpPubId ?>" style="display: none;">
+                  <? for (var kmi = 0; kmi < mItensGrpPub.length; kmi++) {
+                       var mItem = mItensGrpPub[kmi];
+                       contadorMobile++;
+                       var mStClass = "status-badge-ecd";
+                       if (mItem.status === "ACAUTELADO") mStClass = "status-badge-cautela";
+                       else if (mItem.status === "SCD") mStClass = "status-badge-scd";
+                       else if (mItem.status === "EXTRAVIADO") mStClass = "status-badge-ext";
+                  ?>
+                    <div class="card-item-mobile linha-item-publico mb-2" data-status="<?= mItem.status ?>" data-grupo-parent="<?= mGrpPubId ?>" data-setor-parent="<?= mSetorId ?>" data-local-parent="<?= mLocalId ?>" data-busca="<?= (mItem.objeto + ' ' + mItem.item + ' ' + (mItem.patrimonio || '') + ' ' + (mItem.localizacao || '') + ' ' + (mItem.localEspecifico || '') + ' ' + mSetorNome + ' ' + mLocalNome).toLowerCase() ?>">
+                      <div class="d-flex justify-content-between align-items-start mb-1">
+                        <span class="badge bg-light text-secondary border font-monospace" style="font-size: 0.72rem;">#<?= contadorMobile ?> &bull; <?= mItem.item ?></span>
+                        <span class="badge <?= mStClass ?>" style="font-size: 0.72rem;"><?= mItem.status ?></span>
+                      </div>
+                      <div class="fw-bold text-dark mb-1" style="font-size: 0.86rem; line-height: 1.3;"><?= mItem.objeto ?></div>
+                      <div class="d-flex justify-content-between align-items-center text-muted pt-1 border-top mt-1" style="font-size: 0.75rem;">
+                        <div>
+                          <i class="fa-solid fa-barcode me-1"></i>Pat: <strong><?= mItem.patrimonio || '-' ?></strong>
+                        </div>
+                        <div>
+                          <i class="fa-solid fa-location-dot text-danger me-1"></i><?= mItem.localEspecifico || mItem.localizacao || mLocalNome || '-' ?>
+                        </div>
+                      </div>
+                    </div>
+                  <? } ?>
+                </div>
+              </div>
+            <? } ?>
+          <? } ?>
+        <? } ?>
+      <? } ?>
+    </div>
+
+  </main>
+
+  <!-- BARRA FIXA INFERIOR COM AÇÕES RÁPIDAS -->
+  <footer class="barra-fixa-rodape">
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+      <button class="btn btn-sm btn-outline-danger fw-bold shadow-sm" onclick="imprimirChecklistPublicoPdf()">
+        <i class="fa-solid fa-file-pdf me-1"></i> Imprimir (PDF)
+      </button>
+      <button class="btn btn-sm btn-outline-secondary fw-semibold" onclick="window.print()">
+        <i class="fa-solid fa-print me-1"></i> Completo
+      </button>
+      <button class="btn btn-sm btn-outline-dark fw-semibold" onclick="abrirModalPlaqueta()">
+        <i class="fa-solid fa-qrcode me-1"></i> Plaqueta QR
+      </button>
+    </div>
+    <div>
+      <a href="<?= appUrl ?>?auth=true" class="btn btn-sm btn-danger fw-bold shadow-sm">
+        <i class="fa-solid fa-clipboard-check me-1"></i> Entrar para Vistoriar
+      </a>
+    </div>
+  </footer>
+
+  <!-- MODAL DE PLAQUETA / QR CODE -->
+  <div class="modal fade" id="modalPlaquetaPublica" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content border-0 shadow">
+        <div class="modal-header bg-dark text-white py-2 px-3">
+          <h6 class="modal-title fw-bold"><i class="fa-solid fa-qrcode me-2 text-danger"></i> Plaqueta QR Code deste Checklist</h6>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body text-center p-3">
+          <div class="p-3 bg-white border rounded shadow-sm d-inline-block mb-3">
+            <img src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=8&data=<?= encodeURIComponent(appUrl + '?checklist=public&ome=' + encodeURIComponent(dados && dados.ome ? dados.ome : '') + '&sub=' + encodeURIComponent(dados && dados.subunidade ? dados.subunidade : '') + '&setor=' + encodeURIComponent(dados && dados.setor ? dados.setor : '')) ?>" 
+                 alt="QR Code" style="width: 200px; height: 200px; display: block; margin: 0 auto;">
+          </div>
+          <h6 class="fw-bold mb-1"><?= (dados && dados.setor) ? dados.setor : 'Checklist' ?></h6>
+          <div class="text-muted small mb-3"><?= (dados && dados.subunidade ? dados.subunidade + ' • ' : '') ?><?= (dados && dados.ome ? dados.ome : '') ?></div>
+          <div class="d-flex justify-content-center gap-2 flex-wrap">
+            <button class="btn btn-sm btn-outline-secondary" onclick="navigator.clipboard.writeText(window.location.href); alert('Link copiado com sucesso!');">
+              <i class="fa-solid fa-copy me-1"></i> Copiar Link
+            </button>
+            <button class="btn btn-sm btn-outline-danger fw-bold shadow-sm" onclick="imprimirChecklistPublicoPdf()">
+              <i class="fa-solid fa-file-pdf me-1"></i> Imprimir (PDF)
+            </button>
+            <button class="btn btn-sm btn-primary fw-bold" onclick="window.print()">
+              <i class="fa-solid fa-print me-1"></i> Plaqueta
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    let statusFiltroAtual = 'TODOS';
+
+    function toggleGrupoPublico(grpId, forceState) {
+      const grupoTr = document.querySelector(`.tr-grupo-objeto-publico[data-grupo-id="${grpId}"]`);
+      const chev = document.getElementById(`chev_pub_${grpId}`);
+      const lbl = document.getElementById(`lbl_pub_${grpId}`);
+      const childTrs = document.querySelectorAll(`tr.linha-item-publico[data-grupo-parent="${grpId}"]`);
+
+      let isExpanded = grupoTr ? grupoTr.getAttribute('data-expanded') === 'true' : false;
+      let novoEstado = (forceState !== undefined) ? forceState : !isExpanded;
+
+      if (grupoTr) grupoTr.setAttribute('data-expanded', novoEstado ? 'true' : 'false');
+      if (chev) chev.style.transform = novoEstado ? 'rotate(90deg)' : 'rotate(0deg)';
+      if (lbl) {
+        lbl.innerHTML = novoEstado ? 
+          '<i class="fa-solid fa-compress me-1"></i>Recolher' : 
+          '<i class="fa-solid fa-up-right-and-down-left-from-center me-1"></i>Expandir';
+      }
+
+      childTrs.forEach(tr => {
+        let matchFilter = tr.getAttribute('data-filter-match') !== 'false';
+        tr.style.display = (novoEstado && matchFilter) ? '' : 'none';
+      });
+    }
+
+    function toggleGrupoPublicoMob(grpId, forceState) {
+      const grupoCard = document.querySelector(`.card-grupo-objeto-publico-mob[data-grupo-id="${grpId}"]`);
+      const chev = document.getElementById(`chev_pub_mob_${grpId}`);
+      const corpo = document.getElementById(`corpo_pub_mob_${grpId}`);
+
+      let isExpanded = grupoCard ? grupoCard.getAttribute('data-expanded') === 'true' : false;
+      let novoEstado = (forceState !== undefined) ? forceState : !isExpanded;
+
+      if (grupoCard) grupoCard.setAttribute('data-expanded', novoEstado ? 'true' : 'false');
+      if (chev) chev.style.transform = novoEstado ? 'rotate(90deg)' : 'rotate(0deg)';
+      if (corpo) corpo.style.display = novoEstado ? 'block' : 'none';
+    }
+
+    function toggleTodosPublico(expandir) {
+      document.querySelectorAll('.tr-grupo-objeto-publico').forEach(g => {
+        const gid = g.getAttribute('data-grupo-id');
+        toggleGrupoPublico(gid, expandir);
+      });
+      document.querySelectorAll('.card-grupo-objeto-publico-mob').forEach(g => {
+        const gid = g.getAttribute('data-grupo-id');
+        toggleGrupoPublicoMob(gid, expandir);
+      });
+    }
+
+    function toggleTodosLocalPublico(localId, btn) {
+      const grupos = document.querySelectorAll(`.tr-grupo-objeto-publico[data-local-parent="${localId}"]`);
+      let algumFechado = false;
+      grupos.forEach(g => {
+        if (g.getAttribute('data-expanded') !== 'true') algumFechado = true;
+      });
+      const novoEstado = algumFechado;
+      grupos.forEach(g => {
+        const gid = g.getAttribute('data-grupo-id');
+        toggleGrupoPublico(gid, novoEstado);
+      });
+      if (btn) {
+        btn.innerHTML = novoEstado ? '<i class="fa-solid fa-compress me-1"></i>Recolher' : '<i class="fa-solid fa-expand me-1"></i>Expandir';
+      }
+    }
+
+    function toggleTodosLocalPublicoMob(localId, btn) {
+      const grupos = document.querySelectorAll(`.card-grupo-objeto-publico-mob[data-local-parent="${localId}"]`);
+      let algumFechado = false;
+      grupos.forEach(g => {
+        if (g.getAttribute('data-expanded') !== 'true') algumFechado = true;
+      });
+      const novoEstado = algumFechado;
+      grupos.forEach(g => {
+        const gid = g.getAttribute('data-grupo-id');
+        toggleGrupoPublicoMob(gid, novoEstado);
+      });
+      if (btn) {
+        btn.innerHTML = novoEstado ? '<i class="fa-solid fa-compress"></i>' : '<i class="fa-solid fa-expand"></i>';
+      }
+    }
+
+    function filtrarItensPublicos(termo) {
+      const t = (termo || '').toLowerCase().trim();
+      const linhas = document.querySelectorAll('.linha-item-publico');
+      let visiveis = 0;
+      const temFiltroAtivo = !!(t || statusFiltroAtual !== 'TODOS');
+
+      linhas.forEach(linha => {
+        const busca = linha.getAttribute('data-busca') || '';
+        const st = linha.getAttribute('data-status') || '';
+
+        const matchTexto = !t || busca.includes(t);
+        const matchStatus = (statusFiltroAtual === 'TODOS') || (st === statusFiltroAtual);
+        const bateGeral = matchTexto && matchStatus;
+
+        linha.setAttribute('data-filter-match', bateGeral ? 'true' : 'false');
+
+        const grpId = linha.getAttribute('data-grupo-parent');
+        const grupoTr = grpId ? document.querySelector(`.tr-grupo-objeto-publico[data-grupo-id="${grpId}"]`) : null;
+        let isExpanded = grupoTr ? grupoTr.getAttribute('data-expanded') === 'true' : false;
+
+        // Se há busca ativa e a linha bate, auto-expande o grupo no Desktop
+        if (temFiltroAtivo && bateGeral && grupoTr && !isExpanded) {
+          grupoTr.setAttribute('data-expanded', 'true');
+          const chev = document.getElementById(`chev_pub_${grpId}`);
+          if (chev) chev.style.transform = 'rotate(90deg)';
+          const lbl = document.getElementById(`lbl_pub_${grpId}`);
+          if (lbl) lbl.innerHTML = '<i class="fa-solid fa-compress me-1"></i>Recolher';
+          isExpanded = true;
+        }
+
+        if (linha.tagName === 'TR') {
+          linha.style.display = (bateGeral && isExpanded) ? '' : 'none';
+        } else {
+          linha.style.display = bateGeral ? '' : 'none';
+        }
+
+        if (bateGeral) visiveis++;
+      });
+
+      // Atualiza grupos Desktop
+      document.querySelectorAll('.tr-grupo-objeto-publico').forEach(g => {
+        const gid = g.getAttribute('data-grupo-id');
+        const childs = document.querySelectorAll(`tr.linha-item-publico[data-grupo-parent="${gid}"]`);
+        let hasMatch = false;
+        childs.forEach(c => { if (c.getAttribute('data-filter-match') === 'true') hasMatch = true; });
+        g.style.display = hasMatch ? '' : 'none';
+      });
+
+      // Atualiza grupos Mobile
+      document.querySelectorAll('.card-grupo-objeto-publico-mob').forEach(g => {
+        const gid = g.getAttribute('data-grupo-id');
+        const childs = g.querySelectorAll('.linha-item-publico');
+        let hasMatch = false;
+        childs.forEach(c => { if (c.getAttribute('data-filter-match') === 'true') hasMatch = true; });
+        g.style.display = hasMatch ? '' : 'none';
+
+        if (temFiltroAtivo && hasMatch) {
+          g.setAttribute('data-expanded', 'true');
+          const chev = document.getElementById(`chev_pub_mob_${gid}`);
+          if (chev) chev.style.transform = 'rotate(90deg)';
+          const corpo = document.getElementById(`corpo_pub_mob_${gid}`);
+          if (corpo) corpo.style.display = 'block';
+        }
+      });
+
+      // Atualiza a visibilidade dos cabeçalhos de locais (Desktop e Mobile)
+      document.querySelectorAll('[data-local-id]').forEach(headerLoc => {
+        if (headerLoc.classList.contains('linha-item-publico') || headerLoc.classList.contains('tr-grupo-objeto-publico') || headerLoc.classList.contains('card-grupo-objeto-publico-mob')) return;
+        const locId = headerLoc.getAttribute('data-local-id');
+        const itensDesteLocal = document.querySelectorAll(`.linha-item-publico[data-local-parent="${locId}"]`);
+        const temVisivel = Array.from(itensDesteLocal).some(el => el.getAttribute('data-filter-match') === 'true');
+        headerLoc.style.display = temVisivel ? '' : 'none';
+      });
+
+      // Atualiza a visibilidade dos cabeçalhos de setores (Desktop e Mobile)
+      document.querySelectorAll('[data-setor-id]').forEach(headerSetor => {
+        if (headerSetor.classList.contains('linha-item-publico') || headerSetor.classList.contains('tr-grupo-objeto-publico') || headerSetor.classList.contains('card-grupo-objeto-publico-mob')) return;
+        const setorId = headerSetor.getAttribute('data-setor-id');
+        const itensDesteSetor = document.querySelectorAll(`.linha-item-publico[data-setor-parent="${setorId}"]`);
+        const temVisivel = Array.from(itensDesteSetor).some(el => el.getAttribute('data-filter-match') === 'true');
+        headerSetor.style.display = temVisivel ? '' : 'none';
+      });
+
+      const lbl = document.getElementById('contadorFiltradosPublico');
+      if (lbl) {
+        lbl.textContent = `Exibindo ${visiveis} materiais`;
+      }
+    }
+
+    function filtrarStatusPublico(status, btn) {
+      statusFiltroAtual = status;
+      document.querySelectorAll('.btn-filtro-st').forEach(b => b.classList.remove('active'));
+      if (btn) btn.classList.add('active');
+
+      const termo = document.getElementById('inputBuscaPublica') ? document.getElementById('inputBuscaPublica').value : '';
+      filtrarItensPublicos(termo);
+    }
+
+    function limparBuscaPublica() {
+      const inp = document.getElementById('inputBuscaPublica');
+      if (inp) {
+        inp.value = '';
+        filtrarItensPublicos('');
+      }
+    }
+
+    const DADOS_PUBLICOS = <?!= JSON.stringify(dados || {}) ?>;
+
+    function escapeHtmlPrint(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function imprimirChecklistPublicoPdf() {
+      const dados = (typeof DADOS_PUBLICOS !== 'undefined' && DADOS_PUBLICOS) ? DADOS_PUBLICOS : {};
+      const itensOriginais = dados.itens || [];
+
+      if (itensOriginais.length === 0) {
+        alert('Não há materiais cadastrados para impressão neste checklist.');
+        return;
+      }
+
+      const ome = dados.ome || 'CBMPE';
+      const subunidade = dados.subunidade || 'SEDE';
+      const setor = dados.setor || 'Geral';
+      const dataHora = new Date().toLocaleString('pt-BR');
+
+      const termoBusca = (document.getElementById('inputBuscaPublica') ? document.getElementById('inputBuscaPublica').value : '').toLowerCase().trim();
+      const stFiltro = statusFiltroAtual || 'TODOS';
+
+      // Filtra itens se houver pesquisa ou filtro de status ativo na tela
+      const itens = itensOriginais.filter(it => {
+        if (stFiltro !== 'TODOS') {
+          const stItem = String(it.status || 'ECD').trim().toUpperCase();
+          if (stFiltro === 'ECD' && stItem !== 'ECD') return false;
+          if (stFiltro === 'SCD' && stItem !== 'SCD' && stItem !== 'INSERVÍVEL') return false;
+          if (stFiltro === 'ACAUTELADO' && stItem !== 'ACAUTELADO') return false;
+        }
+        if (termoBusca) {
+          const strBusca = (it.objeto + ' ' + it.item + ' ' + (it.patrimonio || '') + ' ' + (it.localizacao || '') + ' ' + (it.localEspecifico || '') + ' ' + it.setor).toLowerCase();
+          if (!strBusca.includes(termoBusca)) return false;
+        }
+        return true;
+      });
+
+      if (itens.length === 0) {
+        alert('Nenhum material encontrado com os filtros atuais para impressão.');
+        return;
+      }
+
+      // Agrupamento por Setor -> Local -> Objeto
+      const setoresMap = {};
+      const setoresOrdenados = [];
+
+      itens.forEach(it => {
+        let sNome = (it.setor && String(it.setor).trim()) ? String(it.setor).trim() : (setor || "Geral");
+        let lBruto = String(it.localEspecifico || "").trim();
+        if (!lBruto && it.localizacao && String(it.localizacao).trim()) {
+          let locTest = String(it.localizacao).trim();
+          if (locTest.toUpperCase() !== sNome.toUpperCase() && locTest.toUpperCase() !== "SEDE" && locTest.toUpperCase() !== "GERAL") {
+            lBruto = locTest;
+          }
+        }
+        let lNome = (!lBruto || lBruto.toUpperCase() === "PRINCIPAL" || lBruto.toUpperCase() === "SEDE" || lBruto.toUpperCase() === "GERAL") ? "Geral do Setor" : lBruto;
+
+        if (!setoresMap[sNome]) {
+          setoresMap[sNome] = { nome: sNome, locaisMap: {}, locaisOrdenados: [] };
+          setoresOrdenados.push(sNome);
+        }
+
+        if (!setoresMap[sNome].locaisMap[lNome]) {
+          setoresMap[sNome].locaisMap[lNome] = { nome: lNome, materiaisMap: {}, materiaisOrdenados: [] };
+          setoresMap[sNome].locaisOrdenados.push(lNome);
+        }
+
+        const matNome = String(it.objeto || "Sem Descrição").trim();
+        if (!setoresMap[sNome].locaisMap[lNome].materiaisMap[matNome]) {
+          setoresMap[sNome].locaisMap[lNome].materiaisMap[matNome] = {
+            material: matNome,
+            ecd: 0,
+            scd: 0,
+            acautelado: 0,
+            extraviado: 0,
+            total: 0,
+            patrimonios: []
+          };
+          setoresMap[sNome].locaisMap[lNome].materiaisOrdenados.push(matNome);
+        }
+
+        const reg = setoresMap[sNome].locaisMap[lNome].materiaisMap[matNome];
+        reg.total++;
+        const st = String(it.status || "ECD").trim().toUpperCase();
+        if (st === "SCD" || st === "INSERVIVEL" || st === "INSERVÍVEL") {
+          reg.scd++;
+        } else if (st === "ACAUTELADO") {
+          reg.acautelado++;
+        } else if (st === "EXTRAVIADO") {
+          reg.extraviado++;
+        } else {
+          reg.ecd++;
+        }
+
+        const patr = String(it.patrimonio || "").trim();
+        if (patr && patr !== "-" && patr.toUpperCase() !== "S/N" && patr.toUpperCase() !== "SN") {
+          if (!reg.patrimonios.includes(patr)) {
+            reg.patrimonios.push(patr);
+          }
+        }
+      });
+
+      let corpoTabelasHtml = '';
+      let totGeralEcd = 0;
+      let totGeralScd = 0;
+      let totGeralAcaut = 0;
+      let totGeralExt = 0;
+      let totGeralItens = 0;
+      let totTiposDistintos = 0;
+
+      setoresOrdenados.forEach(sNome => {
+        const sObj = setoresMap[sNome];
+
+        let htmlSetor = `
+          <div style="margin-top: 15px; margin-bottom: 20px; page-break-inside: avoid;">
+            <div style="background-color: #7f1d1d; color: #ffffff; padding: 6px 10px; font-weight: bold; font-size: 11.5px; border-radius: 4px 4px 0 0; display: flex; justify-content: space-between;">
+              <span>SETOR / VIATURA: ${escapeHtmlPrint(sNome)}</span>
+            </div>
+        `;
+
+        sObj.locaisOrdenados.forEach(lNome => {
+          const lObj = sObj.locaisMap[lNome];
+
+          let subTotEcd = 0;
+          let subTotScd = 0;
+          let subTotAcaut = 0;
+          let subTotExt = 0;
+          let subTotItens = 0;
+
+          let linhasItens = '';
+          let contadorLocal = 1;
+
+          lObj.materiaisOrdenados.forEach(mNome => {
+            const m = lObj.materiaisMap[mNome];
+            totTiposDistintos++;
+            subTotEcd += m.ecd;
+            subTotScd += m.scd;
+            subTotAcaut += m.acautelado;
+            subTotExt += m.extraviado;
+            subTotItens += m.total;
+
+            totGeralEcd += m.ecd;
+            totGeralScd += m.scd;
+            totGeralAcaut += m.acautelado;
+            totGeralExt += m.extraviado;
+            totGeralItens += m.total;
+
+            let patrTexto = '-';
+            if (m.patrimonios.length > 0) {
+              if (m.patrimonios.length <= 4) {
+                patrTexto = m.patrimonios.join(', ');
+              } else {
+                patrTexto = m.patrimonios.slice(0, 3).join(', ') + ` (+${m.patrimonios.length - 3})`;
+              }
+            }
+
+            linhasItens += `
+              <tr>
+                <td style="text-align: center; border: 1px solid #cbd5e1; padding: 4px;">${contadorLocal++}</td>
+                <td style="border: 1px solid #cbd5e1; padding: 4px; font-weight: bold;">${escapeHtmlPrint(m.material)}</td>
+                <td style="border: 1px solid #cbd5e1; padding: 4px; font-size: 8.5px; color: #334155;">${escapeHtmlPrint(patrTexto)}</td>
+                <td style="text-align: center; border: 1px solid #cbd5e1; padding: 4px; background: #e8f5e9; font-weight: bold;">${m.ecd > 0 ? m.ecd : '-'}</td>
+                <td style="text-align: center; border: 1px solid #cbd5e1; padding: 4px; background: #ffebee; font-weight: bold; color: ${m.scd > 0 ? '#b91c1c' : '#888'};">${m.scd > 0 ? m.scd : '-'}</td>
+                <td style="text-align: center; border: 1px solid #cbd5e1; padding: 4px; background: #fff8e1; font-weight: bold; color: ${m.acautelado > 0 ? '#b45309' : '#888'};">${m.acautelado > 0 ? m.acautelado : '-'}</td>
+                <td style="text-align: center; border: 1px solid #cbd5e1; padding: 4px; font-weight: bold; background: #f5f5f5;">${m.total}</td>
+              </tr>
+            `;
+          });
+
+          htmlSetor += `
+            <div style="margin-top: 8px; margin-bottom: 12px; page-break-inside: avoid;">
+              <div style="background-color: #f1f5f9; border: 1px solid #cbd5e1; border-bottom: none; padding: 5px 8px; font-weight: bold; font-size: 10.5px; color: #1e293b;">
+                Compartimento / Local: ${escapeHtmlPrint(lNome)}
+              </div>
+              <table style="width: 100%; border-collapse: collapse; font-size: 9.5px;">
+                <thead>
+                  <tr style="background-color: #e2e8f0; color: #334155;">
+                    <th style="width: 28px; border: 1px solid #cbd5e1; padding: 4px; text-align: center;">#</th>
+                    <th style="border: 1px solid #cbd5e1; padding: 4px; text-align: left;">Material (Descrição Agrupada)</th>
+                    <th style="width: 170px; border: 1px solid #cbd5e1; padding: 4px; text-align: left;">Patrimônio(s)</th>
+                    <th style="width: 55px; border: 1px solid #cbd5e1; padding: 4px; text-align: center;" title="Disponível / Em Condições de Uso">ECD</th>
+                    <th style="width: 55px; border: 1px solid #cbd5e1; padding: 4px; text-align: center;" title="Inservível / Sem Condições">SCD</th>
+                    <th style="width: 55px; border: 1px solid #cbd5e1; padding: 4px; text-align: center;" title="Acautelado">Acaut.</th>
+                    <th style="width: 60px; border: 1px solid #cbd5e1; padding: 4px; text-align: center;">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${linhasItens}
+                </tbody>
+                <tfoot>
+                  <tr style="background-color: #f8fafc; font-weight: bold;">
+                    <td colspan="3" style="text-align: right; border: 1px solid #cbd5e1; padding: 4px; text-transform: uppercase; font-size: 9px; color: #475569;">Subtotal do Compartimento:</td>
+                    <td style="text-align: center; border: 1px solid #cbd5e1; padding: 4px; background: #e8f5e9;">${subTotEcd}</td>
+                    <td style="text-align: center; border: 1px solid #cbd5e1; padding: 4px; background: #ffebee;">${subTotScd}</td>
+                    <td style="text-align: center; border: 1px solid #cbd5e1; padding: 4px; background: #fff8e1;">${subTotAcaut}</td>
+                    <td style="text-align: center; border: 1px solid #cbd5e1; padding: 4px; background: #e2e8f0;">${subTotItens}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          `;
+        });
+
+        htmlSetor += `</div>`;
+        corpoTabelasHtml += htmlSetor;
+      });
+
+      const filtroInfo = (stFiltro !== 'TODOS' || termoBusca) 
+        ? `Filtro ativo: ${stFiltro !== 'TODOS' ? stFiltro : ''} ${termoBusca ? '("' + termoBusca + '")' : ''}`.trim()
+        : 'Todos os materiais';
+
+      const janelaPrint = window.open('', '_blank');
+      janelaPrint.document.write(`
+        <!DOCTYPE html>
+        <html lang="pt-BR">
+        <head>
+          <meta charset="utf-8">
+          <title>Checklist Resumido - ${escapeHtmlPrint(setor)} - ${escapeHtmlPrint(ome)}</title>
+          <style>
+            @page { size: portrait; margin: 10mm; }
+            body { font-family: Arial, Helvetica, sans-serif; margin: 10px; font-size: 10px; color: #1e293b; }
+            .header { text-align: center; margin-bottom: 15px; border-bottom: 2px solid #991b1b; padding-bottom: 8px; }
+            .header h2 { margin: 0 0 4px 0; font-size: 13.5px; color: #991b1b; }
+            .header h3 { margin: 0 0 4px 0; font-size: 11.5px; color: #333; }
+            .header h4 { margin: 0 0 4px 0; font-size: 10.5px; color: #555; text-transform: uppercase; }
+            .info-box { display: flex; justify-content: space-between; flex-wrap: wrap; background: #f8fafc; border: 1px solid #cbd5e1; padding: 8px 12px; border-radius: 4px; margin-bottom: 12px; font-size: 10px; }
+            .kpi-resumo { display: flex; gap: 8px; margin-top: 8px; margin-bottom: 12px; }
+            .kpi-card { flex: 1; border: 1px solid #cbd5e1; border-radius: 4px; padding: 5px; text-align: center; background: #fff; }
+            .kpi-card .val { font-size: 13px; font-weight: bold; }
+            .kpi-card .lbl { font-size: 8px; text-transform: uppercase; color: #64748b; font-weight: bold; }
+            @media print {
+              body { margin: 5mm; }
+              .no-print-btn { display: none !important; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h2>ESTADO DE PERNAMBUCO &bull; CORPO DE BOMBEIROS MILITAR DE PERNAMBUCO</h2>
+            <h3>DIRETORIA DE LOGÍSTICA &bull; SISTEMA DE GESTÃO DE MATERIAIS E PATRIMÔNIO (SGMP)</h3>
+            <h4>RELATÓRIO RESUMIDO DE CHECKLIST DE MATERIAIS POR SETOR E COMPARTIMENTO</h4>
+          </div>
+
+          <div class="info-box">
+            <div>
+              <div><strong>Unidade (OME):</strong> ${escapeHtmlPrint(ome)}</div>
+              <div><strong>Subunidade:</strong> ${escapeHtmlPrint(subunidade)}</div>
+            </div>
+            <div>
+              <div><strong>Setor / Viatura:</strong> ${escapeHtmlPrint(setor)}</div>
+              <div><strong>Emissão:</strong> ${dataHora} | <strong>Visualização:</strong> ${escapeHtmlPrint(filtroInfo)}</div>
+            </div>
+          </div>
+
+          <div class="kpi-resumo">
+            <div class="kpi-card">
+              <div class="val" style="color: #0f172a;">${totTiposDistintos}</div>
+              <div class="lbl">Tipos de Material</div>
+            </div>
+            <div class="kpi-card">
+              <div class="val" style="color: #15803d;">${totGeralEcd}</div>
+              <div class="lbl">Disponíveis (ECD)</div>
+            </div>
+            <div class="kpi-card">
+              <div class="val" style="color: #b91c1c;">${totGeralScd}</div>
+              <div class="lbl">Avariados (SCD)</div>
+            </div>
+            <div class="kpi-card">
+              <div class="val" style="color: #b45309;">${totGeralAcaut}</div>
+              <div class="lbl">Acautelados</div>
+            </div>
+            <div class="kpi-card" style="background: #f1f5f9;">
+              <div class="val" style="color: #0f172a;">${totGeralItens}</div>
+              <div class="lbl">Total Geral Carga</div>
+            </div>
+          </div>
+
+          ${corpoTabelasHtml}
+
+          <div style="margin-top: 35px; page-break-inside: avoid;">
+            <table style="width: 100%; border: none; font-size: 9.5px;">
+              <tr>
+                <td style="width: 45%; text-align: center; vertical-align: top; padding: 10px;">
+                  <div style="border-top: 1px solid #333; padding-top: 4px; font-weight: bold;">
+                    Responsável pela Vistoria / Conferência
+                  </div>
+                  <div style="font-size: 8.5px; color: #555;">Nome / Posto / Graduação / Matrícula</div>
+                </td>
+                <td style="width: 10%;"></td>
+                <td style="width: 45%; text-align: center; vertical-align: top; padding: 10px;">
+                  <div style="border-top: 1px solid #333; padding-top: 4px; font-weight: bold;">
+                    Responsável pela Carga / Unidade
+                  </div>
+                  <div style="font-size: 8.5px; color: #555;">Visto do Oficial de Dia / Chefe do Setor</div>
+                </td>
+              </tr>
+            </table>
+          </div>
+
+          <' + 'script>
+            window.onload = function() {
+              setTimeout(function() { window.print(); }, 500);
+            };
+          <' + '/script>
+        </body>
+        </html>
+      `);
+      janelaPrint.document.close();
+    }
+  </script>
+</body>
+</html>
