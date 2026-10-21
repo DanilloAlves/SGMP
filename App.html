@@ -2518,6 +2518,154 @@
         </div>
 
       </div>
+
+  <!-- MODAL: ABRIR NOVO CHAMADO -->
+  <div class="modal fade" id="modalNovoChamado" tabindex="-1" aria-hidden="true" style="z-index: 1055;">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal-content shadow-lg border-0 rounded-3">
+        <div class="modal-header bg-danger text-white py-3">
+          <h5 class="modal-title fw-bold mb-0">
+            <i class="fa-solid fa-headset me-2"></i> Abrir Novo Chamado de Suporte
+          </h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body p-4">
+          <form id="formNovoChamado" onsubmit="enviarNovoChamado(event); return false;">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label fw-bold small text-secondary mb-1">Categoria / Tipo de Problema: *</label>
+                <select class="form-select form-select-sm" id="novo_chamado_tipo" required>
+                  <option value="Problema no Sistema">Problema / Erro no Sistema</option>
+                  <option value="Dúvida Operacional">Dúvida Operacional de Uso</option>
+                  <option value="Manutenção / Correção">Manutenção / Correção de Dados</option>
+                  <option value="Permissões e Acessos">Permissões de Acesso / Setor</option>
+                  <option value="Sugestão de Melhoria">Sugestão de Melhoria</option>
+                  <option value="Outro">Outro Motivo</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-bold small text-secondary mb-1">Título Resumido: *</label>
+                <input type="text" class="form-control form-control-sm" id="novo_chamado_titulo" placeholder="Ex: Erro ao registrar checklist..." required maxlength="120">
+              </div>
+              <div class="col-12">
+                <label class="form-label fw-bold small text-secondary mb-1">Descrição Detalhada da Ocorrência: *</label>
+                <textarea class="form-control form-control-sm" id="novo_chamado_descricao" rows="4" placeholder="Descreva passo a passo o que aconteceu, telas acessadas, eventuais mensagens de erro ou qualquer detalhe relevante..." required></textarea>
+              </div>
+              <div class="col-12">
+                <label class="form-label fw-bold small text-secondary mb-1">
+                  <i class="fa-solid fa-image me-1 text-danger"></i> Anexar Print ou Foto da Tela (Opcional):
+                </label>
+                <input type="file" class="form-control form-control-sm" id="novo_chamado_arquivo" accept="image/*" onchange="previewImagemChamado(this, 'previewNovoChamadoContainer', 'previewNovoChamado')">
+                <div class="form-text small text-muted">Formatos aceitos: JPG, PNG, WebP. Anexar imagem da tela acelera o diagnóstico.</div>
+                
+                <div id="previewNovoChamadoContainer" class="mt-2 text-center p-2 border rounded bg-light d-none">
+                  <img id="previewNovoChamado" src="#" alt="Preview" style="max-height: 220px; max-width: 100%; border-radius: 6px;" class="shadow-sm">
+                  <div class="mt-2">
+                    <button type="button" class="btn btn-outline-danger btn-sm py-1 px-3 fw-bold" onclick="limparPreviewChamado('novo_chamado_arquivo', 'previewNovoChamadoContainer')">
+                      <i class="fa-solid fa-trash me-1"></i> Remover Imagem
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="modal-footer px-0 pb-0 mt-4 border-top pt-3">
+              <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+              <button type="submit" id="btnSalvarNovoChamado" class="btn btn-danger btn-sm fw-bold px-4 shadow-sm">
+                <i class="fa-solid fa-paper-plane me-1"></i> Enviar Chamado
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: DETALHES E TRATAMENTO DO CHAMADO -->
+  <div class="modal fade" id="modalDetalhesChamado" tabindex="-1" aria-hidden="true" style="z-index: 1055;">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+      <div class="modal-content shadow-lg border-0 rounded-3">
+        <div class="modal-header bg-dark text-white py-3">
+          <div class="d-flex align-items-center gap-2 flex-wrap">
+            <h5 class="modal-title fw-bold mb-0" id="detalhes_chamado_protocolo">#CHAM-00000000-0000</h5>
+            <span id="detalhes_chamado_status_badge" class="badge bg-warning">ABERTO</span>
+          </div>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body p-4">
+          
+          <!-- Metadados do Solicitante -->
+          <div class="card bg-light border-0 p-3 mb-3 rounded-3 small">
+            <div class="row g-2">
+              <div class="col-md-6"><strong>Solicitante:</strong> <span id="detalhes_chamado_solicitante">-</span></div>
+              <div class="col-md-6"><strong>OME / Subunidade:</strong> <span id="detalhes_chamado_ome">-</span></div>
+              <div class="col-md-6"><strong>Data de Abertura:</strong> <span id="detalhes_chamado_data">-</span></div>
+              <div class="col-md-6"><strong>Categoria:</strong> <span id="detalhes_chamado_tipo" class="fw-bold text-danger">-</span></div>
+            </div>
+          </div>
+
+          <!-- Assunto e Descrição Principal -->
+          <div class="card border p-3 mb-3 rounded-3">
+            <h5 class="fw-bold text-dark mb-2" id="detalhes_chamado_titulo">-</h5>
+            <p class="text-secondary small mb-2" style="white-space: pre-wrap; line-height: 1.5;" id="detalhes_chamado_descricao">-</p>
+            <div id="detalhes_chamado_imagem_box" class="mt-2 text-center d-none">
+              <a id="detalhes_chamado_imagem_link" href="#" target="_blank" title="Clique para abrir imagem original">
+                <img id="detalhes_chamado_imagem" src="#" alt="Print do Chamado" style="max-height: 250px; max-width: 100%; border-radius: 6px; border: 1px solid #cbd5e1;">
+              </a>
+              <div class="text-muted small mt-1"><i class="fa-solid fa-magnifying-glass-plus me-1"></i> Clique na imagem para abrir em tela cheia</div>
+            </div>
+          </div>
+
+          <!-- Histórico de Atendimento e Mensagens -->
+          <h6 class="fw-bold text-dark mb-2"><i class="fa-solid fa-comments me-1"></i> Histórico de Interações:</h6>
+          <div id="detalhes_chamado_historico" class="mb-3 p-3 border rounded-3 bg-light" style="max-height: 260px; overflow-y: auto;">
+            <!-- Renderizado dinamicamente -->
+          </div>
+
+          <!-- PAINEL DE TRATAMENTO TÉCNICO (EXCLUSIVO ADMINISTRADOR) -->
+          <div id="boxTratamentoAdmin" class="p-3 border rounded-3 bg-white border-danger border-opacity-50 mb-3 d-none">
+            <h6 class="fw-bold text-danger mb-2"><i class="fa-solid fa-user-shield me-1"></i> Painel do Suporte Técnico (Administrador):</h6>
+            <div class="mb-2">
+              <label class="form-label small fw-bold mb-1">Parecer / Resposta do Suporte: *</label>
+              <textarea class="form-control form-control-sm" id="admin_resposta_chamado" rows="3" placeholder="Digite a resposta técnica, instruções de solução ou questionamentos ao militar..."></textarea>
+            </div>
+            <div class="d-flex justify-content-end gap-2 flex-wrap">
+              <button type="button" class="btn btn-outline-primary btn-sm fw-bold" onclick="salvarTratamentoAdmin('EM_ATENDIMENTO')">
+                <i class="fa-solid fa-spinner me-1"></i> "Em Atendimento"
+              </button>
+              <button type="button" class="btn btn-sm fw-bold text-white" style="background-color: #7c3aed;" onclick="salvarTratamentoAdmin('AGUARDANDO_USUARIO')">
+                <i class="fa-solid fa-circle-question me-1"></i> Solicitar Mais Informações
+              </button>
+              <button type="button" class="btn btn-success btn-sm fw-bold shadow-sm" onclick="salvarTratamentoAdmin('RESOLVIDO')">
+                <i class="fa-solid fa-check-double me-1"></i> Finalizar e Resolver Chamado
+              </button>
+            </div>
+          </div>
+
+          <!-- ÁREA DE RESPOSTA DO USUÁRIO (CASO STATUS AGUARDANDO_USUARIO) -->
+          <div id="boxRespostaUsuario" class="p-3 border rounded-3 mb-3 d-none" style="background-color: #faf5ff; border-color: #c084fc !important;">
+            <h6 class="fw-bold mb-2" style="color: #7c3aed;"><i class="fa-solid fa-reply me-1"></i> O suporte técnico solicitou informações complementares:</h6>
+            <div class="mb-2">
+              <textarea class="form-control form-control-sm" id="usuario_resposta_complementar" rows="3" placeholder="Digite as informações solicitadas pela equipe técnica..."></textarea>
+            </div>
+            <div class="mb-2">
+              <label class="form-label small fw-bold mb-1">Novo Anexo de Imagem (Opcional):</label>
+              <input type="file" class="form-control form-control-sm" id="usuario_resposta_arquivo" accept="image/*">
+            </div>
+            <div class="text-end">
+              <button type="button" class="btn btn-sm fw-bold text-white shadow-sm" style="background-color: #7c3aed;" onclick="enviarRespostaUsuarioChamado()">
+                <i class="fa-solid fa-paper-plane me-1"></i> Enviar Informações ao Suporte
+              </button>
+            </div>
+          </div>
+
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Fechar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
     </div>
 
     <!-- ABA 4: INCLUSÃO -->
@@ -4004,7 +4152,7 @@
     const content = document.getElementById('content');
 
     // Abas que ocupam a largura total (ocultam o menu lateral de materiais)
-    const abasTelaCheia = ['cint', 'base', 'visao-geral', 'acautelamento', 'checklist', 'gerenciar-usuarios', 'inventario', 'aba-inventario', 'logs'];
+    const abasTelaCheia = ['cint', 'base', 'visao-geral', 'acautelamento', 'checklist', 'gerenciar-usuarios', 'inventario', 'aba-inventario', 'logs', 'chamados'];
     const ehAbaLocaisSemSidebar = (aba === 'locais' && typeof modoVisaoArmazenamento !== 'undefined' && (modoVisaoArmazenamento === 'consumo' || modoVisaoArmazenamento === 'resumo' || modoVisaoArmazenamento === 'resumo_material'));
     const deveOcultarSubSidebar = abasTelaCheia.includes(aba) || ehAbaLocaisSemSidebar;
     
@@ -4918,155 +5066,7 @@
             Imprimir Relatório
           </button>
         </div>
-      
-  <!-- MODAL: ABRIR NOVO CHAMADO -->
-  <div class="modal fade" id="modalNovoChamado" tabindex="-1" aria-hidden="true" style="z-index: 1055;">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
-      <div class="modal-content shadow-lg border-0 rounded-3">
-        <div class="modal-header bg-danger text-white py-3">
-          <h5 class="modal-title fw-bold mb-0">
-            <i class="fa-solid fa-headset me-2"></i> Abrir Novo Chamado de Suporte
-          </h5>
-          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <div class="modal-body p-4">
-          <form id="formNovoChamado" onsubmit="enviarNovoChamado(event); return false;">
-            <div class="row g-3">
-              <div class="col-md-6">
-                <label class="form-label fw-bold small text-secondary mb-1">Categoria / Tipo de Problema: *</label>
-                <select class="form-select form-select-sm" id="novo_chamado_tipo" required>
-                  <option value="Problema no Sistema">Problema / Erro no Sistema</option>
-                  <option value="Dúvida Operacional">Dúvida Operacional de Uso</option>
-                  <option value="Manutenção / Correção">Manutenção / Correção de Dados</option>
-                  <option value="Permissões e Acessos">Permissões de Acesso / Setor</option>
-                  <option value="Sugestão de Melhoria">Sugestão de Melhoria</option>
-                  <option value="Outro">Outro Motivo</option>
-                </select>
-              </div>
-              <div class="col-md-6">
-                <label class="form-label fw-bold small text-secondary mb-1">Título Resumido: *</label>
-                <input type="text" class="form-control form-control-sm" id="novo_chamado_titulo" placeholder="Ex: Erro ao registrar checklist..." required maxlength="120">
-              </div>
-              <div class="col-12">
-                <label class="form-label fw-bold small text-secondary mb-1">Descrição Detalhada da Ocorrência: *</label>
-                <textarea class="form-control form-control-sm" id="novo_chamado_descricao" rows="4" placeholder="Descreva passo a passo o que aconteceu, telas acessadas, eventuais mensagens de erro ou qualquer detalhe relevante..." required></textarea>
-              </div>
-              <div class="col-12">
-                <label class="form-label fw-bold small text-secondary mb-1">
-                  <i class="fa-solid fa-image me-1 text-danger"></i> Anexar Print ou Foto da Tela (Opcional):
-                </label>
-                <input type="file" class="form-control form-control-sm" id="novo_chamado_arquivo" accept="image/*" onchange="previewImagemChamado(this, 'previewNovoChamadoContainer', 'previewNovoChamado')">
-                <div class="form-text small text-muted">Formatos aceitos: JPG, PNG, WebP. Anexar imagem da tela acelera o diagnóstico.</div>
-                
-                <div id="previewNovoChamadoContainer" class="mt-2 text-center p-2 border rounded bg-light d-none">
-                  <img id="previewNovoChamado" src="#" alt="Preview" style="max-height: 220px; max-width: 100%; border-radius: 6px;" class="shadow-sm">
-                  <div class="mt-2">
-                    <button type="button" class="btn btn-outline-danger btn-sm py-1 px-3 fw-bold" onclick="limparPreviewChamado('novo_chamado_arquivo', 'previewNovoChamadoContainer')">
-                      <i class="fa-solid fa-trash me-1"></i> Remover Imagem
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="modal-footer px-0 pb-0 mt-4 border-top pt-3">
-              <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
-              <button type="submit" id="btnSalvarNovoChamado" class="btn btn-danger btn-sm fw-bold px-4 shadow-sm">
-                <i class="fa-solid fa-paper-plane me-1"></i> Enviar Chamado
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- MODAL: DETALHES E TRATAMENTO DO CHAMADO -->
-  <div class="modal fade" id="modalDetalhesChamado" tabindex="-1" aria-hidden="true" style="z-index: 1055;">
-    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-      <div class="modal-content shadow-lg border-0 rounded-3">
-        <div class="modal-header bg-dark text-white py-3">
-          <div class="d-flex align-items-center gap-2 flex-wrap">
-            <h5 class="modal-title fw-bold mb-0" id="detalhes_chamado_protocolo">#CHAM-00000000-0000</h5>
-            <span id="detalhes_chamado_status_badge" class="badge bg-warning">ABERTO</span>
-          </div>
-          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <div class="modal-body p-4">
-          
-          <!-- Metadados do Solicitante -->
-          <div class="card bg-light border-0 p-3 mb-3 rounded-3 small">
-            <div class="row g-2">
-              <div class="col-md-6"><strong>Solicitante:</strong> <span id="detalhes_chamado_solicitante">-</span></div>
-              <div class="col-md-6"><strong>OME / Subunidade:</strong> <span id="detalhes_chamado_ome">-</span></div>
-              <div class="col-md-6"><strong>Data de Abertura:</strong> <span id="detalhes_chamado_data">-</span></div>
-              <div class="col-md-6"><strong>Categoria:</strong> <span id="detalhes_chamado_tipo" class="fw-bold text-danger">-</span></div>
-            </div>
-          </div>
-
-          <!-- Assunto e Descrição Principal -->
-          <div class="card border p-3 mb-3 rounded-3">
-            <h5 class="fw-bold text-dark mb-2" id="detalhes_chamado_titulo">-</h5>
-            <p class="text-secondary small mb-2" style="white-space: pre-wrap; line-height: 1.5;" id="detalhes_chamado_descricao">-</p>
-            <div id="detalhes_chamado_imagem_box" class="mt-2 text-center d-none">
-              <a id="detalhes_chamado_imagem_link" href="#" target="_blank" title="Clique para abrir imagem original">
-                <img id="detalhes_chamado_imagem" src="#" alt="Print do Chamado" style="max-height: 250px; max-width: 100%; border-radius: 6px; border: 1px solid #cbd5e1;">
-              </a>
-              <div class="text-muted small mt-1"><i class="fa-solid fa-magnifying-glass-plus me-1"></i> Clique na imagem para abrir em tela cheia</div>
-            </div>
-          </div>
-
-          <!-- Histórico de Atendimento e Mensagens -->
-          <h6 class="fw-bold text-dark mb-2"><i class="fa-solid fa-comments me-1"></i> Histórico de Interações:</h6>
-          <div id="detalhes_chamado_historico" class="mb-3 p-3 border rounded-3 bg-light" style="max-height: 260px; overflow-y: auto;">
-            <!-- Renderizado dinamicamente -->
-          </div>
-
-          <!-- PAINEL DE TRATAMENTO TÉCNICO (EXCLUSIVO ADMINISTRADOR) -->
-          <div id="boxTratamentoAdmin" class="p-3 border rounded-3 bg-white border-danger border-opacity-50 mb-3 d-none">
-            <h6 class="fw-bold text-danger mb-2"><i class="fa-solid fa-user-shield me-1"></i> Painel do Suporte Técnico (Administrador):</h6>
-            <div class="mb-2">
-              <label class="form-label small fw-bold mb-1">Parecer / Resposta do Suporte: *</label>
-              <textarea class="form-control form-control-sm" id="admin_resposta_chamado" rows="3" placeholder="Digite a resposta técnica, instruções de solução ou questionamentos ao militar..."></textarea>
-            </div>
-            <div class="d-flex justify-content-end gap-2 flex-wrap">
-              <button type="button" class="btn btn-outline-primary btn-sm fw-bold" onclick="salvarTratamentoAdmin('EM_ATENDIMENTO')">
-                <i class="fa-solid fa-spinner me-1"></i> "Em Atendimento"
-              </button>
-              <button type="button" class="btn btn-sm fw-bold text-white" style="background-color: #7c3aed;" onclick="salvarTratamentoAdmin('AGUARDANDO_USUARIO')">
-                <i class="fa-solid fa-circle-question me-1"></i> Solicitar Mais Informações
-              </button>
-              <button type="button" class="btn btn-success btn-sm fw-bold shadow-sm" onclick="salvarTratamentoAdmin('RESOLVIDO')">
-                <i class="fa-solid fa-check-double me-1"></i> Finalizar e Resolver Chamado
-              </button>
-            </div>
-          </div>
-
-          <!-- ÁREA DE RESPOSTA DO USUÁRIO (CASO STATUS AGUARDANDO_USUARIO) -->
-          <div id="boxRespostaUsuario" class="p-3 border rounded-3 mb-3 d-none" style="background-color: #faf5ff; border-color: #c084fc !important;">
-            <h6 class="fw-bold mb-2" style="color: #7c3aed;"><i class="fa-solid fa-reply me-1"></i> O suporte técnico solicitou informações complementares:</h6>
-            <div class="mb-2">
-              <textarea class="form-control form-control-sm" id="usuario_resposta_complementar" rows="3" placeholder="Digite as informações solicitadas pela equipe técnica..."></textarea>
-            </div>
-            <div class="mb-2">
-              <label class="form-label small fw-bold mb-1">Novo Anexo de Imagem (Opcional):</label>
-              <input type="file" class="form-control form-control-sm" id="usuario_resposta_arquivo" accept="image/*">
-            </div>
-            <div class="text-end">
-              <button type="button" class="btn btn-sm fw-bold text-white shadow-sm" style="background-color: #7c3aed;" onclick="enviarRespostaUsuarioChamado()">
-                <i class="fa-solid fa-paper-plane me-1"></i> Enviar Informações ao Suporte
-              </button>
-            </div>
-          </div>
-
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Fechar</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-</body>
+      </body>
       </html>
     `;
 
@@ -22837,8 +22837,17 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     limparPreviewChamado('novo_chamado_arquivo', 'previewNovoChamadoContainer');
     const modalEl = document.getElementById('modalNovoChamado');
     if (modalEl) {
-      const modal = new bootstrap.Modal(modalEl);
-      modal.show();
+      if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        modal.show();
+      } else if (typeof $ !== 'undefined' && $(modalEl).modal) {
+        $(modalEl).modal('show');
+      } else {
+        modalEl.classList.add('show');
+        modalEl.style.display = 'block';
+      }
+    } else {
+      console.error('Elemento modalNovoChamado não encontrado no DOM!');
     }
   }
 
@@ -23032,8 +23041,15 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
 
     const modalEl = document.getElementById('modalDetalhesChamado');
     if (modalEl) {
-      const modal = new bootstrap.Modal(modalEl);
-      modal.show();
+      if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        modal.show();
+      } else if (typeof $ !== 'undefined' && $(modalEl).modal) {
+        $(modalEl).modal('show');
+      } else {
+        modalEl.classList.add('show');
+        modalEl.style.display = 'block';
+      }
     }
   }
 
