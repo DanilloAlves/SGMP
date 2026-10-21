@@ -13104,7 +13104,9 @@ function enviarCodigoVerificacaoInstitucional(emailInstitucional, nome) {
     MailApp.sendEmail({
       to: emailLimpo,
       subject: assunto,
-      htmlBody: corpoHtml
+      htmlBody: corpoHtml,
+      name: "SGMP — CBMPE (Sistema de Materiais)",
+      replyTo: "naoresponda@bombeiros.pe.gov.br"
     });
 
     registrarLogAuditoria("ENVIO_OTP_INSTITUCIONAL", "Código de verificação enviado para e-mail institucional: " + emailLimpo);
