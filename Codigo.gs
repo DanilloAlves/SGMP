@@ -14859,15 +14859,18 @@ function getHistoricoMovimentacaoItem(codigoOuPatrimonio) {
 // Função de teste para validar e autorizar envio via dcsdlog@gmail.com
 
 // Permite ao militar cadastrar seu PIN definitivo no primeiro acesso
-function redefinirPinPrimeiroAcesso(pinTemporario, novoPin, confirmaPin) {
+function redefinirPinPrimeiroAcesso(pinTemporario, novoPin, confirmaPin, identificadorCliente) {
   try {
     var email = "";
     try { email = Session.getActiveUser().getEmail(); } catch (e) {}
     if (!email) {
       try { email = Session.getEffectiveUser().getEmail(); } catch (e) {}
     }
+    if (!email && identificadorCliente) {
+      email = String(identificadorCliente).trim();
+    }
     
-    var usuario = verificarPermissaoUsuario(email);
+    var usuario = verificarPermissaoUsuario(email || identificadorCliente);
     if (!usuario) {
       throw new Error("Sessão não identificada ou usuário não encontrado.");
     }
@@ -14913,8 +14916,8 @@ function redefinirPinPrimeiroAcesso(pinTemporario, novoPin, confirmaPin) {
       throw new Error("Usuário não encontrado na base de dados de Logins.");
     }
     
-    // Atualiza o PIN pessoal na coluna 7 (G) e define PRIMEIRO_ACESSO como 'NAO' na coluna 9 (I)
-    sheetLogins.getRange(linhaUsuario, 7).setValue(novoPinLimpo);
+    // Atualiza o PIN pessoal na coluna 7 (G) preservando formato textual e define PRIMEIRO_ACESSO como 'NAO' na coluna 9 (I)
+    sheetLogins.getRange(linhaUsuario, 7).setNumberFormat('@').setValue(novoPinLimpo);
     sheetLogins.getRange(linhaUsuario, 9).setValue("NAO");
     
     // Invalida cache de sessão
