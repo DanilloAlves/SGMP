@@ -3499,13 +3499,7 @@
           usuarioSessaoAtual.perfil = padronizarPerfilTexto(usuarioSessaoAtual.perfil);
         }
         
-        // Se o usuário precisa cadastrar o primeiro acesso ou redefinir PIN por solicitação de reset,
-        // bloqueia IMEDIATAMENTE a aplicação e ativa o Gate de Segurança Bloqueante.
-        if (usuarioSessaoAtual && (usuarioSessaoAtual.primeiroAcesso === true || String(usuarioSessaoAtual.primeiroAcesso).toUpperCase() === 'SIM')) {
-          removerOverlayESair(true);
-          ativarGatePrimeiroAcesso(usuarioSessaoAtual);
-          return;
-        }
+
 
         PERFIL_GLOBAL = usuarioSessaoAtual.perfil || "Usuário";
         OME_GLOBAL = usuarioSessaoAtual.ome || "";
@@ -3704,6 +3698,32 @@
           msgErro.innerText = 'PIN pessoal registrado com sucesso! Liberando acesso ao sistema...';
           msgErro.classList.remove('d-none');
         }
+        function desbloquearEAbrirSistema() {
+          if (window._desbloqueioJaFeito) return;
+          window._desbloqueioJaFeito = true;
+
+          if (usuarioSessaoAtual) usuarioSessaoAtual.primeiroAcesso = false;
+          if (typeof USUARIO_INJETADO !== 'undefined' && USUARIO_INJETADO) USUARIO_INJETADO.primeiroAcesso = false;
+
+          const gateEl = document.getElementById('gate-primeiro-acesso');
+          if (gateEl) {
+            gateEl.style.display = 'none';
+            try { gateEl.remove(); } catch(e) {}
+          }
+
+          const cssGate = document.getElementById('css-gate-primeiro-acesso');
+          if (cssGate) {
+            try { cssGate.remove(); } catch(e) {}
+          }
+
+          document.querySelectorAll('.app-header-top, .top-nav-bar, .main-layout').forEach(el => {
+            el.style.removeProperty('display');
+            el.style.display = '';
+          });
+
+          iniciarAplicacaoAposAutenticacao();
+        }
+
         Swal.fire({
           icon: 'success',
           title: 'PIN Cadastrado com Sucesso!',
@@ -3714,13 +3734,13 @@
           showConfirmButton: true,
           confirmButtonText: 'Acessar Sistema Agora'
         }).then(function() {
-          window.location.reload();
+          desbloquearEAbrirSistema();
         });
 
-        // Garantia de recarregamento caso o usuário não clique ou feche o modal
+        // Garantia de abertura caso o usuário não clique ou feche o modal
         setTimeout(function() {
-          window.location.reload();
-        }, 2500);
+          desbloquearEAbrirSistema();
+        }, 2200);
       })
       .withFailureHandler(function(err) {
         clearTimeout(timeoutSafety);
