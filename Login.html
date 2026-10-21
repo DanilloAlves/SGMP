@@ -156,12 +156,12 @@
           
           <div class="mb-2">
             <label class="form-label fw-bold">Nome Completo / Posto/Grad:</label>
-            <input type="text" id="cad_nome" class="form-control form-control-sm text-uppercase" placeholder="EX: CB BM DANILLO ALVES DA SILVA">
+            <input type="text" id="cad_nome" class="form-control form-control-sm text-uppercase" placeholder="(Escreva em caixa alta)">
           </div>
           
           <div class="mb-2">
             <label class="form-label fw-bold">CPF (Somente números):</label>
-            <input type="text" id="cad_cpf" class="form-control form-control-sm" placeholder="Ex: 07400344480" maxlength="11">
+            <input type="text" id="cad_cpf" class="form-control form-control-sm" placeholder="XXXXXXXXXXX" maxlength="11">
           </div>
           
           <div class="alert alert-light border small text-muted py-2 mb-2">
@@ -170,8 +170,8 @@
 
           <div class="mb-2">
             <label class="form-label fw-bold">E-mail Google de Login (Acesso diário):</label>
-            <input type="email" id="cad_email" class="form-control form-control-sm" placeholder="seu.email@gmail.com ou institucional">
-            <div class="text-muted" style="font-size: 0.72rem;">Conta Google que você usará para clicar no botão "Entrar com Conta Google".</div>
+            <input type="email" id="cad_email" class="form-control form-control-sm" placeholder="seu.email@gmail.com">
+            <div class="text-muted" style="font-size: 0.72rem;">Conta Gmail que você usará para clicar no botão "Entrar com Conta Google".</div>
           </div>
 
           <div class="mb-2 p-2 bg-danger-subtle rounded border border-danger-subtle">
@@ -275,7 +275,7 @@
     return primeiroNomeNoEmail;
   }
 
-    function enviarOtpEExibirModalConfirmacao(dadosForm) {
+      function enviarOtpEExibirModalConfirmacao(dadosForm) {
     if (!validarCompatibilidadeEmailNomeClient(dadosForm.emailInstitucional, dadosForm.nome)) {
       Swal.fire({
         icon: 'error',
@@ -285,29 +285,165 @@
       });
       return;
     }
+
     Swal.fire({
-      title: 'Enviando código...',
-      html: `Gerando código de segurança para <strong>${dadosForm.emailInstitucional}</strong>...`,
+      title: 'Verificando cadastro...',
+      html: 'Consultando base de dados institucional...',
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading()
+    });
+
+    // 1. Verifica se já existe cadastro ativo para este militar/e-mail
+    google.script.run
+      .withSuccessHandler(resExistente => {
+        if (resExistente && resExistente.existe) {
+          Swal.fire({
+            title: '<i class="fa-solid fa-user-check text-primary me-2"></i> Cadastro Já Existente',
+            html: `
+              <p class="text-muted small mb-3">Identificamos que já existe um cadastro ativo para este militar (<strong>${resExistente.nome || 'Militar'}</strong>) no SGMP.</p>
+              <p class="text-dark small fw-bold mb-3">Deseja redefinir seu PIN de acesso recebendo um novo PIN temporário no seu e-mail institucional?</p>
+              <div class="alert alert-light border small text-muted py-2 mb-0">
+                O PIN temporário será enviado para: <strong>${dadosForm.emailInstitucional}</strong>
+              </div>
+            `,
+            showCancelButton: true,
+            confirmButtonText: '<i class="fa-solid fa-rotate-left me-1"></i> Sim, Redefinir PIN',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#991b1b',
+            cancelButtonColor: '#64748b'
+          }).then(resAction => {
+            if (resAction.isConfirmed) {
+              executarDisparoResetPin(resExistente.cpf || dadosForm.cpf || dadosForm.email, dadosForm.emailInstitucional);
+            }
+          });
+          return;
+        }
+
+        // 2. Não existe cadastro: segue fluxo de envio de OTP para novo acesso
+        Swal.fire({
+          title: 'Enviando código...',
+          html: `Gerando código de segurança para <strong>${dadosForm.emailInstitucional}</strong>...`,
+          allowOutsideClick: false,
+          didOpen: () => Swal.showLoading()
+        });
+
+        google.script.run
+          .withSuccessHandler(r => {
+            exibirModalDigitarCodigoOtp(dadosForm);
+          })
+          .withFailureHandler(err => {
+            const msg = (err.message && err.message.indexOf('recusou o acesso') !== -1)
+              ? 'O processo de validação recusou o acesso.'
+              : (err.message || 'O processo de validação recusou o acesso.');
+            Swal.fire({
+              icon: 'error',
+              title: 'Validação Recusada',
+              text: msg,
+              confirmButtonColor: '#991b1b'
+            });
+          })
+          .enviarCodigoVerificacaoInstitucional(dadosForm.emailInstitucional, dadosForm.nome);
+      })
+      .withFailureHandler(err => {
+        // Se houver falha de rede/banco na verificação prévia, tenta enviar OTP normalmente
+        google.script.run
+          .withSuccessHandler(r => {
+            exibirModalDigitarCodigoOtp(dadosForm);
+          })
+          .withFailureHandler(errOtp => {
+            Swal.fire({
+              icon: 'error',
+              title: 'Validação Recusada',
+              text: 'O processo de validação recusou o acesso.',
+              confirmButtonColor: '#991b1b'
+            });
+          })
+          .enviarCodigoVerificacaoInstitucional(dadosForm.emailInstitucional, dadosForm.nome);
+      })
+      .verificarUsuarioExistente(dadosForm.email, dadosForm.cpf, dadosForm.emailInstitucional);
+  }
+
+  // Abre modal de 'Esqueci minha Senha / PIN'
+  function abrirModalEsqueciSenha() {
+    Swal.fire({
+      title: '<i class="fa-solid fa-key text-danger me-2"></i> Recuperar Senha / PIN',
+      html: `
+        <div class="text-start p-2 small">
+          <p class="text-muted mb-3">Informe seus dados para receber um <strong>PIN temporário de recuperação</strong> no seu e-mail funcional institucional.</p>
+          
+          <div class="mb-3">
+            <label class="form-label fw-bold">CPF (Somente números):</label>
+            <input type="text" id="recup_cpf" class="form-control form-control-sm" placeholder="XXXXXXXXXXX" maxlength="11">
+          </div>
+          
+          <div class="mb-2">
+            <label class="form-label fw-bold">E-mail Institucional (@bombeiros.pe.gov.br):</label>
+            <input type="email" id="recup_email_inst" class="form-control form-control-sm" placeholder="nome.sobrenome@bombeiros.pe.gov.br">
+          </div>
+        </div>
+      `,
+      width: '460px',
+      showCancelButton: true,
+      confirmButtonText: '<i class="fa-solid fa-paper-plane me-1"></i> Enviar PIN Temporário',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#991b1b',
+      preConfirm: () => {
+        const cpf = (document.getElementById('recup_cpf').value || '').trim().replace(/\D/g, '');
+        const emailInst = (document.getElementById('recup_email_inst').value || '').trim().toLowerCase();
+
+        if (!cpf || !emailInst) {
+          Swal.showValidationMessage('Preencha o CPF e o E-mail Institucional.');
+          return false;
+        }
+        if (cpf.length !== 11) {
+          Swal.showValidationMessage('Informe um CPF válido com 11 dígitos.');
+          return false;
+        }
+        if (!emailInst.endsWith('@bombeiros.pe.gov.br')) {
+          Swal.showValidationMessage('O e-mail deve obrigatoriamente terminar com @bombeiros.pe.gov.br');
+          return false;
+        }
+        return { cpf, emailInst };
+      }
+    }).then(res => {
+      if (res.isConfirmed && res.value) {
+        executarDisparoResetPin(res.value.cpf, res.value.emailInst);
+      }
+    });
+  }
+
+  // Dispara rotina de Reset de PIN no servidor
+  function executarDisparoResetPin(identificador, emailInst) {
+    Swal.fire({
+      title: 'Processando recuperação...',
+      html: 'Verificando dados e gerando PIN temporário de segurança...',
       allowOutsideClick: false,
       didOpen: () => Swal.showLoading()
     });
 
     google.script.run
-      .withSuccessHandler(r => {
-        exibirModalDigitarCodigoOtp(dadosForm);
-      })
-      .withFailureHandler(err => {
-        const msg = (err.message && err.message.indexOf('recusou o acesso') !== -1)
-          ? 'O processo de validação recusou o acesso.'
-          : (err.message || 'O processo de validação recusou o acesso.');
+      .withSuccessHandler(resp => {
         Swal.fire({
-          icon: 'error',
-          title: 'Validação Recusada',
-          text: msg,
+          icon: 'success',
+          title: 'PIN Temporário Enviado!',
+          html: `
+            <p class="text-muted small mb-2">Um novo PIN temporário de recuperação foi enviado com sucesso para:</p>
+            <div class="badge bg-danger-subtle text-danger border border-danger-subtle p-2 fs-6 mb-3 font-monospace">${emailInst}</div>
+            <p class="text-muted small mb-0">Para utilizá-lo, clique em <strong>"Entrar com Conta Google"</strong> na tela de login. A tela de segurança solicitará este PIN temporário para você cadastrar seu novo PIN pessoal definitivo.</p>
+          `,
           confirmButtonColor: '#991b1b'
         });
       })
-      .enviarCodigoVerificacaoInstitucional(dadosForm.emailInstitucional, dadosForm.nome);
+      .withFailureHandler(err => {
+        const ehRecusa = (err.message && err.message.indexOf('recusou o acesso') !== -1);
+        Swal.fire({
+          icon: 'error',
+          title: ehRecusa ? 'Validação Recusada' : 'Atenção',
+          text: ehRecusa ? 'O processo de validação recusou o acesso.' : (err.message || 'Erro ao processar solicitação de PIN.'),
+          confirmButtonColor: '#991b1b'
+        });
+      })
+      .executarResetPinMilitar(identificador, emailInst);
   }
 
   function exibirModalDigitarCodigoOtp(dadosForm) {

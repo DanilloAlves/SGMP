@@ -15050,6 +15050,218 @@ function redefinirPinPrimeiroAcesso(pinTemporario, novoPin, confirmaPin, identif
 }
 
 // Função de teste para validar e autorizar envio via dcsdlog@gmail.com
+
+// Verifica se o usuário já possui cadastro ativo na base de dados de Logins
+function verificarUsuarioExistente(emailGoogle, cpf, emailInst) {
+  try {
+    var ssUser = SpreadsheetApp.openById(ID_PLANILHA_USUARIOS);
+    var sheetLogins = ssUser.getSheetByName(ABA_USUARIOS);
+    if (!sheetLogins || sheetLogins.getLastRow() <= 1) {
+      return { existe: false };
+    }
+
+    var emailGoogleLimpo = String(emailGoogle || "").trim().toLowerCase();
+    var cpfLimpo = String(cpf || "").trim().replace(/\D/g, "");
+    var emailInstLimpo = String(emailInst || "").trim().toLowerCase();
+
+    var dados = sheetLogins.getDataRange().getValues();
+    for (var i = 1; i < dados.length; i++) {
+      var rowEmail = String(dados[i][0] || "").trim().toLowerCase();
+      var rowCpf = String(dados[i][1] || "").trim().replace(/\D/g, "");
+      var rowNome = String(dados[i][2] || "").trim();
+      var rowStatus = String(dados[i][7] || "ATIVO").trim().toUpperCase();
+
+      var bateuEmail = (emailGoogleLimpo && rowEmail === emailGoogleLimpo);
+      var bateuCpf = (cpfLimpo && rowCpf === cpfLimpo);
+
+      if (bateuEmail || bateuCpf) {
+        return {
+          existe: true,
+          nome: rowNome,
+          cpf: rowCpf,
+          emailGoogle: rowEmail,
+          status: rowStatus
+        };
+      }
+    }
+
+    // Verifica em CadastrosPendentes se o e-mail institucional já foi aprovado
+    var sheetPend = ssUser.getSheetByName("CadastrosPendentes");
+    if (sheetPend && sheetPend.getLastRow() > 1) {
+      var dadosPend = sheetPend.getDataRange().getValues();
+      for (var p = 1; p < dadosPend.length; p++) {
+        var pEmailInst = String(dadosPend[p][10] || "").trim().toLowerCase();
+        var pStatus = String(dadosPend[p][9] || "").trim().toUpperCase();
+        var pCpf = String(dadosPend[p][4] || "").trim().replace(/\D/g, "");
+        var pEmail = String(dadosPend[p][3] || "").trim().toLowerCase();
+        if (pStatus === "APROVADO" && (
+            (emailInstLimpo && pEmailInst === emailInstLimpo) ||
+            (cpfLimpo && pCpf === cpfLimpo) ||
+            (emailGoogleLimpo && pEmail === emailGoogleLimpo)
+        )) {
+          return {
+            existe: true,
+            nome: String(dadosPend[p][2] || "").trim(),
+            cpf: pCpf,
+            emailGoogle: pEmail,
+            emailInst: pEmailInst,
+            status: "ATIVO"
+          };
+        }
+      }
+    }
+
+    return { existe: false };
+  } catch (err) {
+    console.error("Erro ao verificar usuário existente: " + err.message);
+    return { existe: false };
+  }
+}
+
+// Gera PIN temporário aleatório, define PRIMEIRO_ACESSO='SIM' e envia para o e-mail @bombeiros.pe.gov.br
+function executarResetPinMilitar(identificador, emailInstInformado) {
+  try {
+    var emailInstLimpo = String(emailInstInformado || "").trim().toLowerCase();
+    var idLimpo = String(identificador || "").trim();
+    var idCpf = idLimpo.replace(/\D/g, "");
+    var idEmail = idLimpo.toLowerCase();
+
+    if (!emailInstLimpo || !emailInstLimpo.endsWith("bombeiros.pe.gov.br")) {
+      throw new Error("O processo de validação recusou o acesso.");
+    }
+
+    var ssUser = SpreadsheetApp.openById(ID_PLANILHA_USUARIOS);
+    var sheetLogins = ssUser.getSheetByName(ABA_USUARIOS);
+    if (!sheetLogins || sheetLogins.getLastRow() <= 1) {
+      throw new Error("O processo de validação recusou o acesso.");
+    }
+
+    var dados = sheetLogins.getDataRange().getValues();
+    var linhaUsuario = -1;
+    var usuarioEncontrado = null;
+
+    for (var i = 1; i < dados.length; i++) {
+      var rowEmail = String(dados[i][0] || "").trim().toLowerCase();
+      var rowCpf = String(dados[i][1] || "").trim().replace(/\D/g, "");
+      var rowNome = String(dados[i][2] || "").trim();
+
+      var bateu = false;
+      if (idCpf && rowCpf === idCpf) bateu = true;
+      else if (idEmail && rowEmail === idEmail) bateu = true;
+
+      if (bateu) {
+        linhaUsuario = i + 1;
+        usuarioEncontrado = {
+          nome: rowNome,
+          cpf: rowCpf,
+          email: rowEmail
+        };
+        break;
+      }
+    }
+
+    // Se não encontrou diretamente pelo CPF/Email Google, tenta encontrar pelo e-mail institucional em CadastrosPendentes
+    if (linhaUsuario === -1) {
+      var sheetPend = ssUser.getSheetByName("CadastrosPendentes");
+      if (sheetPend && sheetPend.getLastRow() > 1) {
+        var dadosPend = sheetPend.getDataRange().getValues();
+        for (var p = 1; p < dadosPend.length; p++) {
+          var pEmailInst = String(dadosPend[p][10] || "").trim().toLowerCase();
+          var pCpf = String(dadosPend[p][4] || "").trim().replace(/\D/g, "");
+          var pEmail = String(dadosPend[p][3] || "").trim().toLowerCase();
+          if (pEmailInst === emailInstLimpo || (idCpf && pCpf === idCpf)) {
+            for (var j = 1; j < dados.length; j++) {
+              var rCpf = String(dados[j][1] || "").trim().replace(/\D/g, "");
+              var rEmail = String(dados[j][0] || "").trim().toLowerCase();
+              if ((pCpf && rCpf === pCpf) || (pEmail && rEmail === pEmail)) {
+                linhaUsuario = j + 1;
+                usuarioEncontrado = {
+                  nome: String(dados[j][2] || "").trim(),
+                  cpf: rCpf,
+                  email: rEmail
+                };
+                break;
+              }
+            }
+            if (linhaUsuario !== -1) break;
+          }
+        }
+      }
+    }
+
+    if (linhaUsuario === -1 || !usuarioEncontrado) {
+      throw new Error("O processo de validação recusou o acesso.");
+    }
+
+    // Validação estrita e sigilosa de compatibilidade entre o nome do militar e o e-mail @bombeiros.pe.gov.br
+    if (!validarCompatibilidadeEmailNome_(emailInstLimpo, usuarioEncontrado.nome)) {
+      registrarLogAuditoria("RECUSA_RESET_PIN", "Tentativa de reset recusada no processo de validação. E-mail: " + emailInstLimpo + " | Nome na base: " + usuarioEncontrado.nome);
+      throw new Error("O processo de validação recusou o acesso.");
+    }
+
+    // Gera novo PIN temporário aleatório de 6 dígitos numéricos
+    var pinTemporario = String(Math.floor(100000 + Math.random() * 900000));
+
+    // Grava na coluna 7 (PIN) e define PRIMEIRO_ACESSO = 'SIM' na coluna 9
+    sheetLogins.getRange(linhaUsuario, 7).setNumberFormat('@').setValue(pinTemporario);
+    sheetLogins.getRange(linhaUsuario, 9).setValue("SIM");
+
+    // Invalida cache de sessão
+    try {
+      var cache = CacheService.getScriptCache();
+      if (usuarioEncontrado.email) cache.remove("USR_PERM_" + usuarioEncontrado.email.replace(/[^a-z0-9]/gi, "_").substring(0, 45));
+      if (usuarioEncontrado.cpf) cache.remove("USR_PERM_" + usuarioEncontrado.cpf.replace(/[^a-z0-9]/gi, "_").substring(0, 45));
+    } catch (eCache) {}
+
+    // Envia e-mail oficial com o novo PIN temporário
+    var assunto = "[SGMP - CBMPE] Redefinição de PIN de Segurança: " + pinTemporario;
+    var corpoHtml = 
+      "<div style='font-family: Arial, sans-serif; max-width: 520px; margin: auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 24px; background-color: #ffffff;'>" +
+        "<div style='text-align: center; margin-bottom: 20px;'>" +
+          "<h2 style='color: #991b1b; margin: 0; font-size: 22px;'>SGMP — CBMPE</h2>" +
+          "<p style='color: #64748b; font-size: 13px; margin-top: 4px;'>Sistema de Gestão de Materiais e Patrimônio</p>" +
+        "</div>" +
+        "<p style='font-size: 15px; color: #1e293b;'>Olá, <strong>" + usuarioEncontrado.nome + "</strong>.</p>" +
+        "<p style='font-size: 14px; color: #475569; line-height: 1.5;'>Recebemos uma solicitação de <strong>redefinição do seu PIN de segurança</strong> no SGMP.</p>" +
+        "<p style='font-size: 14px; color: #475569;'>Seu novo PIN temporário de acesso é:</p>" +
+        "<div style='background-color: #fef2f2; border: 2px dashed #991b1b; border-radius: 6px; padding: 16px; text-align: center; font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #991b1b; margin: 24px 0;'>" +
+          pinTemporario +
+        "</div>" +
+        "<p style='font-size: 14px; color: #475569; line-height: 1.5;'>Para restabelecer seu acesso, entre no sistema com sua <strong>Conta Google</strong> cadastrada (<strong>" + usuarioEncontrado.email + "</strong>). Ao acessar, a tela de segurança solicitará este PIN temporário para você cadastrar seu <strong>novo PIN pessoal definitivo</strong>.</p>" +
+        "<p style='font-size: 13px; color: #64748b; line-height: 1.4;'><i style='color: #ef4444;'>Atenção:</i> Guarde este PIN com você. Se você não solicitou esta redefinição, entre em contato imediatamente com a DLOG.</p>" +
+        "<hr style='border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;'>" +
+        "<p style='font-size: 11px; color: #94a3b8; text-align: center; margin: 0;'>Diretoria de Logística — Corpo de Bombeiros Militar de Pernambuco</p>" +
+      "</div>";
+
+    var remetenteOficial = "dcsdlog@gmail.com";
+    try {
+      GmailApp.sendEmail(emailInstLimpo, assunto, "", {
+        htmlBody: corpoHtml,
+        from: remetenteOficial,
+        name: "SGMP — CBMPE (Sistema de Materiais)",
+        replyTo: remetenteOficial
+      });
+    } catch (eGmail) {
+      MailApp.sendEmail({
+        to: emailInstLimpo,
+        subject: assunto,
+        htmlBody: corpoHtml,
+        name: "SGMP — CBMPE (Sistema de Materiais)",
+        replyTo: remetenteOficial
+      });
+    }
+
+    registrarLogAuditoria("RESET_PIN_CONCLUIDO", "Novo PIN temporário gerado e enviado para o e-mail: " + emailInstLimpo, usuarioEncontrado.nome);
+    return {
+      sucesso: true,
+      mensagem: "PIN temporário de recuperação enviado com sucesso para " + emailInstLimpo
+    };
+  } catch (err) {
+    console.error("Erro ao resetar PIN: " + err.message);
+    throw new Error(err.message);
+  }
+}
+
 function testarEnvioDcsdlog() {
   GmailApp.sendEmail("danilloalves1989@gmail.com", "[SGMP] Teste de Remetente dcsdlog", "Este é um e-mail de teste confirmando o envio a partir de dcsdlog@gmail.com", {
     from: "dcsdlog@gmail.com",
