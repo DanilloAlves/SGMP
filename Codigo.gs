@@ -13091,6 +13091,79 @@ function debugTestarResolucaoArvore(idLocalDestino, unidadeOme) {
   }
 }
 
+// Valida se o e-mail institucional @bombeiros.pe.gov.br possui partes condizentes com o nome completo
+function validarCompatibilidadeEmailNome_(email, nome) {
+  if (!email || !nome) return false;
+
+  function normalizar(str) {
+    return String(str || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9\s._-]/g, "")
+      .trim();
+  }
+
+  var emailNorm = normalizar(email);
+  var nomeNorm = normalizar(nome);
+
+  var usuarioEmail = emailNorm.split("@")[0];
+  if (!usuarioEmail) return false;
+
+  var stopWords = [
+    "sd", "cb", "sgt", "sub", "ten", "subten", "asp", "cap", "maj", "tc", "cel",
+    "bm", "de", "da", "do", "das", "dos", "e", "qobm", "qpcbm", "qocbm", "qabm",
+    "al", "ch", "cmt", "subcmt", "chefe", "bombeiro", "militar"
+  ];
+
+  // Extrai tokens do nome ignorando patentes e preposições
+  var tokensNome = nomeNorm
+    .split(/[\s._-]+/)
+    .map(function(t) { return t.trim(); })
+    .filter(function(t) { return t.length >= 2 && stopWords.indexOf(t) === -1 && !/^\d+$/.test(t); });
+
+  if (tokensNome.length === 0) {
+    tokensNome = nomeNorm.split(/[\s._-]+/).filter(function(t) { return t.length >= 2; });
+  }
+
+  // Extrai tokens do prefixo do e-mail
+  var tokensEmail = usuarioEmail
+    .split(/[^a-z]+/)
+    .map(function(t) { return t.trim(); })
+    .filter(function(t) { return t.length >= 3; });
+
+  if (tokensEmail.length === 0) {
+    tokensEmail = usuarioEmail.split(/[^a-z]+/).map(function(t) { return t.trim(); }).filter(function(t) { return t.length >= 2; });
+  }
+
+  if (tokensEmail.length === 0) return false;
+
+  // Verifica se há correspondência entre os tokens do e-mail e do nome
+  var correspondencias = 0;
+  for (var i = 0; i < tokensEmail.length; i++) {
+    var te = tokensEmail[i];
+    var bateu = false;
+    for (var j = 0; j < tokensNome.length; j++) {
+      var tn = tokensNome[j];
+      if (tn === te || (tn.length >= 4 && te.length >= 4 && (tn.indexOf(te) !== -1 || te.indexOf(tn) !== -1))) {
+        bateu = true;
+        break;
+      }
+    }
+    if (bateu) correspondencias++;
+  }
+
+  if (correspondencias === 0) {
+    var nomeSemEspacos = tokensNome.join("");
+    var emailSemPontos = usuarioEmail.replace(/[^a-z]/g, "");
+    if (nomeSemEspacos.indexOf(emailSemPontos) === -1 && emailSemPontos.indexOf(nomeSemEspacos) === -1) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 // Envia código de verificação para o e-mail institucional @bombeiros.pe.gov.br
 function enviarCodigoVerificacaoInstitucional(emailInstitucional, nome) {
   try {
@@ -13098,11 +13171,17 @@ function enviarCodigoVerificacaoInstitucional(emailInstitucional, nome) {
     var nomeLimpo = String(nome || "Militar").trim().toUpperCase();
 
     if (!emailLimpo) {
-      throw new Error("Informe o e-mail institucional.");
+      throw new Error("O processo de validação recusou o acesso.");
     }
 
     if (!emailLimpo.endsWith("bombeiros.pe.gov.br")) {
-      throw new Error("O e-mail institucional deve obrigatoriamente terminar com @bombeiros.pe.gov.br");
+      throw new Error("O processo de validação recusou o acesso.");
+    }
+
+    // Verificação de segurança em sigilo: validação de compatibilidade entre e-mail institucional e nome
+    if (!validarCompatibilidadeEmailNome_(emailLimpo, nomeLimpo)) {
+      registrarLogAuditoria("RECUSA_VALIDACAO_CADASTRO", "Validação silenciosa recusou solicitação. E-mail: " + emailLimpo + " | Nome informado: " + nomeLimpo);
+      throw new Error("O processo de validação recusou o acesso.");
     }
 
     // Gera código numérico de 6 dígitos aleatórios
@@ -13172,6 +13251,10 @@ function confirmarCodigoESolicitarAcesso(dados, codigoDigitado) {
     var cache = CacheService.getScriptCache();
     var cacheKey = "OTP_" + emailInst;
     var codigoSalvo = cache.get(cacheKey);
+
+    if (!validarCompatibilidadeEmailNome_(emailInst, (dados && dados.nome) || "")) {
+      throw new Error("O processo de validação recusou o acesso.");
+    }
 
     var codDig = String(codigoDigitado || "").trim();
 

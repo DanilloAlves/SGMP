@@ -156,7 +156,7 @@
           
           <div class="mb-2">
             <label class="form-label fw-bold">Nome Completo / Posto/Grad:</label>
-            <input type="text" id="cad_nome" class="form-control form-control-sm text-uppercase" placeholder="EX: CB BM SILVA...">
+            <input type="text" id="cad_nome" class="form-control form-control-sm text-uppercase" placeholder="EX: CB BM DANILLO ALVES DA SILVA">
           </div>
           
           <div class="mb-2">
@@ -242,7 +242,15 @@
         exibirModalDigitarCodigoOtp(dadosForm);
       })
       .withFailureHandler(err => {
-        Swal.fire('Erro no Envio', err.message, 'error');
+        const msg = (err.message && err.message.indexOf('recusou o acesso') !== -1)
+          ? 'O processo de validação recusou o acesso.'
+          : (err.message || 'O processo de validação recusou o acesso.');
+        Swal.fire({
+          icon: 'error',
+          title: 'Validação Recusada',
+          text: msg,
+          confirmButtonColor: '#991b1b'
+        });
       })
       .enviarCodigoVerificacaoInstitucional(dadosForm.emailInstitucional, dadosForm.nome);
   }
@@ -306,13 +314,15 @@
             });
           })
           .withFailureHandler(err => {
+            const ehRecusa = (err.message && err.message.indexOf('recusou o acesso') !== -1);
             Swal.fire({
               icon: 'error',
-              title: 'Código Inválido',
+              title: ehRecusa ? 'Validação Recusada' : 'Código Inválido',
               text: err.message,
               confirmButtonText: 'Tentar Novamente',
               confirmButtonColor: '#991b1b'
             }).then(() => {
+              if (ehRecusa) return;
               exibirModalDigitarCodigoOtp(dadosForm);
             });
           })
