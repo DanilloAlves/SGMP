@@ -246,7 +246,8 @@ function verificarPermissaoUsuario(emailOuCpfInformado) {
           subunidade: subunidadeUser || "GERAL",
           cpf: cpfUser,
           status: rowStatus,
-          permissoes: padronizarPermissoesUsuario_(rowPerm, perfilUser)
+          permissoes: padronizarPermissoesUsuario_(rowPerm, perfilUser),
+          primeiroAcesso: (dados[i].length > 8 && String(dados[i][8] || "").trim().toUpperCase() === "SIM")
         };
       }
     }
@@ -13226,7 +13227,11 @@ function avaliarCadastroPendentes(idSolicitacao, acao) {
           var nomeAprovado = String(row[2] || "").trim();
           var omeAprovado = String(row[5] || "").trim().toUpperCase();
           var subAprovada = String(row[6] || "GERAL").trim().toUpperCase();
-          var pinAprovado = String(row[8] || "").trim();
+          var emailInstAprovado = String(row[10] || "").trim().toLowerCase();
+
+          // Gera PIN temporário aleatório de 6 dígitos numéricos
+          var pinTemporario = String(Math.floor(100000 + Math.random() * 900000));
+          var pinAprovado = pinTemporario;
 
           var loginsData = sheetLogins.getDataRange().getValues();
           var linhaExistente = -1;
@@ -13243,8 +13248,9 @@ function avaliarCadastroPendentes(idSolicitacao, acao) {
               sheetLogins.getRange(linhaExistente, 4).setValue(omeAprovado);
               sheetLogins.getRange(linhaExistente, 5).setValue(perfilAprovado);
               sheetLogins.getRange(linhaExistente, 6).setValue(subAprovada);
-              if (pinAprovado) sheetLogins.getRange(linhaExistente, 7).setValue(pinAprovado);
+              sheetLogins.getRange(linhaExistente, 7).setValue(pinAprovado);
               sheetLogins.getRange(linhaExistente, 8).setValue("ATIVO");
+              sheetLogins.getRange(linhaExistente, 9).setValue("SIM"); // Exige redefinição no primeiro acesso
             }
           }
 
@@ -13257,8 +13263,61 @@ function avaliarCadastroPendentes(idSolicitacao, acao) {
               perfilAprovado,
               subAprovada,
               pinAprovado,
-              "ATIVO"
+              "ATIVO",
+              "SIM" // Exige redefinição no primeiro acesso
             ]);
+          }
+
+          // Dispara e-mail oficial com o PIN Temporário gerado para o militar
+          try {
+            var corpoAprovacao = 
+              "<div style='font-family: Arial, sans-serif; max-width: 520px; margin: auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 24px; background-color: #ffffff;'>" +
+                "<div style='text-align: center; margin-bottom: 20px;'>" +
+                  "<h2 style='color: #15803d; margin: 0; font-size: 22px;'>SGMP — CBMPE</h2>" +
+                  "<p style='color: #64748b; font-size: 13px; margin-top: 4px;'>Sistema de Gestão de Materiais e Patrimônio</p>" +
+                "</div>" +
+                "<p style='font-size: 15px; color: #1e293b;'>Olá, <strong>" + nomeAprovado + "</strong>.</p>" +
+                "<p style='font-size: 14px; color: #475569; line-height: 1.5;'>Sua solicitação de acesso ao SGMP foi <strong style='color: #15803d;'>APROVADA</strong> com sucesso!</p>" +
+                "<p style='font-size: 14px; color: #475569;'>Seu <strong>PIN Temporário de Primeiro Acesso</strong> é:</p>" +
+                "<div style='background-color: #f0fdf4; border: 2px dashed #15803d; border-radius: 6px; padding: 16px; text-align: center; font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #15803d; margin: 24px 0;'>" +
+                  pinTemporario +
+                "</div>" +
+                "<div style='background-color: #fffbeb; border: 1px solid #fef3c7; border-radius: 6px; padding: 12px; font-size: 13px; color: #92400e; margin-bottom: 20px; line-height: 1.4;'>" +
+                  "<strong>Importante:</strong> Ao acessar o sistema pela primeira vez com sua conta Google, uma janela solicitará a digitação deste PIN temporário para que você crie o seu <strong>PIN Pessoal Definitivo</strong> para assinaturas digitais." +
+                "</div>" +
+                "<div style='text-align: center; margin-top: 24px;'>" +
+                  "<a href='https://sgmp.vercel.app' style='background-color: #991b1b; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: bold; font-size: 14px; display: inline-block;'>Acessar o SGMP</a>" +
+                "</div>" +
+                "<hr style='border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;'>" +
+                "<p style='font-size: 11px; color: #94a3b8; text-align: center; margin: 0;'>Diretoria de Logística — Corpo de Bombeiros Militar de Pernambuco</p>" +
+              "</div>";
+
+            var destEmails = [];
+            if (emailInstAprovado) destEmails.push(emailInstAprovado);
+            if (emailAprovado && destEmails.indexOf(emailAprovado.toLowerCase()) === -1) {
+              destEmails.push(emailAprovado.toLowerCase());
+            }
+
+            destEmails.forEach(function(dest) {
+              try {
+                GmailApp.sendEmail(dest, "[SGMP - CBMPE] Cadastro Aprovado — Seu PIN de Primeiro Acesso", "", {
+                  htmlBody: corpoAprovacao,
+                  from: "dcsdlog@gmail.com",
+                  name: "SGMP — CBMPE (Sistema de Materiais)",
+                  replyTo: "dcsdlog@gmail.com"
+                });
+              } catch (eEnvioG) {
+                MailApp.sendEmail({
+                  to: dest,
+                  subject: "[SGMP - CBMPE] Cadastro Aprovado — Seu PIN de Primeiro Acesso",
+                  htmlBody: corpoAprovacao,
+                  name: "SGMP — CBMPE (Sistema de Materiais)",
+                  replyTo: "dcsdlog@gmail.com"
+                });
+              }
+            });
+          } catch(eMailAp) {
+            console.error("Aviso ao enviar e-mail de PIN temporário: " + eMailAp.message);
           }
           
           // Invalida cache de sessão
@@ -14770,13 +14829,87 @@ function getHistoricoMovimentacaoItem(codigoOuPatrimonio) {
 
 
 // Função de teste para validar e autorizar envio via dcsdlog@gmail.com
+
+// Permite ao militar cadastrar seu PIN definitivo no primeiro acesso
+function redefinirPinPrimeiroAcesso(pinTemporario, novoPin, confirmaPin) {
+  try {
+    var email = "";
+    try { email = Session.getActiveUser().getEmail(); } catch (e) {}
+    if (!email) {
+      try { email = Session.getEffectiveUser().getEmail(); } catch (e) {}
+    }
+    
+    var usuario = verificarPermissaoUsuario(email);
+    if (!usuario) {
+      throw new Error("Sessão não identificada ou usuário não encontrado.");
+    }
+    
+    var pinTempLimpo = String(pinTemporario || "").trim();
+    var novoPinLimpo = String(novoPin || "").trim();
+    var confirmaPinLimpo = String(confirmaPin || "").trim();
+    
+    if (!pinTempLimpo) {
+      throw new Error("Informe o PIN temporário recebido por e-mail.");
+    }
+    if (!novoPinLimpo || novoPinLimpo.length < 4 || novoPinLimpo.length > 6 || !/^\d+$/.test(novoPinLimpo)) {
+      throw new Error("O novo PIN pessoal deve conter de 4 a 6 números.");
+    }
+    if (novoPinLimpo !== confirmaPinLimpo) {
+      throw new Error("A confirmação do novo PIN não confere.");
+    }
+    
+    // Valida se o PIN temporário atual na base de Logins está correto
+    var ss = SpreadsheetApp.openById(ID_PLANILHA_USUARIOS);
+    var sheetLogins = ss.getSheetByName(ABA_USUARIOS);
+    if (!sheetLogins) throw new Error("Aba de Logins não encontrada.");
+    
+    var dados = sheetLogins.getDataRange().getValues();
+    var linhaUsuario = -1;
+    var cpfLimpo = String(usuario.cpf || "").replace(/\D/g, "");
+    var emailLimpo = String(usuario.email || "").trim().toLowerCase();
+    
+    for (var i = 1; i < dados.length; i++) {
+      var rEmail = String(dados[i][0] || "").trim().toLowerCase();
+      var rCpf = String(dados[i][1] || "").trim().replace(/\D/g, "");
+      if ((emailLimpo && rEmail === emailLimpo) || (cpfLimpo && rCpf === cpfLimpo)) {
+        linhaUsuario = i + 1;
+        var pinAtual = String(dados[i][6] || "").trim();
+        if (pinAtual !== pinTempLimpo) {
+          throw new Error("PIN temporário incorreto. Verifique a mensagem recebida no seu e-mail institucional.");
+        }
+        break;
+      }
+    }
+    
+    if (linhaUsuario === -1) {
+      throw new Error("Usuário não encontrado na base de dados de Logins.");
+    }
+    
+    // Atualiza o PIN pessoal na coluna 7 (G) e define PRIMEIRO_ACESSO como 'NAO' na coluna 9 (I)
+    sheetLogins.getRange(linhaUsuario, 7).setValue(novoPinLimpo);
+    sheetLogins.getRange(linhaUsuario, 9).setValue("NAO");
+    
+    // Invalida cache de sessão
+    try {
+      var cache = CacheService.getScriptCache();
+      if (emailLimpo) cache.remove("USR_PERM_" + emailLimpo.replace(/[^a-z0-9]/gi, "_").substring(0, 45));
+      if (cpfLimpo) cache.remove("USR_PERM_" + cpfLimpo.replace(/[^a-z0-9]/gi, "_").substring(0, 45));
+    } catch (eCache) {}
+    
+    registrarLogAuditoria("PIN_PRIMEIRO_ACESSO_CADASTRADO", "Usuário cadastrou com sucesso seu PIN pessoal definitivo.", usuario.nome || usuario.email);
+    return { sucesso: true, mensagem: "PIN pessoal cadastrado com sucesso!" };
+  } catch (err) {
+    console.error("Erro ao redefinir PIN de primeiro acesso: " + err.message);
+    throw new Error(err.message);
+  }
+}
+
+// Função de teste para validar e autorizar envio via dcsdlog@gmail.com
 function testarEnvioDcsdlog() {
-  var aliases = GmailApp.getAliases();
-  Logger.log("Aliases disponíveis: " + JSON.stringify(aliases));
   GmailApp.sendEmail("danilloalves1989@gmail.com", "[SGMP] Teste de Remetente dcsdlog", "Este é um e-mail de teste confirmando o envio a partir de dcsdlog@gmail.com", {
     from: "dcsdlog@gmail.com",
     name: "SGMP — CBMPE (Sistema de Materiais)",
     replyTo: "dcsdlog@gmail.com"
   });
-  Logger.log("E-mail de teste disparado com sucesso!");
+  Logger.log("E-mail de teste disparado com sucesso a partir de dcsdlog@gmail.com!");
 }

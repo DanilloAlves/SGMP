@@ -81,7 +81,7 @@
 
   <div class="mt-3">
     <button onclick="abrirModalSolicitarAcesso()" class="btn btn-outline-secondary btn-sm w-100 fw-bold py-2">
-      <i class="fa-solid fa-user-plus me-1"></i> Não tem acesso? Solicitar Acesso / Criar PIN
+      <i class="fa-solid fa-user-plus me-1"></i> Não tem acesso? Solicitar Acesso ao Sistema
     </button>
   </div>
   
@@ -157,15 +157,13 @@
             <input type="text" id="cad_nome" class="form-control form-control-sm text-uppercase" placeholder="EX: CB BM SILVA...">
           </div>
           
-          <div class="row g-2 mb-2">
-            <div class="col-md-6">
-              <label class="form-label fw-bold">CPF:</label>
-              <input type="text" id="cad_cpf" class="form-control form-control-sm" placeholder="Somente números" maxlength="11">
-            </div>
-            <div class="col-md-6">
-              <label class="form-label fw-bold">PIN de Assinatura (4-6 dígitos):</label>
-              <input type="password" id="cad_pin" class="form-control form-control-sm" maxlength="6" placeholder="Ex: 1234">
-            </div>
+          <div class="mb-2">
+            <label class="form-label fw-bold">CPF (Somente números):</label>
+            <input type="text" id="cad_cpf" class="form-control form-control-sm" placeholder="Ex: 07400344480" maxlength="11">
+          </div>
+          
+          <div class="alert alert-light border small text-muted py-2 mb-2">
+            <i class="fa-solid fa-key me-1 text-danger"></i> <strong>PIN de Acesso:</strong> Após a aprovação do seu cadastro pelo setor responsável, um <strong>PIN temporário</strong> será gerado e enviado para o seu e-mail funcional para realizar o seu primeiro acesso.
           </div>
 
           <div class="mb-2">
@@ -202,11 +200,10 @@
         const email = document.getElementById('cad_email').value.trim().toLowerCase();
         const emailInst = document.getElementById('cad_email_inst').value.trim().toLowerCase();
         let cpf = document.getElementById('cad_cpf').value.trim().replace(/\D/g, '');
-        const pin = document.getElementById('cad_pin').value.trim();
         const ome = document.getElementById('cad_ome').value;
         const subunidade = document.getElementById('cad_subunidade').value.trim() || 'GERAL';
 
-        if (!nome || !email || !emailInst || !cpf || !pin || !ome) {
+        if (!nome || !email || !emailInst || !cpf || !ome) {
           Swal.showValidationMessage('Preencha todos os campos obrigatórios.');
           return false;
         }
@@ -219,12 +216,8 @@
           Swal.showValidationMessage('Informe um CPF válido com 11 dígitos.');
           return false;
         }
-        if (pin.length < 4) {
-          Swal.showValidationMessage('O PIN de assinatura deve conter de 4 a 6 números.');
-          return false;
-        }
 
-        return { nome, email, emailInstitucional: emailInst, cpf, pin, ome, subunidade };
+        return { nome, email, emailInstitucional: emailInst, cpf, ome, subunidade };
       }
     }).then(res => {
       if (res.isConfirmed && res.value) {

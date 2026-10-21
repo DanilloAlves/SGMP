@@ -3420,6 +3420,12 @@
 
         removerOverlayESair(true);
 
+        if (usuarioSessaoAtual && (usuarioSessaoAtual.primeiroAcesso === true || String(usuarioSessaoAtual.primeiroAcesso).toUpperCase() === 'SIM')) {
+          setTimeout(function() {
+            exibirModalCriarPinPrimeiroAcesso(usuarioSessaoAtual);
+          }, 800);
+        }
+
         google.script.run
           .withSuccessHandler(materiais => {
             dadosMateriaisGlobais = materiais || [];
@@ -3445,6 +3451,89 @@
       .getDadosUsuarioLogado((USUARIO_INJETADO && (USUARIO_INJETADO.cpf || USUARIO_INJETADO.email)) || '');
       
   });
+
+  // Exibe modal bloqueante de primeiro acesso para cadastrar o PIN pessoal definitivo
+  function exibirModalCriarPinPrimeiroAcesso(usuario) {
+    Swal.fire({
+      title: '<i class="fa-solid fa-key text-danger me-2"></i> Primeiro Acesso ao SGMP',
+      html: `
+        <div class="text-start p-2 small">
+          <p class="text-muted mb-3">Olá, <strong>${usuario.nome || 'Militar'}</strong>! Seu cadastro foi aprovado pela administração. Para segurança de suas operações, confirme o <strong>PIN temporário</strong> recebido no seu e-mail funcional e cadastre o seu <strong>PIN Pessoal Definitivo</strong> para assinaturas digitais.</p>
+          
+          <div class="mb-3">
+            <label class="form-label fw-bold">PIN Temporário (recebido por e-mail):</label>
+            <input type="password" id="primeiro_pin_temp" class="form-control" maxlength="6" placeholder="Digite o PIN de 6 dígitos">
+          </div>
+          
+          <div class="mb-3">
+            <label class="form-label fw-bold">Novo PIN Pessoal Definitivo (4 a 6 dígitos numéricos):</label>
+            <input type="password" id="primeiro_novo_pin" class="form-control" maxlength="6" placeholder="Ex: 1234">
+            <div class="text-muted" style="font-size: 0.72rem;">Utilize apenas números. Guarde este PIN com você, pois ele será sua assinatura digital.</div>
+          </div>
+          
+          <div class="mb-2">
+            <label class="form-label fw-bold">Confirme o Novo PIN:</label>
+            <input type="password" id="primeiro_confirma_pin" class="form-control" maxlength="6" placeholder="Repita o novo PIN">
+          </div>
+        </div>
+      `,
+      width: '480px',
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      showCancelButton: false,
+      confirmButtonText: '<i class="fa-solid fa-shield-check me-1"></i> Salvar PIN e Entrar',
+      confirmButtonColor: '#991b1b',
+      preConfirm: () => {
+        const pinTemp = document.getElementById('primeiro_pin_temp').value.trim();
+        const novoPin = document.getElementById('primeiro_novo_pin').value.trim();
+        const confirmaPin = document.getElementById('primeiro_confirma_pin').value.trim();
+
+        if (!pinTemp || !novoPin || !confirmaPin) {
+          Swal.showValidationMessage('Preencha todos os campos.');
+          return false;
+        }
+        if (novoPin.length < 4 || novoPin.length > 6 || !/^\d+$/.test(novoPin)) {
+          Swal.showValidationMessage('O novo PIN deve conter de 4 a 6 números.');
+          return false;
+        }
+        if (novoPin !== confirmaPin) {
+          Swal.showValidationMessage('A confirmação do novo PIN não confere.');
+          return false;
+        }
+        return { pinTemp, novoPin, confirmaPin };
+      }
+    }).then(res => {
+      if (res.isConfirmed && res.value) {
+        Swal.fire({
+          title: 'Salvando PIN...',
+          allowOutsideClick: false,
+          didOpen: () => Swal.showLoading()
+        });
+        google.script.run
+          .withSuccessHandler(resp => {
+            Swal.fire({
+              icon: 'success',
+              title: 'PIN Cadastrado!',
+              text: 'Seu PIN pessoal foi registrado com sucesso. Você já pode utilizar o sistema com total segurança.',
+              confirmButtonColor: '#991b1b'
+            }).then(() => {
+              if (usuarioSessaoAtual) usuarioSessaoAtual.primeiroAcesso = false;
+            });
+          })
+          .withFailureHandler(err => {
+            Swal.fire({
+              icon: 'error',
+              title: 'Erro ao cadastrar PIN',
+              text: err.message,
+              confirmButtonColor: '#991b1b'
+            }).then(() => {
+              exibirModalCriarPinPrimeiroAcesso(usuario);
+            });
+          })
+          .redefinirPinPrimeiroAcesso(res.value.pinTemp, res.value.novoPin, res.value.confirmaPin);
+      }
+    });
+  }
 
   function removerOverlayESair(sucesso) {
     const overlay = document.getElementById('app-loading-overlay');
