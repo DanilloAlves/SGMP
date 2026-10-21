@@ -302,6 +302,26 @@
     // 1. Verifica se já existe cadastro ativo para este militar/e-mail
     google.script.run
       .withSuccessHandler(resExistente => {
+        if (resExistente && resExistente.conflito) {
+          Swal.fire({
+            icon: 'warning',
+            title: 'Atenção',
+            text: resExistente.mensagem,
+            confirmButtonColor: '#991b1b'
+          });
+          return;
+        }
+
+        if (resExistente && resExistente.recusado) {
+          Swal.fire({
+            icon: 'error',
+            title: 'Validação Recusada',
+            text: 'O processo de validação recusou o acesso.',
+            confirmButtonColor: '#991b1b'
+          });
+          return;
+        }
+
         if (resExistente && resExistente.existe) {
           Swal.fire({
             title: '<i class="fa-solid fa-user-check text-primary me-2"></i> Cadastro Já Existente',

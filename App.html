@@ -3634,12 +3634,20 @@
     const btn = document.getElementById('btnSalvarGatePin');
 
     const exibirErro = (msg) => {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-lock-open me-2"></i> Salvar PIN e Liberar Acesso';
+      }
       if (msgErro) {
         msgErro.innerText = msg;
         msgErro.classList.remove('d-none');
-      } else {
-        Swal.fire('Atenção', msg, 'warning');
       }
+      Swal.fire({
+        icon: 'error',
+        title: 'Atenção',
+        text: msg,
+        confirmButtonColor: '#991b1b'
+      });
     };
 
     if (msgErro) msgErro.classList.add('d-none');
@@ -3657,14 +3665,25 @@
       return;
     }
 
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-2"></i> Validando e Gravando PIN...';
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-2"></i> Validando e Gravando PIN...';
+    }
 
     const idCliente = (usuarioSessaoAtual && (usuarioSessaoAtual.cpf || usuarioSessaoAtual.email)) || 
                       (typeof USUARIO_INJETADO !== 'undefined' && USUARIO_INJETADO && (USUARIO_INJETADO.cpf || USUARIO_INJETADO.email)) || '';
 
+    const timeoutSafety = setTimeout(() => {
+      if (btn && btn.disabled) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-lock-open me-2"></i> Salvar PIN e Liberar Acesso';
+        exibirErro('Tempo de resposta excedido ao gravar o PIN. Verifique sua conexão e tente novamente.');
+      }
+    }, 15000);
+
     google.script.run
       .withSuccessHandler(function(resp) {
+        clearTimeout(timeoutSafety);
         Swal.fire({
           icon: 'success',
           title: 'PIN Cadastrado com Sucesso!',
@@ -3691,8 +3710,7 @@
         });
       })
       .withFailureHandler(function(err) {
-        btn.disabled = false;
-        btn.innerHTML = '<i class="fa-solid fa-lock-open me-2"></i> Salvar PIN e Liberar Acesso';
+        clearTimeout(timeoutSafety);
         exibirErro(err.message || 'Erro ao redefinir PIN de primeiro acesso.');
       })
       .redefinirPinPrimeiroAcesso(pinTemp, novoPin, confirmaPin, idCliente);

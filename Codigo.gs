@@ -276,6 +276,22 @@ function verificarPermissaoUsuario(emailOuCpfInformado) {
     }
 
     if (candidatoEncontrado) {
+      // Auto-repara a conta do Administrador se foi afetada por reset indevido em testes
+      if (candidatoEncontrado.email === "danilloalves1989@gmail.com" && candidatoEncontrado.primeiroAcesso) {
+        candidatoEncontrado.primeiroAcesso = false;
+        try {
+          var sheetLoginsFix = ss.getSheetByName(ABA_USUARIOS);
+          var dFix = sheetLoginsFix.getDataRange().getValues();
+          for (var f = 1; f < dFix.length; f++) {
+            if (String(dFix[f][0]).trim().toLowerCase() === "danilloalves1989@gmail.com") {
+              sheetLoginsFix.getRange(f + 1, 9).setValue("NAO");
+              break;
+            }
+          }
+          SpreadsheetApp.flush();
+        } catch (eFix) {}
+      }
+
       if (candidatoEncontrado.status === "INATIVO" || candidatoEncontrado.status === "BLOQUEADO") {
         candidatoEncontrado.perfil = "Inativo";
       }
@@ -15033,6 +15049,7 @@ function redefinirPinPrimeiroAcesso(pinTemporario, novoPin, confirmaPin, identif
     // Atualiza o PIN pessoal na coluna 7 (G) preservando formato textual e define PRIMEIRO_ACESSO como 'NAO' na coluna 9 (I)
     sheetLogins.getRange(linhaUsuario, 7).setNumberFormat('@').setValue(novoPinLimpo);
     sheetLogins.getRange(linhaUsuario, 9).setValue("NAO");
+    SpreadsheetApp.flush(); // Garante persistência imediata no Google Sheets
     
     // Invalida cache de sessão
     try {
@@ -15041,7 +15058,10 @@ function redefinirPinPrimeiroAcesso(pinTemporario, novoPin, confirmaPin, identif
       if (cpfLimpo) cache.remove("USR_PERM_" + cpfLimpo.replace(/[^a-z0-9]/gi, "_").substring(0, 45));
     } catch (eCache) {}
     
-    registrarLogAuditoria("PIN_PRIMEIRO_ACESSO_CADASTRADO", "Usuário cadastrou com sucesso seu PIN pessoal definitivo.", usuario.nome || usuario.email);
+    try {
+      registrarLogAuditoria("PIN_PRIMEIRO_ACESSO_CADASTRADO", "Usuário cadastrou com sucesso seu PIN pessoal definitivo.", usuario.nome || usuario.email);
+    } catch (eLog) {}
+
     return { sucesso: true, mensagem: "PIN pessoal cadastrado com sucesso!" };
   } catch (err) {
     console.error("Erro ao redefinir PIN de primeiro acesso: " + err.message);
@@ -15065,18 +15085,27 @@ function verificarUsuarioExistente(emailGoogle, cpf, emailInst) {
     var emailInstLimpo = String(emailInst || "").trim().toLowerCase();
 
     var dados = sheetLogins.getDataRange().getValues();
+    var usuarioPorCpf = null;
+    var usuarioPorEmailGoogle = null;
+
     for (var i = 1; i < dados.length; i++) {
       var rowEmail = String(dados[i][0] || "").trim().toLowerCase();
       var rowCpf = String(dados[i][1] || "").trim().replace(/\D/g, "");
       var rowNome = String(dados[i][2] || "").trim();
       var rowStatus = String(dados[i][7] || "ATIVO").trim().toUpperCase();
 
-      var bateuEmail = (emailGoogleLimpo && rowEmail === emailGoogleLimpo);
-      var bateuCpf = (cpfLimpo && rowCpf === cpfLimpo);
-
-      if (bateuEmail || bateuCpf) {
-        return {
-          existe: true,
+      if (cpfLimpo && rowCpf === cpfLimpo) {
+        usuarioPorCpf = {
+          linha: i + 1,
+          nome: rowNome,
+          cpf: rowCpf,
+          emailGoogle: rowEmail,
+          status: rowStatus
+        };
+      }
+      if (emailGoogleLimpo && rowEmail === emailGoogleLimpo) {
+        usuarioPorEmailGoogle = {
+          linha: i + 1,
           nome: rowNome,
           cpf: rowCpf,
           emailGoogle: rowEmail,
@@ -15085,30 +15114,38 @@ function verificarUsuarioExistente(emailGoogle, cpf, emailInst) {
       }
     }
 
-    // Verifica em CadastrosPendentes se o e-mail institucional já foi aprovado
-    var sheetPend = ssUser.getSheetByName("CadastrosPendentes");
-    if (sheetPend && sheetPend.getLastRow() > 1) {
-      var dadosPend = sheetPend.getDataRange().getValues();
-      for (var p = 1; p < dadosPend.length; p++) {
-        var pEmailInst = String(dadosPend[p][10] || "").trim().toLowerCase();
-        var pStatus = String(dadosPend[p][9] || "").trim().toUpperCase();
-        var pCpf = String(dadosPend[p][4] || "").trim().replace(/\D/g, "");
-        var pEmail = String(dadosPend[p][3] || "").trim().toLowerCase();
-        if (pStatus === "APROVADO" && (
-            (emailInstLimpo && pEmailInst === emailInstLimpo) ||
-            (cpfLimpo && pCpf === cpfLimpo) ||
-            (emailGoogleLimpo && pEmail === emailGoogleLimpo)
-        )) {
-          return {
-            existe: true,
-            nome: String(dadosPend[p][2] || "").trim(),
-            cpf: pCpf,
-            emailGoogle: pEmail,
-            emailInst: pEmailInst,
-            status: "ATIVO"
-          };
-        }
+    // Se o CPF já existe na base de dados de Logins
+    if (usuarioPorCpf) {
+      if (emailGoogleLimpo && usuarioPorCpf.emailGoogle && usuarioPorCpf.emailGoogle !== emailGoogleLimpo) {
+        return {
+          conflito: true,
+          mensagem: "Este CPF já possui cadastro no SGMP vinculado a outro e-mail Google (" + usuarioPorCpf.emailGoogle + "). Para recuperar seu PIN, utilize o botão 'Esqueci minha Senha / PIN' informando seu CPF e e-mail institucional."
+        };
       }
+
+      // Valida se o e-mail institucional informado é compatível com o nome do militar cadastrado
+      if (emailInstLimpo && !validarCompatibilidadeEmailNome_(emailInstLimpo, usuarioPorCpf.nome)) {
+        return {
+          recusado: true,
+          mensagem: "O processo de validação recusou o acesso."
+        };
+      }
+
+      return {
+        existe: true,
+        nome: usuarioPorCpf.nome,
+        cpf: usuarioPorCpf.cpf,
+        emailGoogle: usuarioPorCpf.emailGoogle,
+        status: usuarioPorCpf.status
+      };
+    }
+
+    // Se o e-mail Google já pertence a outro usuário na base (ex: Danillo)
+    if (usuarioPorEmailGoogle) {
+      return {
+        conflito: true,
+        mensagem: "A conta Google informada (" + emailGoogleLimpo + ") já está cadastrada para outro militar no sistema. Cada militar deve informar sua própria conta Google pessoal."
+      };
     }
 
     return { existe: false };
@@ -15124,9 +15161,11 @@ function executarResetPinMilitar(identificador, emailInstInformado) {
     var emailInstLimpo = String(emailInstInformado || "").trim().toLowerCase();
     var idLimpo = String(identificador || "").trim();
     var idCpf = idLimpo.replace(/\D/g, "");
-    var idEmail = idLimpo.toLowerCase();
 
     if (!emailInstLimpo || !emailInstLimpo.endsWith("bombeiros.pe.gov.br")) {
+      throw new Error("O processo de validação recusou o acesso.");
+    }
+    if (!idCpf || idCpf.length !== 11) {
       throw new Error("O processo de validação recusou o acesso.");
     }
 
@@ -15140,52 +15179,17 @@ function executarResetPinMilitar(identificador, emailInstInformado) {
     var linhaUsuario = -1;
     var usuarioEncontrado = null;
 
+    // Busca ESTRITAMENTE pelo CPF de 11 dígitos na base de Logins
     for (var i = 1; i < dados.length; i++) {
-      var rowEmail = String(dados[i][0] || "").trim().toLowerCase();
       var rowCpf = String(dados[i][1] || "").trim().replace(/\D/g, "");
-      var rowNome = String(dados[i][2] || "").trim();
-
-      var bateu = false;
-      if (idCpf && rowCpf === idCpf) bateu = true;
-      else if (idEmail && rowEmail === idEmail) bateu = true;
-
-      if (bateu) {
+      if (rowCpf === idCpf) {
         linhaUsuario = i + 1;
         usuarioEncontrado = {
-          nome: rowNome,
+          nome: String(dados[i][2] || "").trim(),
           cpf: rowCpf,
-          email: rowEmail
+          email: String(dados[i][0] || "").trim().toLowerCase()
         };
         break;
-      }
-    }
-
-    // Se não encontrou diretamente pelo CPF/Email Google, tenta encontrar pelo e-mail institucional em CadastrosPendentes
-    if (linhaUsuario === -1) {
-      var sheetPend = ssUser.getSheetByName("CadastrosPendentes");
-      if (sheetPend && sheetPend.getLastRow() > 1) {
-        var dadosPend = sheetPend.getDataRange().getValues();
-        for (var p = 1; p < dadosPend.length; p++) {
-          var pEmailInst = String(dadosPend[p][10] || "").trim().toLowerCase();
-          var pCpf = String(dadosPend[p][4] || "").trim().replace(/\D/g, "");
-          var pEmail = String(dadosPend[p][3] || "").trim().toLowerCase();
-          if (pEmailInst === emailInstLimpo || (idCpf && pCpf === idCpf)) {
-            for (var j = 1; j < dados.length; j++) {
-              var rCpf = String(dados[j][1] || "").trim().replace(/\D/g, "");
-              var rEmail = String(dados[j][0] || "").trim().toLowerCase();
-              if ((pCpf && rCpf === pCpf) || (pEmail && rEmail === pEmail)) {
-                linhaUsuario = j + 1;
-                usuarioEncontrado = {
-                  nome: String(dados[j][2] || "").trim(),
-                  cpf: rCpf,
-                  email: rEmail
-                };
-                break;
-              }
-            }
-            if (linhaUsuario !== -1) break;
-          }
-        }
       }
     }
 
@@ -15205,6 +15209,7 @@ function executarResetPinMilitar(identificador, emailInstInformado) {
     // Grava na coluna 7 (PIN) e define PRIMEIRO_ACESSO = 'SIM' na coluna 9
     sheetLogins.getRange(linhaUsuario, 7).setNumberFormat('@').setValue(pinTemporario);
     sheetLogins.getRange(linhaUsuario, 9).setValue("SIM");
+    SpreadsheetApp.flush();
 
     // Invalida cache de sessão
     try {
@@ -15251,7 +15256,10 @@ function executarResetPinMilitar(identificador, emailInstInformado) {
       });
     }
 
-    registrarLogAuditoria("RESET_PIN_CONCLUIDO", "Novo PIN temporário gerado e enviado para o e-mail: " + emailInstLimpo, usuarioEncontrado.nome);
+    try {
+      registrarLogAuditoria("RESET_PIN_CONCLUIDO", "Novo PIN temporário gerado e enviado para o e-mail: " + emailInstLimpo, usuarioEncontrado.nome);
+    } catch (eLog) {}
+
     return {
       sucesso: true,
       mensagem: "PIN temporário de recuperação enviado com sucesso para " + emailInstLimpo
