@@ -13119,10 +13119,10 @@ function validarCompatibilidadeEmailNome_(email, nome) {
       .trim();
   }
 
-  // 1. Extrai o prefixo do e-mail antes do @
   var emailLimpo = normalizar(email);
-  var partesArroba = emailLimpo.split("@");
-  var usuarioEmail = partesArroba[0].replace(/[^a-z0-9._-]/g, "");
+  if (!emailLimpo.endsWith("bombeiros.pe.gov.br")) return false;
+
+  var usuarioEmail = emailLimpo.split("@")[0].replace(/[^a-z0-9._-]/g, "");
   if (!usuarioEmail) return false;
 
   var nomeNorm = normalizar(nome).replace(/[^a-z0-9\s._-]/g, "");
@@ -13134,7 +13134,6 @@ function validarCompatibilidadeEmailNome_(email, nome) {
     "1o", "2o", "3o", "1", "2", "3", "primeiro", "segundo", "terceiro"
   ];
 
-  // Extrai tokens do nome informados pelo usuário
   var tokensNome = nomeNorm
     .split(/[\s._-]+/)
     .map(function(t) { return t.trim(); })
@@ -13145,67 +13144,41 @@ function validarCompatibilidadeEmailNome_(email, nome) {
   }
   if (tokensNome.length === 0) return false;
 
-  // Extrai tokens do prefixo do e-mail (ex: danillo.alves -> ['danillo', 'alves'])
   var tokensEmail = usuarioEmail.split(/[^a-z]+/).filter(function(t) { return t.length >= 2; });
   if (tokensEmail.length === 0) return false;
 
-  // REGRA 1: TODOS os tokens com 3 ou mais letras presentes no endereço de e-mail 
-  // DEVEM obrigatoriamente existir dentro do nome completo do usuário!
-  // Ex: Em 'danillo.alves', 'danillo' e 'alves' DEVEM ambos estar no nome do usuário.
-  // Se o militar digitou 'Alex Alves da Silva', 'danillo' não existe no nome -> RECUSA.
-  var tokensSignificativosEmail = tokensEmail.filter(function(t) { return t.length >= 3; });
-  if (tokensSignificativosEmail.length > 0) {
-    for (var i = 0; i < tokensSignificativosEmail.length; i++) {
-      var te = tokensSignificativosEmail[i];
-      var achouNoNome = false;
-      for (var j = 0; j < tokensNome.length; j++) {
-        var tn = tokensNome[j];
-        if (tn === te) {
-          achouNoNome = true;
-          break;
-        }
-      }
-      if (!achouNoNome) {
-        var teTemp = te;
-        for (var j = 0; j < tokensNome.length; j++) {
-          if (tokensNome[j].length >= 3 && teTemp.indexOf(tokensNome[j]) !== -1) {
-            teTemp = teTemp.replace(tokensNome[j], "");
-          }
-        }
-        if (teTemp.length <= 1) {
-          achouNoNome = true;
-        }
-      }
-      if (!achouNoNome) {
-        return false;
+  var tokensSigEmail = tokensEmail.filter(function(t) { return t.length >= 3; });
+  if (tokensSigEmail.length === 0) tokensSigEmail = tokensEmail;
+
+  // 1. Pelo menos um token significativo (>= 3 letras) do e-mail DEVE estar presente no nome
+  var achouAoMenosUm = false;
+  for (var i = 0; i < tokensSigEmail.length; i++) {
+    var te = tokensSigEmail[i];
+    for (var j = 0; j < tokensNome.length; j++) {
+      var tn = tokensNome[j];
+      if (tn === te || (tn.length >= 4 && te.length >= 4 && (tn.indexOf(te) !== -1 || te.indexOf(tn) !== -1))) {
+        achouAoMenosUm = true;
+        break;
       }
     }
+    if (achouAoMenosUm) break;
   }
+  if (!achouAoMenosUm) return false;
 
-  // REGRA 2: O primeiro nome do usuário DEVE constar no e-mail (por extenso ou como inicial)
-  var primeiroNome = tokensNome[0]; // ex: 'danillo' ou 'alex'
-  var primeiroNomeNoEmail = false;
-
-  for (var k = 0; k < tokensEmail.length; k++) {
-    if (tokensEmail[k] === primeiroNome) {
-      primeiroNomeNoEmail = true;
-      break;
+  // 2. Nenhum token com 3 ou mais letras no e-mail pode ser estranho ao nome (garante que não é e-mail de outro militar)
+  for (var k = 0; k < tokensSigEmail.length; k++) {
+    var tEmail = tokensSigEmail[k];
+    var pertenceAoNome = false;
+    for (var m = 0; m < tokensNome.length; m++) {
+      var tNome = tokensNome[m];
+      if (tNome === tEmail || (tNome.length >= 4 && tEmail.length >= 4 && (tNome.indexOf(tEmail) !== -1 || tEmail.indexOf(tNome) !== -1))) {
+        pertenceAoNome = true;
+        break;
+      }
     }
-  }
-  if (!primeiroNomeNoEmail && usuarioEmail.indexOf(primeiroNome) !== -1) {
-    primeiroNomeNoEmail = true;
-  }
-
-  if (!primeiroNomeNoEmail) {
-    var primeiraInicial = primeiroNome.charAt(0);
-    var partesPontos = usuarioEmail.split(/[^a-z]/);
-    if (partesPontos[0] === primeiraInicial) {
-      primeiroNomeNoEmail = true;
+    if (!pertenceAoNome) {
+      return false;
     }
-  }
-
-  if (!primeiroNomeNoEmail) {
-    return false;
   }
 
   return true;
@@ -15159,13 +15132,13 @@ function verificarUsuarioExistente(emailGoogle, cpf, emailInst) {
 function executarResetPinMilitar(identificador, emailInstInformado) {
   try {
     var emailInstLimpo = String(emailInstInformado || "").trim().toLowerCase();
-    var idLimpo = String(identificador || "").trim();
-    var idCpf = idLimpo.replace(/\D/g, "");
+    var idLimpo = String(identificador || "").trim().replace(/\D/g, "");
+    if (idLimpo.length === 10) idLimpo = "0" + idLimpo;
 
     if (!emailInstLimpo || !emailInstLimpo.endsWith("bombeiros.pe.gov.br")) {
       throw new Error("O processo de validação recusou o acesso.");
     }
-    if (!idCpf || idCpf.length !== 11) {
+    if (!idLimpo || idLimpo.length !== 11) {
       throw new Error("O processo de validação recusou o acesso.");
     }
 
@@ -15176,20 +15149,66 @@ function executarResetPinMilitar(identificador, emailInstInformado) {
     }
 
     var dados = sheetLogins.getDataRange().getValues();
+    var cabecalho = dados[0];
+    var idxCpf = 1, idxNome = 2, idxEmail = 0, idxPin = 6, idxStatus = 7, idxPrimeiroAcesso = 8;
+    for (var c = 0; c < cabecalho.length; c++) {
+      var h = String(cabecalho[c] || "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      if (h === "cpf") idxCpf = c;
+      else if (h === "nome") idxNome = c;
+      else if (h === "email") idxEmail = c;
+      else if (h === "pin") idxPin = c;
+      else if (h === "status") idxStatus = c;
+      else if (h === "primeiro_acesso" || h === "primeiroacesso") idxPrimeiroAcesso = c;
+    }
+
     var linhaUsuario = -1;
     var usuarioEncontrado = null;
 
-    // Busca ESTRITAMENTE pelo CPF de 11 dígitos na base de Logins
+    // 1. Busca o militar na base de Logins através do CPF digitado (com normalização de zeros à esquerda)
     for (var i = 1; i < dados.length; i++) {
-      var rowCpf = String(dados[i][1] || "").trim().replace(/\D/g, "");
-      if (rowCpf === idCpf) {
+      var rowCpf = String(dados[i][idxCpf] || "").trim().replace(/\D/g, "");
+      if (rowCpf.length === 10) rowCpf = "0" + rowCpf;
+
+      if (rowCpf === idLimpo) {
         linhaUsuario = i + 1;
         usuarioEncontrado = {
-          nome: String(dados[i][2] || "").trim(),
+          nome: String(dados[i][idxNome] || "").trim(),
           cpf: rowCpf,
-          email: String(dados[i][0] || "").trim().toLowerCase()
+          email: String(dados[i][idxEmail] || "").trim().toLowerCase()
         };
         break;
+      }
+    }
+
+    // 2. Se não encontrou em Logins, verifica se o CPF existe na aba CadastrosPendentes
+    if (linhaUsuario === -1) {
+      var sheetPend = ssUser.getSheetByName("CadastrosPendentes");
+      if (sheetPend && sheetPend.getLastRow() > 1) {
+        var dadosPend = sheetPend.getDataRange().getValues();
+        for (var p = 1; p < dadosPend.length; p++) {
+          var pCpf = String(dadosPend[p][4] || "").trim().replace(/\D/g, "");
+          if (pCpf.length === 10) pCpf = "0" + pCpf;
+          if (pCpf === idLimpo) {
+            var pNome = String(dadosPend[p][2] || "").trim();
+            var pEmailGoogle = String(dadosPend[p][3] || "").trim().toLowerCase();
+            
+            for (var j = 1; j < dados.length; j++) {
+              var rCpf = String(dados[j][idxCpf] || "").trim().replace(/\D/g, "");
+              if (rCpf.length === 10) rCpf = "0" + rCpf;
+              var rEmail = String(dados[j][idxEmail] || "").trim().toLowerCase();
+              if (rCpf === pCpf || (pEmailGoogle && rEmail === pEmailGoogle)) {
+                linhaUsuario = j + 1;
+                usuarioEncontrado = {
+                  nome: pNome || String(dados[j][idxNome] || "").trim(),
+                  cpf: rCpf,
+                  email: rEmail
+                };
+                break;
+              }
+            }
+            if (linhaUsuario !== -1) break;
+          }
+        }
       }
     }
 
@@ -15197,18 +15216,18 @@ function executarResetPinMilitar(identificador, emailInstInformado) {
       throw new Error("O processo de validação recusou o acesso.");
     }
 
-    // Validação estrita e sigilosa de compatibilidade entre o nome do militar e o e-mail @bombeiros.pe.gov.br
+    // 3. Cruza o nome completo localizado na base com o e-mail institucional informado
     if (!validarCompatibilidadeEmailNome_(emailInstLimpo, usuarioEncontrado.nome)) {
-      registrarLogAuditoria("RECUSA_RESET_PIN", "Tentativa de reset recusada no processo de validação. E-mail: " + emailInstLimpo + " | Nome na base: " + usuarioEncontrado.nome);
+      registrarLogAuditoria("RECUSA_RESET_PIN", "Tentativa de reset recusada no cruzamento de dados. E-mail: " + emailInstLimpo + " | Nome na base: " + usuarioEncontrado.nome);
       throw new Error("O processo de validação recusou o acesso.");
     }
 
-    // Gera novo PIN temporário aleatório de 6 dígitos numéricos
+    // 4. Gera novo PIN temporário aleatório de 6 dígitos numéricos
     var pinTemporario = String(Math.floor(100000 + Math.random() * 900000));
 
-    // Grava na coluna 7 (PIN) e define PRIMEIRO_ACESSO = 'SIM' na coluna 9
-    sheetLogins.getRange(linhaUsuario, 7).setNumberFormat('@').setValue(pinTemporario);
-    sheetLogins.getRange(linhaUsuario, 9).setValue("SIM");
+    // Grava na coluna do PIN e define PRIMEIRO_ACESSO = 'SIM'
+    sheetLogins.getRange(linhaUsuario, idxPin + 1).setNumberFormat('@').setValue(pinTemporario);
+    sheetLogins.getRange(linhaUsuario, idxPrimeiroAcesso + 1).setValue("SIM");
     SpreadsheetApp.flush();
 
     // Invalida cache de sessão
@@ -15218,7 +15237,7 @@ function executarResetPinMilitar(identificador, emailInstInformado) {
       if (usuarioEncontrado.cpf) cache.remove("USR_PERM_" + usuarioEncontrado.cpf.replace(/[^a-z0-9]/gi, "_").substring(0, 45));
     } catch (eCache) {}
 
-    // Envia e-mail oficial com o novo PIN temporário
+    // 5. Envia e-mail oficial com o novo PIN temporário para o e-mail institucional
     var assunto = "[SGMP - CBMPE] Redefinição de PIN de Segurança: " + pinTemporario;
     var corpoHtml = 
       "<div style='font-family: Arial, sans-serif; max-width: 520px; margin: auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 24px; background-color: #ffffff;'>" +
