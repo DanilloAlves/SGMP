@@ -18776,7 +18776,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
                 <tr>
                   <th>Data</th>
                   <th>Militar / Nome</th>
-                  <th>E-mail</th>
+                  <th>E-mails (Login / Funcional)</th>
                   <th>CPF</th>
                   <th>OME</th>
                   <th class="text-center" style="width: 145px;">Ações</th>
@@ -18789,7 +18789,10 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
             <tr>
               <td>${formatarDataHoraBrasil(t.data)}</td>
               <td class="fw-bold">${t.nome}</td>
-              <td>${t.email}</td>
+              <td>
+                <div><i class="fa-brands fa-google text-danger me-1"></i>${t.email}</div>
+                ${t.emailInstitucional ? `<div class="text-success small fw-bold mt-0.5"><i class="fa-solid fa-shield-check me-1"></i>${t.emailInstitucional} <span class="badge bg-success py-0 px-1" style="font-size:0.65rem;">Verificado ✓</span></div>` : ''}
+              </td>
               <td><code>${t.cpf}</code></td>
               <td><span class="badge bg-secondary">${t.ome}</span></td>
               <td class="text-center">

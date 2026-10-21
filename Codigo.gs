@@ -13062,13 +13062,97 @@ function debugTestarResolucaoArvore(idLocalDestino, unidadeOme) {
   }
 }
 
+// Envia código de verificação para o e-mail institucional @bombeiros.pe.gov.br
+function enviarCodigoVerificacaoInstitucional(emailInstitucional, nome) {
+  try {
+    var emailLimpo = String(emailInstitucional || "").trim().toLowerCase();
+    var nomeLimpo = String(nome || "Militar").trim().toUpperCase();
+
+    if (!emailLimpo) {
+      throw new Error("Informe o e-mail institucional.");
+    }
+
+    if (!emailLimpo.endsWith("bombeiros.pe.gov.br")) {
+      throw new Error("O e-mail institucional deve obrigatoriamente terminar com @bombeiros.pe.gov.br");
+    }
+
+    // Gera código numérico de 6 dígitos aleatórios
+    var codigo = String(Math.floor(100000 + Math.random() * 900000));
+    var cache = CacheService.getScriptCache();
+    var cacheKey = "OTP_" + emailLimpo;
+    // Armazena no cache por 15 minutos (900s)
+    cache.put(cacheKey, codigo, 900);
+
+    var assunto = "[SGMP - CBMPE] Código de Verificação de Identidade: " + codigo;
+    var corpoHtml = 
+      "<div style='font-family: Arial, sans-serif; max-width: 520px; margin: auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 24px; background-color: #ffffff;'>" +
+        "<div style='text-align: center; margin-bottom: 20px;'>" +
+          "<h2 style='color: #991b1b; margin: 0; font-size: 22px;'>SGMP — CBMPE</h2>" +
+          "<p style='color: #64748b; font-size: 13px; margin-top: 4px;'>Sistema de Gestão de Materiais e Patrimônio</p>" +
+        "</div>" +
+        "<p style='font-size: 15px; color: #1e293b;'>Olá, <strong>" + nomeLimpo + "</strong>.</p>" +
+        "<p style='font-size: 14px; color: #475569; line-height: 1.5;'>Recebemos uma solicitação de cadastro no SGMP vinculando este e-mail funcional institucional.</p>" +
+        "<p style='font-size: 14px; color: #475569;'>Seu código de confirmação de identidade militar é:</p>" +
+        "<div style='background-color: #fef2f2; border: 2px dashed #991b1b; border-radius: 6px; padding: 16px; text-align: center; font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #991b1b; margin: 24px 0;'>" +
+          codigo +
+        "</div>" +
+        "<p style='font-size: 13px; color: #64748b; line-height: 1.4;'><i style='color: #ef4444;'>Atenção:</i> Este código é de uso estritamente pessoal e expira em 15 minutos. Se você não solicitou este acesso, desconsidere esta mensagem.</p>" +
+        "<hr style='border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;'>" +
+        "<p style='font-size: 11px; color: #94a3b8; text-align: center; margin: 0;'>Diretoria de Logística — Corpo de Bombeiros Militar de Pernambuco</p>" +
+      "</div>";
+
+    MailApp.sendEmail({
+      to: emailLimpo,
+      subject: assunto,
+      htmlBody: corpoHtml
+    });
+
+    registrarLogAuditoria("ENVIO_OTP_INSTITUCIONAL", "Código de verificação enviado para e-mail institucional: " + emailLimpo);
+    return { sucesso: true, mensagem: "Código enviado com sucesso para " + emailLimpo };
+  } catch (err) {
+    console.error("Erro ao enviar código institucional: " + err.message);
+    throw new Error("Erro ao enviar código para o e-mail institucional: " + err.message);
+  }
+}
+
+// Valida o código recebido no e-mail institucional e submete a solicitação de acesso
+function confirmarCodigoESolicitarAcesso(dados, codigoDigitado) {
+  try {
+    var emailInst = String((dados && dados.emailInstitucional) || "").trim().toLowerCase();
+    if (!emailInst || !emailInst.endsWith("bombeiros.pe.gov.br")) {
+      throw new Error("O e-mail institucional deve obrigatoriamente terminar com @bombeiros.pe.gov.br");
+    }
+
+    var cache = CacheService.getScriptCache();
+    var cacheKey = "OTP_" + emailInst;
+    var codigoSalvo = cache.get(cacheKey);
+
+    var codDig = String(codigoDigitado || "").trim();
+
+    if (!codigoSalvo || codigoSalvo !== codDig) {
+      throw new Error("Código de confirmação incorreto ou expirado. Verifique a sua caixa postal no Webmail institucional e tente novamente.");
+    }
+
+    // Código correto: consome do cache e grava a solicitação verificada
+    cache.remove(cacheKey);
+
+    dados.emailInstitucional = emailInst;
+    dados.emailInstitucionalVerificado = "SIM";
+
+    return solicitarAcessoUsuario(dados);
+  } catch (err) {
+    console.error("Erro ao validar código institucional: " + err.message);
+    throw new Error(err.message);
+  }
+}
+
 // Solicitar novo acesso
 function solicitarAcessoUsuario(dados) {
   try {
     var ss = SpreadsheetApp.openById(ID_PLANILHA_USUARIOS);
     var sheet = ss.getSheetByName("CadastrosPendentes") || ss.insertSheet("CadastrosPendentes");
     if (sheet.getLastRow() === 0) {
-      sheet.appendRow(["ID_Solicitacao", "Data", "Nome", "Email", "CPF", "OME", "Subunidade", "Perfil", "PIN", "Status"]);
+      sheet.appendRow(["ID_Solicitacao", "Data", "Nome", "Email", "CPF", "OME", "Subunidade", "Perfil", "PIN", "Status", "Email_Institucional", "Email_Verificado"]);
     }
 
     var idReq = "REQ-" + Date.now();
@@ -13083,11 +13167,13 @@ function solicitarAcessoUsuario(dados) {
       String(dados.subunidade || "GERAL").trim().toUpperCase(),
       String(dados.perfil || "Usuário").trim(),
       String(dados.pin || "").trim(),
-      "PENDENTE"
+      "PENDENTE",
+      String(dados.emailInstitucional || "").trim().toLowerCase(),
+      String(dados.emailInstitucionalVerificado || "SIM").trim().toUpperCase()
     ]);
 
-    registrarLogAuditoria("SOLICITACAO_ACESSO", "Solicitação enviada por e-mail: " + dados.email);
-    return { sucesso: true, mensagem: "Solicitação enviada com sucesso! Aguarde a validação do Administrador." };
+    registrarLogAuditoria("SOLICITACAO_ACESSO", "Solicitação enviada por: " + dados.nome + " | Email Google: " + dados.email + " | Email Institucional: " + dados.emailInstitucional);
+    return { sucesso: true, mensagem: "Identidade confirmada com sucesso via e-mail institucional! Sua solicitação foi enviada para validação do Administrador." };
   } catch (err) {
     throw new Error("Erro ao solicitar acesso: " + err.message);
   }
@@ -13511,7 +13597,9 @@ function getTicketsAcessoPendentes(filtroOmeSolicitante, perfilSolicitante) {
           ome: omeTicket,       
           subunidade: String(linha[6] || ""),
           perfil: padronizarPerfilUsuario_(linha[7] || "Usuário"),
-          pin: String(linha[8] || "")
+          pin: String(linha[8] || ""),
+          emailInstitucional: String(linha[10] || ""),
+          emailVerificado: String(linha[11] || "")
         });
       }
     }
