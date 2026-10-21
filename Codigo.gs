@@ -13101,13 +13101,46 @@ function enviarCodigoVerificacaoInstitucional(emailInstitucional, nome) {
         "<p style='font-size: 11px; color: #94a3b8; text-align: center; margin: 0;'>Diretoria de Logística — Corpo de Bombeiros Militar de Pernambuco</p>" +
       "</div>";
 
-    MailApp.sendEmail({
-      to: emailLimpo,
-      subject: assunto,
-      htmlBody: corpoHtml,
-      name: "SGMP — CBMPE (Sistema de Materiais)",
-      replyTo: "naoresponda@bombeiros.pe.gov.br"
-    });
+    // Busca os aliases cadastrados no Gmail ("Enviar e-mail como")
+    var aliasParaEnvio = "";
+    try {
+      var aliases = GmailApp.getAliases();
+      if (aliases && aliases.length > 0) {
+        // Prioriza alias institucional @bombeiros.pe.gov.br ou o primeiro alias cadastrado
+        var aliasInst = aliases.find(function(a) { 
+          return String(a).toLowerCase().indexOf("bombeiros.pe.gov.br") !== -1; 
+        });
+        aliasParaEnvio = aliasInst || aliases[0];
+      }
+    } catch (eAlias) {
+      console.warn("Aviso ao recuperar aliases do Gmail: " + eAlias.message);
+    }
+
+    var enviadoComSucesso = false;
+    if (aliasParaEnvio) {
+      try {
+        GmailApp.sendEmail(emailLimpo, assunto, "", {
+          htmlBody: corpoHtml,
+          from: aliasParaEnvio,
+          name: "SGMP — CBMPE (Sistema de Materiais)",
+          replyTo: aliasParaEnvio
+        });
+        enviadoComSucesso = true;
+        console.log("E-mail OTP enviado com sucesso via GmailApp pelo Alias: " + aliasParaEnvio);
+      } catch (eGmail) {
+        console.warn("Falha ao enviar pelo alias via GmailApp (" + eGmail.message + "). Aplicando fallback via MailApp...");
+      }
+    }
+
+    if (!enviadoComSucesso) {
+      MailApp.sendEmail({
+        to: emailLimpo,
+        subject: assunto,
+        htmlBody: corpoHtml,
+        name: "SGMP — CBMPE (Sistema de Materiais)",
+        replyTo: "naoresponda@bombeiros.pe.gov.br"
+      });
+    }
 
     registrarLogAuditoria("ENVIO_OTP_INSTITUCIONAL", "Código de verificação enviado para e-mail institucional: " + emailLimpo);
     return { sucesso: true, mensagem: "Código enviado com sucesso para " + emailLimpo };
