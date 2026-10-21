@@ -22824,9 +22824,27 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
         badgeStatus = '<span class="badge bg-success"><i class="fa-solid fa-check-double me-1"></i> RESOLVIDO</span>';
       }
 
-      let btnAcao = ehAdminChamados ? 
-        `<button class="btn btn-outline-danger btn-sm py-1 px-2 fw-bold" onclick="abrirModalDetalhesChamado('${ch.protocolo}')" title="Tratar Chamado"><i class="fa-solid fa-user-gear me-1"></i> Tratar</button>` : 
-        `<button class="btn btn-outline-secondary btn-sm py-1 px-2 fw-bold" onclick="abrirModalDetalhesChamado('${ch.protocolo}')" title="Ver Detalhes"><i class="fa-solid fa-eye me-1"></i> Detalhes</button>`;
+      if (ch.status === 'REABERTO') {
+        badgeStatus = '<span class="badge bg-warning text-dark border border-dark border-opacity-25"><i class="fa-solid fa-rotate-left me-1"></i> REABERTO</span>';
+      }
+
+      let btnAcao = '';
+      if (ehAdminChamados) {
+        if (ch.status === 'RESOLVIDO') {
+          btnAcao = '<button class="btn btn-outline-secondary btn-sm py-1 px-2 fw-bold" onclick="abrirModalDetalhesChamado(\'' + ch.protocolo + '\')" title="Visualizar Histórico"><i class="fa-solid fa-eye me-1"></i> Detalhes</button>';
+        } else {
+          btnAcao = '<button class="btn btn-outline-danger btn-sm py-1 px-2 fw-bold" onclick="abrirModalDetalhesChamado(\'' + ch.protocolo + '\')" title="Tratar Chamado"><i class="fa-solid fa-user-gear me-1"></i> Tratar</button>';
+        }
+      } else {
+        if (ch.status === 'RESOLVIDO') {
+          btnAcao = '<div class="d-inline-flex gap-1">' +
+            '<button class="btn btn-outline-secondary btn-sm py-1 px-2 fw-bold" onclick="abrirModalDetalhesChamado(\'' + ch.protocolo + '\')" title="Ver Detalhes"><i class="fa-solid fa-eye me-1"></i> Detalhes</button>' +
+            '<button class="btn btn-warning btn-sm py-1 px-2 fw-bold text-dark shadow-sm" onclick="abrirModalReabrirChamado(\'' + ch.protocolo + '\')" title="Reabrir Chamado"><i class="fa-solid fa-rotate-left me-1"></i> Reabrir</button>' +
+            '</div>';
+        } else {
+          btnAcao = '<button class="btn btn-outline-secondary btn-sm py-1 px-2 fw-bold" onclick="abrirModalDetalhesChamado(\'' + ch.protocolo + '\')" title="Ver Detalhes"><i class="fa-solid fa-eye me-1"></i> Detalhes</button>';
+        }
+      }
 
       let solicitanteCol = ehAdminChamados ? 
         `<td><strong>${ch.nomeSolicitante || 'Militar'}</strong><br><span class="text-muted" style="font-size: 0.72rem;">${ch.omeSolicitante || ''} (${ch.subunidadeSolicitante || 'GERAL'})</span></td>` : '';
@@ -23051,21 +23069,37 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     }
 
     // Painéis de Ação
-    const boxAdmin = document.getElementById('boxTratamentoAdmin');
-    const boxUsuario = document.getElementById('boxRespostaUsuario');
-    const txtAdmin = document.getElementById('admin_resposta_chamado');
-    if (txtAdmin) txtAdmin.value = chamado.respostaSuporte || '';
+    const boxAdminEl = document.getElementById('boxTratamentoAdmin');
+    const boxUsuarioEl = document.getElementById('boxRespostaUsuario');
+    const boxResolvidoEl = document.getElementById('boxChamadoResolvidoAviso');
+    const btnReabrirModalEl = document.getElementById('btnModalReabrirChamado');
+    const txtAdminEl = document.getElementById('admin_resposta_chamado');
+    if (txtAdminEl) txtAdminEl.value = chamado.respostaSuporte || '';
+
+    const ehResolvido = (chamado.status === 'RESOLVIDO');
+
+    if (boxResolvidoEl) {
+      if (ehResolvido) boxResolvidoEl.classList.remove('d-none');
+      else boxResolvidoEl.classList.add('d-none');
+    }
 
     if (ehAdminChamados) {
-      if (boxAdmin) boxAdmin.classList.remove('d-none');
-      if (boxUsuario) boxUsuario.classList.add('d-none');
+      if (boxAdminEl) {
+        if (ehResolvido) boxAdminEl.classList.add('d-none');
+        else boxAdminEl.classList.remove('d-none');
+      }
+      if (boxUsuarioEl) boxUsuarioEl.classList.add('d-none');
+      if (btnReabrirModalEl) btnReabrirModalEl.classList.add('d-none');
     } else {
-      if (boxAdmin) boxAdmin.classList.add('d-none');
-      // Se for usuário e o status for AGUARDANDO_USUARIO, libera a resposta
+      if (boxAdminEl) boxAdminEl.classList.add('d-none');
       if (chamado.status === 'AGUARDANDO_USUARIO') {
-        if (boxUsuario) boxUsuario.classList.remove('d-none');
+        if (boxUsuarioEl) boxUsuarioEl.classList.remove('d-none');
       } else {
-        if (boxUsuario) boxUsuario.classList.add('d-none');
+        if (boxUsuarioEl) boxUsuarioEl.classList.add('d-none');
+      }
+      if (btnReabrirModalEl) {
+        if (ehResolvido) btnReabrirModalEl.classList.remove('d-none');
+        else btnReabrirModalEl.classList.add('d-none');
       }
     }
 
@@ -23081,6 +23115,55 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
         modalEl.style.display = 'block';
       }
     }
+  }
+
+  // Abre diálogo para reabertura de chamado pelo Usuário
+  function abrirModalReabrirChamado(protocolo) {
+    if (!protocolo) return;
+    Swal.fire({
+      title: '<i class="fa-solid fa-rotate-left text-warning me-2"></i> Reabrir Chamado',
+      html: '<div class="text-start small">' +
+        '<p class="mb-2 text-muted">Você está solicitando a reabertura do chamado <strong>' + protocolo + '</strong>.</p>' +
+        '<label class="form-label fw-bold mb-1">Informe o motivo da reabertura: *</label>' +
+        '<textarea id="swalMotivoReabertura" class="form-control form-control-sm" rows="4" placeholder="Descreva o que ainda persiste ou necessita de nova intervenção técnica..."></textarea>' +
+        '</div>',
+      showCancelButton: true,
+      confirmButtonText: '<i class="fa-solid fa-rotate-left me-1"></i> Confirmar Reabertura',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#f59e0b',
+      preConfirm: () => {
+        const motivo = (document.getElementById('swalMotivoReabertura') ? document.getElementById('swalMotivoReabertura').value : '').trim();
+        if (!motivo) {
+          Swal.showValidationMessage('Por favor, descreva o motivo da reabertura.');
+          return false;
+        }
+        return motivo;
+      }
+    }).then(result => {
+      if (result.isConfirmed && result.value) {
+        Swal.fire({
+          title: 'Reabrindo Chamado...',
+          text: 'Aguarde a confirmação e notificação do suporte.',
+          allowOutsideClick: false,
+          didOpen: () => Swal.showLoading()
+        });
+
+        google.script.run
+          .withSuccessHandler(function(resp) {
+            Swal.fire('Chamado Reaberto!', (resp && resp.mensagem) || 'O chamado foi reaberto com sucesso.', 'success');
+            const modalDetEl = document.getElementById('modalDetalhesChamado');
+            if (modalDetEl) {
+              const modal = bootstrap.Modal.getInstance(modalDetEl);
+              if (modal) modal.hide();
+            }
+            carregarChamados(true);
+          })
+          .withFailureHandler(function(err) {
+            Swal.fire('Erro ao Reabrir', err.message || String(err), 'error');
+          })
+          .reabrirChamadoUsuario(protocolo, result.value);
+      }
+    });
   }
 
   // Ação de tratamento técnico pelo Administrador

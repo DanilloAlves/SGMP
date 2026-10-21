@@ -15878,3 +15878,132 @@ function adicionarRespostaUsuarioChamado(protocolo, mensagemTexto, anexoBase64) 
     throw new Error(err.message);
   }
 }
+
+// Reabre um chamado que estava RESOLVIDO (solicitante ou admin)
+function reabrirChamadoUsuario(protocolo, motivo) {
+  try {
+    var emailSessao = "";
+    try { emailSessao = Session.getActiveUser().getEmail().trim().toLowerCase(); } catch (e) {}
+    if (!emailSessao) {
+      try { emailSessao = Session.getEffectiveUser().getEmail().trim().toLowerCase(); } catch (e) {}
+    }
+    
+    var usuario = verificarPermissaoUsuario(emailSessao);
+    if (!usuario) {
+      throw new Error("Sessão não identificada.");
+    }
+    
+    var protLimpo = String(protocolo || "").trim().toUpperCase();
+    var motivoLimpo = String(motivo || "").trim();
+    
+    if (!protLimpo || !motivoLimpo) {
+      throw new Error("Informe o protocolo e o motivo da reabertura.");
+    }
+    
+    var ss = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+    var sheet = ss.getSheetByName(ABA_CHAMADOS);
+    if (!sheet) throw new Error("Aba de Chamados não encontrada.");
+    
+    var dados = sheet.getDataRange().getValues();
+    var linhaAlvo = -1;
+    var chamado = null;
+    
+    for (var i = 1; i < dados.length; i++) {
+      if (String(dados[i][0] || "").trim().toUpperCase() === protLimpo) {
+        linhaAlvo = i + 1;
+        chamado = {
+          protocolo: protLimpo,
+          cpf: String(dados[i][2] || ""),
+          nome: String(dados[i][3] || ""),
+          email: String(dados[i][4] || ""),
+          ome: String(dados[i][5] || ""),
+          subunidade: String(dados[i][6] || "GERAL"),
+          titulo: String(dados[i][8] || ""),
+          status: String(dados[i][11] || ""),
+          historicoRaw: String(dados[i][15] || "[]")
+        };
+        break;
+      }
+    }
+    
+    if (linhaAlvo === -1 || !chamado) {
+      throw new Error("Chamado " + protLimpo + " não encontrado.");
+    }
+    
+    var agora = new Date();
+    var dataFormatada = Utilities.formatDate(agora, "America/Recife", "dd/MM/yyyy HH:mm:ss");
+    
+    var historico = [];
+    try { historico = JSON.parse(chamado.historicoRaw); } catch(eH) { historico = []; }
+    
+    historico.push({
+      remetente: usuario.nome || usuario.email || "Solicitante",
+      tipo: "USUARIO",
+      data: dataFormatada,
+      mensagem: "REABERTURA DE CHAMADO: " + motivoLimpo,
+      status: "REABERTO"
+    });
+    
+    sheet.getRange(linhaAlvo, 12).setValue("REABERTO");
+    sheet.getRange(linhaAlvo, 14).setValue(dataFormatada);
+    sheet.getRange(linhaAlvo, 16).setValue(JSON.stringify(historico));
+    SpreadsheetApp.flush();
+    
+    // Dispara e-mail de alerta para dcsdlog@gmail.com
+    try {
+      var assuntoAviso = "[SGMP - Chamado REABERTO] Protocolo: " + protLimpo + " - " + chamado.titulo;
+      var corpoEmailAdmin = 
+        "<div style='font-family: Arial, sans-serif; max-width: 600px; margin: auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 24px; background-color: #ffffff;'>" +
+          "<div style='text-align: center; margin-bottom: 20px;'>" +
+            "<h2 style='color: #991b1b; margin: 0; font-size: 22px;'>SGMP — CBMPE</h2>" +
+            "<p style='color: #64748b; font-size: 13px; margin-top: 4px;'>Central de Chamados e Suporte Técnico</p>" +
+          "</div>" +
+          "<div style='background-color: #fffbeb; border-left: 4px solid #f59e0b; padding: 12px; margin-bottom: 20px;'>" +
+            "<h3 style='margin: 0; color: #b45309; font-size: 16px;'>Chamado Reaberto pelo Solicitante</h3>" +
+            "<p style='margin: 4px 0 0 0; font-size: 14px;'><strong>Protocolo:</strong> <span style='font-family: monospace; font-size: 16px; color: #b45309; font-weight: bold;'>" + protLimpo + "</span></p>" +
+          "</div>" +
+          "<table style='width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: 20px;'>" +
+            "<tr><td style='padding: 6px 0; color: #64748b; width: 140px;'><strong>Solicitante:</strong></td><td style='padding: 6px 0; color: #1e293b; font-weight: bold;'>" + (chamado.nome || "Militar") + "</td></tr>" +
+            "<tr><td style='padding: 6px 0; color: #64748b;'><strong>CPF / E-mail:</strong></td><td style='padding: 6px 0; color: #1e293b;'>" + (chamado.cpf || "-") + " (" + (chamado.email || "-") + ")</td></tr>" +
+            "<tr><td style='padding: 6px 0; color: #64748b;'><strong>OME / Subunidade:</strong></td><td style='padding: 6px 0; color: #1e293b;'>" + (chamado.ome || "-") + " / " + (chamado.subunidade || "GERAL") + "</td></tr>" +
+            "<tr><td style='padding: 6px 0; color: #64748b;'><strong>Data Reabertura:</strong></td><td style='padding: 6px 0; color: #1e293b;'>" + dataFormatada + "</td></tr>" +
+          "</table>" +
+          "<div style='background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 16px; margin-bottom: 20px;'>" +
+            "<h4 style='margin: 0 0 8px 0; color: #1e293b; font-size: 15px;'>Assunto: " + chamado.titulo + "</h4>" +
+            "<p style='margin: 0 0 8px 0; color: #b45309; font-size: 13px; font-weight: bold;'>Motivo informado pelo militar:</p>" +
+            "<p style='margin: 0; color: #334155; font-size: 14px; white-space: pre-wrap; line-height: 1.5;'>" + motivoLimpo + "</p>" +
+          "</div>" +
+          "<div style='text-align: center; margin-top: 25px;'>" +
+            "<a href='https://sgmp.vercel.app' style='background-color: #991b1b; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: bold; font-size: 14px; display: inline-block;'>Acessar SGMP para Tratar Chamado</a>" +
+          "</div>" +
+        "</div>";
+
+      try {
+        GmailApp.sendEmail("dcsdlog@gmail.com", assuntoAviso, "", {
+          htmlBody: corpoEmailAdmin,
+          from: "dcsdlog@gmail.com",
+          name: "SGMP — CBMPE (Suporte Técnico)",
+          replyTo: chamado.email || "dcsdlog@gmail.com"
+        });
+      } catch (eG) {
+        MailApp.sendEmail({
+          to: "dcsdlog@gmail.com",
+          subject: assuntoAviso,
+          htmlBody: corpoEmailAdmin,
+          name: "SGMP — CBMPE (Suporte Técnico)",
+          replyTo: chamado.email || "dcsdlog@gmail.com"
+        });
+      }
+    } catch(eMail) {
+      console.warn("Erro ao enviar email de reabertura: " + eMail.message);
+    }
+    
+    return {
+      sucesso: true,
+      mensagem: "Chamado " + protLimpo + " reaberto com sucesso!"
+    };
+  } catch (err) {
+    console.error("Erro ao reabrir chamado: " + err.message);
+    throw new Error(err.message);
+  }
+}
