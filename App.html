@@ -597,13 +597,13 @@
     <div class="gate-card text-center">
       <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/7/7c/NOVO_BRAS%C3%83O_2024_CBMPE.png/500px-NOVO_BRAS%C3%83O_2024_CBMPE.png" 
            alt="Brasão CBMPE" style="height: 76px; width: auto;" class="mb-3">
-      <h4 class="fw-bold text-dark mb-1">Primeiro Acesso ao SGMP</h4>
+      <h4 class="fw-bold text-dark mb-1">Primeiro Acesso / Redefinição de PIN</h4>
       <p class="text-muted small mb-3">Corpo de Bombeiros Militar de Pernambuco</p>
       
       <div class="alert alert-light border text-start small mb-3 p-3">
         <i class="fa-solid fa-shield-halved text-danger me-1"></i>
         Olá, <strong id="gate_nome_usuario"><?= (typeof usuarioLogado !== 'undefined' && usuarioLogado && usuarioLogado.nome) ? usuarioLogado.nome : 'Militar' ?></strong>!
-        Seu cadastro foi autorizado pelo setor. Para liberar seu acesso ao sistema e ativar sua assinatura digital, confirme o <strong>PIN temporário recebido por e-mail</strong> e cadastre seu <strong>novo PIN pessoal definitivo</strong>.
+        Para liberar seu acesso ao sistema e ativar sua assinatura digital, confirme o <strong>PIN temporário recebido por e-mail</strong> e cadastre seu <strong>novo PIN pessoal definitivo</strong>.
       </div>
 
       <form id="formGatePrimeiroAcesso" onsubmit="submeterGatePrimeiroAcesso(event); return false;" class="text-start">
@@ -3496,6 +3496,14 @@
           usuarioSessaoAtual.perfil = padronizarPerfilTexto(usuarioSessaoAtual.perfil);
         }
         
+        // Se o usuário precisa cadastrar o primeiro acesso ou redefinir PIN por solicitação de reset,
+        // bloqueia IMEDIATAMENTE a aplicação e ativa o Gate de Segurança Bloqueante.
+        if (usuarioSessaoAtual && (usuarioSessaoAtual.primeiroAcesso === true || String(usuarioSessaoAtual.primeiroAcesso).toUpperCase() === 'SIM')) {
+          removerOverlayESair(true);
+          ativarGatePrimeiroAcesso(usuarioSessaoAtual);
+          return;
+        }
+
         PERFIL_GLOBAL = usuarioSessaoAtual.perfil || "Usuário";
         OME_GLOBAL = usuarioSessaoAtual.ome || "";
         SUBUNIDADE_GLOBAL = usuarioSessaoAtual.subunidade || "GERAL"; // Popula a subunidade real

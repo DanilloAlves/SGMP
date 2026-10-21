@@ -184,6 +184,65 @@ function padronizarPermissoesUsuario_(permRaw, perfil) {
   return str.split(",").map(function(s) { return s.trim(); }).filter(Boolean);
 }
 
+// Obtém dinamicamente os índices de todas as colunas da aba Logins
+function obterIndicesLogins_(sheet) {
+  var maxCols = Math.max(sheet.getLastColumn(), 10);
+  var cabecalho = sheet.getRange(1, 1, 1, maxCols).getValues()[0];
+  
+  var idx = {
+    email: -1,
+    cpf: -1,
+    nome: -1,
+    ome: -1,
+    perfil: -1,
+    subunidade: -1,
+    pin: -1,
+    status: -1,
+    permissoes: -1,
+    primeiroAcesso: -1
+  };
+  
+  for (var c = 0; c < cabecalho.length; c++) {
+    var raw = String(cabecalho[c] || "").trim();
+    var h = raw.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+    if (!h) continue;
+    if (h === "email") idx.email = c;
+    else if (h === "cpf") idx.cpf = c;
+    else if (h === "nome") idx.nome = c;
+    else if (h === "ome" || h === "unidade") idx.ome = c;
+    else if (h === "perfil") idx.perfil = c;
+    else if (h === "subunidade") idx.subunidade = c;
+    else if (h === "pin") idx.pin = c;
+    else if (h === "status") idx.status = c;
+    else if (h === "permissoes" || h === "permissao") idx.permissoes = c;
+    else if (h.indexOf("primeiro") !== -1 || h.indexOf("acesso") !== -1 || h === "primeiroacesso") idx.primeiroAcesso = c;
+  }
+  
+  // Fallbacks padrão caso não encontre por nome
+  if (idx.email === -1) idx.email = 0;
+  if (idx.cpf === -1) idx.cpf = 1;
+  if (idx.nome === -1) idx.nome = 2;
+  if (idx.ome === -1) idx.ome = 3;
+  if (idx.perfil === -1) idx.perfil = 4;
+  if (idx.subunidade === -1) idx.subunidade = 5;
+  if (idx.pin === -1) idx.pin = 6;
+  if (idx.status === -1) idx.status = 7;
+  
+  // Garante que primeiroAcesso tenha sua própria coluna identificada e nomeada
+  if (idx.primeiroAcesso === -1) {
+    if (idx.permissoes === 8) {
+      idx.primeiroAcesso = 9;
+    } else {
+      idx.primeiroAcesso = 8;
+    }
+    try {
+      sheet.getRange(1, idx.primeiroAcesso + 1).setValue("PRIMEIRO_ACESSO");
+    } catch(e) {}
+  }
+  
+  return idx;
+}
+
 function verificarPermissaoUsuario(emailOuCpfInformado) {
   try {
     var buscaAlvo = String(emailOuCpfInformado || "").trim().toLowerCase();
@@ -205,43 +264,25 @@ function verificarPermissaoUsuario(emailOuCpfInformado) {
     var ultimaLinha = sheet.getLastRow();
     if (ultimaLinha <= 1) return null;
 
-    var maxCols = Math.max(sheet.getLastColumn(), 9);
+    var idx = obterIndicesLogins_(sheet);
+    var maxCols = Math.max(sheet.getLastColumn(), idx.primeiroAcesso + 1, (idx.permissoes || 0) + 1);
     var dados = sheet.getRange(1, 1, ultimaLinha, maxCols).getValues();
-    var cabecalho = dados[0];
-    var idxEmail = -1, idxCpf = -1, idxNome = -1, idxOme = -1, idxPerfil = -1, idxSub = -1, idxStatus = -1, idxPermissoes = -1;
-    for (var c = 0; c < cabecalho.length; c++) {
-      var h = String(cabecalho[c] || "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-      if (h === "email") idxEmail = c;
-      else if (h === "cpf") idxCpf = c;
-      else if (h === "nome") idxNome = c;
-      else if (h === "ome" || h === "unidade") idxOme = c;
-      else if (h === "perfil") idxPerfil = c;
-      else if (h === "subunidade") idxSub = c;
-      else if (h === "status") idxStatus = c;
-      else if (h === "permissoes" || h === "permissao") idxPermissoes = c;
-    }
-    if (idxEmail === -1) idxEmail = 0;
-    if (idxCpf === -1) idxCpf = 1;
-    if (idxNome === -1) idxNome = 2;
-    if (idxOme === -1) idxOme = 3;
-    if (idxPerfil === -1) idxPerfil = 4;
-    if (idxSub === -1) idxSub = 5;
-    if (idxStatus === -1) idxStatus = 7;
-    if (idxPermissoes === -1 && maxCols >= 9) idxPermissoes = 8;
 
     var buscaAlvoNorm = buscaAlvo.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     var buscaAlvoLimpo = buscaAlvo.replace(/\D/g, "");
+    if (buscaAlvoLimpo.length === 10) buscaAlvoLimpo = "0" + buscaAlvoLimpo;
     var buscaEhEmail = buscaAlvo.indexOf("@") !== -1;
 
     var candidatoEncontrado = null;
 
     for (var i = 1; i < dados.length; i++) {
-      var rowEmail = String(dados[i][idxEmail] || "").trim().toLowerCase();
-      var rowCpf = String(dados[i][idxCpf] || "").trim();
-      var rowNome = String(dados[i][idxNome] || "").trim();
-      var rowStatus = String(dados[i][idxStatus] || "ATIVO").trim().toUpperCase();
-      var rowPerm = (idxPermissoes !== -1 && idxPermissoes < dados[i].length) ? dados[i][idxPermissoes] : "";
+      var rowEmail = String(dados[i][idx.email] || "").trim().toLowerCase();
+      var rowCpf = String(dados[i][idx.cpf] || "").trim();
+      var rowNome = String(dados[i][idx.nome] || "").trim();
+      var rowStatus = String(dados[i][idx.status] || "ATIVO").trim().toUpperCase();
+      var rowPerm = (idx.permissoes !== -1 && idx.permissoes < dados[i].length) ? dados[i][idx.permissoes] : "";
       var rowCpfLimpo = rowCpf.replace(/\D/g, "");
+      if (rowCpfLimpo.length === 10) rowCpfLimpo = "0" + rowCpfLimpo;
       var rowNomeNorm = rowNome.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
       
       var bateuEmail = (rowEmail && rowEmail === buscaAlvo);
@@ -256,9 +297,15 @@ function verificarPermissaoUsuario(emailOuCpfInformado) {
       if (bateuEmail || bateuCpf || bateuNome) {
         var cpfUser = rowCpf;
         var nomeUser = rowNome || (rowEmail ? rowEmail.split("@")[0] : "Usuário");
-        var omeUser = String(dados[i][idxOme] || "").trim();
-        var perfilUser = padronizarPerfilUsuario_(dados[i][idxPerfil]);
-        var subunidadeUser = String(dados[i][idxSub] || "").trim();
+        var omeUser = String(dados[i][idx.ome] || "").trim();
+        var perfilUser = padronizarPerfilUsuario_(dados[i][idx.perfil]);
+        var subunidadeUser = String(dados[i][idx.subunidade] || "").trim();
+
+        var primeiroAcessoVal = false;
+        if (idx.primeiroAcesso !== -1 && idx.primeiroAcesso < dados[i].length) {
+          var valRaw = String(dados[i][idx.primeiroAcesso] || "").trim().toUpperCase();
+          primeiroAcessoVal = (valRaw === "SIM" || valRaw === "TRUE");
+        }
 
         // O registro mais recente (último na planilha) define os dados do usuário, respeitando plenamente qualquer rebaixamento de perfil
         candidatoEncontrado = {
@@ -270,28 +317,12 @@ function verificarPermissaoUsuario(emailOuCpfInformado) {
           cpf: cpfUser,
           status: rowStatus,
           permissoes: padronizarPermissoesUsuario_(rowPerm, perfilUser),
-          primeiroAcesso: (dados[i].length > 8 && String(dados[i][8] || "").trim().toUpperCase() === "SIM")
+          primeiroAcesso: primeiroAcessoVal
         };
       }
     }
 
     if (candidatoEncontrado) {
-      // Auto-repara a conta do Administrador se foi afetada por reset indevido em testes
-      if (candidatoEncontrado.email === "danilloalves1989@gmail.com" && candidatoEncontrado.primeiroAcesso) {
-        candidatoEncontrado.primeiroAcesso = false;
-        try {
-          var sheetLoginsFix = ss.getSheetByName(ABA_USUARIOS);
-          var dFix = sheetLoginsFix.getDataRange().getValues();
-          for (var f = 1; f < dFix.length; f++) {
-            if (String(dFix[f][0]).trim().toLowerCase() === "danilloalves1989@gmail.com") {
-              sheetLoginsFix.getRange(f + 1, 9).setValue("NAO");
-              break;
-            }
-          }
-          SpreadsheetApp.flush();
-        } catch (eFix) {}
-      }
-
       if (candidatoEncontrado.status === "INATIVO" || candidatoEncontrado.status === "BLOQUEADO") {
         candidatoEncontrado.perfil = "Inativo";
       }
@@ -15004,17 +15035,20 @@ function redefinirPinPrimeiroAcesso(pinTemporario, novoPin, confirmaPin, identif
     var sheetLogins = ss.getSheetByName(ABA_USUARIOS);
     if (!sheetLogins) throw new Error("Aba de Logins não encontrada.");
     
+    var idx = obterIndicesLogins_(sheetLogins);
     var dados = sheetLogins.getDataRange().getValues();
     var linhaUsuario = -1;
     var cpfLimpo = String(usuario.cpf || "").replace(/\D/g, "");
+    if (cpfLimpo.length === 10) cpfLimpo = "0" + cpfLimpo;
     var emailLimpo = String(usuario.email || "").trim().toLowerCase();
     
     for (var i = 1; i < dados.length; i++) {
-      var rEmail = String(dados[i][0] || "").trim().toLowerCase();
-      var rCpf = String(dados[i][1] || "").trim().replace(/\D/g, "");
+      var rEmail = String(dados[i][idx.email] || "").trim().toLowerCase();
+      var rCpf = String(dados[i][idx.cpf] || "").trim().replace(/\D/g, "");
+      if (rCpf.length === 10) rCpf = "0" + rCpf;
       if ((emailLimpo && rEmail === emailLimpo) || (cpfLimpo && rCpf === cpfLimpo)) {
         linhaUsuario = i + 1;
-        var pinAtual = String(dados[i][6] || "").trim();
+        var pinAtual = String(dados[i][idx.pin] || "").trim();
         if (pinAtual !== pinTempLimpo) {
           throw new Error("PIN temporário incorreto. Verifique a mensagem recebida no seu e-mail institucional.");
         }
@@ -15026,9 +15060,9 @@ function redefinirPinPrimeiroAcesso(pinTemporario, novoPin, confirmaPin, identif
       throw new Error("Usuário não encontrado na base de dados de Logins.");
     }
     
-    // Atualiza o PIN pessoal na coluna 7 (G) preservando formato textual e define PRIMEIRO_ACESSO como 'NAO' na coluna 9 (I)
-    sheetLogins.getRange(linhaUsuario, 7).setNumberFormat('@').setValue(novoPinLimpo);
-    sheetLogins.getRange(linhaUsuario, 9).setValue("NAO");
+    // Atualiza o PIN pessoal e define PRIMEIRO_ACESSO como 'NAO'
+    sheetLogins.getRange(linhaUsuario, idx.pin + 1).setNumberFormat('@').setValue(novoPinLimpo);
+    sheetLogins.getRange(linhaUsuario, idx.primeiroAcesso + 1).setValue("NAO");
     SpreadsheetApp.flush(); // Garante persistência imediata no Google Sheets
     
     // Invalida cache de sessão
@@ -15158,18 +15192,9 @@ function executarResetPinMilitar(identificador, emailInstInformado) {
       throw new Error("O processo de validação recusou o acesso.");
     }
 
+    var idx = obterIndicesLogins_(sheetLogins);
     var dados = sheetLogins.getDataRange().getValues();
-    var cabecalho = dados[0];
-    var idxCpf = 1, idxNome = 2, idxEmail = 0, idxPin = 6, idxStatus = 7, idxPrimeiroAcesso = 8;
-    for (var c = 0; c < cabecalho.length; c++) {
-      var h = String(cabecalho[c] || "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-      if (h === "cpf") idxCpf = c;
-      else if (h === "nome") idxNome = c;
-      else if (h === "email") idxEmail = c;
-      else if (h === "pin") idxPin = c;
-      else if (h === "status") idxStatus = c;
-      else if (h === "primeiro_acesso" || h === "primeiroacesso") idxPrimeiroAcesso = c;
-    }
+    var idxCpf = idx.cpf, idxNome = idx.nome, idxEmail = idx.email, idxPin = idx.pin, idxStatus = idx.status, idxPrimeiroAcesso = idx.primeiroAcesso;
 
     var linhaUsuario = -1;
     var usuarioEncontrado = null;
