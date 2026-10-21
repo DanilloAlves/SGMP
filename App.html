@@ -22836,18 +22836,18 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       let btnAcao = '';
       if (ehAdminChamados) {
         if (ch.status === 'RESOLVIDO') {
-          btnAcao = '<button class="btn btn-outline-secondary btn-sm py-1 px-2 fw-bold" onclick="abrirModalDetalhesChamado(\'' + ch.protocolo + '\')" title="Visualizar Histórico"><i class="fa-solid fa-eye me-1"></i> Detalhes</button>';
+          btnAcao = `<button class="btn btn-outline-secondary btn-sm py-1 px-2 fw-bold" onclick="abrirModalDetalhesChamado('${ch.protocolo}')" title="Visualizar Histórico"><i class="fa-solid fa-eye me-1"></i> Detalhes</button>`;
         } else {
-          btnAcao = '<button class="btn btn-outline-danger btn-sm py-1 px-2 fw-bold" onclick="abrirModalDetalhesChamado(\'' + ch.protocolo + '\')" title="Tratar Chamado"><i class="fa-solid fa-user-gear me-1"></i> Tratar</button>';
+          btnAcao = `<button class="btn btn-outline-danger btn-sm py-1 px-2 fw-bold" onclick="abrirModalDetalhesChamado('${ch.protocolo}')" title="Tratar Chamado"><i class="fa-solid fa-user-gear me-1"></i> Tratar</button>`;
         }
       } else {
         if (ch.status === 'RESOLVIDO') {
-          btnAcao = '<div class="d-inline-flex gap-1">' +
-            '<button class="btn btn-outline-secondary btn-sm py-1 px-2 fw-bold" onclick="abrirModalDetalhesChamado(\'' + ch.protocolo + '\')" title="Ver Detalhes"><i class="fa-solid fa-eye me-1"></i> Detalhes</button>' +
-            '<button class="btn btn-warning btn-sm py-1 px-2 fw-bold text-dark shadow-sm" onclick="abrirModalReabrirChamado(\'' + ch.protocolo + '\')" title="Reabrir Chamado"><i class="fa-solid fa-rotate-left me-1"></i> Reabrir</button>' +
-            '</div>';
+          btnAcao = `<div class="d-inline-flex gap-1">` +
+            `<button class="btn btn-outline-secondary btn-sm py-1 px-2 fw-bold" onclick="abrirModalDetalhesChamado('${ch.protocolo}')" title="Ver Detalhes"><i class="fa-solid fa-eye me-1"></i> Detalhes</button>` +
+            `<button class="btn btn-warning btn-sm py-1 px-2 fw-bold text-dark shadow-sm" onclick="abrirModalReabrirChamado('${ch.protocolo}')" title="Reabrir Chamado"><i class="fa-solid fa-rotate-left me-1"></i> Reabrir</button>` +
+            `</div>`;
         } else {
-          btnAcao = '<button class="btn btn-outline-secondary btn-sm py-1 px-2 fw-bold" onclick="abrirModalDetalhesChamado(\'' + ch.protocolo + '\')" title="Ver Detalhes"><i class="fa-solid fa-eye me-1"></i> Detalhes</button>';
+          btnAcao = `<button class="btn btn-outline-secondary btn-sm py-1 px-2 fw-bold" onclick="abrirModalDetalhesChamado('${ch.protocolo}')" title="Ver Detalhes"><i class="fa-solid fa-eye me-1"></i> Detalhes</button>`;
         }
       }
 
@@ -23040,10 +23040,13 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     const btnLink = document.getElementById('detalhes_chamado_imagem_btn_externo');
 
     if (chamado.urlImagem) {
-      const rawUrl = chamado.urlImagemOriginal || chamado.urlImagem;
+      const rawUrl = String(chamado.urlImagemOriginal || chamado.urlImagem || '');
       let fileId = '';
-      const matchFile = rawUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || rawUrl.match(/[?&]id=([a-zA-Z0-9_-]+)/);
-      if (matchFile && matchFile[1]) fileId = matchFile[1];
+      if (rawUrl.indexOf('/file/d/') !== -1) {
+        fileId = rawUrl.split('/file/d/')[1].split('/')[0].split('?')[0].split('&')[0];
+      } else if (rawUrl.indexOf('id=') !== -1) {
+        fileId = rawUrl.split('id=')[1].split('&')[0].split('#')[0];
+      }
 
       const urlEmbed = fileId ? ('https://drive.google.com/thumbnail?id=' + fileId + '&sz=w1600') : chamado.urlImagem;
       const urlView = fileId ? ('https://drive.google.com/file/d/' + fileId + '/view?usp=sharing') : rawUrl;
@@ -23154,11 +23157,11 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     if (!protocolo) return;
     Swal.fire({
       title: '<i class="fa-solid fa-rotate-left text-warning me-2"></i> Reabrir Chamado',
-      html: '<div class="text-start small">' +
-        '<p class="mb-2 text-muted">Você está solicitando a reabertura do chamado <strong>' + protocolo + '</strong>.</p>' +
-        '<label class="form-label fw-bold mb-1">Informe o motivo da reabertura: *</label>' +
-        '<textarea id="swalMotivoReabertura" class="form-control form-control-sm" rows="4" placeholder="Descreva o que ainda persiste ou necessita de nova intervenção técnica..."></textarea>' +
-        '</div>',
+      html: `<div class="text-start small">
+        <p class="mb-2 text-muted">Você está solicitando a reabertura do chamado <strong>${protocolo}</strong>.</p>
+        <label class="form-label fw-bold mb-1">Informe o motivo da reabertura: *</label>
+        <textarea id="swalMotivoReabertura" class="form-control form-control-sm" rows="4" placeholder="Descreva o que ainda persiste ou necessita de nova intervenção técnica..."></textarea>
+      </div>`,
       showCancelButton: true,
       confirmButtonText: '<i class="fa-solid fa-rotate-left me-1"></i> Confirmar Reabertura',
       cancelButtonText: 'Cancelar',
