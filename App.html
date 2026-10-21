@@ -3359,6 +3359,14 @@
       cor: "success"
     },
     {
+      id: "abertura_chamados",
+      nome: "Abertura de Chamados e Suporte",
+      descricao: "Acesso à Central de Suporte para abertura e acompanhamento de chamados e relatos de problemas",
+      icone: "fa-solid fa-headset",
+      badgeTexto: "Chamados",
+      cor: "primary"
+    },
+    {
       id: "aba_logs",
       nome: "Acesso à Aba Logs de Auditoria",
       descricao: "Visualizar a aba de Logs e auditoria geral de todas as movimentações e acessos no sistema",
@@ -3789,7 +3797,7 @@
 
         const menuChamadosEl = document.getElementById('menu-chamados');
         if (menuChamadosEl) {
-          menuChamadosEl.style.display = 'flex';
+          menuChamadosEl.style.display = (typeof temPermissao === 'function' && temPermissao('abertura_chamados')) ? 'flex' : 'none';
         }
 
         const menuInventarioEl = document.getElementById('menu-inventario');
@@ -4127,6 +4135,11 @@
       // Movimentação / Inventário: requer permissão 'movimentacao_estoque'
       if ((aba === 'inventario' || aba === 'aba-inventario') && typeof temPermissao === 'function' && !temPermissao('movimentacao_estoque')) {
         Swal.fire('Acesso Restrito', 'Você não possui permissão para acessar o módulo de Movimentação/Inventário.', 'warning');
+        return;
+      }
+      // Suporte / Chamados: requer permissão 'abertura_chamados' (ou Admin/Comandante)
+      if (aba === 'chamados' && typeof temPermissao === 'function' && !temPermissao('abertura_chamados')) {
+        Swal.fire('Acesso Restrito', 'Você não possui permissão para acessar o módulo de Suporte / Chamados. Solicite a liberação ao Administrador na aba Usuários.', 'warning');
         return;
       }
     }
@@ -22500,15 +22513,18 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       const menuBase = document.getElementById('menu-base');
       const menuUsuarios = document.getElementById('menu-gerenciar-usuarios');
       const menuLogs = document.getElementById('menu-logs');
+      const menuChamados = document.getElementById('menu-chamados');
 
       const podeBase = ehAdmin || (typeof temPermissao === 'function' && temPermissao('base_dados'));
       const podeLogs = ehAdmin || (typeof temPermissao === 'function' && temPermissao('aba_logs'));
+      const podeAberturaChamados = typeof temPermissao === 'function' ? temPermissao('abertura_chamados') : false;
 
       if (menuInv) menuInv.style.display = podeMovimentacao ? 'flex' : 'none';
       if (menuCint) menuCint.style.display = podeCint ? 'flex' : 'none';
       if (menuBase) menuBase.style.display = podeBase ? 'flex' : 'none';
       if (menuUsuarios) menuUsuarios.style.display = podeGerenciar ? 'flex' : 'none';
       if (menuLogs) menuLogs.style.display = podeLogs ? 'flex' : 'none';
+      if (menuChamados) menuChamados.style.display = podeAberturaChamados ? 'flex' : 'none';
 
       // Se o usuário tentar acessar sem permissão, redireciona para Armazenamento
       if (!podeMovimentacao) {
@@ -22581,6 +22597,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     const podeValidarChecklist = typeof temPermissao === 'function' ? temPermissao('validar_checklist') : false;
     const podeChecklistTodaOme = typeof temPermissao === 'function' ? temPermissao('checklist_toda_ome') : false;
     const podeImportarExportarExcel = typeof temPermissao === 'function' ? temPermissao('importar_exportar_excel') : false;
+    const podeAberturaChamados = typeof temPermissao === 'function' ? temPermissao('abertura_chamados') : false;
 
     const colFiltroSub = document.getElementById('colFiltroSubunidadeChecklist');
     if (colFiltroSub) {
@@ -22603,6 +22620,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     if (menuBase) menuBase.style.display = ehAdmin ? 'flex' : 'none';
     if (menuUsuarios) menuUsuarios.style.display = podeGerenciarUsuarios ? 'flex' : 'none';
     if (menuLogs) menuLogs.style.display = ehAdmin ? 'flex' : 'none';
+    if (menuChamados) menuChamados.style.display = podeAberturaChamados ? 'flex' : 'none';
 
     const botoesExcel = document.getElementById('botoesExcelArmazenamento');
     if (botoesExcel) {
@@ -22708,6 +22726,10 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     google.script.run
       .withSuccessHandler(function(resp) {
         if (!resp) return;
+        if (resp.semPermissao) {
+          if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4"><i class="fa-solid fa-lock text-warning me-2"></i>Você não possui permissão para visualizar a Central de Chamados. Solicite a liberação ao Administrador.</td></tr>';
+          return;
+        }
         ehAdminChamados = resp.ehAdmin === true;
         listaChamadosGlobal = resp.chamados || [];
 
@@ -22832,6 +22854,10 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
 
   // Abre modal para novo chamado
   function abrirModalNovoChamado() {
+    if (typeof temPermissao === 'function' && !temPermissao('abertura_chamados')) {
+      Swal.fire('Acesso Restrito', 'Você não possui permissão para abrir novos chamados. Solicite a liberação ao Administrador.', 'warning');
+      return;
+    }
     const form = document.getElementById('formNovoChamado');
     if (form) form.reset();
     limparPreviewChamado('novo_chamado_arquivo', 'previewNovoChamadoContainer');
@@ -22877,6 +22903,10 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
   // Envia novo chamado
   function enviarNovoChamado(e) {
     if (e) e.preventDefault();
+    if (typeof temPermissao === 'function' && !temPermissao('abertura_chamados')) {
+      Swal.fire('Acesso Restrito', 'Você não possui permissão para abrir novos chamados. Solicite a liberação ao Administrador.', 'warning');
+      return;
+    }
     const btn = document.getElementById('btnSalvarNovoChamado');
     const tipo = document.getElementById('novo_chamado_tipo').value;
     const titulo = (document.getElementById('novo_chamado_titulo').value || '').trim();

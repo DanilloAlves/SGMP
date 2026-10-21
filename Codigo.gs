@@ -136,6 +136,7 @@ var LISTA_CHAVES_PERMISSOES = [
   "validar_checklist",
   "checklist_toda_ome",
   "importar_exportar_excel",
+  "abertura_chamados",
   "aba_logs",
   "base_dados",
   "tickets_distribuicao",
@@ -154,7 +155,8 @@ var LISTA_PERMISSOES_COMANDANTE = [
   "movimentacao_estoque",
   "validar_checklist",
   "checklist_toda_ome",
-  "importar_exportar_excel"
+  "importar_exportar_excel",
+  "abertura_chamados"
 ];
 
 function padronizarPermissoesUsuario_(permRaw, perfil) {
@@ -15379,6 +15381,14 @@ function abrirNovoChamado(dadosChamado, anexoBase64) {
       throw new Error("Sessão do usuário não identificada para abertura de chamado.");
     }
     
+    // Validação de permissão para abertura de chamado
+    var perfilUser = padronizarPerfilUsuario_(usuario.perfil);
+    var permsUser = usuario.permissoes ? (Array.isArray(usuario.permissoes) ? usuario.permissoes : String(usuario.permissoes).split(",").map(function(s){return s.trim();})) : [];
+    var podeAbrir = (perfilUser === "Administrador" || perfilUser === "Comandante de Unidade" || permsUser.indexOf("abertura_chamados") !== -1);
+    if (!podeAbrir) {
+      throw new Error("Você não possui permissão para abertura de chamados. Solicite a liberação ao Administrador na aba Usuários.");
+    }
+    
     var tipoProblema = String((dadosChamado && dadosChamado.tipoProblema) || "Problema no Sistema").trim();
     var titulo = String((dadosChamado && dadosChamado.titulo) || "").trim();
     var descricao = String((dadosChamado && dadosChamado.descricao) || "").trim();
@@ -15517,6 +15527,13 @@ function listarChamados(filtroStatus) {
     var usuario = verificarPermissaoUsuario(emailSessao);
     if (!usuario) {
       throw new Error("Sessão não identificada.");
+    }
+    
+    var perfilUserListar = padronizarPerfilUsuario_(usuario.perfil);
+    var permsUserListar = usuario.permissoes ? (Array.isArray(usuario.permissoes) ? usuario.permissoes : String(usuario.permissoes).split(",").map(function(s){return s.trim();})) : [];
+    var podeAcessarListar = (perfilUserListar === "Administrador" || perfilUserListar === "Comandante de Unidade" || permsUserListar.indexOf("abertura_chamados") !== -1);
+    if (!podeAcessarListar) {
+      return { ehAdmin: false, chamados: [], semPermissao: true };
     }
     
     var ehAdmin = (usuario.perfil === "Administrador");
