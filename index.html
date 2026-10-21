@@ -173,6 +173,11 @@
   </div>
 
   <script>
+    // Normaliza para o domínio oficial de produção sgmp.vercel.app se aberto via preview URL
+    if (window.location.hostname.endsWith('.vercel.app') && window.location.hostname !== 'sgmp.vercel.app') {
+      window.location.replace('https://sgmp.vercel.app' + (window.location.search || '') + (window.location.hash || ''));
+    }
+
     // URL Base do Web App do Google Apps Script
     const GAS_WEBAPP_BASE_URL = "https://script.google.com/macros/s/AKfycby0n-qt5bVAp96LnHgdMuNoa2l-I70Sz_FzxgSnjJThxMtiIUoUOcn5OJLEfhzDudGR2Q/exec";
 
