@@ -135,14 +135,37 @@ var LISTA_CHAVES_PERMISSOES = [
   "movimentacao_estoque",
   "validar_checklist",
   "checklist_toda_ome",
+  "importar_exportar_excel",
+  "aba_logs",
+  "base_dados",
+  "tickets_distribuicao",
+  "aprovar_doacoes",
+  "selecionar_todas_omes",
+  "materiais_provisorios"
+];
+
+// Permissões padrão do perfil Comandante de Unidade (estritamente operacionais da sua própria OME)
+var LISTA_PERMISSOES_COMANDANTE = [
+  "movimentar_arvore",
+  "gerenciar_locais",
+  "acautelamento",
+  "transferir_ome",
+  "recebimento_cint",
+  "movimentacao_estoque",
+  "validar_checklist",
+  "checklist_toda_ome",
   "importar_exportar_excel"
 ];
 
 function padronizarPermissoesUsuario_(permRaw, perfil) {
   var pPadrao = padronizarPerfilUsuario_(perfil);
-  // Administrador e Comandante de Unidade possuem todas as permissões ativas por definição de perfil
-  if (pPadrao === "Administrador" || pPadrao === "Comandante de Unidade") {
+  // Administrador possui todas as permissões do sistema
+  if (pPadrao === "Administrador") {
     return LISTA_CHAVES_PERMISSOES.slice();
+  }
+  // Comandante de Unidade mantém estritamente as suas permissões operacionais nativas
+  if (pPadrao === "Comandante de Unidade") {
+    return LISTA_PERMISSOES_COMANDANTE.slice();
   }
 
   if (!permRaw) return [];
@@ -312,9 +335,14 @@ function verificarPermissaoBaseDados(usuario) {
   if (!usuario) return false;
   
   var perfil = (usuario.perfil || "").trim();
+  if (perfil === "Administrador") return true;
   
-  // Acesso liberado estritamente e exclusivamente para Administradores
-  return perfil === "Administrador";
+  // Verifica se o usuário recebeu permissão específica para a Base de Dados
+  if (usuario.permissoes) {
+    if (Array.isArray(usuario.permissoes) && usuario.permissoes.indexOf("base_dados") !== -1) return true;
+    if (typeof usuario.permissoes === "string" && usuario.permissoes.split(",").map(function(s){return s.trim();}).indexOf("base_dados") !== -1) return true;
+  }
+  return false;
 }
 
 

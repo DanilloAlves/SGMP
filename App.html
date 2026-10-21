@@ -3003,6 +3003,60 @@
       icone: "fa-solid fa-file-excel",
       badgeTexto: "Excel",
       cor: "success"
+    },
+    {
+      id: "aba_logs",
+      nome: "Acesso à Aba Logs de Auditoria",
+      descricao: "Visualizar a aba de Logs e auditoria geral de todas as movimentações e acessos no sistema",
+      icone: "fa-solid fa-list-check",
+      badgeTexto: "Logs",
+      cor: "dark",
+      adminOnly: true
+    },
+    {
+      id: "base_dados",
+      nome: "Acesso à Base de Dados",
+      descricao: "Visualizar a aba Base de Dados para consulta consolidada no BigQuery e exportação",
+      icone: "fa-solid fa-database",
+      badgeTexto: "Base de Dados",
+      cor: "info",
+      adminOnly: true
+    },
+    {
+      id: "tickets_distribuicao",
+      nome: "Tickets de Distribuição na Visão Geral",
+      descricao: "Visualizar lotes de materiais liberados pelo CINT para distribuição e despachar na Visão Geral",
+      icone: "fa-solid fa-boxes-packing",
+      badgeTexto: "Distribuição",
+      cor: "success",
+      adminOnly: true
+    },
+    {
+      id: "aprovar_doacoes",
+      nome: "Aprovação de Tickets de Doação",
+      descricao: "Avaliar e assinar digitalmente tickets de doação de materiais das OMEs para o Planejamento",
+      icone: "fa-solid fa-hand-holding-heart",
+      badgeTexto: "Aprovar Doações",
+      cor: "danger",
+      adminOnly: true
+    },
+    {
+      id: "selecionar_todas_omes",
+      nome: "Visão Global de Todas as OMEs",
+      descricao: "Visualizar a árvore de locais e o acautelamento de qualquer OME do Estado (sem travar na própria)",
+      icone: "fa-solid fa-globe",
+      badgeTexto: "Todas OMEs",
+      cor: "primary",
+      adminOnly: true
+    },
+    {
+      id: "materiais_provisorios",
+      nome: "Validação de Materiais Provisórios",
+      descricao: "Avaliar, homologar ou rejeitar tickets de novos materiais e termos provisórios",
+      icone: "fa-solid fa-tag",
+      badgeTexto: "Mat. Provisórios",
+      cor: "warning",
+      adminOnly: true
     }
   ];
 
@@ -3556,7 +3610,7 @@
 
     const perfilLower = (PERFIL_GLOBAL || "").trim().toLowerCase();
     const omeUpper = (OME_GLOBAL || "").trim().toUpperCase();
-    const ehAdminOuGestorCentral = typeof ehAdminGlobal === "function" ? ehAdminGlobal() : perfilLower.includes("admin");
+    const ehAdminOuGestorCentral = (typeof ehAdminGlobal === "function" && ehAdminGlobal()) || (typeof temPermissao === "function" && temPermissao("selecionar_todas_omes"));
     const nomeOmeExibicao = obterNomeOficialOme(OME_GLOBAL);
 
     if (ehAdminOuGestorCentral) {
@@ -3877,7 +3931,9 @@
     const ehAdmin = perfilNorm === "administrador" || perfilNorm.includes("admin");
     const ehChefe = perfilNorm === "chefe de setor" || perfilNorm.includes("chefe");
 
-    if (ehAdmin) {
+    const podeVerDistribuicao = ehAdmin || (typeof temPermissao === 'function' && temPermissao('tickets_distribuicao'));
+
+    if (ehAdmin || podeVerDistribuicao) {
       if (blocoAdmin) blocoAdmin.style.display = 'block';
       if (blocoChefe) blocoChefe.style.display = 'none';
       if (blocoUsuario) blocoUsuario.style.display = 'none';
@@ -19059,7 +19115,11 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
 
     // Gera lista HTML com switches dos checks
     let checksHtml = DEFINICAO_PERMISSOES.map(def => {
-      const checked = (u.perfil === 'Administrador' || u.perfil === 'Comandante de Unidade' || permsAtuais.includes(def.id)) ? 'checked' : '';
+      // Se for atribuição administrativa e quem estiver editando não for Administrador, oculta o check
+      if (def.adminOnly && !ehAdminLogado) {
+        return '';
+      }
+      const checked = (u.perfil === 'Administrador' || (u.perfil === 'Comandante de Unidade' && !def.adminOnly) || permsAtuais.includes(def.id)) ? 'checked' : '';
       return `
         <div class="col-md-6 mb-2">
           <div class="p-2 rounded border bg-white h-100 shadow-sm item-check-permissao">
@@ -19067,6 +19127,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
               <input class="form-check-input check-permissao-custom" type="checkbox" id="chk_perm_${def.id}" value="${def.id}" ${checked}>
               <label class="form-check-label fw-bold small text-dark" for="chk_perm_${def.id}">
                 <i class="${def.icone} text-${def.cor} me-1"></i> ${def.nome}
+                ${def.adminOnly ? '<span class="badge bg-danger ms-1 py-0 px-1" style="font-size:0.65rem;">Admin</span>' : ''}
               </label>
             </div>
             <div class="text-muted" style="font-size: 0.74rem; line-height: 1.25; margin-left: 2.2rem;">
@@ -19075,7 +19136,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
           </div>
         </div>
       `;
-    }).join('');
+    }).filter(Boolean).join('');
 
     Swal.fire({
       title: '<i class="fa-solid fa-user-gear text-primary me-2"></i> Configurar Usuário',
@@ -21946,9 +22007,17 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       const podeMovimentacao = typeof temPermissao === 'function' ? temPermissao('movimentacao_estoque') : false;
       const podeCint = typeof temPermissao === 'function' ? temPermissao('recebimento_cint') : false;
       
-      // Trava para Base de Dados e Logs (Apenas Administrador)
-      if ((aba === 'base' || aba === 'aba-base' || aba === 'logs' || aba === 'aba-logs') && !ehAdmin) {
-        Swal.fire('Acesso Restrito', 'Você não possui permissão para acessar este módulo.', 'error');
+      // Trava para Base de Dados
+      const podeBase = ehAdmin || (typeof temPermissao === 'function' && temPermissao('base_dados'));
+      if ((aba === 'base' || aba === 'aba-base') && !podeBase) {
+        Swal.fire('Acesso Restrito', 'Você não possui permissão para acessar a Base de Dados.', 'error');
+        return;
+      }
+
+      // Trava para Logs
+      const podeLogs = ehAdmin || (typeof temPermissao === 'function' && temPermissao('aba_logs'));
+      if ((aba === 'logs' || aba === 'aba-logs') && !podeLogs) {
+        Swal.fire('Acesso Restrito', 'Você não possui permissão para acessar os Logs do Sistema.', 'error');
         return;
       }
 
@@ -21992,11 +22061,14 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       const menuUsuarios = document.getElementById('menu-gerenciar-usuarios');
       const menuLogs = document.getElementById('menu-logs');
 
+      const podeBase = ehAdmin || (typeof temPermissao === 'function' && temPermissao('base_dados'));
+      const podeLogs = ehAdmin || (typeof temPermissao === 'function' && temPermissao('aba_logs'));
+
       if (menuInv) menuInv.style.display = podeMovimentacao ? 'flex' : 'none';
       if (menuCint) menuCint.style.display = podeCint ? 'flex' : 'none';
-      if (menuBase) menuBase.style.display = ehAdmin ? 'flex' : 'none';
+      if (menuBase) menuBase.style.display = podeBase ? 'flex' : 'none';
       if (menuUsuarios) menuUsuarios.style.display = podeGerenciar ? 'flex' : 'none';
-      if (menuLogs) menuLogs.style.display = ehAdmin ? 'flex' : 'none';
+      if (menuLogs) menuLogs.style.display = podeLogs ? 'flex' : 'none';
 
       // Se o usuário tentar acessar sem permissão, redireciona para Armazenamento
       if (!podeMovimentacao) {
