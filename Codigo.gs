@@ -86,6 +86,13 @@ function doGet(e) {
   } catch (err) {
     email = "";
   }
+  if (!email) {
+    try {
+      email = Session.getEffectiveUser().getEmail();
+    } catch (errEff) {
+      email = "";
+    }
+  }
 
   var usuario = verificarPermissaoUsuario(email);
 

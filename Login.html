@@ -109,11 +109,14 @@
 
   function executarLoginGoogle(event) {
     var btn = document.getElementById('btnEntrarGoogle');
-    var href = btn ? btn.getAttribute('href') : '';
-    if (href && href !== '#') {
+    var currentUrl = (window.location.href || '').split('?')[0].split('#')[0];
+    var targetUrl = (currentUrl && currentUrl.indexOf('script.google.com') !== -1)
+      ? currentUrl + '?auth=true'
+      : (btn && btn.getAttribute('href') && btn.getAttribute('href') !== '#' ? btn.getAttribute('href') : '');
+    if (targetUrl) {
       btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-2"></i> Entrando...';
       btn.style.pointerEvents = 'none';
-      window.location.href = href;
+      window.location.href = targetUrl;
       if (event) event.preventDefault();
       return false;
     }
