@@ -13101,45 +13101,27 @@ function enviarCodigoVerificacaoInstitucional(emailInstitucional, nome) {
         "<p style='font-size: 11px; color: #94a3b8; text-align: center; margin: 0;'>Diretoria de Logística — Corpo de Bombeiros Militar de Pernambuco</p>" +
       "</div>";
 
-    // Busca os aliases cadastrados no Gmail ("Enviar e-mail como")
-    var aliasParaEnvio = "";
+    // Dispara exclusivamente utilizando a conta de serviço dcsdlog@gmail.com
+    var remetenteOficial = "dcsdlog@gmail.com";
     try {
-      var aliases = GmailApp.getAliases();
-      if (aliases && aliases.length > 0) {
-        // Prioriza alias institucional @bombeiros.pe.gov.br ou o primeiro alias cadastrado
-        var aliasInst = aliases.find(function(a) { 
-          return String(a).toLowerCase().indexOf("bombeiros.pe.gov.br") !== -1; 
-        });
-        aliasParaEnvio = aliasInst || aliases[0];
-      }
-    } catch (eAlias) {
-      console.warn("Aviso ao recuperar aliases do Gmail: " + eAlias.message);
-    }
-
-    var enviadoComSucesso = false;
-    if (aliasParaEnvio) {
-      try {
-        GmailApp.sendEmail(emailLimpo, assunto, "", {
-          htmlBody: corpoHtml,
-          from: aliasParaEnvio,
-          name: "SGMP — CBMPE (Sistema de Materiais)",
-          replyTo: aliasParaEnvio
-        });
-        enviadoComSucesso = true;
-        console.log("E-mail OTP enviado com sucesso via GmailApp pelo Alias: " + aliasParaEnvio);
-      } catch (eGmail) {
-        console.warn("Falha ao enviar pelo alias via GmailApp (" + eGmail.message + "). Aplicando fallback via MailApp...");
-      }
-    }
-
-    if (!enviadoComSucesso) {
+      GmailApp.sendEmail(emailLimpo, assunto, "", {
+        htmlBody: corpoHtml,
+        from: remetenteOficial,
+        name: "SGMP — CBMPE (Sistema de Materiais)",
+        replyTo: remetenteOficial
+      });
+      console.log("E-mail OTP enviado com sucesso via GmailApp pelo remetente: " + remetenteOficial);
+    } catch (eGmail) {
+      console.error("Erro ao enviar via GmailApp (" + remetenteOficial + "): " + eGmail.message);
+      // Se ainda não tiver autorização do GmailApp, tenta com o MailApp com o nome de exibição
       MailApp.sendEmail({
         to: emailLimpo,
         subject: assunto,
         htmlBody: corpoHtml,
         name: "SGMP — CBMPE (Sistema de Materiais)",
-        replyTo: "naoresponda@bombeiros.pe.gov.br"
+        replyTo: remetenteOficial
       });
+      throw new Error("Aviso de Permissão: O Google Apps Script precisa da sua autorização para enviar e-mails como '" + remetenteOficial + "'. Detalhe: " + eGmail.message);
     }
 
     registrarLogAuditoria("ENVIO_OTP_INSTITUCIONAL", "Código de verificação enviado para e-mail institucional: " + emailLimpo);
@@ -14785,3 +14767,16 @@ function getHistoricoMovimentacaoItem(codigoOuPatrimonio) {
   }
 }
 
+
+
+// Função de teste para validar e autorizar envio via dcsdlog@gmail.com
+function testarEnvioDcsdlog() {
+  var aliases = GmailApp.getAliases();
+  Logger.log("Aliases disponíveis: " + JSON.stringify(aliases));
+  GmailApp.sendEmail("danilloalves1989@gmail.com", "[SGMP] Teste de Remetente dcsdlog", "Este é um e-mail de teste confirmando o envio a partir de dcsdlog@gmail.com", {
+    from: "dcsdlog@gmail.com",
+    name: "SGMP — CBMPE (Sistema de Materiais)",
+    replyTo: "dcsdlog@gmail.com"
+  });
+  Logger.log("E-mail de teste disparado com sucesso!");
+}
