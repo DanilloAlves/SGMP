@@ -12541,72 +12541,36 @@ window.carregarLocaisArvoreGeral = function() {
       .getArvoreLocais(omeSelecionada);
   }
 
-  function executarLogoutEfetivo() {
-    Swal.fire({
-      title: 'Saindo...',
-      text: 'Encerrando sessão com segurança...',
-      allowOutsideClick: false,
-      didOpen: function() {
-        Swal.showLoading();
-      }
-    });
-
-    try {
-      sessionStorage.clear();
-      localStorage.removeItem('sgmp_sessao');
-    } catch (e) {}
-
-    function redirecionarLogout(urlBase) {
-      var dest = (urlBase || '').split('?')[0].split('#')[0];
-      if (!dest) {
-        dest = (window.location.href || '').split('?')[0].split('#')[0];
-      }
-      var urlFinal = dest + '?auth=false&logout=' + Date.now();
-      
-      // Preserva rota /dev caso o usuário esteja no ambiente de desenvolvimento
-      try {
-        if (window.location.href && window.location.href.indexOf('/dev') !== -1 && urlFinal.indexOf('/exec') !== -1) {
-          urlFinal = urlFinal.replace('/exec', '/dev');
-        }
-      } catch (eDev) {}
-
-      // Redireciona imediatamente no contexto do iframe / janela
-      window.location.replace(urlFinal);
-      setTimeout(function() {
-        window.location.href = urlFinal;
-      }, 300);
-    }
-
-    var baseUrl = (typeof APP_URL !== 'undefined' && APP_URL) ? APP_URL : '';
-    if (baseUrl) {
-      redirecionarLogout(baseUrl);
-    } else {
-      google.script.run
-        .withSuccessHandler(function(url) {
-          redirecionarLogout(url);
-        })
-        .withFailureHandler(function() {
-          window.location.reload();
-        })
-        .getAppUrl();
-    }
-  }
-
   function deslogarSistema() {
+    var ref = "";
+    try { ref = document.referrer || ""; } catch(e) {}
+    var fallbackUrl = "https://script.google.com/macros/s/AKfycby0n-qt5bVAp96LnHgdMuNoa2l-I70Sz_FzxgSnjJThxMtiIUoUOcn5OJLEfhzDudGR2Q/exec";
+    var baseUrl = (typeof APP_URL !== 'undefined' && APP_URL) ? APP_URL : fallbackUrl;
+    var urlDestino = baseUrl.split('?')[0].split('#')[0];
+
+    // Se estiver rodando no ambiente de desenvolvimento (/dev), preserva rota /dev
+    if (ref.indexOf('/dev') !== -1) {
+      urlDestino = urlDestino.replace('/exec', '/dev');
+    }
+    var urlLogout = urlDestino + '?auth=false&logout=' + Date.now();
+
     Swal.fire({
       title: 'Sair do Sistema?',
-      text: 'Você será desconectado da sessão com segurança.',
+      html: `
+        <p class="text-muted mb-4">Você será desconectado da sessão com segurança.</p>
+        <div class="d-flex justify-content-center gap-2">
+          <a href="${urlLogout}" target="_top" class="btn btn-danger fw-bold px-4 py-2 text-decoration-none shadow-sm" onclick="try{sessionStorage.clear();localStorage.clear();}catch(e){}">
+            <i class="fa-solid fa-right-from-bracket me-2"></i> Sim, Sair
+          </a>
+          <button type="button" class="btn btn-secondary fw-bold px-4 py-2" onclick="Swal.close()">
+            Cancelar
+          </button>
+        </div>
+      `,
       icon: 'question',
-      showCancelButton: true,
-      confirmButtonColor: '#dc2626',
-      cancelButtonColor: '#64748b',
-      confirmButtonText: '<i class="fa-solid fa-right-from-bracket me-2"></i> Sim, Sair',
-      cancelButtonText: 'Cancelar',
-      reverseButtons: true
-    }).then(function(result) {
-      if (result.isConfirmed) {
-        executarLogoutEfetivo();
-      }
+      showConfirmButton: false,
+      showCancelButton: false,
+      focusConfirm: false
     });
   }
 
