@@ -582,6 +582,9 @@
       border-top: 5px solid #991b1b;
       position: relative;
     }
+    .swal2-container {
+      z-index: 200000 !important;
+    }
   </style>
   <? if (typeof usuarioLogado !== 'undefined' && usuarioLogado && (usuarioLogado.primeiroAcesso === true || String(usuarioLogado.primeiroAcesso).toUpperCase() === 'SIM')) { ?>
   <style id="css-gate-primeiro-acesso">
@@ -3599,7 +3602,7 @@
     if (!cssGate) {
       cssGate = document.createElement('style');
       cssGate.id = 'css-gate-primeiro-acesso';
-      cssGate.innerHTML = '.app-header-top, .top-nav-bar, .main-layout, #app-loading-overlay { display: none !important; } #gate-primeiro-acesso { display: flex !important; }';
+      cssGate.innerHTML = '.app-header-top, .top-nav-bar, .main-layout, #app-loading-overlay { display: none !important; } #gate-primeiro-acesso { display: flex !important; } .swal2-container { z-index: 200000 !important; }';
       document.head.appendChild(cssGate);
     }
     const gateEl = document.getElementById('gate-primeiro-acesso');
@@ -3692,34 +3695,36 @@
     google.script.run
       .withSuccessHandler(function(resp) {
         clearTimeout(timeoutSafety);
+        if (btn) {
+          btn.className = 'btn btn-success w-100 py-2 fw-bold shadow-sm';
+          btn.innerHTML = '<i class="fa-solid fa-check me-2"></i> PIN Gravado com Sucesso!';
+        }
+        if (msgErro) {
+          msgErro.className = 'alert alert-success py-2 small mb-3';
+          msgErro.innerText = 'PIN pessoal registrado com sucesso! Liberando acesso ao sistema...';
+          msgErro.classList.remove('d-none');
+        }
         Swal.fire({
           icon: 'success',
           title: 'PIN Cadastrado com Sucesso!',
-          text: 'Seu PIN pessoal definitivo foi registrado. O acesso ao sistema SGMP foi liberado com sucesso!',
-          confirmButtonColor: '#991b1b'
+          text: 'Seu PIN pessoal definitivo foi registrado. Liberando seu acesso ao sistema SGMP...',
+          confirmButtonColor: '#15803d',
+          timer: 2000,
+          timerProgressBar: true,
+          showConfirmButton: true,
+          confirmButtonText: 'Acessar Sistema Agora'
         }).then(function() {
-          if (usuarioSessaoAtual) usuarioSessaoAtual.primeiroAcesso = false;
-          if (typeof USUARIO_INJETADO !== 'undefined' && USUARIO_INJETADO) USUARIO_INJETADO.primeiroAcesso = false;
-
-          const gateEl = document.getElementById('gate-primeiro-acesso');
-          if (gateEl) gateEl.style.display = 'none';
-
-          const cssGate = document.getElementById('css-gate-primeiro-acesso');
-          if (cssGate) cssGate.remove();
-
-          const hdr = document.querySelector('.app-header-top');
-          if (hdr) hdr.style.removeProperty('display');
-          const nav = document.querySelector('.top-nav-bar');
-          if (nav) nav.style.removeProperty('display');
-          const mLayout = document.querySelector('.main-layout');
-          if (mLayout) mLayout.style.removeProperty('display');
-
-          iniciarAplicacaoAposAutenticacao();
+          window.location.reload();
         });
+
+        // Garantia de recarregamento caso o usuário não clique ou feche o modal
+        setTimeout(function() {
+          window.location.reload();
+        }, 2500);
       })
       .withFailureHandler(function(err) {
         clearTimeout(timeoutSafety);
-        exibirErro(err.message || 'Erro ao redefinir PIN de primeiro acesso.');
+        exibirErro((err && err.message) || String(err) || 'Erro ao redefinir PIN de primeiro acesso.');
       })
       .redefinirPinPrimeiroAcesso(pinTemp, novoPin, confirmaPin, idCliente);
   }
