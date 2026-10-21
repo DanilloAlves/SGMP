@@ -715,6 +715,9 @@
     <button class="top-tab-btn" id="menu-logs" onclick="mudarAba('logs')" style="display: none;">
       <i class="fa-solid fa-clock-rotate-left"></i> Logs de Auditoria
     </button>
+    <button class="top-tab-btn" id="menu-chamados" onclick="mudarAba('chamados'); carregarChamados();" style="display: none;">
+      <i class="fa-solid fa-headset"></i> Suporte / Chamados
+    </button>
   </div>
 </nav>
 
@@ -2413,6 +2416,110 @@
       </div>
     </div>
 
+    <!-- ABA: SUPORTE E CHAMADOS DE MANUTENÇÃO / PROBLEMAS -->
+    <div id="aba-chamados" class="container-fluid p-0" style="display: none;">
+      <div class="card card-custom p-4 mb-4">
+        
+        <!-- CABEÇALHO DA ABA -->
+        <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3 border-bottom pb-3">
+          <div>
+            <h4 class="fw-bold text-danger mb-1">
+              <i class="fa-solid fa-headset me-2"></i> Suporte Técnico e Abertura de Chamados
+            </h4>
+            <p class="text-muted mb-0 small" id="subtituloChamadosAba">
+              Envie problemas, solicite manutenções ou correções e acompanhe seus protocolos de atendimento.
+            </p>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            <button class="btn btn-danger btn-sm fw-bold px-3 py-2 shadow-sm" onclick="abrirModalNovoChamado()">
+              <i class="fa-solid fa-circle-plus me-1"></i> Abrir Novo Chamado
+            </button>
+            <button class="btn btn-outline-secondary btn-sm fw-bold px-3 py-2" onclick="carregarChamados(true)" title="Atualizar lista">
+              <i class="fa-solid fa-rotate me-1"></i> Atualizar
+            </button>
+          </div>
+        </div>
+
+        <!-- CARDS DE RESUMO (KPIs) -->
+        <div class="row g-3 mb-4">
+          <div class="col-6 col-md-3">
+            <div class="card border-0 bg-light p-3 rounded-3 text-center border-start border-4 border-secondary shadow-sm">
+              <div class="text-muted small fw-bold">TOTAL DE CHAMADOS</div>
+              <div class="fs-3 fw-bold text-dark mt-1" id="kpiTotalChamados">0</div>
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="card border-0 bg-light p-3 rounded-3 text-center border-start border-4 border-warning shadow-sm">
+              <div class="text-muted small fw-bold">ABERTOS</div>
+              <div class="fs-3 fw-bold text-warning mt-1" id="kpiAbertosChamados">0</div>
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="card border-0 bg-light p-3 rounded-3 text-center border-start border-4 border-info shadow-sm">
+              <div class="text-muted small fw-bold">EM ATENDIMENTO</div>
+              <div class="fs-3 fw-bold text-info mt-1" id="kpiEmAtendimentoChamados">0</div>
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="card border-0 bg-light p-3 rounded-3 text-center border-start border-4 border-success shadow-sm">
+              <div class="text-muted small fw-bold">RESOLVIDOS</div>
+              <div class="fs-3 fw-bold text-success mt-1" id="kpiResolvidosChamados">0</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- BARRA DE FILTROS -->
+        <div class="card bg-light border-0 p-3 mb-3 rounded-3">
+          <div class="row g-2 align-items-end">
+            <div class="col-md-3">
+              <label class="form-label small fw-bold mb-1">Filtrar por Status:</label>
+              <select class="form-select form-select-sm" id="filtroChamadosStatus" onchange="filtrarTabelaChamadosLocal()">
+                <option value="TODOS">Todos os Status</option>
+                <option value="ABERTO">Abertos (Aguardando Atendimento)</option>
+                <option value="EM_ATENDIMENTO">Em Atendimento</option>
+                <option value="AGUARDANDO_USUARIO">Aguardando Informações do Usuário</option>
+                <option value="RESOLVIDO">Resolvidos / Finalizados</option>
+              </select>
+            </div>
+            <div class="col-md-5">
+              <label class="form-label small fw-bold mb-1">Buscar (Protocolo, Assunto, Solicitante):</label>
+              <div class="input-group input-group-sm">
+                <span class="input-group-text"><i class="fa-solid fa-magnifying-glass text-muted"></i></span>
+                <input type="text" class="form-control" id="filtroChamadosTexto" placeholder="Digite para buscar..." onkeyup="filtrarTabelaChamadosLocal()">
+              </div>
+            </div>
+            <div class="col-md-4 text-md-end">
+              <span class="badge bg-secondary py-2 px-3 small" id="badgeTotalChamadosFiltrados">0 chamados exibidos</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- TABELA DE CHAMADOS -->
+        <div class="table-responsive">
+          <table class="table table-hover table-striped align-middle small mb-0 border">
+            <thead class="table-dark">
+              <tr>
+                <th style="width: 170px;"><i class="fa-solid fa-hashtag me-1"></i> Protocolo</th>
+                <th style="width: 140px;"><i class="fa-solid fa-calendar me-1"></i> Data</th>
+                <th id="thSolicitanteChamados" style="width: 220px;"><i class="fa-solid fa-user me-1"></i> Solicitante</th>
+                <th><i class="fa-solid fa-heading me-1"></i> Assunto / Problema</th>
+                <th style="width: 180px;"><i class="fa-solid fa-traffic-light me-1"></i> Status</th>
+                <th style="width: 120px;" class="text-center"><i class="fa-solid fa-gear me-1"></i> Ações</th>
+              </tr>
+            </thead>
+            <tbody id="tabelaListaChamados">
+              <tr>
+                <td colspan="6" class="text-center text-muted py-4">
+                  <i class="fa-solid fa-spinner fa-spin me-2"></i> Carregando chamados...
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+    </div>
+
     <!-- ABA 4: INCLUSÃO -->
     <div id="aba-cint" class="container-fluid p-0" style="display: none;">
 
@@ -3532,6 +3639,11 @@
           menuVisaoGeralEl.style.display = 'flex';
         }
 
+        const menuChamadosEl = document.getElementById('menu-chamados');
+        if (menuChamadosEl) {
+          menuChamadosEl.style.display = 'flex';
+        }
+
         const menuInventarioEl = document.getElementById('menu-inventario');
         if (menuInventarioEl) {
           menuInventarioEl.style.display = temPermissao('movimentacao_estoque') ? 'flex' : 'none';
@@ -3876,7 +3988,7 @@
     // ...
       
     // ADICIONADO 'aba-gerenciar-usuarios' e 'aba-logs' NA LISTA DE ABAS DO SISTEMA
-    const abasIds = ['aba-inventario', 'aba-visao-geral', 'aba-locais', 'aba-base', 'aba-cint', 'aba-acautelamento', 'aba-checklist', 'aba-gerenciar-usuarios', 'aba-logs'];
+    const abasIds = ['aba-inventario', 'aba-visao-geral', 'aba-locais', 'aba-base', 'aba-cint', 'aba-acautelamento', 'aba-checklist', 'aba-gerenciar-usuarios', 'aba-logs', 'aba-chamados'];
     abasIds.forEach(id => {
       const elemento = document.getElementById(id);
       if (elemento) elemento.style.display = 'none';
@@ -4806,7 +4918,155 @@
             Imprimir Relatório
           </button>
         </div>
-      </body>
+      
+  <!-- MODAL: ABRIR NOVO CHAMADO -->
+  <div class="modal fade" id="modalNovoChamado" tabindex="-1" aria-hidden="true" style="z-index: 1055;">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal-content shadow-lg border-0 rounded-3">
+        <div class="modal-header bg-danger text-white py-3">
+          <h5 class="modal-title fw-bold mb-0">
+            <i class="fa-solid fa-headset me-2"></i> Abrir Novo Chamado de Suporte
+          </h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body p-4">
+          <form id="formNovoChamado" onsubmit="enviarNovoChamado(event); return false;">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label fw-bold small text-secondary mb-1">Categoria / Tipo de Problema: *</label>
+                <select class="form-select form-select-sm" id="novo_chamado_tipo" required>
+                  <option value="Problema no Sistema">Problema / Erro no Sistema</option>
+                  <option value="Dúvida Operacional">Dúvida Operacional de Uso</option>
+                  <option value="Manutenção / Correção">Manutenção / Correção de Dados</option>
+                  <option value="Permissões e Acessos">Permissões de Acesso / Setor</option>
+                  <option value="Sugestão de Melhoria">Sugestão de Melhoria</option>
+                  <option value="Outro">Outro Motivo</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-bold small text-secondary mb-1">Título Resumido: *</label>
+                <input type="text" class="form-control form-control-sm" id="novo_chamado_titulo" placeholder="Ex: Erro ao registrar checklist..." required maxlength="120">
+              </div>
+              <div class="col-12">
+                <label class="form-label fw-bold small text-secondary mb-1">Descrição Detalhada da Ocorrência: *</label>
+                <textarea class="form-control form-control-sm" id="novo_chamado_descricao" rows="4" placeholder="Descreva passo a passo o que aconteceu, telas acessadas, eventuais mensagens de erro ou qualquer detalhe relevante..." required></textarea>
+              </div>
+              <div class="col-12">
+                <label class="form-label fw-bold small text-secondary mb-1">
+                  <i class="fa-solid fa-image me-1 text-danger"></i> Anexar Print ou Foto da Tela (Opcional):
+                </label>
+                <input type="file" class="form-control form-control-sm" id="novo_chamado_arquivo" accept="image/*" onchange="previewImagemChamado(this, 'previewNovoChamadoContainer', 'previewNovoChamado')">
+                <div class="form-text small text-muted">Formatos aceitos: JPG, PNG, WebP. Anexar imagem da tela acelera o diagnóstico.</div>
+                
+                <div id="previewNovoChamadoContainer" class="mt-2 text-center p-2 border rounded bg-light d-none">
+                  <img id="previewNovoChamado" src="#" alt="Preview" style="max-height: 220px; max-width: 100%; border-radius: 6px;" class="shadow-sm">
+                  <div class="mt-2">
+                    <button type="button" class="btn btn-outline-danger btn-sm py-1 px-3 fw-bold" onclick="limparPreviewChamado('novo_chamado_arquivo', 'previewNovoChamadoContainer')">
+                      <i class="fa-solid fa-trash me-1"></i> Remover Imagem
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="modal-footer px-0 pb-0 mt-4 border-top pt-3">
+              <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+              <button type="submit" id="btnSalvarNovoChamado" class="btn btn-danger btn-sm fw-bold px-4 shadow-sm">
+                <i class="fa-solid fa-paper-plane me-1"></i> Enviar Chamado
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: DETALHES E TRATAMENTO DO CHAMADO -->
+  <div class="modal fade" id="modalDetalhesChamado" tabindex="-1" aria-hidden="true" style="z-index: 1055;">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+      <div class="modal-content shadow-lg border-0 rounded-3">
+        <div class="modal-header bg-dark text-white py-3">
+          <div class="d-flex align-items-center gap-2 flex-wrap">
+            <h5 class="modal-title fw-bold mb-0" id="detalhes_chamado_protocolo">#CHAM-00000000-0000</h5>
+            <span id="detalhes_chamado_status_badge" class="badge bg-warning">ABERTO</span>
+          </div>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body p-4">
+          
+          <!-- Metadados do Solicitante -->
+          <div class="card bg-light border-0 p-3 mb-3 rounded-3 small">
+            <div class="row g-2">
+              <div class="col-md-6"><strong>Solicitante:</strong> <span id="detalhes_chamado_solicitante">-</span></div>
+              <div class="col-md-6"><strong>OME / Subunidade:</strong> <span id="detalhes_chamado_ome">-</span></div>
+              <div class="col-md-6"><strong>Data de Abertura:</strong> <span id="detalhes_chamado_data">-</span></div>
+              <div class="col-md-6"><strong>Categoria:</strong> <span id="detalhes_chamado_tipo" class="fw-bold text-danger">-</span></div>
+            </div>
+          </div>
+
+          <!-- Assunto e Descrição Principal -->
+          <div class="card border p-3 mb-3 rounded-3">
+            <h5 class="fw-bold text-dark mb-2" id="detalhes_chamado_titulo">-</h5>
+            <p class="text-secondary small mb-2" style="white-space: pre-wrap; line-height: 1.5;" id="detalhes_chamado_descricao">-</p>
+            <div id="detalhes_chamado_imagem_box" class="mt-2 text-center d-none">
+              <a id="detalhes_chamado_imagem_link" href="#" target="_blank" title="Clique para abrir imagem original">
+                <img id="detalhes_chamado_imagem" src="#" alt="Print do Chamado" style="max-height: 250px; max-width: 100%; border-radius: 6px; border: 1px solid #cbd5e1;">
+              </a>
+              <div class="text-muted small mt-1"><i class="fa-solid fa-magnifying-glass-plus me-1"></i> Clique na imagem para abrir em tela cheia</div>
+            </div>
+          </div>
+
+          <!-- Histórico de Atendimento e Mensagens -->
+          <h6 class="fw-bold text-dark mb-2"><i class="fa-solid fa-comments me-1"></i> Histórico de Interações:</h6>
+          <div id="detalhes_chamado_historico" class="mb-3 p-3 border rounded-3 bg-light" style="max-height: 260px; overflow-y: auto;">
+            <!-- Renderizado dinamicamente -->
+          </div>
+
+          <!-- PAINEL DE TRATAMENTO TÉCNICO (EXCLUSIVO ADMINISTRADOR) -->
+          <div id="boxTratamentoAdmin" class="p-3 border rounded-3 bg-white border-danger border-opacity-50 mb-3 d-none">
+            <h6 class="fw-bold text-danger mb-2"><i class="fa-solid fa-user-shield me-1"></i> Painel do Suporte Técnico (Administrador):</h6>
+            <div class="mb-2">
+              <label class="form-label small fw-bold mb-1">Parecer / Resposta do Suporte: *</label>
+              <textarea class="form-control form-control-sm" id="admin_resposta_chamado" rows="3" placeholder="Digite a resposta técnica, instruções de solução ou questionamentos ao militar..."></textarea>
+            </div>
+            <div class="d-flex justify-content-end gap-2 flex-wrap">
+              <button type="button" class="btn btn-outline-primary btn-sm fw-bold" onclick="salvarTratamentoAdmin('EM_ATENDIMENTO')">
+                <i class="fa-solid fa-spinner me-1"></i> "Em Atendimento"
+              </button>
+              <button type="button" class="btn btn-sm fw-bold text-white" style="background-color: #7c3aed;" onclick="salvarTratamentoAdmin('AGUARDANDO_USUARIO')">
+                <i class="fa-solid fa-circle-question me-1"></i> Solicitar Mais Informações
+              </button>
+              <button type="button" class="btn btn-success btn-sm fw-bold shadow-sm" onclick="salvarTratamentoAdmin('RESOLVIDO')">
+                <i class="fa-solid fa-check-double me-1"></i> Finalizar e Resolver Chamado
+              </button>
+            </div>
+          </div>
+
+          <!-- ÁREA DE RESPOSTA DO USUÁRIO (CASO STATUS AGUARDANDO_USUARIO) -->
+          <div id="boxRespostaUsuario" class="p-3 border rounded-3 mb-3 d-none" style="background-color: #faf5ff; border-color: #c084fc !important;">
+            <h6 class="fw-bold mb-2" style="color: #7c3aed;"><i class="fa-solid fa-reply me-1"></i> O suporte técnico solicitou informações complementares:</h6>
+            <div class="mb-2">
+              <textarea class="form-control form-control-sm" id="usuario_resposta_complementar" rows="3" placeholder="Digite as informações solicitadas pela equipe técnica..."></textarea>
+            </div>
+            <div class="mb-2">
+              <label class="form-label small fw-bold mb-1">Novo Anexo de Imagem (Opcional):</label>
+              <input type="file" class="form-control form-control-sm" id="usuario_resposta_arquivo" accept="image/*">
+            </div>
+            <div class="text-end">
+              <button type="button" class="btn btn-sm fw-bold text-white shadow-sm" style="background-color: #7c3aed;" onclick="enviarRespostaUsuarioChamado()">
+                <i class="fa-solid fa-paper-plane me-1"></i> Enviar Informações ao Suporte
+              </button>
+            </div>
+          </div>
+
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Fechar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</body>
       </html>
     `;
 
@@ -22429,6 +22689,434 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
   }
 
   window.aplicarRestricoesVisuaisPorPerfil = aplicarRestricoesVisuaisPorPerfil;
+
+  // =========================================================================
+  // GESTÃO DE SUPORTE TÉCNICO E CHAMADOS / RECLAMAÇÕES (HELPDESK)
+  // =========================================================================
+  
+  let listaChamadosGlobal = [];
+  let chamadoAtualSelecionado = null;
+  let ehAdminChamados = false;
+
+  // Carrega a lista de chamados do servidor
+  function carregarChamados(forcar) {
+    const tbody = document.getElementById('tabelaListaChamados');
+    if (tbody && (!listaChamadosGlobal || listaChamadosGlobal.length === 0 || forcar)) {
+      tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4"><i class="fa-solid fa-spinner fa-spin me-2 text-danger"></i> Carregando chamados...</td></tr>';
+    }
+
+    google.script.run
+      .withSuccessHandler(function(resp) {
+        if (!resp) return;
+        ehAdminChamados = resp.ehAdmin === true;
+        listaChamadosGlobal = resp.chamados || [];
+
+        // Ajusta títulos e visibilidade de colunas conforme o perfil
+        const subtitulo = document.getElementById('subtituloChamadosAba');
+        const thSolicitante = document.getElementById('thSolicitanteChamados');
+        if (ehAdminChamados) {
+          if (subtitulo) subtitulo.innerHTML = '<span class="badge bg-danger me-1">VISÃO DE ADMINISTRADOR</span> Painel Geral de Atendimento — Visualize, responda e conclua as ocorrências relatadas pelos usuários.';
+          if (thSolicitante) thSolicitante.style.display = '';
+        } else {
+          if (subtitulo) subtitulo.innerText = 'Envie problemas, solicite manutenções ou correções e acompanhe o andamento dos seus protocolos de atendimento.';
+          if (thSolicitante) thSolicitante.style.display = 'none';
+        }
+
+        atualizarKpisChamados(listaChamadosGlobal);
+        filtrarTabelaChamadosLocal();
+      })
+      .withFailureHandler(function(err) {
+        if (tbody) {
+          tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger py-4"><i class="fa-solid fa-triangle-exclamation me-2"></i> Erro ao carregar chamados: ' + (err.message || String(err)) + '</td></tr>';
+        }
+      })
+      .listarChamados();
+  }
+
+  // Atualiza os indicadores (KPIs)
+  function atualizarKpisChamados(lista) {
+    let total = lista.length;
+    let abertos = 0;
+    let emAtendimento = 0;
+    let resolvidos = 0;
+
+    lista.forEach(ch => {
+      const st = String(ch.status || '').toUpperCase();
+      if (st === 'ABERTO') abertos++;
+      else if (st === 'EM_ATENDIMENTO' || st === 'AGUARDANDO_USUARIO') emAtendimento++;
+      else if (st === 'RESOLVIDO') resolvidos++;
+    });
+
+    const elTotal = document.getElementById('kpiTotalChamados');
+    const elAbertos = document.getElementById('kpiAbertosChamados');
+    const elEmAtendimento = document.getElementById('kpiEmAtendimentoChamados');
+    const elResolvidos = document.getElementById('kpiResolvidosChamados');
+
+    if (elTotal) elTotal.innerText = total;
+    if (elAbertos) elAbertos.innerText = abertos;
+    if (elEmAtendimento) elEmAtendimento.innerText = emAtendimento;
+    if (elResolvidos) elResolvidos.innerText = resolvidos;
+  }
+
+  // Filtra localmente por texto e status
+  function filtrarTabelaChamadosLocal() {
+    const termo = (document.getElementById('filtroChamadosTexto') ? document.getElementById('filtroChamadosTexto').value : '').trim().toLowerCase();
+    const filtroStatus = document.getElementById('filtroChamadosStatus') ? document.getElementById('filtroChamadosStatus').value.toUpperCase() : 'TODOS';
+
+    let filtrados = listaChamadosGlobal.filter(ch => {
+      const st = String(ch.status || 'ABERTO').toUpperCase();
+      if (filtroStatus !== 'TODOS') {
+        if (st !== filtroStatus) return false;
+      }
+      if (!termo) return true;
+      const texto = [ch.protocolo, ch.titulo, ch.descricao, ch.nomeSolicitante, ch.omeSolicitante, ch.tipoProblema].join(' ').toLowerCase();
+      return texto.indexOf(termo) !== -1;
+    });
+
+    const badgeFiltrados = document.getElementById('badgeTotalChamadosFiltrados');
+    if (badgeFiltrados) {
+      badgeFiltrados.innerText = filtrados.length + ' chamado(s) exibido(s)';
+    }
+
+    renderizarTabelaChamados(filtrados);
+  }
+
+  // Renderiza a lista na tabela HTML
+  function renderizarTabelaChamados(lista) {
+    const tbody = document.getElementById('tabelaListaChamados');
+    if (!tbody) return;
+
+    if (!lista || lista.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4"><i class="fa-solid fa-inbox me-2"></i> Nenhum chamado encontrado.</td></tr>';
+      return;
+    }
+
+    let html = '';
+    lista.forEach(ch => {
+      let badgeStatus = '<span class="badge bg-warning text-dark"><i class="fa-solid fa-clock me-1"></i> ABERTO</span>';
+      if (ch.status === 'EM_ATENDIMENTO') {
+        badgeStatus = '<span class="badge bg-primary"><i class="fa-solid fa-spinner fa-spin me-1"></i> EM ATENDIMENTO</span>';
+      } else if (ch.status === 'AGUARDANDO_USUARIO') {
+        badgeStatus = '<span class="badge text-white" style="background-color: #7c3aed;"><i class="fa-solid fa-user-clock me-1"></i> AGUARDANDO VOCÊ</span>';
+      } else if (ch.status === 'RESOLVIDO') {
+        badgeStatus = '<span class="badge bg-success"><i class="fa-solid fa-check-double me-1"></i> RESOLVIDO</span>';
+      }
+
+      let btnAcao = ehAdminChamados ? 
+        `<button class="btn btn-outline-danger btn-sm py-1 px-2 fw-bold" onclick="abrirModalDetalhesChamado('${ch.protocolo}')" title="Tratar Chamado"><i class="fa-solid fa-user-gear me-1"></i> Tratar</button>` : 
+        `<button class="btn btn-outline-secondary btn-sm py-1 px-2 fw-bold" onclick="abrirModalDetalhesChamado('${ch.protocolo}')" title="Ver Detalhes"><i class="fa-solid fa-eye me-1"></i> Detalhes</button>`;
+
+      let solicitanteCol = ehAdminChamados ? 
+        `<td><strong>${ch.nomeSolicitante || 'Militar'}</strong><br><span class="text-muted" style="font-size: 0.72rem;">${ch.omeSolicitante || ''} (${ch.subunidadeSolicitante || 'GERAL'})</span></td>` : '';
+
+      html += `
+        <tr>
+          <td>
+            <span class="badge bg-dark-subtle text-dark border font-monospace py-1 px-2">${ch.protocolo}</span>
+            ${ch.urlImagem ? '<i class="fa-solid fa-paperclip text-danger ms-1" title="Contém anexo de imagem"></i>' : ''}
+          </td>
+          <td>${ch.dataCriacao || '-'}</td>
+          ${solicitanteCol}
+          <td>
+            <div class="fw-bold text-dark">${ch.titulo || '-'}</div>
+            <div class="text-muted" style="font-size: 0.75rem;">${ch.tipoProblema || 'Suporte'}</div>
+          </td>
+          <td>${badgeStatus}</td>
+          <td class="text-center">${btnAcao}</td>
+        </tr>
+      `;
+    });
+
+    tbody.innerHTML = html;
+  }
+
+  // Abre modal para novo chamado
+  function abrirModalNovoChamado() {
+    const form = document.getElementById('formNovoChamado');
+    if (form) form.reset();
+    limparPreviewChamado('novo_chamado_arquivo', 'previewNovoChamadoContainer');
+    const modalEl = document.getElementById('modalNovoChamado');
+    if (modalEl) {
+      const modal = new bootstrap.Modal(modalEl);
+      modal.show();
+    }
+  }
+
+  // Preview de imagem de chamado
+  function previewImagemChamado(input, containerId, imgId) {
+    const container = document.getElementById(containerId);
+    const img = document.getElementById(imgId);
+    if (!input || !input.files || !input.files[0]) {
+      if (container) container.classList.add('d-none');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      if (img) img.src = e.target.result;
+      if (container) container.classList.remove('d-none');
+    };
+    reader.readAsDataURL(input.files[0]);
+  }
+
+  function limparPreviewChamado(inputId, containerId) {
+    const input = document.getElementById(inputId);
+    if (input) input.value = '';
+    const container = document.getElementById(containerId);
+    if (container) container.classList.add('d-none');
+  }
+
+  // Envia novo chamado
+  function enviarNovoChamado(e) {
+    if (e) e.preventDefault();
+    const btn = document.getElementById('btnSalvarNovoChamado');
+    const tipo = document.getElementById('novo_chamado_tipo').value;
+    const titulo = (document.getElementById('novo_chamado_titulo').value || '').trim();
+    const descricao = (document.getElementById('novo_chamado_descricao').value || '').trim();
+    const fileInput = document.getElementById('novo_chamado_arquivo');
+
+    if (!titulo || !descricao) {
+      Swal.fire('Atenção', 'Preencha o título e a descrição do problema.', 'warning');
+      return;
+    }
+
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i> Enviando Chamado...';
+    }
+
+    const processarEnvio = (anexo) => {
+      google.script.run
+        .withSuccessHandler(function(resp) {
+          if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-paper-plane me-1"></i> Enviar Chamado';
+          }
+          const modalEl = document.getElementById('modalNovoChamado');
+          if (modalEl) {
+            const modal = bootstrap.Modal.getInstance(modalEl);
+            if (modal) modal.hide();
+          }
+
+          Swal.fire({
+            icon: 'success',
+            title: 'Chamado Aberto com Sucesso!',
+            html: `
+              <p class="mb-2">Sua solicitação foi registrada na Central de Suporte Técnico.</p>
+              <div class="p-3 bg-light border rounded text-center my-3">
+                <span class="text-muted small">Número do Protocolo:</span><br>
+                <strong class="fs-4 text-danger font-monospace" id="spanProtCopiar">${resp.protocolo}</strong>
+              </div>
+              <p class="small text-muted mb-0">Você pode acompanhar o andamento e a resposta do suporte diretamente nesta aba.</p>
+            `,
+            confirmButtonColor: '#991b1b',
+            confirmButtonText: 'Entendido'
+          });
+
+          carregarChamados(true);
+        })
+        .withFailureHandler(function(err) {
+          if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-paper-plane me-1"></i> Enviar Chamado';
+          }
+          Swal.fire('Erro', 'Não foi possível registrar o chamado: ' + (err.message || String(err)), 'error');
+        })
+        .abrirNovoChamado({ tipoProblema: tipo, titulo: titulo, descricao: descricao }, anexo);
+    };
+
+    if (fileInput && fileInput.files && fileInput.files[0]) {
+      const file = fileInput.files[0];
+      const reader = new FileReader();
+      reader.onload = function(ev) {
+        const base64Data = ev.target.result.split(',')[1];
+        processarEnvio({ data: base64Data, mimeType: file.type || 'image/jpeg', name: file.name });
+      };
+      reader.readAsDataURL(file);
+    } else {
+      processarEnvio(null);
+    }
+  }
+
+  // Abre modal com detalhes do chamado
+  function abrirModalDetalhesChamado(protocolo) {
+    const chamado = listaChamadosGlobal.find(c => c.protocolo === protocolo);
+    if (!chamado) return;
+    chamadoAtualSelecionado = chamado;
+
+    document.getElementById('detalhes_chamado_protocolo').innerText = '#' + chamado.protocolo;
+    
+    // Status Badge
+    const badgeStatus = document.getElementById('detalhes_chamado_status_badge');
+    if (badgeStatus) {
+      if (chamado.status === 'ABERTO') {
+        badgeStatus.className = 'badge bg-warning text-dark';
+        badgeStatus.innerText = 'ABERTO';
+      } else if (chamado.status === 'EM_ATENDIMENTO') {
+        badgeStatus.className = 'badge bg-primary text-white';
+        badgeStatus.innerText = 'EM ATENDIMENTO';
+      } else if (chamado.status === 'AGUARDANDO_USUARIO') {
+        badgeStatus.className = 'badge text-white';
+        badgeStatus.style.backgroundColor = '#7c3aed';
+        badgeStatus.innerText = 'AGUARDANDO INFORMAÇÕES';
+      } else if (chamado.status === 'RESOLVIDO') {
+        badgeStatus.className = 'badge bg-success text-white';
+        badgeStatus.innerText = 'RESOLVIDO';
+      }
+    }
+
+    document.getElementById('detalhes_chamado_solicitante').innerText = (chamado.nomeSolicitante || 'Militar') + ' (CPF: ' + (chamado.cpfSolicitante || '-') + ')';
+    document.getElementById('detalhes_chamado_ome').innerText = (chamado.omeSolicitante || '-') + ' / ' + (chamado.subunidadeSolicitante || 'GERAL');
+    document.getElementById('detalhes_chamado_data').innerText = chamado.dataCriacao || '-';
+    document.getElementById('detalhes_chamado_tipo').innerText = chamado.tipoProblema || '-';
+    document.getElementById('detalhes_chamado_titulo').innerText = chamado.titulo || '-';
+    document.getElementById('detalhes_chamado_descricao').innerText = chamado.descricao || '-';
+
+    // Imagem anexa
+    const imgBox = document.getElementById('detalhes_chamado_imagem_box');
+    const imgEl = document.getElementById('detalhes_chamado_imagem');
+    const imgLink = document.getElementById('detalhes_chamado_imagem_link');
+    if (chamado.urlImagem) {
+      if (imgEl) imgEl.src = chamado.urlImagem;
+      if (imgLink) imgLink.href = chamado.urlImagem;
+      if (imgBox) imgBox.classList.remove('d-none');
+    } else {
+      if (imgBox) imgBox.classList.add('d-none');
+    }
+
+    // Histórico de mensagens
+    const histBox = document.getElementById('detalhes_chamado_historico');
+    if (histBox) {
+      let histHtml = '';
+      const mensagens = chamado.historicoMensagens || [];
+      if (mensagens.length === 0) {
+        histHtml = '<div class="text-muted small text-center py-2">Nenhuma interação registrada ainda.</div>';
+      } else {
+        mensagens.forEach(m => {
+          const ehMsgAdmin = (m.tipo === 'ADMIN');
+          const bgMsg = ehMsgAdmin ? 'bg-danger bg-opacity-10 border-danger border-opacity-25' : 'bg-white border';
+          const iconMsg = ehMsgAdmin ? '<i class="fa-solid fa-headset text-danger me-1"></i> Suporte Técnico' : '<i class="fa-solid fa-user text-secondary me-1"></i> Solicitante';
+          
+          histHtml += `
+            <div class="card p-2 mb-2 ${bgMsg} rounded-3 small">
+              <div class="d-flex justify-content-between align-items-center mb-1 border-bottom pb-1">
+                <span class="fw-bold">${iconMsg} (${m.remetente || 'Membro'})</span>
+                <span class="text-muted" style="font-size: 0.72rem;">${m.data || ''}</span>
+              </div>
+              <div style="white-space: pre-wrap;">${m.mensagem || ''}</div>
+              ${m.urlImagem ? '<div class="mt-2"><a href="' + m.urlImagem + '" target="_blank" class="fw-bold text-danger"><i class="fa-solid fa-image me-1"></i> Ver print/anexo</a></div>' : ''}
+            </div>
+          `;
+        });
+      }
+      histBox.innerHTML = histHtml;
+    }
+
+    // Painéis de Ação
+    const boxAdmin = document.getElementById('boxTratamentoAdmin');
+    const boxUsuario = document.getElementById('boxRespostaUsuario');
+    const txtAdmin = document.getElementById('admin_resposta_chamado');
+    if (txtAdmin) txtAdmin.value = chamado.respostaSuporte || '';
+
+    if (ehAdminChamados) {
+      if (boxAdmin) boxAdmin.classList.remove('d-none');
+      if (boxUsuario) boxUsuario.classList.add('d-none');
+    } else {
+      if (boxAdmin) boxAdmin.classList.add('d-none');
+      // Se for usuário e o status for AGUARDANDO_USUARIO, libera a resposta
+      if (chamado.status === 'AGUARDANDO_USUARIO') {
+        if (boxUsuario) boxUsuario.classList.remove('d-none');
+      } else {
+        if (boxUsuario) boxUsuario.classList.add('d-none');
+      }
+    }
+
+    const modalEl = document.getElementById('modalDetalhesChamado');
+    if (modalEl) {
+      const modal = new bootstrap.Modal(modalEl);
+      modal.show();
+    }
+  }
+
+  // Ação de tratamento técnico pelo Administrador
+  function salvarTratamentoAdmin(novoStatus) {
+    if (!chamadoAtualSelecionado) return;
+    const txt = (document.getElementById('admin_resposta_chamado').value || '').trim();
+    if (!txt) {
+      Swal.fire('Atenção', 'Digite o parecer ou resposta técnica antes de salvar.', 'warning');
+      return;
+    }
+
+    Swal.fire({
+      title: 'Confirmar Atualização?',
+      text: 'O chamado #' + chamadoAtualSelecionado.protocolo + ' será atualizado para o status ' + novoStatus + '.',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#991b1b',
+      confirmButtonText: 'Confirmar e Atualizar'
+    }).then(res => {
+      if (res.isConfirmed) {
+        Swal.fire({ title: 'Gravando resposta...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        google.script.run
+          .withSuccessHandler(function(resp) {
+            Swal.fire('Sucesso!', resp.mensagem, 'success');
+            const modalEl = document.getElementById('modalDetalhesChamado');
+            if (modalEl) {
+              const modal = bootstrap.Modal.getInstance(modalEl);
+              if (modal) modal.hide();
+            }
+            carregarChamados(true);
+          })
+          .withFailureHandler(function(err) {
+            Swal.fire('Erro', 'Falha ao atualizar chamado: ' + (err.message || String(err)), 'error');
+          })
+          .responderChamadoAdmin(chamadoAtualSelecionado.protocolo, txt, novoStatus);
+      }
+    });
+  }
+
+  // Usuário envia informações complementares solicitadas
+  function enviarRespostaUsuarioChamado() {
+    if (!chamadoAtualSelecionado) return;
+    const txt = (document.getElementById('usuario_resposta_complementar').value || '').trim();
+    const fileInput = document.getElementById('usuario_resposta_arquivo');
+
+    if (!txt) {
+      Swal.fire('Atenção', 'Digite a mensagem complementar para a equipe técnica.', 'warning');
+      return;
+    }
+
+    Swal.fire({ title: 'Enviando resposta...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+    const processar = (anexo) => {
+      google.script.run
+        .withSuccessHandler(function(resp) {
+          Swal.fire('Resposta Enviada!', resp.mensagem, 'success');
+          const modalEl = document.getElementById('modalDetalhesChamado');
+          if (modalEl) {
+            const modal = bootstrap.Modal.getInstance(modalEl);
+            if (modal) modal.hide();
+          }
+          carregarChamados(true);
+        })
+        .withFailureHandler(function(err) {
+          Swal.fire('Erro', 'Falha ao enviar resposta: ' + (err.message || String(err)), 'error');
+        })
+        .adicionarRespostaUsuarioChamado(chamadoAtualSelecionado.protocolo, txt, anexo);
+    };
+
+    if (fileInput && fileInput.files && fileInput.files[0]) {
+      const file = fileInput.files[0];
+      const reader = new FileReader();
+      reader.onload = function(ev) {
+        const base64Data = ev.target.result.split(',')[1];
+        processar({ data: base64Data, mimeType: file.type || 'image/jpeg', name: file.name });
+      };
+      reader.readAsDataURL(file);
+    } else {
+      processar(null);
+    }
+  }
+
 </script>
 </body>
 </html>

@@ -15326,3 +15326,538 @@ function testarEnvioDcsdlog() {
   });
   Logger.log("E-mail de teste disparado com sucesso a partir de dcsdlog@gmail.com!");
 }
+
+
+// =========================================================================
+// MÓDULO DE SUPORTE TÉCNICO E CHAMADOS / RECLAMAÇÕES (HELPDESK)
+// =========================================================================
+
+var ABA_CHAMADOS = "Chamados";
+
+// Garante que a aba de Chamados exista com os cabeçalhos apropriados
+function garantirAbaChamados_() {
+  var ss = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+  var sheet = ss.getSheetByName(ABA_CHAMADOS);
+  if (!sheet) {
+    sheet = ss.insertSheet(ABA_CHAMADOS);
+    var cabecalho = [
+      "PROTOCOLO",
+      "DATA_CRIACAO",
+      "CPF_SOLICITANTE",
+      "NOME_SOLICITANTE",
+      "EMAIL_SOLICITANTE",
+      "OME_SOLICITANTE",
+      "SUBUNIDADE_SOLICITANTE",
+      "TIPO_PROBLEMA",
+      "TITULO",
+      "DESCRICAO",
+      "URL_IMAGEM",
+      "STATUS",
+      "RESPOSTA_SUPORTE",
+      "DATA_ATUALIZACAO",
+      "RESPONSAVEL_SUPORTE",
+      "MENSAGENS_HISTORICO"
+    ];
+    sheet.getRange(1, 1, 1, cabecalho.length).setValues([cabecalho]);
+    sheet.getRange(1, 1, 1, cabecalho.length).setBackground("#991b1b").setFontColor("#ffffff").setFontWeight("bold");
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
+// Permite a qualquer usuário abrir um novo chamado com foto opcional
+function abrirNovoChamado(dadosChamado, anexoBase64) {
+  try {
+    var emailSessao = "";
+    try { emailSessao = Session.getActiveUser().getEmail().trim().toLowerCase(); } catch (e) {}
+    if (!emailSessao) {
+      try { emailSessao = Session.getEffectiveUser().getEmail().trim().toLowerCase(); } catch (e) {}
+    }
+    
+    var usuario = verificarPermissaoUsuario(emailSessao || (dadosChamado && (dadosChamado.cpf || dadosChamado.email)));
+    if (!usuario) {
+      throw new Error("Sessão do usuário não identificada para abertura de chamado.");
+    }
+    
+    var tipoProblema = String((dadosChamado && dadosChamado.tipoProblema) || "Problema no Sistema").trim();
+    var titulo = String((dadosChamado && dadosChamado.titulo) || "").trim();
+    var descricao = String((dadosChamado && dadosChamado.descricao) || "").trim();
+    
+    if (!titulo || !descricao) {
+      throw new Error("Por favor, preencha o título e a descrição do problema.");
+    }
+    
+    // Upload da imagem/print caso fornecida
+    var urlImagem = "";
+    if (anexoBase64 && anexoBase64.data) {
+      try {
+        urlImagem = salvarFotoNoGoogleDrive({
+          data: anexoBase64.data,
+          mimeType: anexoBase64.mimeType || "image/jpeg",
+          name: "Chamado_" + new Date().getTime() + ".jpg"
+        });
+      } catch (errFoto) {
+        console.warn("Aviso ao salvar anexo de imagem do chamado: " + errFoto.message);
+      }
+    }
+    
+    var agora = new Date();
+    var dataFormatada = Utilities.formatDate(agora, "America/Recife", "dd/MM/yyyy HH:mm:ss");
+    var prefixoData = Utilities.formatDate(agora, "America/Recife", "yyyyMMdd");
+    var aleatorio = String(Math.floor(1000 + Math.random() * 9000));
+    var protocolo = "CHAM-" + prefixoData + "-" + aleatorio;
+    
+    var sheet = garantirAbaChamados_();
+    
+    var historicoInicial = JSON.stringify([{
+      remetente: usuario.nome || usuario.email,
+      tipo: "USUARIO",
+      data: dataFormatada,
+      mensagem: descricao,
+      urlImagem: urlImagem
+    }]);
+    
+    var novaLinha = [
+      protocolo,
+      dataFormatada,
+      usuario.cpf || "",
+      usuario.nome || "Militar",
+      usuario.email || "",
+      usuario.ome || "SEM OME",
+      usuario.subunidade || "GERAL",
+      tipoProblema,
+      titulo,
+      descricao,
+      urlImagem,
+      "ABERTO",
+      "", // RESPOSTA_SUPORTE
+      dataFormatada, // DATA_ATUALIZACAO
+      "", // RESPONSAVEL_SUPORTE
+      historicoInicial
+    ];
+    
+    sheet.appendRow(novaLinha);
+    SpreadsheetApp.flush();
+    
+    // Dispara e-mail de aviso sigiloso para dcsdlog@gmail.com
+    try {
+      var assuntoAviso = "[SGMP - Novo Chamado de Suporte] Protocolo: " + protocolo + " - " + titulo;
+      var previewImagemHtml = urlImagem ? 
+        ("<p style='margin-top: 15px;'><strong>Print / Anexo da Tela:</strong><br><a href='" + urlImagem + "' target='_blank' style='color: #991b1b; font-weight: bold;'>Clique aqui para visualizar a imagem original</a></p>" +
+         "<div style='text-align: center; margin: 15px 0;'><a href='" + urlImagem + "' target='_blank'><img src='" + urlImagem + "' style='max-width: 100%; max-height: 350px; border: 1px solid #e2e8f0; border-radius: 6px;' alt='Print do Problema'></a></div>") 
+        : "<p style='color: #64748b; font-size: 13px;'>Nenhum anexo de imagem enviado.</p>";
+      
+      var corpoAvisoAdmin = 
+        "<div style='font-family: Arial, sans-serif; max-width: 600px; margin: auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 24px; background-color: #ffffff;'>" +
+          "<div style='text-align: center; margin-bottom: 20px;'>" +
+            "<h2 style='color: #991b1b; margin: 0; font-size: 22px;'>SGMP — CBMPE</h2>" +
+            "<p style='color: #64748b; font-size: 13px; margin-top: 4px;'>Central de Chamados e Suporte Técnico</p>" +
+          "</div>" +
+          "<div style='background-color: #fef2f2; border-left: 4px solid #991b1b; padding: 12px; margin-bottom: 20px;'>" +
+            "<h3 style='margin: 0; color: #991b1b; font-size: 16px;'>Novo Chamado Aberto no Sistema</h3>" +
+            "<p style='margin: 4px 0 0 0; font-size: 14px;'><strong>Protocolo:</strong> <span style='font-family: monospace; font-size: 16px; color: #991b1b; font-weight: bold;'>" + protocolo + "</span></p>" +
+          "</div>" +
+          "<table style='width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: 20px;'>" +
+            "<tr><td style='padding: 6px 0; color: #64748b; width: 140px;'><strong>Solicitante:</strong></td><td style='padding: 6px 0; color: #1e293b; font-weight: bold;'>" + (usuario.nome || "Militar") + "</td></tr>" +
+            "<tr><td style='padding: 6px 0; color: #64748b;'><strong>CPF / E-mail:</strong></td><td style='padding: 6px 0; color: #1e293b;'>" + (usuario.cpf || "-") + " (" + (usuario.email || "-") + ")</td></tr>" +
+            "<tr><td style='padding: 6px 0; color: #64748b;'><strong>OME / Subunidade:</strong></td><td style='padding: 6px 0; color: #1e293b;'>" + (usuario.ome || "-") + " / " + (usuario.subunidade || "GERAL") + "</td></tr>" +
+            "<tr><td style='padding: 6px 0; color: #64748b;'><strong>Tipo de Problema:</strong></td><td style='padding: 6px 0; color: #1e293b; font-weight: bold;'>" + tipoProblema + "</td></tr>" +
+            "<tr><td style='padding: 6px 0; color: #64748b;'><strong>Data de Abertura:</strong></td><td style='padding: 6px 0; color: #1e293b;'>" + dataFormatada + "</td></tr>" +
+          "</table>" +
+          "<div style='background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 16px; margin-bottom: 20px;'>" +
+            "<h4 style='margin: 0 0 8px 0; color: #1e293b; font-size: 15px;'>Título: " + titulo + "</h4>" +
+            "<p style='margin: 0; color: #334155; font-size: 14px; white-space: pre-wrap; line-height: 1.5;'>" + descricao + "</p>" +
+          "</div>" +
+          previewImagemHtml +
+          "<div style='text-align: center; margin-top: 25px;'>" +
+            "<a href='https://sgmp.vercel.app' style='background-color: #991b1b; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: bold; font-size: 14px; display: inline-block;'>Acessar SGMP para Tratar Chamado</a>" +
+          "</div>" +
+        "</div>";
+
+      try {
+        GmailApp.sendEmail("dcsdlog@gmail.com", assuntoAviso, "", {
+          htmlBody: corpoAvisoAdmin,
+          from: "dcsdlog@gmail.com",
+          name: "SGMP — CBMPE (Suporte Técnico)",
+          replyTo: usuario.email || "dcsdlog@gmail.com"
+        });
+      } catch (eG) {
+        MailApp.sendEmail({
+          to: "dcsdlog@gmail.com",
+          subject: assuntoAviso,
+          htmlBody: corpoAvisoAdmin,
+          name: "SGMP — CBMPE (Suporte Técnico)",
+          replyTo: usuario.email || "dcsdlog@gmail.com"
+        });
+      }
+    } catch (eMailAviso) {
+      console.warn("Aviso ao enviar e-mail de alerta do chamado: " + eMailAviso.message);
+    }
+    
+    return {
+      sucesso: true,
+      protocolo: protocolo,
+      mensagem: "Chamado registrado com sucesso sob o protocolo " + protocolo + "!"
+    };
+  } catch (err) {
+    console.error("Erro ao abrir chamado: " + err.message);
+    throw new Error(err.message);
+  }
+}
+
+// Lista os chamados (Admin vê todos; Usuário vê apenas os seus)
+function listarChamados(filtroStatus) {
+  try {
+    var emailSessao = "";
+    try { emailSessao = Session.getActiveUser().getEmail().trim().toLowerCase(); } catch (e) {}
+    if (!emailSessao) {
+      try { emailSessao = Session.getEffectiveUser().getEmail().trim().toLowerCase(); } catch (e) {}
+    }
+    
+    var usuario = verificarPermissaoUsuario(emailSessao);
+    if (!usuario) {
+      throw new Error("Sessão não identificada.");
+    }
+    
+    var ehAdmin = (usuario.perfil === "Administrador");
+    var cpfUser = String(usuario.cpf || "").replace(/\D/g, "");
+    if (cpfUser.length === 10) cpfUser = "0" + cpfUser;
+    var emailUser = String(usuario.email || "").trim().toLowerCase();
+    
+    var ss = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+    var sheet = ss.getSheetByName(ABA_CHAMADOS);
+    if (!sheet || sheet.getLastRow() <= 1) {
+      return { ehAdmin: ehAdmin, chamados: [] };
+    }
+    
+    var dados = sheet.getDataRange().getValues();
+    var lista = [];
+    
+    // Varre de trás para frente para trazer do mais novo para o mais antigo
+    for (var i = dados.length - 1; i >= 1; i--) {
+      var row = dados[i];
+      var prot = String(row[0] || "").trim();
+      var dataCriacao = String(row[1] || "").trim();
+      var rowCpf = String(row[2] || "").trim().replace(/\D/g, "");
+      if (rowCpf.length === 10) rowCpf = "0" + rowCpf;
+      var rowNome = String(row[3] || "").trim();
+      var rowEmail = String(row[4] || "").trim().toLowerCase();
+      var rowOme = String(row[5] || "").trim();
+      var rowSub = String(row[6] || "").trim();
+      var rowTipo = String(row[7] || "").trim();
+      var rowTitulo = String(row[8] || "").trim();
+      var rowDescricao = String(row[9] || "").trim();
+      var rowImagem = String(row[10] || "").trim();
+      var rowStatus = String(row[11] || "ABERTO").trim().toUpperCase();
+      var rowResposta = String(row[12] || "").trim();
+      var rowDataAtualizacao = String(row[13] || dataCriacao).trim();
+      var rowRespSuporte = String(row[14] || "").trim();
+      var rowHistoricoRaw = String(row[15] || "[]").trim();
+      
+      // Se não for Administrador, exibe APENAS os chamados abertos pelo próprio usuário (por CPF ou e-mail)
+      if (!ehAdmin) {
+        var pertenceAoUsuario = false;
+        if (cpfUser && rowCpf && cpfUser === rowCpf) pertenceAoUsuario = true;
+        if (emailUser && rowEmail && emailUser === rowEmail) pertenceAoUsuario = true;
+        if (!pertenceAoUsuario) continue;
+      }
+      
+      // Filtro opcional por status
+      if (filtroStatus && filtroStatus !== "TODOS" && rowStatus !== filtroStatus.toUpperCase()) {
+        continue;
+      }
+      
+      var historicoMensagens = [];
+      try {
+        historicoMensagens = JSON.parse(rowHistoricoRaw);
+      } catch(eJson) {
+        historicoMensagens = [];
+      }
+      
+      lista.push({
+        protocolo: prot,
+        dataCriacao: dataCriacao,
+        cpfSolicitante: rowCpf,
+        nomeSolicitante: rowNome,
+        emailSolicitante: rowEmail,
+        omeSolicitante: rowOme,
+        subunidadeSolicitante: rowSub,
+        tipoProblema: rowTipo,
+        titulo: rowTitulo,
+        descricao: rowDescricao,
+        urlImagem: rowImagem,
+        status: rowStatus,
+        respostaSuporte: rowResposta,
+        dataAtualizacao: rowDataAtualizacao,
+        responsavelSuporte: rowRespSuporte,
+        historicoMensagens: historicoMensagens,
+        linha: i + 1
+      });
+    }
+    
+    return {
+      ehAdmin: ehAdmin,
+      usuarioSessao: {
+        nome: usuario.nome,
+        email: usuario.email,
+        cpf: usuario.cpf,
+        ome: usuario.ome,
+        perfil: usuario.perfil
+      },
+      chamados: lista
+    };
+  } catch (err) {
+    console.error("Erro ao listar chamados: " + err.message);
+    throw new Error(err.message);
+  }
+}
+
+// Responde ao chamado (ação restrita ao Administrador)
+function responderChamadoAdmin(protocolo, respostaTexto, novoStatus) {
+  try {
+    var emailSessao = "";
+    try { emailSessao = Session.getActiveUser().getEmail().trim().toLowerCase(); } catch (e) {}
+    if (!emailSessao) {
+      try { emailSessao = Session.getEffectiveUser().getEmail().trim().toLowerCase(); } catch (e) {}
+    }
+    
+    var admin = verificarPermissaoUsuario(emailSessao);
+    if (!admin || admin.perfil !== "Administrador") {
+      throw new Error("Apenas usuários com perfil de Administrador podem responder chamados.");
+    }
+    
+    var protLimpo = String(protocolo || "").trim().toUpperCase();
+    var respLimpa = String(respostaTexto || "").trim();
+    var statusLimpo = String(novoStatus || "EM_ATENDIMENTO").trim().toUpperCase();
+    
+    if (!protLimpo || !respLimpa) {
+      throw new Error("Informe o protocolo e o parecer técnico do suporte.");
+    }
+    
+    var ss = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+    var sheet = ss.getSheetByName(ABA_CHAMADOS);
+    if (!sheet) throw new Error("Aba de Chamados não encontrada.");
+    
+    var dados = sheet.getDataRange().getValues();
+    var linhaAlvo = -1;
+    var chamado = null;
+    
+    for (var i = 1; i < dados.length; i++) {
+      if (String(dados[i][0] || "").trim().toUpperCase() === protLimpo) {
+        linhaAlvo = i + 1;
+        chamado = {
+          protocolo: protLimpo,
+          dataCriacao: String(dados[i][1] || ""),
+          cpf: String(dados[i][2] || ""),
+          nome: String(dados[i][3] || ""),
+          email: String(dados[i][4] || ""),
+          ome: String(dados[i][5] || ""),
+          tipo: String(dados[i][7] || ""),
+          titulo: String(dados[i][8] || ""),
+          descricao: String(dados[i][9] || ""),
+          historicoRaw: String(dados[i][15] || "[]")
+        };
+        break;
+      }
+    }
+    
+    if (linhaAlvo === -1 || !chamado) {
+      throw new Error("Chamado " + protLimpo + " não foi localizado.");
+    }
+    
+    var agora = new Date();
+    var dataFormatada = Utilities.formatDate(agora, "America/Recife", "dd/MM/yyyy HH:mm:ss");
+    
+    var historico = [];
+    try { historico = JSON.parse(chamado.historicoRaw); } catch(eH) { historico = []; }
+    
+    historico.push({
+      remetente: admin.nome || admin.email || "Suporte Técnico SGMP",
+      tipo: "ADMIN",
+      data: dataFormatada,
+      mensagem: respLimpa,
+      status: statusLimpo
+    });
+    
+    sheet.getRange(linhaAlvo, 12).setValue(statusLimpo);
+    sheet.getRange(linhaAlvo, 13).setValue(respLimpa);
+    sheet.getRange(linhaAlvo, 14).setValue(dataFormatada);
+    sheet.getRange(linhaAlvo, 15).setValue(admin.nome || admin.email || "Administrador");
+    sheet.getRange(linhaAlvo, 16).setValue(JSON.stringify(historico));
+    SpreadsheetApp.flush();
+    
+    // Dispara e-mail oficial para o usuário solicitante comunicando a resposta
+    if (chamado.email) {
+      try {
+        var ehResolvido = (statusLimpo === "RESOLVIDO");
+        var statusFormatado = ehResolvido ? "RESOLVIDO / FINALIZADO" : (statusLimpo === "AGUARDANDO_USUARIO" ? "AGUARDANDO INFORMAÇÕES COMPLEMENTARES" : "EM ATENDIMENTO");
+        var corStatus = ehResolvido ? "#15803d" : (statusLimpo === "AGUARDANDO_USUARIO" ? "#7c3aed" : "#0284c7");
+        var bgStatus = ehResolvido ? "#f0fdf4" : (statusLimpo === "AGUARDANDO_USUARIO" ? "#faf5ff" : "#f0f9ff");
+        
+        var assuntoUsuario = "[SGMP - Suporte CBMPE] Atualização do Chamado " + protLimpo + " (" + statusFormatado + ")";
+        
+        var corpoEmailUsuario = 
+          "<div style='font-family: Arial, sans-serif; max-width: 600px; margin: auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 24px; background-color: #ffffff;'>" +
+            "<div style='text-align: center; margin-bottom: 20px;'>" +
+              "<h2 style='color: #991b1b; margin: 0; font-size: 22px;'>SGMP — CBMPE</h2>" +
+              "<p style='color: #64748b; font-size: 13px; margin-top: 4px;'>Sistema de Gestão de Materiais e Patrimônio</p>" +
+            "</div>" +
+            "<p style='font-size: 15px; color: #1e293b;'>Olá, <strong>" + chamado.nome + "</strong>.</p>" +
+            "<p style='font-size: 14px; color: #475569; line-height: 1.5;'>Houve uma atualização no seu chamado de suporte <strong>" + protLimpo + "</strong> referente ao assunto: <em>&quot;" + chamado.titulo + "&quot;</em>.</p>" +
+            "<div style='background-color: " + bgStatus + "; border-left: 4px solid " + corStatus + "; padding: 12px; margin: 20px 0;'>" +
+              "<p style='margin: 0; font-size: 13px; color: #64748b; font-weight: bold;'>STATUS ATUAL:</p>" +
+              "<p style='margin: 4px 0 0 0; font-size: 16px; font-weight: bold; color: " + corStatus + ";'>" + statusFormatado + "</p>" +
+            "</div>" +
+            "<div style='background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 16px; margin-bottom: 20px;'>" +
+              "<h4 style='margin: 0 0 8px 0; color: #1e293b; font-size: 14px;'>Parecer / Resposta da Equipe de Suporte:</h4>" +
+              "<p style='margin: 0; color: #334155; font-size: 14px; white-space: pre-wrap; line-height: 1.5;'>" + respLimpa + "</p>" +
+            "</div>" +
+            (ehResolvido ? "<p style='font-size: 14px; color: #15803d; font-weight: bold;'>Seu chamado foi concluído com sucesso. Agradecemos sua colaboração para o aprimoramento contínuo do SGMP!</p>" : 
+             (statusLimpo === "AGUARDANDO_USUARIO" ? "<p style='font-size: 14px; color: #7c3aed; line-height: 1.5;'><strong>Atenção:</strong> A equipe técnica solicitou informações complementares. Você pode responder acessando a aba <em>Suporte / Chamados</em> no SGMP.</p>" : "")) +
+            "<div style='text-align: center; margin-top: 25px;'>" +
+              "<a href='https://sgmp.vercel.app' style='background-color: #991b1b; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: bold; font-size: 14px; display: inline-block;'>Acessar o SGMP</a>" +
+            "</div>" +
+          "</div>";
+          
+        try {
+          GmailApp.sendEmail(chamado.email, assuntoUsuario, "", {
+            htmlBody: corpoEmailUsuario,
+            from: "dcsdlog@gmail.com",
+            name: "SGMP — CBMPE (Suporte Técnico)",
+            replyTo: "dcsdlog@gmail.com"
+          });
+        } catch (eGu) {
+          MailApp.sendEmail({
+            to: chamado.email,
+            subject: assuntoUsuario,
+            htmlBody: corpoEmailUsuario,
+            name: "SGMP — CBMPE (Suporte Técnico)",
+            replyTo: "dcsdlog@gmail.com"
+          });
+        }
+      } catch (errEmailU) {
+        console.warn("Aviso ao enviar e-mail de resposta ao solicitante: " + errEmailU.message);
+      }
+    }
+    
+    return {
+      sucesso: true,
+      mensagem: "Chamado " + protLimpo + " atualizado com sucesso para o status " + statusLimpo + "!"
+    };
+  } catch (err) {
+    console.error("Erro ao responder chamado: " + err.message);
+    throw new Error(err.message);
+  }
+}
+
+// Permite ao usuário enviar resposta complementar ao suporte
+function adicionarRespostaUsuarioChamado(protocolo, mensagemTexto, anexoBase64) {
+  try {
+    var emailSessao = "";
+    try { emailSessao = Session.getActiveUser().getEmail().trim().toLowerCase(); } catch (e) {}
+    if (!emailSessao) {
+      try { emailSessao = Session.getEffectiveUser().getEmail().trim().toLowerCase(); } catch (e) {}
+    }
+    
+    var usuario = verificarPermissaoUsuario(emailSessao);
+    if (!usuario) {
+      throw new Error("Sessão não identificada.");
+    }
+    
+    var protLimpo = String(protocolo || "").trim().toUpperCase();
+    var msgLimpa = String(mensagemTexto || "").trim();
+    
+    if (!protLimpo || !msgLimpa) {
+      throw new Error("Digite a mensagem complementar para enviar ao suporte.");
+    }
+    
+    var ss = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+    var sheet = ss.getSheetByName(ABA_CHAMADOS);
+    if (!sheet) throw new Error("Aba de Chamados não encontrada.");
+    
+    var dados = sheet.getDataRange().getValues();
+    var linhaAlvo = -1;
+    var chamado = null;
+    
+    for (var i = 1; i < dados.length; i++) {
+      if (String(dados[i][0] || "").trim().toUpperCase() === protLimpo) {
+        linhaAlvo = i + 1;
+        chamado = {
+          protocolo: protLimpo,
+          cpf: String(dados[i][2] || ""),
+          nome: String(dados[i][3] || ""),
+          email: String(dados[i][4] || ""),
+          ome: String(dados[i][5] || ""),
+          titulo: String(dados[i][8] || ""),
+          historicoRaw: String(dados[i][15] || "[]")
+        };
+        break;
+      }
+    }
+    
+    if (linhaAlvo === -1 || !chamado) {
+      throw new Error("Chamado " + protLimpo + " não encontrado.");
+    }
+    
+    var novaUrlImagem = "";
+    if (anexoBase64 && anexoBase64.data) {
+      try {
+        novaUrlImagem = salvarFotoNoGoogleDrive({
+          data: anexoBase64.data,
+          mimeType: anexoBase64.mimeType || "image/jpeg",
+          name: "Chamado_Resp_" + new Date().getTime() + ".jpg"
+        });
+      } catch(eFoto) {}
+    }
+    
+    var agora = new Date();
+    var dataFormatada = Utilities.formatDate(agora, "America/Recife", "dd/MM/yyyy HH:mm:ss");
+    
+    var historico = [];
+    try { historico = JSON.parse(chamado.historicoRaw); } catch(eH) { historico = []; }
+    
+    historico.push({
+      remetente: usuario.nome || usuario.email || "Militar",
+      tipo: "USUARIO",
+      data: dataFormatada,
+      mensagem: msgLimpa,
+      urlImagem: novaUrlImagem
+    });
+    
+    // Altera status de volta para EM_ATENDIMENTO
+    sheet.getRange(linhaAlvo, 12).setValue("EM_ATENDIMENTO");
+    sheet.getRange(linhaAlvo, 14).setValue(dataFormatada);
+    sheet.getRange(linhaAlvo, 16).setValue(JSON.stringify(historico));
+    SpreadsheetApp.flush();
+    
+    // Notifica dcsdlog@gmail.com
+    try {
+      var assuntoNotif = "[SGMP - Resposta do Usuário] Protocolo: " + protLimpo + " - " + chamado.titulo;
+      var corpoNotif = 
+        "<div style='font-family: Arial, sans-serif; max-width: 600px; margin: auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 24px; background-color: #ffffff;'>" +
+          "<h3 style='color: #991b1b; margin-top: 0;'>O usuário respondeu ao chamado " + protLimpo + "</h3>" +
+          "<p><strong>Militar:</strong> " + (usuario.nome || "Militar") + " (" + (usuario.ome || "-") + ")</p>" +
+          "<div style='background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 14px; margin: 15px 0;'>" +
+            "<p style='margin: 0; color: #1e293b; white-space: pre-wrap;'>" + msgLimpa + "</p>" +
+          "</div>" +
+          (novaUrlImagem ? "<p><a href='" + novaUrlImagem + "' target='_blank' style='color: #991b1b; font-weight: bold;'>Ver anexo enviado pelo usuário</a></p>" : "") +
+          "<p><a href='https://sgmp.vercel.app' style='background-color: #991b1b; color: #ffffff; padding: 10px 20px; border-radius: 5px; text-decoration: none; font-weight: bold; display: inline-block;'>Acessar SGMP</a></p>" +
+        "</div>";
+        
+      GmailApp.sendEmail("dcsdlog@gmail.com", assuntoNotif, "", {
+        htmlBody: corpoNotif,
+        from: "dcsdlog@gmail.com",
+        name: "SGMP — CBMPE (Suporte Técnico)",
+        replyTo: usuario.email || "dcsdlog@gmail.com"
+      });
+    } catch(eNotif) {}
+    
+    return {
+      sucesso: true,
+      mensagem: "Sua resposta foi enviada com sucesso à equipe técnica!"
+    };
+  } catch (err) {
+    console.error("Erro ao adicionar resposta ao chamado: " + err.message);
+    throw new Error(err.message);
+  }
+}
