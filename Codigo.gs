@@ -228,16 +228,13 @@ function obterIndicesLogins_(sheet) {
   if (idx.pin === -1) idx.pin = 6;
   if (idx.status === -1) idx.status = 7;
   
-  // Garante que primeiroAcesso tenha sua própria coluna identificada e nomeada
+  // Garante que primeiroAcesso tenha sua própria coluna identificada
   if (idx.primeiroAcesso === -1) {
     if (idx.permissoes === 8) {
       idx.primeiroAcesso = 9;
     } else {
       idx.primeiroAcesso = 8;
     }
-    try {
-      sheet.getRange(1, idx.primeiroAcesso + 1).setValue("PRIMEIRO_ACESSO");
-    } catch(e) {}
   }
   
   return idx;
@@ -15002,20 +14999,6 @@ function getHistoricoMovimentacaoItem(codigoOuPatrimonio) {
 // Permite ao militar cadastrar seu PIN definitivo no primeiro acesso
 function redefinirPinPrimeiroAcesso(pinTemporario, novoPin, confirmaPin, identificadorCliente) {
   try {
-    var email = "";
-    try { email = Session.getActiveUser().getEmail(); } catch (e) {}
-    if (!email) {
-      try { email = Session.getEffectiveUser().getEmail(); } catch (e) {}
-    }
-    if (!email && identificadorCliente) {
-      email = String(identificadorCliente).trim();
-    }
-    
-    var usuario = verificarPermissaoUsuario(email || identificadorCliente);
-    if (!usuario) {
-      throw new Error("Sessão não identificada ou usuário não encontrado.");
-    }
-    
     var pinTempLimpo = String(pinTemporario || "").trim();
     var novoPinLimpo = String(novoPin || "").trim();
     var confirmaPinLimpo = String(confirmaPin || "").trim();
@@ -15030,7 +15013,16 @@ function redefinirPinPrimeiroAcesso(pinTemporario, novoPin, confirmaPin, identif
       throw new Error("A confirmação do novo PIN não confere.");
     }
     
-    // Valida se o PIN temporário atual na base de Logins está correto
+    var emailSessao = "";
+    try { emailSessao = Session.getActiveUser().getEmail().trim().toLowerCase(); } catch (e) {}
+    if (!emailSessao) {
+      try { emailSessao = Session.getEffectiveUser().getEmail().trim().toLowerCase(); } catch (e) {}
+    }
+    var idBusca = emailSessao || String(identificadorCliente || "").trim();
+    var idBuscaLimpo = idBusca.replace(/\D/g, "");
+    if (idBuscaLimpo.length === 10) idBuscaLimpo = "0" + idBuscaLimpo;
+    var idBuscaEmail = idBusca.toLowerCase();
+
     var ss = SpreadsheetApp.openById(ID_PLANILHA_USUARIOS);
     var sheetLogins = ss.getSheetByName(ABA_USUARIOS);
     if (!sheetLogins) throw new Error("Aba de Logins não encontrada.");
@@ -15038,16 +15030,22 @@ function redefinirPinPrimeiroAcesso(pinTemporario, novoPin, confirmaPin, identif
     var idx = obterIndicesLogins_(sheetLogins);
     var dados = sheetLogins.getDataRange().getValues();
     var linhaUsuario = -1;
-    var cpfLimpo = String(usuario.cpf || "").replace(/\D/g, "");
-    if (cpfLimpo.length === 10) cpfLimpo = "0" + cpfLimpo;
-    var emailLimpo = String(usuario.email || "").trim().toLowerCase();
+    var userCpf = "";
+    var userEmail = "";
     
     for (var i = 1; i < dados.length; i++) {
       var rEmail = String(dados[i][idx.email] || "").trim().toLowerCase();
       var rCpf = String(dados[i][idx.cpf] || "").trim().replace(/\D/g, "");
       if (rCpf.length === 10) rCpf = "0" + rCpf;
-      if ((emailLimpo && rEmail === emailLimpo) || (cpfLimpo && rCpf === cpfLimpo)) {
+      
+      var bateu = false;
+      if (idBuscaEmail && rEmail === idBuscaEmail) bateu = true;
+      if (idBuscaLimpo && rCpf === idBuscaLimpo) bateu = true;
+      
+      if (bateu) {
         linhaUsuario = i + 1;
+        userCpf = rCpf;
+        userEmail = rEmail;
         var pinAtual = String(dados[i][idx.pin] || "").trim();
         if (pinAtual !== pinTempLimpo) {
           throw new Error("PIN temporário incorreto. Verifique a mensagem recebida no seu e-mail institucional.");
@@ -15063,18 +15061,14 @@ function redefinirPinPrimeiroAcesso(pinTemporario, novoPin, confirmaPin, identif
     // Atualiza o PIN pessoal e define PRIMEIRO_ACESSO como 'NAO'
     sheetLogins.getRange(linhaUsuario, idx.pin + 1).setNumberFormat('@').setValue(novoPinLimpo);
     sheetLogins.getRange(linhaUsuario, idx.primeiroAcesso + 1).setValue("NAO");
-    SpreadsheetApp.flush(); // Garante persistência imediata no Google Sheets
+    SpreadsheetApp.flush(); // Garante persistência imediata
     
     // Invalida cache de sessão
     try {
       var cache = CacheService.getScriptCache();
-      if (emailLimpo) cache.remove("USR_PERM_" + emailLimpo.replace(/[^a-z0-9]/gi, "_").substring(0, 45));
-      if (cpfLimpo) cache.remove("USR_PERM_" + cpfLimpo.replace(/[^a-z0-9]/gi, "_").substring(0, 45));
+      if (userEmail) cache.remove("USR_PERM_" + userEmail.replace(/[^a-z0-9]/gi, "_").substring(0, 45));
+      if (userCpf) cache.remove("USR_PERM_" + userCpf.replace(/[^a-z0-9]/gi, "_").substring(0, 45));
     } catch (eCache) {}
-    
-    try {
-      registrarLogAuditoria("PIN_PRIMEIRO_ACESSO_CADASTRADO", "Usuário cadastrou com sucesso seu PIN pessoal definitivo.", usuario.nome || usuario.email);
-    } catch (eLog) {}
 
     return { sucesso: true, mensagem: "PIN pessoal cadastrado com sucesso!" };
   } catch (err) {
