@@ -3017,7 +3017,7 @@
     const p = String((typeof PERFIL_GLOBAL !== 'undefined' ? PERFIL_GLOBAL : (usuarioSessaoAtual ? usuarioSessaoAtual.perfil : "")) || "").trim().toLowerCase();
     const pNorm = p.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     const ome = String((typeof OME_GLOBAL !== 'undefined' ? OME_GLOBAL : (usuarioSessaoAtual ? usuarioSessaoAtual.ome : "")) || "").trim().toUpperCase();
-    return pNorm.includes("admin") || ome === "DLOG" || ome === "CINT";
+    return pNorm.includes("admin");
   }
 
   function ehComandanteGlobal() {
@@ -3556,7 +3556,7 @@
 
     const perfilLower = (PERFIL_GLOBAL || "").trim().toLowerCase();
     const omeUpper = (OME_GLOBAL || "").trim().toUpperCase();
-    const ehAdminOuGestorCentral = perfilLower === "administrador" || perfilLower.includes("admin") || omeUpper === "DLOG" || omeUpper === "CINT";
+    const ehAdminOuGestorCentral = typeof ehAdminGlobal === "function" ? ehAdminGlobal() : perfilLower.includes("admin");
     const nomeOmeExibicao = obterNomeOficialOme(OME_GLOBAL);
 
     if (ehAdminOuGestorCentral) {
@@ -3746,7 +3746,7 @@
     const perfil = (PERFIL_GLOBAL || (usuarioSessaoAtual ? usuarioSessaoAtual.perfil : "") || "").trim().toLowerCase();
     const ome = (OME_GLOBAL || (usuarioSessaoAtual ? usuarioSessaoAtual.ome : "") || "").trim().toUpperCase();
 
-    const ehDplOrAdmin = perfil.includes("admin") || ome === "DLOG" || ome === "DPL"; 
+    const ehDplOrAdmin = typeof ehAdminGlobal === "function" ? ehAdminGlobal() : perfil.includes("admin"); 
 
     const painelDpl = document.getElementById('painelEstoqueCintDpl');
     const painelOme = document.getElementById('painelConfirmacaoOme');
@@ -11473,7 +11473,7 @@ window.carregarLocaisArvoreGeral = function() {
     const perfilNorm = perfilUser.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     const ehPerfilUsuario = perfilNorm === "usuario" || perfilNorm.includes("usuario");
     const ehAdmin = perfilNorm.includes("admin") || (typeof PERFIL_GLOBAL !== 'undefined' && PERFIL_GLOBAL === "Administrador") || (usuarioSessaoAtual && usuarioSessaoAtual.perfil === "Administrador");
-    const ehDlogOuAdmin = (ehAdmin || omeUser === "DLOG" || omeUser === "CINT") && !ehPerfilUsuario;
+    const ehDlogOuAdmin = ehAdmin && !ehPerfilUsuario;
 
     if (ehDlogOuAdmin) {
       const cpfPrefill = (usuarioSessaoAtual && usuarioSessaoAtual.cpf) ? usuarioSessaoAtual.cpf : '';
@@ -11544,7 +11544,7 @@ window.carregarLocaisArvoreGeral = function() {
     const perfilNorm = perfilUser.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     const ehPerfilUsuario = perfilNorm === "usuario" || perfilNorm.includes("usuario");
     const ehAdmin = perfilNorm.includes("admin") || (typeof PERFIL_GLOBAL !== 'undefined' && PERFIL_GLOBAL === "Administrador") || (usuarioSessaoAtual && usuarioSessaoAtual.perfil === "Administrador");
-    const ehDlogOuAdmin = (ehAdmin || omeUser === "DLOG" || omeUser === "CINT") && !ehPerfilUsuario;
+    const ehDlogOuAdmin = ehAdmin && !ehPerfilUsuario;
     const deveIntegrarDlog = ehDlogOuAdmin || dados.isDoacao;
 
     if (!deveIntegrarDlog) {
@@ -13474,7 +13474,7 @@ window.carregarLocaisArvoreGeral = function() {
   function verificarPainelTicketsMateriais() {
     const perfil = (PERFIL_GLOBAL || "").trim();
     const ome = (OME_GLOBAL || "").trim().toUpperCase();
-    const ehAdminOuDlog = perfil === "Administrador" || ome === "DLOG";
+    const ehAdminOuDlog = typeof ehAdminGlobal === "function" ? ehAdminGlobal() : perfil === "Administrador";
 
     // Você pode criar uma seção na Visão Geral ou no Recebimento para exibir isso.
     // Vamos buscar os tickets pendentes se ele tiver permissão:
@@ -13503,7 +13503,7 @@ window.carregarLocaisArvoreGeral = function() {
   function verificarNotificacoesTicketsProvisorios() {
     const perfil = (PERFIL_GLOBAL || "").trim();
     const ome = (OME_GLOBAL || "").trim().toUpperCase();
-    const ehAdminOuDlog = perfil === "Administrador" || ome === "DLOG";
+    const ehAdminOuDlog = typeof ehAdminGlobal === "function" ? ehAdminGlobal() : perfil === "Administrador";
 
     if (!ehAdminOuDlog) return; // Se não for Admin nem DLOG, encerra aqui
 
@@ -15245,7 +15245,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3"><i class="fa-solid fa-spinner fa-spin me-2"></i> Carregando estoque disponível...</td></tr>';
 
     const pClean = String(PERFIL_GLOBAL || "").toLowerCase();
-    const ehAdmin = pClean.includes("admin") || (OME_GLOBAL || "").toUpperCase() === "DLOG";
+    const ehAdmin = typeof ehAdminGlobal === "function" ? ehAdminGlobal() : pClean.includes("admin");
 
     const blocoOme = document.getElementById('blocoFiltroOmeCautela');
     const selOme = document.getElementById('filtroOmeCautela');
@@ -15508,7 +15508,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     if (tbody) tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-3"><i class="fa-solid fa-spinner fa-spin me-2"></i> Carregando itens...</td></tr>';
 
     const pClean = String(PERFIL_GLOBAL || "").toLowerCase();
-    const ehAdmin = pClean.includes("admin") || (OME_GLOBAL || "").toUpperCase() === "DLOG";
+    const ehAdmin = typeof ehAdminGlobal === "function" ? ehAdminGlobal() : pClean.includes("admin");
     const parametroOme = ehAdmin ? "TODAS" : OME_GLOBAL;
 
     google.script.run
@@ -15593,7 +15593,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
 
     const ehAdminOuChefe = (typeof ehAdminOuChefeGlobal === 'function' && ehAdminOuChefeGlobal()) || (typeof temPermissao === 'function' && temPermissao('acautelamento'));
     const perfilUsuario = String((usuarioSessaoAtual && usuarioSessaoAtual.perfil) ? usuarioSessaoAtual.perfil : (PERFIL_GLOBAL || "")).trim();
-    const ehAdmin = perfilUsuario.toLowerCase().includes("admin") || String(OME_GLOBAL || "").toUpperCase() === "DLOG";
+    const ehAdmin = typeof ehAdminGlobal === "function" ? ehAdminGlobal() : perfilUsuario.toLowerCase().includes("admin");
     
     // Para Administrador, busca toda a base corporativa (passa "TODAS")
     // Para Chefe de Setor ou com permissão de acautelamento, busca todos da sua OME (passa OME_GLOBAL)

@@ -3184,7 +3184,7 @@ function getResumoArvoreArmazenamento(unidadeOme) {
 
     if (dadosUser) {
       var perfilReal = String(dadosUser.perfil || "").trim().toUpperCase();
-      ehAdmin = (perfilReal === "ADMINISTRADOR" || String(dadosUser.ome || "").toUpperCase() === "DLOG");
+      ehAdmin = (perfilReal === "ADMINISTRADOR");
       ehChefe = perfilReal.indexOf("CHEFE") !== -1 || perfilReal.indexOf("COMANDANTE") !== -1;
       omeUsuario = dadosUser.ome || "";
     }
@@ -3589,7 +3589,7 @@ function getResumoMaterialSubunidade(unidadeOme) {
 
     if (dadosUser) {
       var perfilReal = String(dadosUser.perfil || "").trim().toUpperCase();
-      ehAdmin = (perfilReal === "ADMINISTRADOR" || String(dadosUser.ome || "").toUpperCase() === "DLOG");
+      ehAdmin = (perfilReal === "ADMINISTRADOR");
       omeUsuario = dadosUser.ome || "";
     }
 
@@ -3819,7 +3819,7 @@ function salvarCargaPadraoSetor(unidadeOme, subunidade, setor, material, novaCar
     var omeUser = String((dadosUser && dadosUser.ome) || (usuarioCliente && usuarioCliente.ome) || "").trim().toUpperCase();
     var perfilNorm = perfilUser.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
-    var ehAdmin = perfilNorm.indexOf("ADMIN") !== -1 || omeUser === "DLOG" || omeUser === "CINT";
+    var ehAdmin = perfilNorm.indexOf("ADMIN") !== -1;
     var ehChefe = perfilNorm.indexOf("CHEFE") !== -1 || perfilNorm.indexOf("COMANDANTE") !== -1;
 
     if (!ehAdmin && !ehChefe) {
@@ -3905,7 +3905,7 @@ function getResumoMateriaisExtraviadosGeral(unidadeOme) {
     var omeUsuario = "";
     if (dadosUser) {
       var perfilReal = String(dadosUser.perfil || "").trim().toUpperCase();
-      ehAdmin = (perfilReal === "ADMINISTRADOR" || String(dadosUser.ome || "").toUpperCase() === "DLOG");
+      ehAdmin = (perfilReal === "ADMINISTRADOR");
       omeUsuario = dadosUser.ome || "";
     }
 
@@ -11100,7 +11100,7 @@ function getItensDisponiveisParaCautela(omeUsuario, perfilUsuario, omeFiltroAdmi
     var omeCleanUser = String(omeUsuario || "").trim().toUpperCase();
     
     // Verifica rigorosamente se é Administrador ou DLOG
-    var ehAdmin = (perfilClean === "ADMINISTRADOR" || omeCleanUser === "DLOG");
+    var ehAdmin = (perfilClean === "ADMINISTRADOR");
 
     var sql = "SELECT ITEM, OBJETO, UNIDADE, SUBUNIDADE, SETOR, LOCALIZACAO_ESPCIFICA_NA_OME_Se_Necessario, N_PATRIMONIO, STATUS " +
               "FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
@@ -11396,7 +11396,7 @@ function getMinhasCautelasUsuario(cpfInformado, perfilInformado, omeInformada) {
     var cpfAlvo = String(cpfInformado || (userSessao ? userSessao.cpf : "") || "").trim().replace(/\D/g, '');
     var nomeAlvo = userSessao ? String(userSessao.nome || "").trim().toUpperCase() : "";
 
-    var ehAdmin = perfilReal === "ADMINISTRADOR" || perfilReal.indexOf("ADMIN") !== -1 || omeReal === "DLOG" || (userSessao && String(userSessao.ome).toUpperCase() === "DLOG");
+    var ehAdmin = perfilReal === "ADMINISTRADOR" || perfilReal.indexOf("ADMIN") !== -1;
     var temPermissaoCautela = false;
     if (userSessao && userSessao.permissoes) {
       if (Array.isArray(userSessao.permissoes)) {
@@ -11509,7 +11509,7 @@ function getItensAcauteladosAtuais(omeUsuario, perfilUsuario, omeFiltroAdmin) {
     var perfilClean = String(perfilUsuario || "").trim().toUpperCase();
     var omeCleanUser = String(omeUsuario || "").trim().toUpperCase();
     
-    var ehAdmin = (perfilClean === "ADMINISTRADOR" || omeCleanUser === "DLOG");
+    var ehAdmin = (perfilClean === "ADMINISTRADOR");
 
     // 1. Busca os itens acautelados no BigQuery com LEFT JOIN na tabela de histórico para obter a data da cautela
     var sql = "SELECT t.ITEM, t.OBJETO, t.UNIDADE, t.SUBUNIDADE, t.N_PATRIMONIO, " +
@@ -11919,7 +11919,7 @@ function getItensParaChecklist(omeUsuario, perfilUsuario, omeFiltroAdmin, subuni
   try {
     var perfilClean = String(perfilUsuario || "").trim().toUpperCase();
     var omeCleanUser = String(omeUsuario || "").trim().toUpperCase();
-    var ehAdmin = (perfilClean === "ADMINISTRADOR" || omeCleanUser === "DLOG" || perfilClean === "DLOG");
+    var ehAdmin = (perfilClean === "ADMINISTRADOR");
     var ehChefe = perfilClean.indexOf("CHEFE") !== -1 || perfilClean.indexOf("COMANDANTE") !== -1;
     var ehUsuario = !ehAdmin && !ehChefe;
 
@@ -11940,7 +11940,7 @@ function getItensParaChecklist(omeUsuario, perfilUsuario, omeFiltroAdmin, subuni
       var perfilReal = String(dadosUser.perfil || "").trim();
       var perfilRealUp = perfilReal.toUpperCase();
       if (perfilRealUp) {
-        ehAdmin = (perfilRealUp === "ADMINISTRADOR" || String(dadosUser.ome || "").toUpperCase() === "DLOG");
+        ehAdmin = (perfilRealUp === "ADMINISTRADOR");
         ehChefe = perfilRealUp.indexOf("CHEFE") !== -1 || perfilRealUp.indexOf("COMANDANTE") !== -1;
         ehUsuario = !ehAdmin && !ehChefe;
       }
@@ -12832,7 +12832,7 @@ function consultarBaseChecklistBigQuery(filtros) {
 
     var perfilLower = perfil.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     var ehPerfilUsuario = perfilLower.indexOf("usuario") !== -1 || perfilLower.indexOf("usu") !== -1;
-    var ehAdmin = perfilLower.indexOf("admin") !== -1 || (omeUsuario.toUpperCase() === "DLOG" && !ehPerfilUsuario);
+    var ehAdmin = perfilLower.indexOf("admin") !== -1;
     var ehChefe = perfilLower.indexOf("chefe") !== -1 || perfilLower.indexOf("comandante") !== -1;
     var temPermChecklist = false;
     var temPermTodaOme = false;
@@ -13411,7 +13411,7 @@ function getTodosUsuarios(filtroOmeSolicitante, perfilSolicitante) {
     var userLogado = emailSessao ? verificarPermissaoUsuario(emailSessao) : null;
     var pSolicitante = padronizarPerfilUsuario_(perfilSolicitante || (userLogado ? userLogado.perfil : ""));
     var omeSolicitante = String(filtroOmeSolicitante || (userLogado ? userLogado.ome : "")).trim().toUpperCase();
-    var ehAdmin = (pSolicitante === "Administrador" || omeSolicitante === "DLOG");
+    var ehAdmin = (pSolicitante === "Administrador");
     var ehComandante = (pSolicitante === "Comandante de Unidade");
 
     var mapaUsuarios = {};
@@ -13481,7 +13481,7 @@ function atualizarUsuario(linha, novaOme, novoPerfil, novoStatus, novaSubunidade
     var userLogado = emailSessao ? verificarPermissaoUsuario(emailSessao) : null;
     var pSol = padronizarPerfilUsuario_(perfilSolicitante || (userLogado ? userLogado.perfil : ""));
     var omeSol = String(omeSolicitante || (userLogado ? userLogado.ome : "")).trim().toUpperCase();
-    var ehAdmin = (pSol === "Administrador" || omeSol === "DLOG");
+    var ehAdmin = (pSol === "Administrador");
 
     var perfilPadronizado = padronizarPerfilUsuario_(novoPerfil);
     
@@ -13636,7 +13636,7 @@ function getTicketsAcessoPendentes(filtroOmeSolicitante, perfilSolicitante) {
 
     var pSol = padronizarPerfilUsuario_(perfilSolicitante);
     var omeSol = String(filtroOmeSolicitante || "").trim().toUpperCase();
-    var ehAdmin = (pSol === "Administrador" || omeSol === "DLOG");
+    var ehAdmin = (pSol === "Administrador");
     var ehComandante = (pSol === "Comandante de Unidade");
 
     // [0] ID | [1] Data | [2] Nome | [3] Email | [4] CPF | [5] OME | [6] Subunidade | [7] Perfil | [8] PIN | [9] Status
