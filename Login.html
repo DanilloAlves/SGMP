@@ -180,10 +180,13 @@
             <div class="text-muted" style="font-size: 0.72rem;">Conta Gmail que você usará para clicar no botão "Entrar com Conta Google".</div>
           </div>
 
-          <div class="mb-2 p-2 bg-danger-subtle rounded border border-danger-subtle">
-            <label class="form-label fw-bold text-danger mb-0"><i class="fa-solid fa-shield-halved me-1"></i> E-mail Institucional (@bombeiros.pe.gov.br):</label>
-            <input type="email" id="cad_email_inst" class="form-control form-control-sm mt-1" placeholder="nome.sobrenome@bombeiros.pe.gov.br">
-            <div class="text-danger mt-1" style="font-size: 0.72rem;">Obrigatório terminar em <strong>@bombeiros.pe.gov.br</strong>. Um código de 6 dígitos será enviado para comprovar sua identidade funcional.</div>
+                    <div class="mb-2 p-2 bg-danger-subtle rounded border border-danger-subtle">
+            <label class="form-label fw-bold text-danger mb-0"><i class="fa-solid fa-shield-halved me-1"></i> E-mail Institucional:</label>
+            <div class="input-group input-group-sm mt-1">
+              <input type="text" id="cad_email_inst" class="form-control form-control-sm text-lowercase" placeholder="nome.sobrenome" autocomplete="off">
+              <span class="input-group-text bg-white fw-bold text-danger border-start-0">@bombeiros.pe.gov.br</span>
+            </div>
+            <div class="text-danger mt-1" style="font-size: 0.72rem;">Digite apenas o seu usuário (ex: <strong>nome.sobrenome</strong>). O sufixo institucional já está fixado.</div>
           </div>
 
           <div class="row g-2 mb-2">
@@ -206,17 +209,15 @@
       preConfirm: () => {
         const nome = document.getElementById('cad_nome').value.trim();
         const email = document.getElementById('cad_email').value.trim().toLowerCase();
-        const emailInst = document.getElementById('cad_email_inst').value.trim().toLowerCase();
+        let emailInstRaw = (document.getElementById('cad_email_inst').value || '').trim().toLowerCase();
+        if (emailInstRaw.indexOf('@') !== -1) emailInstRaw = emailInstRaw.split('@')[0];
+        const emailInst = emailInstRaw ? (emailInstRaw + '@bombeiros.pe.gov.br') : '';
         let cpf = document.getElementById('cad_cpf').value.trim().replace(/\D/g, '');
         const ome = document.getElementById('cad_ome').value;
         const subunidade = document.getElementById('cad_subunidade').value.trim() || 'GERAL';
 
-        if (!nome || !email || !emailInst || !cpf || !ome) {
+        if (!nome || !email || !emailInstRaw || !cpf || !ome) {
           Swal.showValidationMessage('Preencha todos os campos obrigatórios.');
-          return false;
-        }
-        if (!emailInst.endsWith('bombeiros.pe.gov.br')) {
-          Swal.showValidationMessage('O e-mail funcional deve obrigatoriamente terminar com @bombeiros.pe.gov.br');
           return false;
         }
         if (cpf.length === 10) cpf = '0' + cpf;
@@ -403,8 +404,12 @@
           </div>
           
           <div class="mb-2">
-            <label class="form-label fw-bold">E-mail Institucional (@bombeiros.pe.gov.br):</label>
-            <input type="email" id="recup_email_inst" class="form-control form-control-sm" placeholder="nome.sobrenome@bombeiros.pe.gov.br">
+            <label class="form-label fw-bold">E-mail Institucional:</label>
+            <div class="input-group input-group-sm">
+              <input type="text" id="recup_email_inst" class="form-control form-control-sm text-lowercase" placeholder="nome.sobrenome" autocomplete="off">
+              <span class="input-group-text bg-white fw-bold text-danger border-start-0">@bombeiros.pe.gov.br</span>
+            </div>
+            <div class="text-muted mt-1" style="font-size: 0.72rem;">Digite apenas o seu usuário (ex: <strong>nome.sobrenome</strong>).</div>
           </div>
         </div>
       `,
@@ -415,18 +420,16 @@
       confirmButtonColor: '#991b1b',
       preConfirm: () => {
         const cpf = (document.getElementById('recup_cpf').value || '').trim().replace(/\D/g, '');
-        const emailInst = (document.getElementById('recup_email_inst').value || '').trim().toLowerCase();
+        let emailInstRaw = (document.getElementById('recup_email_inst').value || '').trim().toLowerCase();
+        if (emailInstRaw.indexOf('@') !== -1) emailInstRaw = emailInstRaw.split('@')[0];
+        const emailInst = emailInstRaw ? (emailInstRaw + '@bombeiros.pe.gov.br') : '';
 
-        if (!cpf || !emailInst) {
+        if (!cpf || !emailInstRaw) {
           Swal.showValidationMessage('Preencha o CPF e o E-mail Institucional.');
           return false;
         }
         if (cpf.length !== 11) {
           Swal.showValidationMessage('Informe um CPF válido com 11 dígitos.');
-          return false;
-        }
-        if (!emailInst.endsWith('@bombeiros.pe.gov.br')) {
-          Swal.showValidationMessage('O e-mail deve obrigatoriamente terminar com @bombeiros.pe.gov.br');
           return false;
         }
         return { cpf, emailInst };

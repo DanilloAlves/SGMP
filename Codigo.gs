@@ -13188,6 +13188,9 @@ function validarCompatibilidadeEmailNome_(email, nome) {
 function enviarCodigoVerificacaoInstitucional(emailInstitucional, nome) {
   try {
     var emailLimpo = String(emailInstitucional || "").trim().toLowerCase();
+    if (emailLimpo && emailLimpo.indexOf("@") === -1) {
+      emailLimpo += "@bombeiros.pe.gov.br";
+    }
     var nomeLimpo = String(nome || "Militar").trim().toUpperCase();
 
     if (!emailLimpo) {
@@ -13264,6 +13267,10 @@ function enviarCodigoVerificacaoInstitucional(emailInstitucional, nome) {
 function confirmarCodigoESolicitarAcesso(dados, codigoDigitado) {
   try {
     var emailInst = String((dados && dados.emailInstitucional) || "").trim().toLowerCase();
+    if (emailInst && emailInst.indexOf("@") === -1) {
+      emailInst += "@bombeiros.pe.gov.br";
+      if (dados) dados.emailInstitucional = emailInst;
+    }
     if (!emailInst || !emailInst.endsWith("bombeiros.pe.gov.br")) {
       throw new Error("O e-mail institucional deve obrigatoriamente terminar com @bombeiros.pe.gov.br");
     }
@@ -15132,6 +15139,9 @@ function verificarUsuarioExistente(emailGoogle, cpf, emailInst) {
 function executarResetPinMilitar(identificador, emailInstInformado) {
   try {
     var emailInstLimpo = String(emailInstInformado || "").trim().toLowerCase();
+    if (emailInstLimpo && emailInstLimpo.indexOf("@") === -1) {
+      emailInstLimpo += "@bombeiros.pe.gov.br";
+    }
     var idLimpo = String(identificador || "").trim().replace(/\D/g, "");
     if (idLimpo.length === 10) idLimpo = "0" + idLimpo;
 
