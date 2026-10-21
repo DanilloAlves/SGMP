@@ -13100,23 +13100,25 @@ function validarCompatibilidadeEmailNome_(email, nome) {
       .toLowerCase()
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-z0-9\s._-]/g, "")
       .trim();
   }
 
-  var emailNorm = normalizar(email);
-  var nomeNorm = normalizar(nome);
-
-  var usuarioEmail = emailNorm.split("@")[0];
+  // 1. Extrai o prefixo do e-mail antes do @
+  var emailLimpo = normalizar(email);
+  var partesArroba = emailLimpo.split("@");
+  var usuarioEmail = partesArroba[0].replace(/[^a-z0-9._-]/g, "");
   if (!usuarioEmail) return false;
+
+  var nomeNorm = normalizar(nome).replace(/[^a-z0-9\s._-]/g, "");
 
   var stopWords = [
     "sd", "cb", "sgt", "sub", "ten", "subten", "asp", "cap", "maj", "tc", "cel",
     "bm", "de", "da", "do", "das", "dos", "e", "qobm", "qpcbm", "qocbm", "qabm",
-    "al", "ch", "cmt", "subcmt", "chefe", "bombeiro", "militar"
+    "al", "ch", "cmt", "subcmt", "chefe", "bombeiro", "militar",
+    "1o", "2o", "3o", "1", "2", "3", "primeiro", "segundo", "terceiro"
   ];
 
-  // Extrai tokens do nome ignorando patentes e preposições
+  // Extrai tokens do nome informados pelo usuário
   var tokensNome = nomeNorm
     .split(/[\s._-]+/)
     .map(function(t) { return t.trim(); })
@@ -13125,40 +13127,69 @@ function validarCompatibilidadeEmailNome_(email, nome) {
   if (tokensNome.length === 0) {
     tokensNome = nomeNorm.split(/[\s._-]+/).filter(function(t) { return t.length >= 2; });
   }
+  if (tokensNome.length === 0) return false;
 
-  // Extrai tokens do prefixo do e-mail
-  var tokensEmail = usuarioEmail
-    .split(/[^a-z]+/)
-    .map(function(t) { return t.trim(); })
-    .filter(function(t) { return t.length >= 3; });
-
-  if (tokensEmail.length === 0) {
-    tokensEmail = usuarioEmail.split(/[^a-z]+/).map(function(t) { return t.trim(); }).filter(function(t) { return t.length >= 2; });
-  }
-
+  // Extrai tokens do prefixo do e-mail (ex: danillo.alves -> ['danillo', 'alves'])
+  var tokensEmail = usuarioEmail.split(/[^a-z]+/).filter(function(t) { return t.length >= 2; });
   if (tokensEmail.length === 0) return false;
 
-  // Verifica se há correspondência entre os tokens do e-mail e do nome
-  var correspondencias = 0;
-  for (var i = 0; i < tokensEmail.length; i++) {
-    var te = tokensEmail[i];
-    var bateu = false;
-    for (var j = 0; j < tokensNome.length; j++) {
-      var tn = tokensNome[j];
-      if (tn === te || (tn.length >= 4 && te.length >= 4 && (tn.indexOf(te) !== -1 || te.indexOf(tn) !== -1))) {
-        bateu = true;
-        break;
+  // REGRA 1: TODOS os tokens com 3 ou mais letras presentes no endereço de e-mail 
+  // DEVEM obrigatoriamente existir dentro do nome completo do usuário!
+  // Ex: Em 'danillo.alves', 'danillo' e 'alves' DEVEM ambos estar no nome do usuário.
+  // Se o militar digitou 'Alex Alves da Silva', 'danillo' não existe no nome -> RECUSA.
+  var tokensSignificativosEmail = tokensEmail.filter(function(t) { return t.length >= 3; });
+  if (tokensSignificativosEmail.length > 0) {
+    for (var i = 0; i < tokensSignificativosEmail.length; i++) {
+      var te = tokensSignificativosEmail[i];
+      var achouNoNome = false;
+      for (var j = 0; j < tokensNome.length; j++) {
+        var tn = tokensNome[j];
+        if (tn === te) {
+          achouNoNome = true;
+          break;
+        }
+      }
+      if (!achouNoNome) {
+        var teTemp = te;
+        for (var j = 0; j < tokensNome.length; j++) {
+          if (tokensNome[j].length >= 3 && teTemp.indexOf(tokensNome[j]) !== -1) {
+            teTemp = teTemp.replace(tokensNome[j], "");
+          }
+        }
+        if (teTemp.length <= 1) {
+          achouNoNome = true;
+        }
+      }
+      if (!achouNoNome) {
+        return false;
       }
     }
-    if (bateu) correspondencias++;
   }
 
-  if (correspondencias === 0) {
-    var nomeSemEspacos = tokensNome.join("");
-    var emailSemPontos = usuarioEmail.replace(/[^a-z]/g, "");
-    if (nomeSemEspacos.indexOf(emailSemPontos) === -1 && emailSemPontos.indexOf(nomeSemEspacos) === -1) {
-      return false;
+  // REGRA 2: O primeiro nome do usuário DEVE constar no e-mail (por extenso ou como inicial)
+  var primeiroNome = tokensNome[0]; // ex: 'danillo' ou 'alex'
+  var primeiroNomeNoEmail = false;
+
+  for (var k = 0; k < tokensEmail.length; k++) {
+    if (tokensEmail[k] === primeiroNome) {
+      primeiroNomeNoEmail = true;
+      break;
     }
+  }
+  if (!primeiroNomeNoEmail && usuarioEmail.indexOf(primeiroNome) !== -1) {
+    primeiroNomeNoEmail = true;
+  }
+
+  if (!primeiroNomeNoEmail) {
+    var primeiraInicial = primeiroNome.charAt(0);
+    var partesPontos = usuarioEmail.split(/[^a-z]/);
+    if (partesPontos[0] === primeiraInicial) {
+      primeiroNomeNoEmail = true;
+    }
+  }
+
+  if (!primeiroNomeNoEmail) {
+    return false;
   }
 
   return true;

@@ -229,7 +229,62 @@
     });
   }
 
-  function enviarOtpEExibirModalConfirmacao(dadosForm) {
+    // Validação silenciosa de compatibilidade no cliente
+  function validarCompatibilidadeEmailNomeClient(email, nome) {
+    if (!email || !nome) return false;
+    var norm = function(str) {
+      return String(str || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+    };
+    var emailLimpo = norm(email);
+    var partesArroba = emailLimpo.split('@');
+    var usuarioEmail = partesArroba[0].replace(/[^a-z0-9._-]/g, '');
+    if (!usuarioEmail) return false;
+    var nomeNorm = norm(nome).replace(/[^a-z0-9\s._-]/g, '');
+    var stopWords = ['sd', 'cb', 'sgt', 'sub', 'ten', 'subten', 'asp', 'cap', 'maj', 'tc', 'cel', 'bm', 'de', 'da', 'do', 'das', 'dos', 'e', 'qobm', 'qpcbm', 'qocbm', 'qabm', 'al', 'ch', 'cmt', 'subcmt', 'chefe', 'bombeiro', 'militar', '1o', '2o', '3o', '1', '2', '3'];
+    var tokensNome = nomeNorm.split(/[\s._-]+/).map(function(t){return t.trim();}).filter(function(t){return t.length >= 2 && stopWords.indexOf(t) === -1 && !/^\d+$/.test(t);});
+    if (tokensNome.length === 0) tokensNome = nomeNorm.split(/[\s._-]+/).filter(function(t){return t.length >= 2;});
+    if (tokensNome.length === 0) return false;
+    var tokensEmail = usuarioEmail.split(/[^a-z]+/).filter(function(t){return t.length >= 2;});
+    if (tokensEmail.length === 0) return false;
+    var tokensSignificativosEmail = tokensEmail.filter(function(t){return t.length >= 3;});
+    if (tokensSignificativosEmail.length > 0) {
+      for (var i = 0; i < tokensSignificativosEmail.length; i++) {
+        var te = tokensSignificativosEmail[i];
+        var achou = false;
+        for (var j = 0; j < tokensNome.length; j++) {
+          if (tokensNome[j] === te) { achou = true; break; }
+        }
+        if (!achou) {
+          var teTemp = te;
+          for (var j = 0; j < tokensNome.length; j++) {
+            if (tokensNome[j].length >= 3 && teTemp.indexOf(tokensNome[j]) !== -1) {
+              teTemp = teTemp.replace(tokensNome[j], '');
+            }
+          }
+          if (teTemp.length <= 1) achou = true;
+        }
+        if (!achou) return false;
+      }
+    }
+    var primeiroNome = tokensNome[0];
+    var primeiroNomeNoEmail = (tokensEmail.indexOf(primeiroNome) !== -1 || usuarioEmail.indexOf(primeiroNome) !== -1);
+    if (!primeiroNomeNoEmail) {
+      var partesPontos = usuarioEmail.split(/[^a-z]/);
+      if (partesPontos[0] === primeiroNome.charAt(0)) primeiroNomeNoEmail = true;
+    }
+    return primeiroNomeNoEmail;
+  }
+
+    function enviarOtpEExibirModalConfirmacao(dadosForm) {
+    if (!validarCompatibilidadeEmailNomeClient(dadosForm.emailInstitucional, dadosForm.nome)) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Validação Recusada',
+        text: 'O processo de validação recusou o acesso.',
+        confirmButtonColor: '#991b1b'
+      });
+      return;
+    }
     Swal.fire({
       title: 'Enviando código...',
       html: `Gerando código de segurança para <strong>${dadosForm.emailInstitucional}</strong>...`,
