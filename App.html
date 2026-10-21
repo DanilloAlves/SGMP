@@ -2607,11 +2607,15 @@
           <div class="card border p-3 mb-3 rounded-3">
             <h5 class="fw-bold text-dark mb-2" id="detalhes_chamado_titulo">-</h5>
             <p class="text-secondary small mb-2" style="white-space: pre-wrap; line-height: 1.5;" id="detalhes_chamado_descricao">-</p>
-            <div id="detalhes_chamado_imagem_box" class="mt-2 text-center d-none">
+            <div id="detalhes_chamado_imagem_box" class="mt-2 text-center p-2 bg-light border rounded-3 d-none">
               <a id="detalhes_chamado_imagem_link" href="#" target="_blank" title="Clique para abrir imagem original">
-                <img id="detalhes_chamado_imagem" src="#" alt="Print do Chamado" style="max-height: 250px; max-width: 100%; border-radius: 6px; border: 1px solid #cbd5e1;">
+                <img id="detalhes_chamado_imagem" src="#" alt="Print do Chamado" style="max-height: 320px; max-width: 100%; border-radius: 6px; border: 1px solid #cbd5e1; box-shadow: 0 2px 4px rgba(0,0,0,0.06); object-fit: contain;">
               </a>
-              <div class="text-muted small mt-1"><i class="fa-solid fa-magnifying-glass-plus me-1"></i> Clique na imagem para abrir em tela cheia</div>
+              <div class="mt-2 d-flex justify-content-center gap-2 flex-wrap">
+                <a id="detalhes_chamado_imagem_btn_externo" href="#" target="_blank" class="btn btn-sm btn-outline-danger fw-bold py-1 px-3">
+                  <i class="fa-solid fa-arrow-up-right-from-square me-1"></i> Abrir Imagem no Google Drive
+                </a>
+              </div>
             </div>
           </div>
 
@@ -23028,13 +23032,40 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     document.getElementById('detalhes_chamado_titulo').innerText = chamado.titulo || '-';
     document.getElementById('detalhes_chamado_descricao').innerText = chamado.descricao || '-';
 
-    // Imagem anexa
+    // Imagem anexa com suporte a Google Drive e múltiplos fallbacks
     const imgBox = document.getElementById('detalhes_chamado_imagem_box');
     const imgEl = document.getElementById('detalhes_chamado_imagem');
     const imgLink = document.getElementById('detalhes_chamado_imagem_link');
+    const btnLink = document.getElementById('detalhes_chamado_imagem_btn_externo');
+
     if (chamado.urlImagem) {
-      if (imgEl) imgEl.src = chamado.urlImagem;
-      if (imgLink) imgLink.href = chamado.urlImagem;
+      const rawUrl = chamado.urlImagemOriginal || chamado.urlImagem;
+      let fileId = '';
+      const matchFile = rawUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || rawUrl.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+      if (matchFile && matchFile[1]) fileId = matchFile[1];
+
+      const urlEmbed = fileId ? ('https://drive.google.com/thumbnail?id=' + fileId + '&sz=w1600') : chamado.urlImagem;
+      const urlView = fileId ? ('https://drive.google.com/file/d/' + fileId + '/view?usp=sharing') : rawUrl;
+
+      if (imgEl) {
+        imgEl.dataset.fileid = fileId;
+        imgEl.dataset.tentativa = '0';
+        imgEl.onerror = function() {
+          const fid = this.dataset.fileid;
+          if (!fid) return;
+          const t = parseInt(this.dataset.tentativa || '0', 10);
+          if (t === 0) {
+            this.dataset.tentativa = '1';
+            this.src = 'https://lh3.googleusercontent.com/d/' + fid;
+          } else if (t === 1) {
+            this.dataset.tentativa = '2';
+            this.src = 'https://drive.google.com/uc?export=view&id=' + fid;
+          }
+        };
+        imgEl.src = urlEmbed;
+      }
+      if (imgLink) imgLink.href = urlView;
+      if (btnLink) btnLink.href = urlView;
       if (imgBox) imgBox.classList.remove('d-none');
     } else {
       if (imgBox) imgBox.classList.add('d-none');

@@ -7180,10 +7180,15 @@ function salvarFotoNoGoogleDrive(e) {
     try {
       arquivo.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
     } catch (errShare) {
-      console.warn("Aviso ao aplicar permissão no arquivo do Drive: " + errShare.message);
+      try {
+        arquivo.setSharing(DriveApp.Access.DOMAIN_WITH_LINK, DriveApp.Permission.VIEW);
+      } catch (errShareDom) {
+        console.warn("Aviso ao aplicar permissão no arquivo do Drive: " + errShare.message);
+      }
     }
 
-    return arquivo.getUrl();
+    var fileId = arquivo.getId();
+    return "https://drive.google.com/thumbnail?id=" + fileId + "&sz=w1600";
   } catch (err) {
     throw new Error("Falha ao salvar arquivo no Google Drive: " + err.message);
   }
@@ -15334,6 +15339,25 @@ function testarEnvioDcsdlog() {
 // MÓDULO DE SUPORTE TÉCNICO E CHAMADOS / RECLAMAÇÕES (HELPDESK)
 // =========================================================================
 
+// Converte link do Google Drive para URL de renderização direta em tag <img>
+function converterUrlDriveParaImagem_(url) {
+  if (!url) return "";
+  var str = String(url).trim();
+  if (str.indexOf("data:image/") === 0) return str;
+  if (str.indexOf("drive.google.com/thumbnail") !== -1) return str;
+  var fileId = "";
+  var mFile = str.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if (mFile && mFile[1]) fileId = mFile[1];
+  else {
+    var mId = str.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+    if (mId && mId[1]) fileId = mId[1];
+  }
+  if (fileId) {
+    return "https://drive.google.com/thumbnail?id=" + fileId + "&sz=w1600";
+  }
+  return str;
+}
+
 var ABA_CHAMADOS = "Chamados";
 
 // Garante que a aba de Chamados exista com os cabeçalhos apropriados
@@ -15452,9 +15476,10 @@ function abrirNovoChamado(dadosChamado, anexoBase64) {
     // Dispara e-mail de aviso sigiloso para dcsdlog@gmail.com
     try {
       var assuntoAviso = "[SGMP - Novo Chamado de Suporte] Protocolo: " + protocolo + " - " + titulo;
+      var imgTagUrl = converterUrlDriveParaImagem_(urlImagem);
       var previewImagemHtml = urlImagem ? 
         ("<p style='margin-top: 15px;'><strong>Print / Anexo da Tela:</strong><br><a href='" + urlImagem + "' target='_blank' style='color: #991b1b; font-weight: bold;'>Clique aqui para visualizar a imagem original</a></p>" +
-         "<div style='text-align: center; margin: 15px 0;'><a href='" + urlImagem + "' target='_blank'><img src='" + urlImagem + "' style='max-width: 100%; max-height: 350px; border: 1px solid #e2e8f0; border-radius: 6px;' alt='Print do Problema'></a></div>") 
+         "<div style='text-align: center; margin: 15px 0;'><a href='" + urlImagem + "' target='_blank'><img src='" + imgTagUrl + "' style='max-width: 100%; max-height: 350px; border: 1px solid #e2e8f0; border-radius: 6px;' alt='Print do Problema'></a></div>") 
         : "<p style='color: #64748b; font-size: 13px;'>Nenhum anexo de imagem enviado.</p>";
       
       var corpoAvisoAdmin = 
@@ -15565,6 +15590,7 @@ function listarChamados(filtroStatus) {
       var rowTitulo = String(row[8] || "").trim();
       var rowDescricao = String(row[9] || "").trim();
       var rowImagem = String(row[10] || "").trim();
+      var urlImagemFormatada = converterUrlDriveParaImagem_(rowImagem);
       var rowStatus = String(row[11] || "ABERTO").trim().toUpperCase();
       var rowResposta = String(row[12] || "").trim();
       var rowDataAtualizacao = String(row[13] || dataCriacao).trim();
@@ -15602,7 +15628,8 @@ function listarChamados(filtroStatus) {
         tipoProblema: rowTipo,
         titulo: rowTitulo,
         descricao: rowDescricao,
-        urlImagem: rowImagem,
+        urlImagem: urlImagemFormatada,
+        urlImagemOriginal: rowImagem,
         status: rowStatus,
         respostaSuporte: rowResposta,
         dataAtualizacao: rowDataAtualizacao,
