@@ -75,7 +75,7 @@ function doGet(e) {
     var templateLogin = HtmlService.createTemplateFromFile('Login');
     templateLogin.appUrl = appUrl;
     return templateLogin.evaluate()
-      .setTitle('Login - Gestão de Inventário')
+      .setTitle('SGMP — CBMPE | Sistema de Gestão de Materiais e Patrimônio')
       .addMetaTag('viewport', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no')
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
   }
@@ -101,7 +101,7 @@ function doGet(e) {
     templateLogin.appUrl = appUrl;
     templateLogin.erro = "Acesso Bloqueado: Seu cadastro está marcado como INATIVO na tabela de Logins.";
     return templateLogin.evaluate()
-      .setTitle('Acesso Bloqueado - Gestão de Inventário')
+      .setTitle('SGMP — CBMPE | Acesso Bloqueado')
       .addMetaTag('viewport', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no')
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
   }
@@ -111,7 +111,7 @@ function doGet(e) {
   templateIndex.appUrl = appUrl;
 
   return templateIndex.evaluate()
-    .setTitle('Gestão de Inventário - CBMPE')
+    .setTitle('SGMP — CBMPE | Sistema de Gestão de Materiais e Patrimônio')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
