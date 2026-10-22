@@ -16199,24 +16199,26 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
               <div class="fw-bold text-dark" style="font-size: 0.82rem;">
                 <i class="fa-solid fa-location-dot text-danger me-1"></i> ${loc.nomeLocal}
               </div>
-              <div class="text-muted" style="font-size: 0.73rem;">
-                Disponível (ECD): <strong class="text-success">${loc.qtdDisponivel}</strong> un.
-              </div>
             </div>
-            <div class="d-flex align-items-center gap-1">
-              <label class="form-label mb-0 small text-muted me-1 fw-semibold">Retirar:</label>
-              <input type="number" 
-                     class="form-control form-control-sm text-center fw-bold input-retirada-cautela" 
-                     style="width: 75px;" 
-                     min="0" 
-                     max="${loc.qtdDisponivel}" 
-                     value="${qVal}" 
-                     data-material="${m.objeto.replace(/"/g, '&quot;')}" 
-                     data-local="${loc.chaveLocal.replace(/"/g, '&quot;')}" 
-                     data-local-nome="${loc.nomeLocal.replace(/"/g, '&quot;')}"
-                     data-max="${loc.qtdDisponivel}"
-                     oninput="aoAlterarQtdRetiradaLocal(this)"
-                     placeholder="0">
+            <div class="d-flex align-items-center gap-2 text-nowrap">
+              <div class="d-flex align-items-center gap-1">
+                <label class="form-label mb-0 small text-muted fw-semibold">Retirar:</label>
+                <input type="number" 
+                       class="form-control form-control-sm text-center fw-bold input-retirada-cautela" 
+                       style="width: 70px;" 
+                       min="0" 
+                       max="${loc.qtdDisponivel}" 
+                       value="${qVal}" 
+                       data-material="${m.objeto.replace(/"/g, '&quot;')}" 
+                       data-local="${loc.chaveLocal.replace(/"/g, '&quot;')}" 
+                       data-local-nome="${loc.nomeLocal.replace(/"/g, '&quot;')}"
+                       data-max="${loc.qtdDisponivel}"
+                       oninput="aoAlterarQtdRetiradaLocal(this)"
+                       placeholder="0">
+              </div>
+              <span class="badge bg-white text-secondary border px-2 py-1 shadow-sm" style="font-size: 0.76rem;" title="Quantidade disponível neste local de armazenamento">
+                Disponível: <strong class="text-success">${loc.qtdDisponivel}</strong> un.
+              </span>
             </div>
           </div>
         `;
