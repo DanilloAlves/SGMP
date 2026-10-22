@@ -801,6 +801,9 @@
             <button class="btn btn-sm btn-outline-danger py-1 px-2" onclick="carregarDadosDashboardVisaoGeral(true)" title="Recarregar dados do BigQuery e Catálogo" style="font-size: 0.78rem;">
               <i class="fa-solid fa-rotate me-1"></i> Atualizar
             </button>
+            <button class="btn btn-sm btn-outline-secondary py-1 px-2" onclick="exportarDashboardPdf()" title="Exportar / Imprimir Relatório do Dashboard em PDF" style="font-size: 0.78rem;">
+              <i class="fa-solid fa-file-pdf text-danger me-1"></i> Exportar PDF
+            </button>
           </div>
         </div>
 
@@ -24655,6 +24658,234 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     });
 
     tbody.innerHTML = html;
+  }
+
+  // Exporta o Dashboard completo (Filtros, KPIs, Gráficos e Detalhamento) em formato PDF / Impressão
+  function exportarDashboardPdf() {
+    if (!cacheDadosDashboard || !cacheDadosDashboard.dados) {
+      Swal.fire('Aviso', 'Aguarde o carregamento do dashboard antes de exportar o PDF.', 'info');
+      return;
+    }
+
+    const selOme = document.getElementById('filtroDashOme');
+    const selCl1 = document.getElementById('filtroDashClasse1');
+    const selCl2 = document.getElementById('filtroDashClasse2');
+    const selCl3 = document.getElementById('filtroDashClasse3');
+
+    const omeTexto = selOme ? (selOme.options[selOme.selectedIndex] ? selOme.options[selOme.selectedIndex].text : selOme.value) : 'TODAS';
+    const cl1Texto = selCl1 ? (selCl1.options[selCl1.selectedIndex] ? selCl1.options[selCl1.selectedIndex].text : selCl1.value) : 'TODAS';
+    const cl2Texto = selCl2 ? (selCl2.options[selCl2.selectedIndex] ? selCl2.options[selCl2.selectedIndex].text : selCl2.value) : 'TODAS';
+    const cl3Texto = selCl3 ? (selCl3.options[selCl3.selectedIndex] ? selCl3.options[selCl3.selectedIndex].text : selCl3.value) : 'TODAS';
+
+    const kpiTot = document.getElementById('kpiDashTotal')?.innerText || '0';
+    const kpiEcd = document.getElementById('kpiDashEcd')?.innerText || '0';
+    const kpiScd = document.getElementById('kpiDashScd')?.innerText || '0';
+    const kpiAcaut = document.getElementById('kpiDashAcautelado')?.innerText || '0';
+    const kpiExtr = document.getElementById('kpiDashExtraviado')?.innerText || '0';
+
+    const pctEcd = document.getElementById('kpiDashPctEcd')?.innerText || '';
+    const pctScd = document.getElementById('kpiDashPctScd')?.innerText || '';
+    const pctAcaut = document.getElementById('kpiDashPctAcautelado')?.innerText || '';
+    const pctExtr = document.getElementById('kpiDashPctExtraviado')?.innerText || '';
+
+    // Converte gráficos Chart.js para imagens base64
+    let imgBarrasHtml = '';
+    let imgDonutHtml = '';
+    try {
+      const canvasBarras = document.getElementById('chartDashBarrasStatus');
+      if (canvasBarras) {
+        const urlBarras = canvasBarras.toDataURL('image/png');
+        imgBarrasHtml = '<img src="' + urlBarras + '" style="max-width: 100%; max-height: 180px; object-fit: contain;">';
+      }
+      const canvasDonut = document.getElementById('chartDashDonutStatus');
+      if (canvasDonut) {
+        const urlDonut = canvasDonut.toDataURL('image/png');
+        imgDonutHtml = '<img src="' + urlDonut + '" style="max-width: 100%; max-height: 180px; object-fit: contain;">';
+      }
+    } catch (e) {
+      console.warn("Não foi possível capturar imagem dos gráficos:", e);
+    }
+
+    // Tabela de materiais
+    const materiais = listaMateriaisDetalhamentoDash || [];
+    let linhasMateriaisHtml = '';
+    let somaTot = 0, somaEcd = 0, somaScd = 0, somaAcaut = 0, somaExtr = 0;
+
+    materiais.forEach((m, idx) => {
+      somaTot += (m.total || 0);
+      somaEcd += (m.ecd || 0);
+      somaScd += (m.scd || 0);
+      somaAcaut += (m.acautelado || 0);
+      somaExtr += (m.extraviado || 0);
+
+      linhasMateriaisHtml += `
+        <tr>
+          <td style="text-align: center; border: 1px solid #ddd; padding: 4px;">${idx + 1}</td>
+          <td style="border: 1px solid #ddd; padding: 4px; font-weight: bold;">${m.nome}</td>
+          <td style="border: 1px solid #ddd; padding: 4px; font-size: 0.8em; color: #555;">${m.classe1 || '-'}</td>
+          <td style="border: 1px solid #ddd; padding: 4px; font-size: 0.8em; color: #0d6efd;">${m.classe2 || '-'}</td>
+          <td style="border: 1px solid #ddd; padding: 4px; font-size: 0.8em; color: #0dcaf0;">${m.classe3 || '-'}</td>
+          <td style="text-align: center; border: 1px solid #ddd; padding: 4px; font-weight: bold;">${(m.total || 0).toLocaleString('pt-BR')}</td>
+          <td style="text-align: center; border: 1px solid #ddd; padding: 4px; color: #10b981; font-weight: bold;">${(m.ecd || 0).toLocaleString('pt-BR')}</td>
+          <td style="text-align: center; border: 1px solid #ddd; padding: 4px; color: #ef4444; font-weight: bold;">${(m.scd || 0).toLocaleString('pt-BR')}</td>
+          <td style="text-align: center; border: 1px solid #ddd; padding: 4px; color: #3b82f6; font-weight: bold;">${(m.acautelado || 0).toLocaleString('pt-BR')}</td>
+          <td style="text-align: center; border: 1px solid #ddd; padding: 4px; color: #f59e0b; font-weight: bold;">${(m.extraviado || 0).toLocaleString('pt-BR')}</td>
+        </tr>
+      `;
+    });
+
+    const militarNome = (usuarioSessaoAtual && usuarioSessaoAtual.nome) ? usuarioSessaoAtual.nome : 'Usuário do Sistema';
+    const militarOme = (usuarioSessaoAtual && usuarioSessaoAtual.ome) ? usuarioSessaoAtual.ome : (OME_GLOBAL || 'CBMPE');
+    const dataHoraEmissao = new Date().toLocaleString('pt-BR');
+
+    const htmlImpressao = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Dashboard de Materiais por Classe e Situação - CBMPE</title>
+        <style>
+          @page { size: landscape; margin: 10mm; }
+          body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #222; margin: 0; padding: 15px; font-size: 11px; line-height: 1.3; }
+          .header { text-align: center; border-bottom: 2px solid #b91c1c; padding-bottom: 8px; margin-bottom: 12px; }
+          .header h2 { margin: 0 0 3px 0; font-size: 16px; color: #991b1b; text-transform: uppercase; }
+          .header h4 { margin: 0; font-size: 12px; color: #444; font-weight: 600; }
+          .info-bar { display: flex; justify-content: space-between; background: #f8fafc; border: 1px solid #e2e8f0; padding: 6px 10px; border-radius: 4px; margin-bottom: 12px; font-size: 10px; }
+          .kpis-grid { display: flex; gap: 8px; margin-bottom: 12px; }
+          .kpi-card { flex: 1; border: 1px solid #e2e8f0; border-radius: 4px; padding: 8px; text-align: center; background: #ffffff; }
+          .kpi-title { font-size: 9px; font-weight: bold; text-transform: uppercase; margin-bottom: 3px; }
+          .kpi-val { font-size: 18px; font-weight: bold; margin-bottom: 2px; }
+          .kpi-sub { font-size: 8.5px; }
+          .charts-row { display: flex; gap: 12px; margin-bottom: 12px; }
+          .chart-box { flex: 1; border: 1px solid #e2e8f0; border-radius: 4px; padding: 8px; text-align: center; background: #ffffff; min-height: 190px; }
+          .chart-title { font-size: 10px; font-weight: bold; margin-bottom: 6px; text-align: left; border-bottom: 1px solid #eee; padding-bottom: 4px; }
+          table { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 9.5px; }
+          th { background: #f1f5f9; color: #1e293b; border: 1px solid #cbd5e1; padding: 5px; text-align: left; font-size: 9px; text-transform: uppercase; }
+          th.center { text-align: center; }
+          td { border: 1px solid #cbd5e1; padding: 4px 6px; }
+          tr:nth-child(even) { background-color: #f8fafc; }
+          .tfoot-totais { background: #e2e8f0; font-weight: bold; }
+          .assinaturas { display: flex; justify-content: space-around; margin-top: 30px; text-align: center; }
+          .ass-linha { width: 35%; border-top: 1px solid #444; padding-top: 4px; font-size: 9.5px; }
+          @media print {
+            body { padding: 0; }
+            .no-print { display: none; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h2>CORPO DE BOMBEIROS MILITAR DE PERNAMBUCO</h2>
+          <h4>DIRETORIA DE LOGÍSTICA (DLOG) - DASHBOARD DE MATERIAIS POR CLASSE E SITUAÇÃO</h4>
+        </div>
+
+        <div class="info-bar">
+          <div><strong>Unidade / OME:</strong> ${omeTexto} | <strong>Classe 1:</strong> ${cl1Texto} | <strong>Classe 2:</strong> ${cl2Texto} | <strong>Classe 3:</strong> ${cl3Texto}</div>
+          <div><strong>Emissão:</strong> ${dataHoraEmissao} | <strong>Responsável:</strong> ${militarNome} (${militarOme})</div>
+        </div>
+
+        <div class="kpis-grid">
+          <div class="kpi-card" style="border-top: 3px solid #475569;">
+            <div class="kpi-title" style="color: #475569;">Total de Itens</div>
+            <div class="kpi-val" style="color: #0f172a;">${kpiTot}</div>
+            <div class="kpi-sub" style="color: #64748b;">Filtros Ativos</div>
+          </div>
+          <div class="kpi-card" style="border-top: 3px solid #10b981;">
+            <div class="kpi-title" style="color: #10b981;">Em Uso (ECD)</div>
+            <div class="kpi-val" style="color: #10b981;">${kpiEcd}</div>
+            <div class="kpi-sub" style="color: #059669;">${pctEcd}</div>
+          </div>
+          <div class="kpi-card" style="border-top: 3px solid #ef4444;">
+            <div class="kpi-title" style="color: #ef4444;">Sem Condições (SCD)</div>
+            <div class="kpi-val" style="color: #ef4444;">${kpiScd}</div>
+            <div class="kpi-sub" style="color: #dc2626;">${pctScd}</div>
+          </div>
+          <div class="kpi-card" style="border-top: 3px solid #3b82f6;">
+            <div class="kpi-title" style="color: #3b82f6;">Acautelado</div>
+            <div class="kpi-val" style="color: #3b82f6;">${kpiAcaut}</div>
+            <div class="kpi-sub" style="color: #2563eb;">${pctAcaut}</div>
+          </div>
+          <div class="kpi-card" style="border-top: 3px solid #f59e0b;">
+            <div class="kpi-title" style="color: #b45309;">Extraviado</div>
+            <div class="kpi-val" style="color: #b45309;">${kpiExtr}</div>
+            <div class="kpi-sub" style="color: #d97706;">${pctExtr}</div>
+          </div>
+        </div>
+
+        ${(imgBarrasHtml || imgDonutHtml) ? `
+          <div class="charts-row">
+            ${imgBarrasHtml ? `
+              <div class="chart-box" style="flex: 2;">
+                <div class="chart-title">Distribuição por Situação / Status</div>
+                ${imgBarrasHtml}
+              </div>
+            ` : ''}
+            ${imgDonutHtml ? `
+              <div class="chart-box" style="flex: 1;">
+                <div class="chart-title">Proporção Geral (%)</div>
+                ${imgDonutHtml}
+              </div>
+            ` : ''}
+          </div>
+        ` : ''}
+
+        <div style="font-weight: bold; font-size: 11px; margin-top: 8px; margin-bottom: 4px; color: #1e293b;">
+          Detalhamento dos Materiais (${materiais.length} registros)
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th class="center" style="width: 30px;">#</th>
+              <th>Descrição do Material (Objeto)</th>
+              <th style="width: 100px;">Classe 1</th>
+              <th style="width: 110px;">Classe 2</th>
+              <th style="width: 110px;">Classe 3</th>
+              <th class="center" style="width: 55px;">Total</th>
+              <th class="center" style="width: 50px; color: #10b981;">ECD</th>
+              <th class="center" style="width: 50px; color: #ef4444;">SCD</th>
+              <th class="center" style="width: 55px; color: #3b82f6;">Acaut.</th>
+              <th class="center" style="width: 55px; color: #b45309;">Extrav.</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${linhasMateriaisHtml || '<tr><td colspan="10" style="text-align: center; color: #888; padding: 10px;">Nenhum material listado com os filtros atuais.</td></tr>'}
+          </tbody>
+          <tfoot>
+            <tr class="tfoot-totais">
+              <td colspan="5" style="text-align: right; padding: 5px 8px;">TOTAIS:</td>
+              <td style="text-align: center; font-weight: bold;">${somaTot.toLocaleString('pt-BR')}</td>
+              <td style="text-align: center; font-weight: bold; color: #10b981;">${somaEcd.toLocaleString('pt-BR')}</td>
+              <td style="text-align: center; font-weight: bold; color: #ef4444;">${somaScd.toLocaleString('pt-BR')}</td>
+              <td style="text-align: center; font-weight: bold; color: #3b82f6;">${somaAcaut.toLocaleString('pt-BR')}</td>
+              <td style="text-align: center; font-weight: bold; color: #b45309;">${somaExtr.toLocaleString('pt-BR')}</td>
+            </tr>
+          </tfoot>
+        </table>
+
+        <div class="assinaturas">
+          <div class="ass-linha">
+            <strong>${militarNome}</strong><br>
+            Responsável pela Emissão / Gestão do Inventário
+          </div>
+          <div class="ass-linha">
+            <strong>Comando / Diretoria de Logística (DLOG)</strong><br>
+            CBMPE - ${militarOme}
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const janela = window.open('', '_blank');
+    if (janela) {
+      janela.document.write(htmlImpressao);
+      janela.document.close();
+      janela.focus();
+      setTimeout(() => { janela.print(); }, 500);
+    } else {
+      Swal.fire('Aviso', 'Permita a abertura de pop-ups no navegador para gerar o PDF do Dashboard.', 'warning');
+    }
   }
 
   // Restaura os filtros para visão geral
