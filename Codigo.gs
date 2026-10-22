@@ -11521,17 +11521,39 @@ function gerarTermoAcautelamentoPdf_(dados) {
   var dataHora = dados.dataHora || Utilities.formatDate(new Date(), "America/Recife", "dd/MM/yyyy HH:mm:ss");
   var itens = dados.itens || [];
 
-  var linhasTabela = "";
+  // Agrupamento dos materiais por descrição (Objeto)
+  var mapaAgrupado = {};
+  var listaMateriais = [];
+  var totalItensGeral = 0;
+
   for (var i = 0; i < itens.length; i++) {
     var it = itens[i];
+    var nomeMat = String(it.objeto || "MATERIAL").trim();
+    if (!mapaAgrupado[nomeMat]) {
+      mapaAgrupado[nomeMat] = {
+        objeto: nomeMat,
+        quantidade: 0,
+        situacao: "Em Condições de Uso (ECD)"
+      };
+      listaMateriais.push(mapaAgrupado[nomeMat]);
+    }
+    mapaAgrupado[nomeMat].quantidade++;
+    totalItensGeral++;
+  }
+
+  // Ordena alfabeticamente os materiais agrupados
+  listaMateriais.sort(function(a, b) {
+    return a.objeto.localeCompare(b.objeto);
+  });
+
+  var linhasTabela = "";
+  for (var i = 0; i < listaMateriais.length; i++) {
+    var m = listaMateriais[i];
     linhasTabela += "<tr>" +
-      "<td style='text-align:center; padding: 6px; border: 1px solid #cbd5e1; font-weight: bold;'>" + (i + 1) + "</td>" +
-      "<td style='text-align:center; padding: 6px; border: 1px solid #cbd5e1; font-family: monospace; font-weight: bold; color: #1e293b;'>" + (it.item || "-") + "</td>" +
-      "<td style='padding: 6px; border: 1px solid #cbd5e1; font-weight: bold; color: #0f172a;'>" + (it.objeto || "-") + "</td>" +
-      "<td style='text-align:center; padding: 6px; border: 1px solid #cbd5e1; font-family: monospace;'>" + (it.patrimonio || "-") + "</td>" +
-      "<td style='padding: 6px; border: 1px solid #cbd5e1; font-size: 11px;'>" + (it.localizacao || it.origemLocal || "-") + "</td>" +
-      "<td style='text-align:center; padding: 6px; border: 1px solid #cbd5e1; font-weight: bold; color: #059669;'>ECD</td>" +
-      "<td style='text-align:center; padding: 6px; border: 1px solid #cbd5e1; font-weight: bold;'>1</td>" +
+      "<td style='text-align:center; padding: 7px 8px; border: 1px solid #cbd5e1; font-weight: bold; width: 45px;'>" + (i + 1) + "</td>" +
+      "<td style='padding: 7px 10px; border: 1px solid #cbd5e1; font-weight: bold; color: #0f172a; font-size: 11px;'>" + m.objeto + "</td>" +
+      "<td style='text-align:center; padding: 7px 8px; border: 1px solid #cbd5e1; font-weight: bold; color: #059669; width: 140px;'>ECD (Em Uso)</td>" +
+      "<td style='text-align:center; padding: 7px 8px; border: 1px solid #cbd5e1; font-weight: bold; font-size: 12px; color: #1e293b; width: 100px;'>" + m.quantidade + " un.</td>" +
     "</tr>";
   }
 
@@ -11609,22 +11631,25 @@ function gerarTermoAcautelamentoPdf_(dados) {
       "</div>" +
 
       "<div class='quadro'>" +
-        "<div class='quadro-titulo'>3. Relação de Materiais Acautelados (" + itens.length + " item/itens)</div>" +
+        "<div class='quadro-titulo'>3. Relação de Materiais Acautelados (" + totalItensGeral + " item/itens no total)</div>" +
         "<table>" +
           "<thead>" +
             "<tr>" +
-              "<th style='width: 30px; text-align: center;'>#</th>" +
-              "<th style='width: 85px; text-align: center;'>Cód. Item</th>" +
+              "<th style='width: 45px; text-align: center;'>Item</th>" +
               "<th>Descrição do Material</th>" +
-              "<th style='width: 90px; text-align: center;'>Patrimônio / Série</th>" +
-              "<th>Local de Armazenamento / Origem</th>" +
-              "<th style='width: 60px; text-align: center;'>Situação</th>" +
-              "<th style='width: 40px; text-align: center;'>Qtd</th>" +
+              "<th style='width: 140px; text-align: center;'>Situação / Estado</th>" +
+              "<th style='width: 100px; text-align: center;'>Quantidade</th>" +
             "</tr>" +
           "</thead>" +
           "<tbody>" +
             linhasTabela +
           "</tbody>" +
+          "<tfoot>" +
+            "<tr style='background-color: #f8fafc; font-weight: bold;'>" +
+              "<td colspan='3' style='text-align: right; padding: 7px 10px; border: 1px solid #cbd5e1; color: #334155;'>TOTAL GERAL DE MATERIAIS ACAUTELADOS:</td>" +
+              "<td style='text-align: center; padding: 7px 8px; border: 1px solid #cbd5e1; font-size: 11px; color: #0f172a;'>" + totalItensGeral + " un.</td>" +
+            "</tr>" +
+          "</tfoot>" +
         "</table>" +
       "</div>" +
 
