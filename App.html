@@ -759,6 +759,27 @@
     <div id="aba-visao-geral" class="container-fluid p-0" style="display: none;">
       
       <!-- ========================================================= -->
+      <!-- 1. BLOCO EXCLUSIVO DO ADMINISTRADOR                      -->
+      <!-- ========================================================= -->
+      <div id="blocoAdminVisaoGeral" style="display: none;">
+        <!-- BANNER DO ADMINISTRADOR -->
+        <div class="card card-custom p-3 mb-4 bg-white border border-danger shadow-sm">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div>
+              <h5 class="fw-bold text-dark mb-1">
+                <i class="fa-solid fa-user-shield text-danger me-2"></i> Visão Geral da Administração — <span class="nomeOmeVisaoAdmin text-danger">CBMPE</span>
+              </h5>
+              <p class="text-muted small mb-0">Central de governança corporativa, validação de solicitações, gestão logística e monitoramento de suprimentos do Estado.</p>
+            </div>
+            <div class="d-flex gap-2">
+              <button class="btn btn-sm btn-outline-danger fw-bold" onclick="carregarVisaoGeralAdmin()">
+                <i class="fa-solid fa-rotate me-1"></i> Atualizar Painel
+              </button>
+            </div>
+          </div>
+        </div>
+                <div id="posicaoDashboardAdmin">
+<!-- ========================================================= -->
       <!-- DASHBOARD EXECUTIVO DE MATERIAIS POR CLASSE E STATUS      -->
       <!-- ========================================================= -->
       <div id="painelDashboardVisaoGeral" class="card card-custom p-4 mb-4 shadow-sm border border-secondary border-opacity-25 bg-white">
@@ -962,27 +983,8 @@
         </div>
 
       </div>
-
-      <!-- ========================================================= -->
-      <!-- 1. BLOCO EXCLUSIVO DO ADMINISTRADOR                      -->
-      <!-- ========================================================= -->
-      <div id="blocoAdminVisaoGeral" style="display: none;">
-        <!-- BANNER DO ADMINISTRADOR -->
-        <div class="card card-custom p-3 mb-4 bg-white border border-danger shadow-sm">
-          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-            <div>
-              <h5 class="fw-bold text-dark mb-1">
-                <i class="fa-solid fa-user-shield text-danger me-2"></i> Visão Geral da Administração — <span class="nomeOmeVisaoAdmin text-danger">CBMPE</span>
-              </h5>
-              <p class="text-muted small mb-0">Central de governança corporativa, validação de solicitações, gestão logística e monitoramento de suprimentos do Estado.</p>
-            </div>
-            <div class="d-flex gap-2">
-              <button class="btn btn-sm btn-outline-danger fw-bold" onclick="carregarVisaoGeralAdmin()">
-                <i class="fa-solid fa-rotate me-1"></i> Atualizar Painel
-              </button>
-            </div>
-          </div>
         </div>
+
         <!-- PAINEL FIXO DE VALIDAÇÃO DE MATERIAIS PROVISÓRIOS -->
         <div id="blocoTicketsMateriaisProvisorios" class="card border-warning mb-4 shadow-sm" style="display: none;">
           <div class="card-header bg-warning bg-opacity-10 d-flex justify-content-between align-items-center py-2 px-3">
@@ -1095,6 +1097,8 @@
             </div>
           </div>
         </div>
+
+                <div id="posicaoDashboardChefe"></div>
 
         <!-- PAINEL: MATERIAIS DE CONSUMO EM NÍVEL CRÍTICO DA OME (CHEFE DE SETOR) -->
         <div id="blocoAlertaConsumoCriticoChefe" class="card border-danger mb-4 shadow-sm" style="display: none;">
@@ -4583,11 +4587,6 @@
   }
 
   function carregarPainelVisaoGeral() {
-    // Inicializa o Dashboard Executivo de Materiais (BigQuery + #CAD_ITENS)
-    if (typeof carregarDadosDashboardVisaoGeral === 'function') {
-      carregarDadosDashboardVisaoGeral();
-    }
-
     const perfil = (PERFIL_GLOBAL || "").trim();
     const ome = (OME_GLOBAL || "").trim().toUpperCase();
 
@@ -4600,6 +4599,23 @@
     const ehChefe = perfilNorm === "chefe de setor" || perfilNorm.includes("chefe");
 
     const podeVerDistribuicao = ehAdmin || (typeof temPermissao === 'function' && temPermissao('tickets_distribuicao'));
+
+    // Posiciona o Dashboard sempre abaixo do Banner do Perfil (Administrador ou Chefe)
+    const dashEl = document.getElementById('painelDashboardVisaoGeral');
+    if (dashEl) {
+      if (ehAdmin || podeVerDistribuicao) {
+        const dest = document.getElementById('posicaoDashboardAdmin');
+        if (dest && dashEl.parentElement !== dest) dest.appendChild(dashEl);
+      } else if (ehChefe) {
+        const dest = document.getElementById('posicaoDashboardChefe');
+        if (dest && dashEl.parentElement !== dest) dest.appendChild(dashEl);
+      }
+    }
+
+    // Inicializa o Dashboard Executivo de Materiais (BigQuery + #CAD_ITENS)
+    if (typeof carregarDadosDashboardVisaoGeral === 'function') {
+      carregarDadosDashboardVisaoGeral();
+    }
 
     if (ehAdmin || podeVerDistribuicao) {
       if (blocoAdmin) blocoAdmin.style.display = 'block';
