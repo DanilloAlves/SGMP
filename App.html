@@ -24759,7 +24759,19 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
         selOme.disabled = false;
         let htmlOme = '<option value="TODAS">TODAS AS OMEs (CBMPE)</option>';
         const omes = resp.listaOmes || [];
+        const mapaOmesUnicas = {};
         omes.forEach(function(o) {
+          if (!o) return;
+          const pad = (typeof obterNomeOficialOme === 'function') ? obterNomeOficialOme(o) : o.trim();
+          const chaveNorm = pad.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+          if (!mapaOmesUnicas[chaveNorm]) {
+            mapaOmesUnicas[chaveNorm] = pad;
+          }
+        });
+        const omesUnicas = Object.values(mapaOmesUnicas).sort(function(a, b) {
+          return a.localeCompare(b);
+        });
+        omesUnicas.forEach(function(o) {
           htmlOme += '<option value="' + o + '">' + o + '</option>';
         });
         selOme.innerHTML = htmlOme;
@@ -24850,7 +24862,8 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     const mapaMateriaisAgregados = {};
 
     dados.forEach(function(item) {
-      if (omeFiltro !== 'TODAS' && item.ome !== omeFiltro) return;
+      const normCompOme = function(s) { return String(s || '').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); };
+      if (omeFiltro !== 'TODAS' && normCompOme(item.ome) !== normCompOme(omeFiltro)) return;
       if (cl1Filtro !== 'TODAS' && item.classe1 !== cl1Filtro) return;
       if (cl2Filtro !== 'TODAS' && item.classe2 !== cl2Filtro) return;
       if (cl3Filtro !== 'TODAS' && item.classe3 !== cl3Filtro) return;

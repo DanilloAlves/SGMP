@@ -9532,6 +9532,31 @@ function corrigirEUniformizarOmesNoBigQuery() {
       }
     }
   } catch (eLoc) {}
+
+  // Uniformiza também a coluna D (OME) da planilha de usuários/logins
+  try {
+    var ssUser = SpreadsheetApp.openById(ID_PLANILHA_USUARIOS);
+    var sheetUser = ssUser.getSheetByName(ABA_USUARIOS);
+    if (sheetUser && sheetUser.getLastRow() > 1) {
+      var dadosUser = sheetUser.getRange(2, 4, sheetUser.getLastRow() - 1, 1).getValues();
+      var alterouUser = false;
+      for (var u = 0; u < dadosUser.length; u++) {
+        var omeUserAntiga = String(dadosUser[u][0] || "").trim();
+        if (omeUserAntiga) {
+          var omeUserPad = (typeof obterOmePadronizada === "function") ? obterOmePadronizada(omeUserAntiga) : omeUserAntiga;
+          if (omeUserPad && omeUserPad !== omeUserAntiga) {
+            dadosUser[u][0] = omeUserPad;
+            alterouUser = true;
+          }
+        }
+      }
+      if (alterouUser) {
+        sheetUser.getRange(2, 4, dadosUser.length, 1).setValues(dadosUser);
+      }
+    }
+  } catch (eUser) {
+    console.warn("Aviso ao uniformizar OMEs na planilha de logins: " + eUser.message);
+  }
 }
 
 
@@ -13688,7 +13713,7 @@ function avaliarCadastroPendentes(idSolicitacao, acao) {
           var cpfAprovado = String(row[4] || "").trim();
           var cpfAprovadoLimpo = cpfAprovado.replace(/\D/g, "");
           var nomeAprovado = String(row[2] || "").trim();
-          var omeAprovado = String(row[5] || "").trim().toUpperCase();
+          var omeAprovado = (typeof obterOmePadronizada === "function") ? obterOmePadronizada(row[5]) : String(row[5] || "").trim();
           var subAprovada = String(row[6] || "GERAL").trim().toUpperCase();
           var emailInstAprovado = String(row[10] || "").trim().toLowerCase();
 
@@ -13953,7 +13978,7 @@ function atualizarUsuario(linha, novaOme, novoPerfil, novoStatus, novaSubunidade
       throw new Error("Comandantes de Unidade não possuem permissão para conceder perfil de Administrador.");
     }
 
-    var omePadronizada = String(novaOme || "").trim().toUpperCase();
+    var omePadronizada = (typeof obterOmePadronizada === "function") ? obterOmePadronizada(novaOme) : String(novaOme || "").trim();
     var subunidadePadronizada = String(novaSubunidade || "GERAL").toUpperCase().trim();
     var statusPadronizado = String(novoStatus || "ATIVO").trim().toUpperCase();
 
@@ -16495,7 +16520,7 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao, omeCliente, perfilClie
     }
 
     var sql = "SELECT " +
-              "  UPPER(TRIM(UNIDADE)) as OME, " +
+              "  TRIM(UNIDADE) as OME, " +
               "  UPPER(TRIM(OBJETO)) as OBJETO, " +
               "  UPPER(TRIM(COALESCE(STATUS, 'ECD'))) as STATUS, " +
               "  COUNT(1) as QTD " +
@@ -16514,11 +16539,19 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao, omeCliente, perfilClie
     var mapaClasses3Encontradas = {};
     var dadosAgrupados = {}; // Chave: "OME||CLASSE1||CLASSE2||CLASSE3"
 
+    var detectouOmeNaoPadronizada = false;
     for (var i = 0; i < rows.length; i++) {
       var r = rows[i].f;
       if (!r || r.length < 4) continue;
       
-      var ome = (r[0] && r[0].v) ? String(r[0].v).trim() : "SEM OME";
+      var omeRaw = (r[0] && r[0].v) ? String(r[0].v).trim() : "SEM OME";
+      var ome = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(omeRaw) : omeRaw;
+      if (!ome) ome = omeRaw || "SEM OME";
+
+      if (omeRaw !== ome && omeRaw !== "SEM OME") {
+        detectouOmeNaoPadronizada = true;
+      }
+
       var objNome = (r[1] && r[1].v) ? String(r[1].v).trim() : "";
       var rawStatus = (r[2] && r[2].v) ? String(r[2].v).trim().toUpperCase() : "ECD";
       var qtd = (r[3] && r[3].v) ? parseInt(r[3].v, 10) : 0;
@@ -16596,6 +16629,14 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao, omeCliente, perfilClie
       else if (statusNorm === "EXTRAVIADO") m.extraviado += qtd;
     }
 
+    if (detectouOmeNaoPadronizada && ehAdmin) {
+      try {
+        corrigirEUniformizarOmesNoBigQuery();
+      } catch (eAuto) {
+        console.warn("Aviso ao auto-corrigir OMEs no BigQuery: " + eAuto.message);
+      }
+    }
+
     var listaFinal = [];
     var chaves = Object.keys(dadosAgrupados);
     for (var k = 0; k < chaves.length; k++) {
@@ -16608,10 +16649,21 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao, omeCliente, perfilClie
     var listaOmesFinal = [];
     if (ehAdmin) {
       var omesOficiais = (typeof getListaOmesOficiais === 'function') ? getListaOmesOficiais() : [];
-      var setOmes = new Set([...Object.keys(mapaOmes), ...omesOficiais]);
-      listaOmesFinal = Array.from(setOmes).filter(Boolean).sort();
+      var mapaOmesNorm = {};
+      omesOficiais.forEach(function(o) {
+        var pad = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(o) : o;
+        if (pad) mapaOmesNorm[pad] = true;
+      });
+      Object.keys(mapaOmes).forEach(function(o) {
+        var pad = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(o) : o;
+        if (pad) mapaOmesNorm[pad] = true;
+      });
+      listaOmesFinal = Object.keys(mapaOmesNorm).filter(Boolean).sort(function(a, b) {
+        return a.localeCompare(b);
+      });
     } else {
-      listaOmesFinal = omeUsuario ? [omeUsuario] : Object.keys(mapaOmes);
+      var omePad = (typeof obterOmePadronizada === 'function' && omeUsuario) ? obterOmePadronizada(omeUsuario) : omeUsuario;
+      listaOmesFinal = omePad ? [omePad] : Object.keys(mapaOmes);
     }
 
     var setClasses1 = new Set([...(catDados.listaClasses1 || []), ...Object.keys(mapaClasses1Encontradas)]);
@@ -16622,7 +16674,6 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao, omeCliente, perfilClie
 
     var setClasses3 = new Set([...(catDados.listaClasses3 || []), ...Object.keys(mapaClasses3Encontradas)]);
     var listaClasses3Final = Array.from(setClasses3).filter(function(x) { return !ehTextoTituloClasse_(x); }).sort();
-
     return {
       sucesso: true,
       ehAdmin: ehAdmin,
