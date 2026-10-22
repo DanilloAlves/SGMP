@@ -16283,7 +16283,7 @@ function obterMapaCatalogoClasses_(forcar) {
 
   var cache = CacheService.getScriptCache();
   if (!forcar) {
-    var cached = cache.get("MAPA_CATALOGO_CLASSES_DASH_V2");
+    var cached = cache.get("MAPA_CATALOGO_CLASSES_DASH_V3");
     if (cached) {
       try {
         _cacheCatalogoClassesMem = JSON.parse(cached);
@@ -16295,7 +16295,7 @@ function obterMapaCatalogoClasses_(forcar) {
   var ss = SpreadsheetApp.openById(ID_PLANILHA_COMPRAS);
   var abaCad = ss.getSheetByName(ABA_CATALOGO_ITENS) || obterAbaPorNomeAproximado(ss, ABA_CATALOGO_ITENS);
   if (!abaCad || abaCad.getLastRow() < 6) {
-    var resVazio = { mapa: {}, listaClasses2: [], listaClasses1: [], listaClasses3: [] };
+    var resVazio = { mapa: {}, listaClasses1: [], listaClasses2: [], listaClasses3: [] };
     _cacheCatalogoClassesMem = resVazio;
     return resVazio;
   }
@@ -16358,8 +16358,8 @@ function obterMapaCatalogoClasses_(forcar) {
 
     var itemObj = {
       classe1: cl1 || "OUTROS",
-      classe2: cl2 || "OUTROS / NÃO CLASSIFICADO",
-      classe3: cl3 || ""
+      classe2: cl2 || "OUTROS",
+      classe3: cl3 || "OUTROS"
     };
 
     var keyUpper = nomeItem.toUpperCase();
@@ -16383,7 +16383,7 @@ function obterMapaCatalogoClasses_(forcar) {
   try {
     var jsonStr = JSON.stringify(resultado);
     if (jsonStr.length < 90000) {
-      cache.put("MAPA_CATALOGO_CLASSES_DASH_V2", jsonStr, 7200);
+      cache.put("MAPA_CATALOGO_CLASSES_DASH_V3", jsonStr, 7200);
     }
   } catch(eCache) {}
 
@@ -16424,8 +16424,10 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao) {
     var rows = queryRes.rows || [];
 
     var mapaOmes = {};
-    var mapaClassesEncontradas = {};
-    var dadosAgrupados = {}; // Chave: "OME||CLASSE2"
+    var mapaClasses1Encontradas = {};
+    var mapaClasses2Encontradas = {};
+    var mapaClasses3Encontradas = {};
+    var dadosAgrupados = {}; // Chave: "OME||CLASSE1||CLASSE2||CLASSE3"
 
     for (var i = 0; i < rows.length; i++) {
       var r = rows[i].f;
@@ -16457,18 +16459,20 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao) {
         var cleanKey = objNome.replace(/[^A-Z0-9]/g, "");
         catInfo = mapaCat["_CLEAN_" + cleanKey];
       }
-      var classe2 = (catInfo && catInfo.classe2) ? catInfo.classe2 : "OUTROS / NÃO CLASSIFICADO";
-      var classe1 = (catInfo && catInfo.classe1) ? catInfo.classe1 : "";
-      var classe3 = (catInfo && catInfo.classe3) ? catInfo.classe3 : "";
+      var classe1 = (catInfo && catInfo.classe1) ? catInfo.classe1 : "OUTROS";
+      var classe2 = (catInfo && catInfo.classe2) ? catInfo.classe2 : "OUTROS";
+      var classe3 = (catInfo && catInfo.classe3) ? catInfo.classe3 : "OUTROS";
 
-      mapaClassesEncontradas[classe2] = true;
+      mapaClasses1Encontradas[classe1] = true;
+      mapaClasses2Encontradas[classe2] = true;
+      mapaClasses3Encontradas[classe3] = true;
 
-      var chaveAgrup = ome + "||" + classe2;
+      var chaveAgrup = ome + "||" + classe1 + "||" + classe2 + "||" + classe3;
       if (!dadosAgrupados[chaveAgrup]) {
         dadosAgrupados[chaveAgrup] = {
           ome: ome,
-          classe2: classe2,
           classe1: classe1,
+          classe2: classe2,
           classe3: classe3,
           ecd: 0,
           scd: 0,
@@ -16487,7 +16491,17 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao) {
       else if (statusNorm === "EXTRAVIADO") grupo.extraviado += qtd;
 
       if (!grupo.materiais[objNome]) {
-        grupo.materiais[objNome] = { nome: objNome, ecd: 0, scd: 0, acautelado: 0, extraviado: 0, total: 0 };
+        grupo.materiais[objNome] = {
+          nome: objNome,
+          classe1: classe1,
+          classe2: classe2,
+          classe3: classe3,
+          ecd: 0,
+          scd: 0,
+          acautelado: 0,
+          extraviado: 0,
+          total: 0
+        };
       }
       var m = grupo.materiais[objNome];
       m.total += qtd;
@@ -16510,17 +16524,23 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao) {
     var setOmes = new Set([...Object.keys(mapaOmes), ...omesOficiais]);
     var listaOmesFinal = Array.from(setOmes).filter(Boolean).sort();
 
-    var setClasses2 = new Set([...(catDados.listaClasses2 || []), ...Object.keys(mapaClassesEncontradas)]);
+    var setClasses1 = new Set([...(catDados.listaClasses1 || []), ...Object.keys(mapaClasses1Encontradas)]);
+    var listaClasses1Final = Array.from(setClasses1).filter(Boolean).sort();
+
+    var setClasses2 = new Set([...(catDados.listaClasses2 || []), ...Object.keys(mapaClasses2Encontradas)]);
     var listaClasses2Final = Array.from(setClasses2).filter(Boolean).sort();
+
+    var setClasses3 = new Set([...(catDados.listaClasses3 || []), ...Object.keys(mapaClasses3Encontradas)]);
+    var listaClasses3Final = Array.from(setClasses3).filter(Boolean).sort();
 
     return {
       sucesso: true,
       omeUsuario: omeUsuario,
       perfilUsuario: perfilUsuario,
       listaOmes: listaOmesFinal,
+      listaClasses1: listaClasses1Final,
       listaClasses2: listaClasses2Final,
-      listaClasses1: catDados.listaClasses1 || [],
-      listaClasses3: catDados.listaClasses3 || [],
+      listaClasses3: listaClasses3Final,
       dados: listaFinal,
       totalRegistros: rows.length
     };
