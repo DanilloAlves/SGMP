@@ -759,6 +759,211 @@
     <div id="aba-visao-geral" class="container-fluid p-0" style="display: none;">
       
       <!-- ========================================================= -->
+      <!-- DASHBOARD EXECUTIVO DE MATERIAIS POR CLASSE E STATUS      -->
+      <!-- ========================================================= -->
+      <div id="painelDashboardVisaoGeral" class="card card-custom p-4 mb-4 shadow-sm border border-secondary border-opacity-25 bg-white">
+        
+        <!-- Cabeçalho do Dashboard -->
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3 pb-2 border-bottom">
+          <div>
+            <h5 class="fw-bold text-dark mb-1">
+              <i class="fa-solid fa-chart-pie text-danger me-2"></i> Dashboard de Materiais por Classe e Situação
+            </h5>
+            <p class="text-muted small mb-0">
+              Quantitativo de materiais do inventário BigQuery cruzados com a classificação do Catálogo Oficial (<strong>#CAD_ITENS</strong>).
+            </p>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            <span id="badgeUltimaAtualizacaoDash" class="badge bg-light text-muted border py-2 px-3 small font-monospace">
+              <i class="fa-solid fa-clock me-1"></i> Sincronizado
+            </span>
+            <button class="btn btn-sm btn-outline-danger fw-bold" onclick="carregarDadosDashboardVisaoGeral(true)" title="Recarregar dados do BigQuery e Catálogo">
+              <i class="fa-solid fa-rotate me-1"></i> Atualizar Dados
+            </button>
+          </div>
+        </div>
+
+        <!-- BARRA DE FILTROS DO DASHBOARD -->
+        <div class="row g-2 mb-3 p-3 bg-light rounded border align-items-end">
+          <!-- Filtro 1: OME -->
+          <div class="col-md-5 col-sm-12">
+            <label class="form-label fw-bold small text-secondary mb-1">
+              <i class="fa-solid fa-building-shield me-1 text-danger"></i> Filtro 1: Unidade / OME
+            </label>
+            <select id="filtroDashOme" class="form-select form-select-sm fw-bold shadow-sm" onchange="aplicarFiltrosDashboard()">
+              <option value="TODAS">TODAS AS OMEs (Visão Geral - CBMPE)</option>
+            </select>
+          </div>
+
+          <!-- Filtro 2: Classe 2 -->
+          <div class="col-md-5 col-sm-12">
+            <label class="form-label fw-bold small text-secondary mb-1">
+              <i class="fa-solid fa-tags me-1 text-primary"></i> Filtro 2: Classe do Material (Classe 2)
+            </label>
+            <select id="filtroDashClasse2" class="form-select form-select-sm fw-bold shadow-sm" onchange="aplicarFiltrosDashboard()">
+              <option value="TODAS">TODAS AS CLASSES 2</option>
+            </select>
+          </div>
+
+          <!-- Botão Reset -->
+          <div class="col-md-2 col-sm-12">
+            <button class="btn btn-outline-secondary btn-sm w-100 fw-bold" onclick="resetarFiltrosDashboard()" title="Restaurar filtros padrão">
+              <i class="fa-solid fa-filter-circle-xmark me-1"></i> Limpar Filtros
+            </button>
+          </div>
+        </div>
+
+        <!-- INDICADOR DE CARREGAMENTO -->
+        <div id="loadingDashboardVisaoGeral" class="text-center py-5">
+          <div class="spinner-border text-danger mb-2" role="status"></div>
+          <div class="text-muted small fw-bold">Carregando dados do inventário e classificação do catálogo...</div>
+        </div>
+
+        <!-- CONTEÚDO PRINCIPAL DO DASHBOARD (OCULTO DURANTE CARREGAMENTO) -->
+        <div id="conteudoDashboardVisaoGeral" style="display: none;">
+          
+          <!-- LINHA DE CARDS DE KPI -->
+          <div class="row g-3 mb-4">
+            <!-- Total Geral -->
+            <div class="col-xl-3 col-sm-6">
+              <div class="card border-0 shadow-sm p-3 rounded-3 bg-dark text-white">
+                <div class="d-flex justify-content-between align-items-center">
+                  <div>
+                    <div class="small text-uppercase opacity-75 fw-bold" style="font-size: 0.72rem;">Total de Itens</div>
+                    <h2 class="fw-bold mb-0" id="kpiDashTotal">0</h2>
+                    <small class="opacity-75" id="kpiDashSubtituloTotal">Filtros ativos</small>
+                  </div>
+                  <div class="fs-1 opacity-50"><i class="fa-solid fa-boxes-stacked"></i></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- ECD -->
+            <div class="col-xl-3 col-sm-6">
+              <div class="card border-0 shadow-sm p-3 rounded-3 text-white" style="background-color: #059669;">
+                <div class="d-flex justify-content-between align-items-center">
+                  <div>
+                    <div class="small text-uppercase opacity-75 fw-bold" style="font-size: 0.72rem;">Em Condições de Uso (ECD)</div>
+                    <h2 class="fw-bold mb-0" id="kpiDashEcd">0</h2>
+                    <small class="opacity-75" id="kpiDashPctEcd">0% do total</small>
+                  </div>
+                  <div class="fs-1 opacity-50"><i class="fa-solid fa-circle-check"></i></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- SCD -->
+            <div class="col-xl-2 col-sm-4">
+              <div class="card border-0 shadow-sm p-3 rounded-3 text-white" style="background-color: #dc2626;">
+                <div class="d-flex justify-content-between align-items-center">
+                  <div>
+                    <div class="small text-uppercase opacity-75 fw-bold" style="font-size: 0.72rem;">Sem Condições (SCD)</div>
+                    <h2 class="fw-bold mb-0" id="kpiDashScd">0</h2>
+                    <small class="opacity-75" id="kpiDashPctScd">0% do total</small>
+                  </div>
+                  <div class="fs-1 opacity-50"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Acautelado -->
+            <div class="col-xl-2 col-sm-4">
+              <div class="card border-0 shadow-sm p-3 rounded-3 text-white" style="background-color: #2563eb;">
+                <div class="d-flex justify-content-between align-items-center">
+                  <div>
+                    <div class="small text-uppercase opacity-75 fw-bold" style="font-size: 0.72rem;">Acautelado</div>
+                    <h2 class="fw-bold mb-0" id="kpiDashAcautelado">0</h2>
+                    <small class="opacity-75" id="kpiDashPctAcautelado">0% do total</small>
+                  </div>
+                  <div class="fs-1 opacity-50"><i class="fa-solid fa-handshake"></i></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Extraviado -->
+            <div class="col-xl-2 col-sm-4">
+              <div class="card border-0 shadow-sm p-3 rounded-3 text-dark" style="background-color: #f59e0b;">
+                <div class="d-flex justify-content-between align-items-center">
+                  <div>
+                    <div class="small text-uppercase opacity-75 fw-bold" style="font-size: 0.72rem;">Extraviado</div>
+                    <h2 class="fw-bold mb-0 text-dark" id="kpiDashExtraviado">0</h2>
+                    <small class="opacity-75 text-dark" id="kpiDashPctExtraviado">0% do total</small>
+                  </div>
+                  <div class="fs-1 opacity-50"><i class="fa-solid fa-person-circle-question"></i></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- SEÇÃO DE GRÁFICOS (CHART.JS) -->
+          <div class="row g-3 mb-4">
+            <!-- Gráfico Principal: Barras de Status -->
+            <div class="col-lg-8 col-md-12">
+              <div class="card border shadow-sm p-3 h-100 bg-white">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <h6 class="fw-bold text-dark mb-0">
+                    <i class="fa-solid fa-chart-column text-danger me-2"></i> Quantitativo por Situação / Status
+                  </h6>
+                  <span class="badge bg-secondary-subtle text-secondary small" id="badgeTituloGraficoBarras">
+                    Filtro Ativo
+                  </span>
+                </div>
+                <div style="position: relative; height: 320px; width: 100%;">
+                  <canvas id="chartDashBarrasStatus"></canvas>
+                </div>
+              </div>
+            </div>
+
+            <!-- Gráfico Secundário: Proporção Donut -->
+            <div class="col-lg-4 col-md-12">
+              <div class="card border shadow-sm p-3 h-100 bg-white">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <h6 class="fw-bold text-dark mb-0">
+                    <i class="fa-solid fa-chart-pie text-primary me-2"></i> Proporção (%)
+                  </h6>
+                </div>
+                <div style="position: relative; height: 320px; width: 100%; display: flex; align-items: center; justify-content: center;">
+                  <canvas id="chartDashDonutStatus"></canvas>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- TABELA DE DETALHAMENTO DE MATERIAIS DA CLASSE -->
+          <div class="card border shadow-sm mb-2">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center py-2 px-3 flex-wrap gap-2">
+              <span class="fw-bold text-dark small">
+                <i class="fa-solid fa-list-check me-2 text-danger"></i> Detalhamento dos Materiais (<span id="contadorItensTabelaDash">0</span> itens listados)
+              </span>
+              <div class="d-flex align-items-center gap-2">
+                <input type="text" id="filtroTextoTabelaDash" class="form-control form-control-sm" placeholder="Buscar material na tabela..." style="max-width: 250px;" onkeyup="filtrarTabelaMateriaisDashLocal()">
+              </div>
+            </div>
+            <div class="table-responsive" style="max-height: 420px; overflow-y: auto;">
+              <table class="table table-hover table-sm align-middle mb-0" style="font-size: 0.85rem;">
+                <thead class="table-light sticky-top">
+                  <tr>
+                    <th>Descrição do Material (Objeto)</th>
+                    <th>Classe 2</th>
+                    <th class="text-center" style="width: 100px;">Total</th>
+                    <th class="text-center text-success" style="width: 90px;">ECD</th>
+                    <th class="text-center text-danger" style="width: 90px;">SCD</th>
+                    <th class="text-center text-primary" style="width: 100px;">Acautelado</th>
+                    <th class="text-center text-warning text-dark" style="width: 100px;">Extraviado</th>
+                  </tr>
+                </thead>
+                <tbody id="corpoTabelaMateriaisDash">
+                  <tr><td colspan="7" class="text-center text-muted py-3">Nenhum dado selecionado.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- ========================================================= -->
       <!-- 1. BLOCO EXCLUSIVO DO ADMINISTRADOR                      -->
       <!-- ========================================================= -->
       <div id="blocoAdminVisaoGeral" style="display: none;">
@@ -3277,6 +3482,7 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.32/dist/sweetalert2.all.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
 <script>
   // INJEÇÃO DIRETA SÍNCRONA DO USUÁRIO AUTENTICADO NO TEMPLATE DO GAS
@@ -4377,6 +4583,11 @@
   }
 
   function carregarPainelVisaoGeral() {
+    // Inicializa o Dashboard Executivo de Materiais (BigQuery + #CAD_ITENS)
+    if (typeof carregarDadosDashboardVisaoGeral === 'function') {
+      carregarDadosDashboardVisaoGeral();
+    }
+
     const perfil = (PERFIL_GLOBAL || "").trim();
     const ome = (OME_GLOBAL || "").trim().toUpperCase();
 
@@ -23279,6 +23490,370 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     } else {
       processar(null);
     }
+  }
+
+  // =========================================================================
+  // GESTÃO DO DASHBOARD EXECUTIVO DE MATERIAIS (BIGQUERY + #CAD_ITENS)
+  // =========================================================================
+
+  let cacheDadosDashboard = null;
+  let chartDashBarrasInstancia = null;
+  let chartDashDonutInstancia = null;
+  let listaMateriaisDetalhamentoDash = [];
+
+  // Carrega ou atualiza os dados consolidados do servidor
+  function carregarDadosDashboardVisaoGeral(forcar) {
+    const loadingEl = document.getElementById('loadingDashboardVisaoGeral');
+    const conteudoEl = document.getElementById('conteudoDashboardVisaoGeral');
+    const badgeSinc = document.getElementById('badgeUltimaAtualizacaoDash');
+
+    if (cacheDadosDashboard && !forcar) {
+      if (loadingEl) loadingEl.style.display = 'none';
+      if (conteudoEl) conteudoEl.style.display = 'block';
+      aplicarFiltrosDashboard();
+      return;
+    }
+
+    if (loadingEl) loadingEl.style.display = 'block';
+    if (conteudoEl) conteudoEl.style.display = 'none';
+    if (badgeSinc) badgeSinc.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1 text-danger"></i> Consultando...';
+
+    google.script.run
+      .withSuccessHandler(function(resp) {
+        if (!resp || !resp.sucesso) {
+          if (loadingEl) loadingEl.innerHTML = '<div class="alert alert-danger py-2 px-3 small my-3"><i class="fa-solid fa-triangle-exclamation me-2"></i>Erro ao carregar dados do Dashboard: ' + ((resp && resp.erro) || 'Falha desconhecida') + '</div>';
+          return;
+        }
+
+        cacheDadosDashboard = resp;
+
+        // Popula os Selects de Filtro
+        popularFiltrosDashboard(resp);
+
+        if (loadingEl) loadingEl.style.display = 'none';
+        if (conteudoEl) conteudoEl.style.display = 'block';
+
+        const agora = new Date();
+        const horaStr = agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        if (badgeSinc) badgeSinc.innerHTML = '<i class="fa-solid fa-check text-success me-1"></i> Atualizado às ' + horaStr;
+
+        aplicarFiltrosDashboard();
+      })
+      .withFailureHandler(function(err) {
+        console.error("Erro ao carregar dashboard:", err);
+        if (loadingEl) loadingEl.innerHTML = '<div class="alert alert-danger py-2 px-3 small my-3"><i class="fa-solid fa-triangle-exclamation me-2"></i>Falha ao carregar dashboard: ' + (err.message || String(err)) + '</div>';
+      })
+      .obterDadosDashboardVisaoGeral(forcar === true);
+  }
+
+  // Preenche as opções de OME e Classe 2 nos selects
+  function popularFiltrosDashboard(resp) {
+    const selOme = document.getElementById('filtroDashOme');
+    const selCl2 = document.getElementById('filtroDashClasse2');
+    if (!selOme || !selCl2) return;
+
+    // Preserva seleção anterior se houver
+    const valOmeAnt = selOme.value;
+    const valCl2Ant = selCl2.value;
+
+    // 1. OME
+    let htmlOme = '<option value="TODAS">TODAS AS OMEs (Visão Geral - CBMPE)</option>';
+    const omes = resp.listaOmes || [];
+    omes.forEach(function(o) {
+      htmlOme += '<option value="' + o + '">' + o + '</option>';
+    });
+    selOme.innerHTML = htmlOme;
+
+    // Determina valor inicial da OME
+    const omeUser = (resp.omeUsuario || OME_GLOBAL || "").trim().toUpperCase();
+    if (valOmeAnt && selOme.querySelector('option[value="' + valOmeAnt + '"]')) {
+      selOme.value = valOmeAnt;
+    } else if (omeUser && omeUser !== "DLOG" && omeUser !== "CINT" && selOme.querySelector('option[value="' + omeUser + '"]')) {
+      selOme.value = omeUser;
+    } else if (selOme.querySelector('option[value="GBI"]')) {
+      selOme.value = "TODAS";
+    }
+
+    // 2. Classe 2
+    let htmlCl2 = '<option value="TODAS">TODAS AS CLASSES 2 (Geral)</option>';
+    const classes = resp.listaClasses2 || [];
+    classes.forEach(function(c) {
+      htmlCl2 += '<option value="' + c + '">' + c + '</option>';
+    });
+    selCl2.innerHTML = htmlCl2;
+
+    if (valCl2Ant && selCl2.querySelector('option[value="' + valCl2Ant + '"]')) {
+      selCl2.value = valCl2Ant;
+    } else if (selCl2.querySelector('option[value="EPI"]')) {
+      selCl2.value = "EPI";
+    } else if (selCl2.querySelector('option[value="VIATURA ATV FIM"]')) {
+      selCl2.value = "VIATURA ATV FIM";
+    }
+  }
+
+  // Aplica os filtros selecionados, atualiza os KPIs, Gráficos e Tabela
+  function aplicarFiltrosDashboard() {
+    if (!cacheDadosDashboard || !cacheDadosDashboard.dados) return;
+
+    const selOme = document.getElementById('filtroDashOme');
+    const selCl2 = document.getElementById('filtroDashClasse2');
+    const omeFiltro = selOme ? selOme.value : 'TODAS';
+    const cl2Filtro = selCl2 ? selCl2.value : 'TODAS';
+
+    const dados = cacheDadosDashboard.dados;
+
+    let totalGeral = 0;
+    let totalEcd = 0;
+    let totalScd = 0;
+    let totalAcautelado = 0;
+    let totalExtraviado = 0;
+    const mapaMateriaisAgregados = {};
+
+    dados.forEach(function(item) {
+      if (omeFiltro !== 'TODAS' && item.ome !== omeFiltro) return;
+      if (cl2Filtro !== 'TODAS' && item.classe2 !== cl2Filtro) return;
+
+      totalGeral += (item.total || 0);
+      totalEcd += (item.ecd || 0);
+      totalScd += (item.scd || 0);
+      totalAcautelado += (item.acautelado || 0);
+      totalExtraviado += (item.extraviado || 0);
+
+      (item.materiais || []).forEach(function(m) {
+        if (!mapaMateriaisAgregados[m.nome]) {
+          mapaMateriaisAgregados[m.nome] = {
+            nome: m.nome,
+            classe2: item.classe2,
+            ecd: 0,
+            scd: 0,
+            acautelado: 0,
+            extraviado: 0,
+            total: 0
+          };
+        }
+        const alv = mapaMateriaisAgregados[m.nome];
+        alv.ecd += (m.ecd || 0);
+        alv.scd += (m.scd || 0);
+        alv.acautelado += (m.acautelado || 0);
+        alv.extraviado += (m.extraviado || 0);
+        alv.total += (m.total || 0);
+      });
+    });
+
+    // Atualiza KPIs
+    const elTot = document.getElementById('kpiDashTotal');
+    const elEcd = document.getElementById('kpiDashEcd');
+    const elScd = document.getElementById('kpiDashScd');
+    const elAcaut = document.getElementById('kpiDashAcautelado');
+    const elExtr = document.getElementById('kpiDashExtraviado');
+
+    if (elTot) elTot.innerText = totalGeral.toLocaleString('pt-BR');
+    if (elEcd) elEcd.innerText = totalEcd.toLocaleString('pt-BR');
+    if (elScd) elScd.innerText = totalScd.toLocaleString('pt-BR');
+    if (elAcaut) elAcaut.innerText = totalAcautelado.toLocaleString('pt-BR');
+    if (elExtr) elExtr.innerText = totalExtraviado.toLocaleString('pt-BR');
+
+    const pct = function(qtd) {
+      if (!totalGeral) return '0% do total';
+      return ((qtd / totalGeral) * 100).toFixed(1).replace('.', ',') + '% do total';
+    };
+
+    const elSubTot = document.getElementById('kpiDashSubtituloTotal');
+    const elPctEcd = document.getElementById('kpiDashPctEcd');
+    const elPctScd = document.getElementById('kpiDashPctScd');
+    const elPctAcaut = document.getElementById('kpiDashPctAcautelado');
+    const elPctExtr = document.getElementById('kpiDashPctExtraviado');
+
+    const textoFiltro = (omeFiltro === 'TODAS' ? 'Todas as OMEs' : omeFiltro) + ' • ' + (cl2Filtro === 'TODAS' ? 'Todas as Classes' : cl2Filtro);
+    if (elSubTot) elSubTot.innerText = textoFiltro;
+    if (elPctEcd) elPctEcd.innerText = pct(totalEcd);
+    if (elPctScd) elPctScd.innerText = pct(totalScd);
+    if (elPctAcaut) elPctAcaut.innerText = pct(totalAcautelado);
+    if (elPctExtr) elPctExtr.innerText = pct(totalExtraviado);
+
+    const badgeGrafico = document.getElementById('badgeTituloGraficoBarras');
+    if (badgeGrafico) badgeGrafico.innerText = textoFiltro;
+
+    // Renderiza Gráficos (Chart.js)
+    renderizarGraficosDashboard(totalEcd, totalScd, totalAcautelado, totalExtraviado, totalGeral);
+
+    // Converte mapa de materiais em lista para tabela
+    listaMateriaisDetalhamentoDash = Object.values(mapaMateriaisAgregados).sort(function(a, b) {
+      return b.total - a.total;
+    });
+
+    const elContadorTab = document.getElementById('contadorItensTabelaDash');
+    if (elContadorTab) elContadorTab.innerText = listaMateriaisDetalhamentoDash.length;
+
+    filtrarTabelaMateriaisDashLocal();
+  }
+
+  // Renderiza Gráficos de Barras e Rosca com Chart.js
+  function renderizarGraficosDashboard(ecd, scd, acautelado, extraviado, total) {
+    if (typeof Chart === 'undefined') {
+      console.warn("Chart.js ainda não carregado.");
+      return;
+    }
+
+    const canvasBarras = document.getElementById('chartDashBarrasStatus');
+    const canvasDonut = document.getElementById('chartDashDonutStatus');
+    if (!canvasBarras || !canvasDonut) return;
+
+    // Destrói instâncias anteriores para evitar duplicações/conflitos
+    if (chartDashBarrasInstancia) {
+      try { chartDashBarrasInstancia.destroy(); } catch (e) {}
+      chartDashBarrasInstancia = null;
+    }
+    if (chartDashDonutInstancia) {
+      try { chartDashDonutInstancia.destroy(); } catch (e) {}
+      chartDashDonutInstancia = null;
+    }
+
+    const labels = ['ECD (Em Uso)', 'SCD (Sem Condições)', 'Acautelado', 'Extraviado'];
+    const dataValues = [ecd, scd, acautelado, extraviado];
+    const bgColors = ['#059669', '#dc2626', '#2563eb', '#f59e0b'];
+    const hoverColors = ['#047857', '#b91c1c', '#1d4ed8', '#d97706'];
+
+    // 1. GRÁFICO DE BARRAS
+    const ctxBarras = canvasBarras.getContext('2d');
+    chartDashBarrasInstancia = new Chart(ctxBarras, {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Quantidade de Itens',
+          data: dataValues,
+          backgroundColor: bgColors,
+          hoverBackgroundColor: hoverColors,
+          borderRadius: 8,
+          borderSkipped: false,
+          maxBarThickness: 65
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                const val = context.parsed.y || 0;
+                const p = total > 0 ? ((val / total) * 100).toFixed(1).replace('.', ',') + '%' : '0%';
+                return ' ' + val.toLocaleString('pt-BR') + ' itens (' + p + ')';
+              }
+            }
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: {
+              precision: 0,
+              font: { weight: 'bold' }
+            },
+            grid: { color: 'rgba(0,0,0,0.06)' }
+          },
+          x: {
+            grid: { display: false },
+            ticks: {
+              font: { weight: 'bold', size: 12 }
+            }
+          }
+        }
+      }
+    });
+
+    // 2. GRÁFICO DONUT / ROSCA
+    const ctxDonut = canvasDonut.getContext('2d');
+    chartDashDonutInstancia = new Chart(ctxDonut, {
+      type: 'doughnut',
+      data: {
+        labels: labels,
+        datasets: [{
+          data: total > 0 ? dataValues : [1, 0, 0, 0],
+          backgroundColor: total > 0 ? bgColors : ['#e2e8f0', '#e2e8f0', '#e2e8f0', '#e2e8f0'],
+          borderColor: '#ffffff',
+          borderWidth: 3,
+          hoverOffset: 6
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: {
+              boxWidth: 14,
+              font: { size: 11, weight: 'bold' },
+              padding: 12
+            }
+          },
+          tooltip: {
+            enabled: total > 0,
+            callbacks: {
+              label: function(context) {
+                const val = context.parsed || 0;
+                const p = total > 0 ? ((val / total) * 100).toFixed(1).replace('.', ',') + '%' : '0%';
+                return ' ' + context.label + ': ' + val.toLocaleString('pt-BR') + ' (' + p + ')';
+              }
+            }
+          }
+        },
+        cutout: '62%'
+      }
+    });
+  }
+
+  // Filtra localmente os materiais da tabela abaixo do gráfico
+  function filtrarTabelaMateriaisDashLocal() {
+    const tbody = document.getElementById('corpoTabelaMateriaisDash');
+    if (!tbody) return;
+
+    const inputBusca = document.getElementById('filtroTextoTabelaDash');
+    const termo = (inputBusca ? inputBusca.value : '').trim().toLowerCase();
+
+    const filtrados = listaMateriaisDetalhamentoDash.filter(function(m) {
+      if (!termo) return true;
+      return (m.nome && m.nome.toLowerCase().indexOf(termo) !== -1) ||
+             (m.classe2 && m.classe2.toLowerCase().indexOf(termo) !== -1);
+    });
+
+    if (filtrados.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4"><i class="fa-solid fa-inbox me-2"></i>Nenhum material encontrado para os filtros selecionados.</td></tr>';
+      return;
+    }
+
+    let html = '';
+    filtrados.forEach(function(m) {
+      html += `
+        <tr>
+          <td><strong class="text-dark">${m.nome}</strong></td>
+          <td><span class="badge bg-light text-dark border small">${m.classe2 || '-'}</span></td>
+          <td class="text-center"><span class="badge bg-dark fw-bold px-2 py-1">${m.total.toLocaleString('pt-BR')}</span></td>
+          <td class="text-center"><span class="badge text-white px-2 py-1" style="background-color: #059669;">${m.ecd.toLocaleString('pt-BR')}</span></td>
+          <td class="text-center"><span class="badge text-white px-2 py-1" style="background-color: #dc2626;">${m.scd.toLocaleString('pt-BR')}</span></td>
+          <td class="text-center"><span class="badge text-white px-2 py-1" style="background-color: #2563eb;">${m.acautelado.toLocaleString('pt-BR')}</span></td>
+          <td class="text-center"><span class="badge text-dark px-2 py-1" style="background-color: #f59e0b;">${m.extraviado.toLocaleString('pt-BR')}</span></td>
+        </tr>
+      `;
+    });
+
+    tbody.innerHTML = html;
+  }
+
+  // Restaura os filtros para visão geral
+  function resetarFiltrosDashboard() {
+    const selOme = document.getElementById('filtroDashOme');
+    const selCl2 = document.getElementById('filtroDashClasse2');
+    const inputBusca = document.getElementById('filtroTextoTabelaDash');
+
+    if (selOme) selOme.value = 'TODAS';
+    if (selCl2) selCl2.value = 'TODAS';
+    if (inputBusca) inputBusca.value = '';
+
+    aplicarFiltrosDashboard();
   }
 
 </script>

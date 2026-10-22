@@ -16034,3 +16034,271 @@ function reabrirChamadoUsuario(protocolo, motivo) {
     throw new Error(err.message);
   }
 }
+
+// =========================================================================
+// DASHBOARD EXECUTIVO DA VISÃO GERAL (CRUZAMENTO BIGQUERY + #CAD_ITENS)
+// =========================================================================
+
+var _cacheCatalogoClassesMem = null;
+
+/**
+ * Lê e indexa a classificação dos materiais no catálogo oficial (#CAD_ITENS).
+ * Identifica dinamicamente as colunas de Objeto Resumido, Classe 1, Classe 2 e Classe 3.
+ * Utiliza cache em memória e CacheService para alta performance.
+ */
+function obterMapaCatalogoClasses_(forcar) {
+  if (!forcar && _cacheCatalogoClassesMem && Object.keys(_cacheCatalogoClassesMem.mapa || {}).length > 0) {
+    return _cacheCatalogoClassesMem;
+  }
+
+  var cache = CacheService.getScriptCache();
+  if (!forcar) {
+    var cached = cache.get("MAPA_CATALOGO_CLASSES_DASH_V2");
+    if (cached) {
+      try {
+        _cacheCatalogoClassesMem = JSON.parse(cached);
+        return _cacheCatalogoClassesMem;
+      } catch(e) {}
+    }
+  }
+
+  var ss = SpreadsheetApp.openById(ID_PLANILHA_COMPRAS);
+  var abaCad = ss.getSheetByName(ABA_CATALOGO_ITENS) || obterAbaPorNomeAproximado(ss, ABA_CATALOGO_ITENS);
+  if (!abaCad || abaCad.getLastRow() < 6) {
+    var resVazio = { mapa: {}, listaClasses2: [], listaClasses1: [], listaClasses3: [] };
+    _cacheCatalogoClassesMem = resVazio;
+    return resVazio;
+  }
+
+  var lastRow = abaCad.getLastRow();
+  var lastCol = abaCad.getLastColumn();
+  
+  // Cabeçalhos na linha 5
+  var cabecalho = abaCad.getRange(5, 1, 1, Math.min(lastCol, 35)).getValues()[0];
+  var colMat = 3;  // Coluna C padrão (Objeto Resumido)
+  var colCl1 = 8;  // Coluna H padrão (Classe 1)
+  var colCl2 = 9;  // Coluna I padrão (Classe 2)
+  var colCl3 = 10; // Coluna J padrão (Classe 3)
+
+  for (var c = 0; c < cabecalho.length; c++) {
+    var h = String(cabecalho[c] || "").trim().toLowerCase();
+    var hNorm = h.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    if (hNorm.includes("objeto") || hNorm.includes("material") || hNorm.includes("descri")) {
+      colMat = c + 1;
+    }
+    if (hNorm === "classe 1" || (hNorm.includes("classe 1") && !hNorm.includes("classe 2") && !hNorm.includes("classe 3"))) {
+      colCl1 = c + 1;
+    }
+    if (hNorm === "classe 2" || hNorm.includes("classe 2")) {
+      colCl2 = c + 1;
+    }
+    if (hNorm === "classe 3" || hNorm.includes("classe 3")) {
+      colCl3 = c + 1;
+    }
+  }
+
+  var maxCol = Math.max(colMat, colCl1, colCl2, colCl3);
+  var numLinhas = lastRow - 5;
+  var matriz = abaCad.getRange(6, 1, numLinhas, maxCol).getValues();
+
+  var mapa = {};
+  var setCl1 = {};
+  var setCl2 = {};
+  var setCl3 = {};
+
+  for (var i = 0; i < matriz.length; i++) {
+    var row = matriz[i];
+    var nomeItem = String(row[colMat - 1] || "").trim();
+    if (!nomeItem) continue;
+
+    var cl1 = String(row[colCl1 - 1] || "").trim().toUpperCase();
+    var cl2 = String(row[colCl2 - 1] || "").trim().toUpperCase();
+    var cl3 = String(row[colCl3 - 1] || "").trim().toUpperCase();
+
+    // Se Classe 2 estiver em branco mas Classe 3 tiver valor, adota Classe 3 como categoria
+    if (!cl2 && cl3) {
+      cl2 = cl3;
+    } else if (cl3 === "VIATURA ATV FIM" && cl2 !== "VIATURA ATV FIM") {
+      if (!cl2 || cl2 === "OPERACIONAL" || cl2 === "DIVERSOS") cl2 = cl3;
+    }
+
+    if (cl1) setCl1[cl1] = true;
+    if (cl2) setCl2[cl2] = true;
+    if (cl3) setCl3[cl3] = true;
+
+    var itemObj = {
+      classe1: cl1 || "OUTROS",
+      classe2: cl2 || "OUTROS / NÃO CLASSIFICADO",
+      classe3: cl3 || ""
+    };
+
+    var keyUpper = nomeItem.toUpperCase();
+    mapa[keyUpper] = itemObj;
+
+    var cleanKey = keyUpper.replace(/[^A-Z0-9]/g, "");
+    if (cleanKey && !mapa["_CLEAN_" + cleanKey]) {
+      mapa["_CLEAN_" + cleanKey] = itemObj;
+    }
+  }
+
+  var resultado = {
+    mapa: mapa,
+    listaClasses1: Object.keys(setCl1).sort(),
+    listaClasses2: Object.keys(setCl2).sort(),
+    listaClasses3: Object.keys(setCl3).sort()
+  };
+
+  _cacheCatalogoClassesMem = resultado;
+
+  try {
+    var jsonStr = JSON.stringify(resultado);
+    if (jsonStr.length < 90000) {
+      cache.put("MAPA_CATALOGO_CLASSES_DASH_V2", jsonStr, 7200);
+    }
+  } catch(eCache) {}
+
+  return resultado;
+}
+
+/**
+ * Consulta o inventário corporativo no BigQuery e cruza com a base #CAD_ITENS
+ * para retornar todos os materiais sumarizados por OME, Classe 2 e Situação/Status (ECD, SCD, Extraviado, Acautelado).
+ */
+function obterDadosDashboardVisaoGeral(forcarAtualizacao) {
+  try {
+    var emailSessao = "";
+    try { emailSessao = Session.getActiveUser().getEmail().trim().toLowerCase(); } catch (e) {}
+    if (!emailSessao) {
+      try { emailSessao = Session.getEffectiveUser().getEmail().trim().toLowerCase(); } catch (e) {}
+    }
+    var usuario = verificarPermissaoUsuario(emailSessao);
+    var omeUsuario = (usuario && usuario.ome) ? (typeof obterOmePadronizada === 'function' ? obterOmePadronizada(usuario.ome) : usuario.ome) : "";
+    var perfilUsuario = usuario ? padronizarPerfilUsuario_(usuario.perfil) : "Usuário";
+
+    // 1. Obter catálogo mapeado
+    var catDados = obterMapaCatalogoClasses_(forcarAtualizacao);
+    var mapaCat = catDados.mapa || {};
+
+    // 2. Consulta agregada no BigQuery agrupando por UNIDADE, OBJETO e STATUS
+    var sql = "SELECT " +
+              "  UPPER(TRIM(UNIDADE)) as OME, " +
+              "  UPPER(TRIM(OBJETO)) as OBJETO, " +
+              "  UPPER(TRIM(COALESCE(STATUS, 'ECD'))) as STATUS, " +
+              "  COUNT(1) as QTD " +
+              "FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
+              "WHERE OBJETO IS NOT NULL AND TRIM(OBJETO) != '' " +
+              "GROUP BY 1, 2, 3 " +
+              "ORDER BY OME ASC, OBJETO ASC";
+
+    var queryRes = executarConsultaBigQuerySegura(sql);
+    var rows = queryRes.rows || [];
+
+    var mapaOmes = {};
+    var mapaClassesEncontradas = {};
+    var dadosAgrupados = {}; // Chave: "OME||CLASSE2"
+
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i].f;
+      if (!r || r.length < 4) continue;
+      
+      var ome = (r[0] && r[0].v) ? String(r[0].v).trim() : "SEM OME";
+      var objNome = (r[1] && r[1].v) ? String(r[1].v).trim() : "";
+      var rawStatus = (r[2] && r[2].v) ? String(r[2].v).trim().toUpperCase() : "ECD";
+      var qtd = (r[3] && r[3].v) ? parseInt(r[3].v, 10) : 0;
+      if (qtd <= 0 || !objNome) continue;
+
+      mapaOmes[ome] = true;
+
+      // Padroniza status rigorosamente nas 4 categorias
+      var statusNorm = "ECD";
+      if (rawStatus === "SCD" || rawStatus.indexOf("SEM CONDIC") !== -1 || rawStatus.indexOf("SEM CONDIÇ") !== -1) {
+        statusNorm = "SCD";
+      } else if (rawStatus === "ACAUTELADO" || rawStatus.indexOf("CAUTELA") !== -1) {
+        statusNorm = "ACAUTELADO";
+      } else if (rawStatus === "EXTRAVIADO" || rawStatus.indexOf("EXTRAV") !== -1) {
+        statusNorm = "EXTRAVIADO";
+      } else {
+        statusNorm = "ECD";
+      }
+
+      // Cruzamento com Catálogo (#CAD_ITENS)
+      var catInfo = mapaCat[objNome];
+      if (!catInfo) {
+        var cleanKey = objNome.replace(/[^A-Z0-9]/g, "");
+        catInfo = mapaCat["_CLEAN_" + cleanKey];
+      }
+      var classe2 = (catInfo && catInfo.classe2) ? catInfo.classe2 : "OUTROS / NÃO CLASSIFICADO";
+      var classe1 = (catInfo && catInfo.classe1) ? catInfo.classe1 : "";
+      var classe3 = (catInfo && catInfo.classe3) ? catInfo.classe3 : "";
+
+      mapaClassesEncontradas[classe2] = true;
+
+      var chaveAgrup = ome + "||" + classe2;
+      if (!dadosAgrupados[chaveAgrup]) {
+        dadosAgrupados[chaveAgrup] = {
+          ome: ome,
+          classe2: classe2,
+          classe1: classe1,
+          classe3: classe3,
+          ecd: 0,
+          scd: 0,
+          acautelado: 0,
+          extraviado: 0,
+          total: 0,
+          materiais: {}
+        };
+      }
+
+      var grupo = dadosAgrupados[chaveAgrup];
+      grupo.total += qtd;
+      if (statusNorm === "ECD") grupo.ecd += qtd;
+      else if (statusNorm === "SCD") grupo.scd += qtd;
+      else if (statusNorm === "ACAUTELADO") grupo.acautelado += qtd;
+      else if (statusNorm === "EXTRAVIADO") grupo.extraviado += qtd;
+
+      if (!grupo.materiais[objNome]) {
+        grupo.materiais[objNome] = { nome: objNome, ecd: 0, scd: 0, acautelado: 0, extraviado: 0, total: 0 };
+      }
+      var m = grupo.materiais[objNome];
+      m.total += qtd;
+      if (statusNorm === "ECD") m.ecd += qtd;
+      else if (statusNorm === "SCD") m.scd += qtd;
+      else if (statusNorm === "ACAUTELADO") m.acautelado += qtd;
+      else if (statusNorm === "EXTRAVIADO") m.extraviado += qtd;
+    }
+
+    var listaFinal = [];
+    var chaves = Object.keys(dadosAgrupados);
+    for (var k = 0; k < chaves.length; k++) {
+      var item = dadosAgrupados[chaves[k]];
+      var arrMat = Object.values(item.materiais).sort(function(a, b) { return b.total - a.total; });
+      item.materiais = arrMat;
+      listaFinal.push(item);
+    }
+
+    var omesOficiais = (typeof getListaOmesOficiais === 'function') ? getListaOmesOficiais() : [];
+    var setOmes = new Set([...Object.keys(mapaOmes), ...omesOficiais]);
+    var listaOmesFinal = Array.from(setOmes).filter(Boolean).sort();
+
+    var setClasses2 = new Set([...(catDados.listaClasses2 || []), ...Object.keys(mapaClassesEncontradas)]);
+    var listaClasses2Final = Array.from(setClasses2).filter(Boolean).sort();
+
+    return {
+      sucesso: true,
+      omeUsuario: omeUsuario,
+      perfilUsuario: perfilUsuario,
+      listaOmes: listaOmesFinal,
+      listaClasses2: listaClasses2Final,
+      listaClasses1: catDados.listaClasses1 || [],
+      listaClasses3: catDados.listaClasses3 || [],
+      dados: listaFinal,
+      totalRegistros: rows.length
+    };
+  } catch (err) {
+    console.error("Erro em obterDadosDashboardVisaoGeral: " + err.message);
+    return {
+      sucesso: false,
+      erro: err.message
+    };
+  }
+}
