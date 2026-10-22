@@ -23917,10 +23917,16 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       }
     }
 
+    const ehTituloInvalido = function(c) {
+      if (!c) return true;
+      const cu = String(c).trim().toUpperCase();
+      return cu === 'CLASSE 1' || cu === 'CLASSE 2' || cu === 'CLASSE 3' || cu === 'CLASSE' || cu === 'CLASSES' || cu === 'OUTROS';
+    };
+
     // 2. Classe 1
     if (selCl1) {
       let htmlCl1 = '<option value="TODAS">TODAS (Classe 1)</option>';
-      const classes1 = resp.listaClasses1 || [];
+      const classes1 = (resp.listaClasses1 || []).filter(c => !ehTituloInvalido(c));
       classes1.forEach(function(c) {
         htmlCl1 += '<option value="' + c + '">' + c + '</option>';
       });
@@ -23935,7 +23941,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     // 3. Classe 2
     if (selCl2) {
       let htmlCl2 = '<option value="TODAS">TODAS (Classe 2)</option>';
-      const classes2 = resp.listaClasses2 || [];
+      const classes2 = (resp.listaClasses2 || []).filter(c => !ehTituloInvalido(c));
       classes2.forEach(function(c) {
         htmlCl2 += '<option value="' + c + '">' + c + '</option>';
       });
@@ -23950,7 +23956,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     // 4. Classe 3
     if (selCl3) {
       let htmlCl3 = '<option value="TODAS">TODAS (Classe 3)</option>';
-      const classes3 = resp.listaClasses3 || [];
+      const classes3 = (resp.listaClasses3 || []).filter(c => !ehTituloInvalido(c));
       classes3.forEach(function(c) {
         htmlCl3 += '<option value="' + c + '">' + c + '</option>';
       });

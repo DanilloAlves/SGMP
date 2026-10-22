@@ -16301,6 +16301,14 @@ var _cacheCatalogoClassesMem = null;
  * Identifica dinamicamente as colunas de Objeto Resumido, Classe 1, Classe 2 e Classe 3.
  * Utiliza cache em memória e CacheService para alta performance.
  */
+function ehTextoTituloClasse_(texto) {
+  if (!texto) return true;
+  var t = String(texto).trim().toUpperCase();
+  return t === "CLASSE 1" || t === "CLASSE 2" || t === "CLASSE 3" ||
+         t === "CLASSE" || t === "CLASSES" || t === "OBJETO" || t === "MATERIAL" ||
+         t === "OUTROS" || t === "OUTROS / NÃO CLASSIFICADO";
+}
+
 function obterMapaCatalogoClasses_(forcar) {
   if (!forcar && _cacheCatalogoClassesMem && Object.keys(_cacheCatalogoClassesMem.mapa || {}).length > 0) {
     return _cacheCatalogoClassesMem;
@@ -16308,7 +16316,7 @@ function obterMapaCatalogoClasses_(forcar) {
 
   var cache = CacheService.getScriptCache();
   if (!forcar) {
-    var cached = cache.get("MAPA_CATALOGO_CLASSES_DASH_V3");
+    var cached = cache.get("MAPA_CATALOGO_CLASSES_DASH_V4");
     if (cached) {
       try {
         _cacheCatalogoClassesMem = JSON.parse(cached);
@@ -16366,9 +16374,16 @@ function obterMapaCatalogoClasses_(forcar) {
     var nomeItem = String(row[colMat - 1] || "").trim();
     if (!nomeItem) continue;
 
+    var nomeItemUpper = nomeItem.toUpperCase();
+    if (ehTextoTituloClasse_(nomeItemUpper)) continue;
+
     var cl1 = String(row[colCl1 - 1] || "").trim().toUpperCase();
     var cl2 = String(row[colCl2 - 1] || "").trim().toUpperCase();
     var cl3 = String(row[colCl3 - 1] || "").trim().toUpperCase();
+
+    if (ehTextoTituloClasse_(cl1)) cl1 = "";
+    if (ehTextoTituloClasse_(cl2)) cl2 = "";
+    if (ehTextoTituloClasse_(cl3)) cl3 = "";
 
     // Se Classe 2 estiver em branco mas Classe 3 tiver valor, adota Classe 3 como categoria
     if (!cl2 && cl3) {
@@ -16377,9 +16392,9 @@ function obterMapaCatalogoClasses_(forcar) {
       if (!cl2 || cl2 === "OPERACIONAL" || cl2 === "DIVERSOS") cl2 = cl3;
     }
 
-    if (cl1) setCl1[cl1] = true;
-    if (cl2) setCl2[cl2] = true;
-    if (cl3) setCl3[cl3] = true;
+    if (cl1 && !ehTextoTituloClasse_(cl1)) setCl1[cl1] = true;
+    if (cl2 && !ehTextoTituloClasse_(cl2)) setCl2[cl2] = true;
+    if (cl3 && !ehTextoTituloClasse_(cl3)) setCl3[cl3] = true;
 
     var itemObj = {
       classe1: cl1 || "OUTROS",
@@ -16398,9 +16413,9 @@ function obterMapaCatalogoClasses_(forcar) {
 
   var resultado = {
     mapa: mapa,
-    listaClasses1: Object.keys(setCl1).sort(),
-    listaClasses2: Object.keys(setCl2).sort(),
-    listaClasses3: Object.keys(setCl3).sort()
+    listaClasses1: Object.keys(setCl1).filter(function(x) { return !ehTextoTituloClasse_(x); }).sort(),
+    listaClasses2: Object.keys(setCl2).filter(function(x) { return !ehTextoTituloClasse_(x); }).sort(),
+    listaClasses3: Object.keys(setCl3).filter(function(x) { return !ehTextoTituloClasse_(x); }).sort()
   };
 
   _cacheCatalogoClassesMem = resultado;
@@ -16408,7 +16423,7 @@ function obterMapaCatalogoClasses_(forcar) {
   try {
     var jsonStr = JSON.stringify(resultado);
     if (jsonStr.length < 90000) {
-      cache.put("MAPA_CATALOGO_CLASSES_DASH_V3", jsonStr, 7200);
+      cache.put("MAPA_CATALOGO_CLASSES_DASH_V4", jsonStr, 7200);
     }
   } catch(eCache) {}
 
@@ -16565,13 +16580,13 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao, omeCliente, perfilClie
     }
 
     var setClasses1 = new Set([...(catDados.listaClasses1 || []), ...Object.keys(mapaClasses1Encontradas)]);
-    var listaClasses1Final = Array.from(setClasses1).filter(Boolean).sort();
+    var listaClasses1Final = Array.from(setClasses1).filter(function(x) { return !ehTextoTituloClasse_(x); }).sort();
 
     var setClasses2 = new Set([...(catDados.listaClasses2 || []), ...Object.keys(mapaClasses2Encontradas)]);
-    var listaClasses2Final = Array.from(setClasses2).filter(Boolean).sort();
+    var listaClasses2Final = Array.from(setClasses2).filter(function(x) { return !ehTextoTituloClasse_(x); }).sort();
 
     var setClasses3 = new Set([...(catDados.listaClasses3 || []), ...Object.keys(mapaClasses3Encontradas)]);
-    var listaClasses3Final = Array.from(setClasses3).filter(Boolean).sort();
+    var listaClasses3Final = Array.from(setClasses3).filter(function(x) { return !ehTextoTituloClasse_(x); }).sort();
 
     return {
       sucesso: true,
