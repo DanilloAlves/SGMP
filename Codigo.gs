@@ -16419,7 +16419,7 @@ function obterMapaCatalogoClasses_(forcar) {
  * Consulta o inventário corporativo no BigQuery e cruza com a base #CAD_ITENS
  * para retornar todos os materiais sumarizados por OME, Classe 2 e Situação/Status (ECD, SCD, Extraviado, Acautelado).
  */
-function obterDadosDashboardVisaoGeral(forcarAtualizacao) {
+function obterDadosDashboardVisaoGeral(forcarAtualizacao, omeCliente, perfilCliente) {
   try {
     var emailSessao = "";
     try { emailSessao = Session.getActiveUser().getEmail().trim().toLowerCase(); } catch (e) {}
@@ -16427,14 +16427,23 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao) {
       try { emailSessao = Session.getEffectiveUser().getEmail().trim().toLowerCase(); } catch (e) {}
     }
     var usuario = verificarPermissaoUsuario(emailSessao);
-    var omeUsuario = (usuario && usuario.ome) ? (typeof obterOmePadronizada === 'function' ? obterOmePadronizada(usuario.ome) : usuario.ome) : "";
-    var perfilUsuario = usuario ? padronizarPerfilUsuario_(usuario.perfil) : "Usuário";
+    var omeUsuario = (usuario && usuario.ome) ? (typeof obterOmePadronizada === 'function' ? obterOmePadronizada(usuario.ome) : usuario.ome) : (omeCliente || "");
+    var perfilUsuario = usuario ? padronizarPerfilUsuario_(usuario.perfil) : (perfilCliente || "Usuário");
+    var perfilNorm = (perfilUsuario || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+    var ehAdmin = (perfilNorm === "administrador" || perfilNorm.indexOf("admin") !== -1);
 
     // 1. Obter catálogo mapeado
     var catDados = obterMapaCatalogoClasses_(forcarAtualizacao);
     var mapaCat = catDados.mapa || {};
 
     // 2. Consulta agregada no BigQuery agrupando por UNIDADE, OBJETO e STATUS
+    // Se for Comandante de Unidade ou Chefe de Setor (não-Administrador), restringe os dados estritamente à sua OME
+    var filtroOmeSql = "";
+    if (!ehAdmin && omeUsuario) {
+      var omeSanitizada = String(omeUsuario).trim().toUpperCase().replace(/['"\\]/g, "");
+      filtroOmeSql = "  AND UPPER(TRIM(UNIDADE)) = '" + omeSanitizada + "' ";
+    }
+
     var sql = "SELECT " +
               "  UPPER(TRIM(UNIDADE)) as OME, " +
               "  UPPER(TRIM(OBJETO)) as OBJETO, " +
@@ -16442,6 +16451,7 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao) {
               "  COUNT(1) as QTD " +
               "FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
               "WHERE OBJETO IS NOT NULL AND TRIM(OBJETO) != '' " +
+              filtroOmeSql +
               "GROUP BY 1, 2, 3 " +
               "ORDER BY OME ASC, OBJETO ASC";
 
@@ -16545,9 +16555,14 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao) {
       listaFinal.push(item);
     }
 
-    var omesOficiais = (typeof getListaOmesOficiais === 'function') ? getListaOmesOficiais() : [];
-    var setOmes = new Set([...Object.keys(mapaOmes), ...omesOficiais]);
-    var listaOmesFinal = Array.from(setOmes).filter(Boolean).sort();
+    var listaOmesFinal = [];
+    if (ehAdmin) {
+      var omesOficiais = (typeof getListaOmesOficiais === 'function') ? getListaOmesOficiais() : [];
+      var setOmes = new Set([...Object.keys(mapaOmes), ...omesOficiais]);
+      listaOmesFinal = Array.from(setOmes).filter(Boolean).sort();
+    } else {
+      listaOmesFinal = omeUsuario ? [omeUsuario] : Object.keys(mapaOmes);
+    }
 
     var setClasses1 = new Set([...(catDados.listaClasses1 || []), ...Object.keys(mapaClasses1Encontradas)]);
     var listaClasses1Final = Array.from(setClasses1).filter(Boolean).sort();
@@ -16560,6 +16575,7 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao) {
 
     return {
       sucesso: true,
+      ehAdmin: ehAdmin,
       omeUsuario: omeUsuario,
       perfilUsuario: perfilUsuario,
       listaOmes: listaOmesFinal,

@@ -4625,7 +4625,7 @@
 
     const perfilNorm = (perfil || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
     const ehAdmin = perfilNorm === "administrador" || perfilNorm.includes("admin");
-    const ehChefe = perfilNorm === "chefe de setor" || perfilNorm.includes("chefe");
+    const ehChefe = perfilNorm === "chefe de setor" || perfilNorm.includes("chefe") || perfilNorm.includes("comandante");
 
     const podeVerDistribuicao = ehAdmin || (typeof temPermissao === 'function' && temPermissao('tickets_distribuicao'));
 
@@ -5359,6 +5359,9 @@
     const nomeOme = typeof obterNomeOficialOme === 'function' ? obterNomeOficialOme(OME_GLOBAL) : (OME_GLOBAL || "Sua Unidade");
     document.querySelectorAll('.nomeOmeVisaoChefe').forEach(el => el.innerText = nomeOme);
 
+    if (typeof carregarDadosDashboardVisaoGeral === 'function') {
+      carregarDadosDashboardVisaoGeral(true);
+    }
     carregarAlertaConsumoCriticoVisaoGeral();
     carregarAlertaExtraviadosVisaoGeral();
     carregarAvisosTicketsChefeSetor();
@@ -23869,7 +23872,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
         console.error("Erro ao carregar dashboard:", err);
         if (loadingEl) loadingEl.innerHTML = '<div class="alert alert-danger py-2 px-3 small my-3"><i class="fa-solid fa-triangle-exclamation me-2"></i>Falha ao carregar dashboard: ' + (err.message || String(err)) + '</div>';
       })
-      .obterDadosDashboardVisaoGeral(forcar === true);
+      .obterDadosDashboardVisaoGeral(forcar === true, (typeof OME_GLOBAL !== 'undefined' ? OME_GLOBAL : ''), (typeof PERFIL_GLOBAL !== 'undefined' ? PERFIL_GLOBAL : ''));
   }
 
   // Preenche as opções de OME e das 3 Classes nos selects
@@ -23879,6 +23882,9 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     const selCl2 = document.getElementById('filtroDashClasse2');
     const selCl3 = document.getElementById('filtroDashClasse3');
 
+    const ehAdmin = resp.ehAdmin === true;
+    const omeUsuario = (resp.omeUsuario || OME_GLOBAL || "").trim().toUpperCase();
+
     // Preserva seleção anterior se houver
     const valOmeAnt = selOme ? selOme.value : '';
     const valCl1Ant = selCl1 ? selCl1.value : '';
@@ -23887,20 +23893,27 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
 
     // 1. OME
     if (selOme) {
-      let htmlOme = '<option value="TODAS">TODAS AS OMEs (CBMPE)</option>';
-      const omes = resp.listaOmes || [];
-      omes.forEach(function(o) {
-        htmlOme += '<option value="' + o + '">' + o + '</option>';
-      });
-      selOme.innerHTML = htmlOme;
-
-      const omeUser = (resp.omeUsuario || OME_GLOBAL || "").trim().toUpperCase();
-      if (valOmeAnt && selOme.querySelector('option[value="' + valOmeAnt + '"]')) {
-        selOme.value = valOmeAnt;
-      } else if (omeUser && omeUser !== "DLOG" && omeUser !== "CINT" && selOme.querySelector('option[value="' + omeUser + '"]')) {
-        selOme.value = omeUser;
+      if (!ehAdmin && omeUsuario) {
+        // Se for Comandante de Unidade ou Chefe, restringe estritamente aos materiais de sua OME
+        selOme.innerHTML = '<option value="' + omeUsuario + '">' + omeUsuario + ' (Sua Unidade)</option>';
+        selOme.value = omeUsuario;
+        selOme.disabled = true;
       } else {
-        selOme.value = "TODAS";
+        selOme.disabled = false;
+        let htmlOme = '<option value="TODAS">TODAS AS OMEs (CBMPE)</option>';
+        const omes = resp.listaOmes || [];
+        omes.forEach(function(o) {
+          htmlOme += '<option value="' + o + '">' + o + '</option>';
+        });
+        selOme.innerHTML = htmlOme;
+
+        if (valOmeAnt && selOme.querySelector('option[value="' + valOmeAnt + '"]')) {
+          selOme.value = valOmeAnt;
+        } else if (omeUsuario && omeUsuario !== "DLOG" && omeUsuario !== "CINT" && selOme.querySelector('option[value="' + omeUsuario + '"]')) {
+          selOme.value = omeUsuario;
+        } else {
+          selOme.value = "TODAS";
+        }
       }
     }
 
@@ -24229,7 +24242,16 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     const selCl3 = document.getElementById('filtroDashClasse3');
     const inputBusca = document.getElementById('filtroTextoTabelaDash');
 
-    if (selOme) selOme.value = 'TODAS';
+    const ehAdmin = cacheDadosDashboard ? cacheDadosDashboard.ehAdmin : true;
+    const omeUsuario = cacheDadosDashboard ? (cacheDadosDashboard.omeUsuario || OME_GLOBAL || "").trim().toUpperCase() : "";
+
+    if (selOme) {
+      if (!ehAdmin && omeUsuario) {
+        selOme.value = omeUsuario;
+      } else {
+        selOme.value = 'TODAS';
+      }
+    }
     if (selCl1) selCl1.value = 'TODAS';
     if (selCl2) selCl2.value = 'TODAS';
     if (selCl3) selCl3.value = 'TODAS';
