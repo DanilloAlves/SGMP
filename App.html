@@ -1535,6 +1535,9 @@
               <button class="btn btn-outline-danger btn-sm fw-bold shadow-sm" onclick="imprimirResumoMaterialPdf()" title="Imprimir versão em PDF do resumo">
                 <i class="fa-solid fa-file-pdf me-1"></i> Imprimir (PDF)
               </button>
+              <button class="btn btn-outline-success btn-sm fw-bold shadow-sm" onclick="exportarResumoMaterialExcel()" title="Exportar tabela para Excel">
+                <i class="fa-solid fa-file-excel me-1"></i> Exportar (Excel)
+              </button>
               <button class="btn btn-outline-secondary btn-sm" onclick="carregarResumoMaterialSubunidade(true)" title="Atualizar dados">
                 <i class="fa-solid fa-rotate"></i>
               </button>
@@ -7089,8 +7092,22 @@
     if (kpiTotal) kpiTotal.textContent = kpis.totalGeral || 0;
   }
 
+  function extrairDadosCelulaResumo(val) {
+    if (!val) return { total: 0, scd: 0, ecd: 0, acautelado: 0, extraviado: 0 };
+    if (typeof val === "number") {
+      return { total: val, scd: 0, ecd: val, acautelado: 0, extraviado: 0 };
+    }
+    return {
+      total: Number(val.total || 0),
+      scd: Number(val.scd || 0),
+      ecd: Number(val.ecd || 0),
+      acautelado: Number(val.acautelado || 0),
+      extraviado: Number(val.extraviado || 0)
+    };
+  }
+
   function renderizarResumoMaterialSubunidade() {
-    const container = document.getElementById('corpoResumoMaterialSubContainer');
+    const container = document.getElementById("corpoResumoMaterialSubContainer");
     if (!container) return;
 
     if (!dadosResumoMaterialAtual || !dadosResumoMaterialAtual.materiais || dadosResumoMaterialAtual.materiais.length === 0) {
@@ -7103,7 +7120,7 @@
       return;
     }
 
-    const filtroTexto = (document.getElementById('filtroTextoResumoMat')?.value || '').trim().toLowerCase();
+    const filtroTexto = (document.getElementById("filtroTextoResumoMat")?.value || "").trim().toLowerCase();
 
     // Filtra lista de materiais
     const materiaisFiltrados = dadosResumoMaterialAtual.materiais.filter(function(item) {
@@ -7111,10 +7128,10 @@
         return false;
       }
 
-      if (filtroStatusResumoMatAtual === 'scd' && (item.totais.scd || 0) <= 0) return false;
-      if (filtroStatusResumoMatAtual === 'ecd' && (item.totais.ecd || 0) <= 0) return false;
-      if (filtroStatusResumoMatAtual === 'acautelado' && (item.totais.acautelado || 0) <= 0) return false;
-      if (filtroStatusResumoMatAtual === 'extraviado' && (item.totais.extraviado || 0) <= 0) return false;
+      if (filtroStatusResumoMatAtual === "scd" && (item.totais.scd || 0) <= 0) return false;
+      if (filtroStatusResumoMatAtual === "ecd" && (item.totais.ecd || 0) <= 0) return false;
+      if (filtroStatusResumoMatAtual === "acautelado" && (item.totais.acautelado || 0) <= 0) return false;
+      if (filtroStatusResumoMatAtual === "extraviado" && (item.totais.extraviado || 0) <= 0) return false;
 
       return true;
     });
@@ -7129,93 +7146,108 @@
       return;
     }
 
-    const usarSetores = (nivelColunasResumoAtual === 'setores');
+    const usarSetores = (nivelColunasResumoAtual === "setores");
     const colunasDisponiveis = usarSetores 
       ? (dadosResumoMaterialAtual.setoresDisponiveis || [])
       : (dadosResumoMaterialAtual.subunidadesDisponiveis || []);
-    const mapProp = usarSetores ? 'setoresMap' : 'subunidadesMap';
+    const mapProp = usarSetores ? "setoresMap" : "subunidadesMap";
 
-    // Totais por coluna
+    // Totais acumulados por coluna
     const totaisPorColuna = {};
     colunasDisponiveis.forEach(function(col) {
-      totaisPorColuna[col] = 0;
+      totaisPorColuna[col] = { total: 0, scd: 0, ecd: 0, acautelado: 0, extraviado: 0 };
     });
-    let totGeralScd = 0;
-    let totGeralEcd = 0;
-    let totGeralAcaut = 0;
-    let totGeralExt = 0;
     let totGeralTudo = 0;
 
-    let linhasHtml = '';
+    let linhasHtml = "";
     materiaisFiltrados.forEach(function(m, idx) {
-      totGeralScd += (m.totais.scd || 0);
-      totGeralEcd += (m.totais.ecd || 0);
-      totGeralAcaut += (m.totais.acautelado || 0);
-      totGeralExt += (m.totais.extraviado || 0);
       totGeralTudo += (m.totais.total || 0);
 
-      let colsLocaisHtml = '';
+      let colsLocaisHtml = "";
       colunasDisponiveis.forEach(function(col) {
-        const qtd = (m[mapProp] && m[mapProp][col]) ? m[mapProp][col] : 0;
-        totaisPorColuna[col] = (totaisPorColuna[col] || 0) + qtd;
-        if (qtd > 0) {
-          colsLocaisHtml += `<td class="text-center fw-semibold text-dark"><span class="badge bg-light text-dark border px-2 py-1">${qtd}</span></td>`;
-        } else {
+        const val = (m[mapProp] && m[mapProp][col]) ? m[mapProp][col] : null;
+        const st = extrairDadosCelulaResumo(val);
+
+        totaisPorColuna[col].total += st.total;
+        totaisPorColuna[col].scd += st.scd;
+        totaisPorColuna[col].ecd += st.ecd;
+        totaisPorColuna[col].acautelado += st.acautelado;
+        totaisPorColuna[col].extraviado += st.extraviado;
+
+        if (st.total === 0) {
           colsLocaisHtml += `<td class="text-center text-muted" style="opacity: 0.35;">-</td>`;
+        } else {
+          let badgesArr = [];
+          if (st.ecd > 0) {
+            badgesArr.push(`<span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-1 py-0 fw-bold" style="font-size: 0.76rem;" title="${st.ecd} Em Condições (ECD)"><i class="fa-solid fa-check me-1 small"></i>${st.ecd} ECD</span>`);
+          }
+          if (st.scd > 0) {
+            badgesArr.push(`<span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-50 px-1 py-0 fw-bold" style="font-size: 0.76rem;" title="${st.scd} Sem Condições (SCD)"><i class="fa-solid fa-triangle-exclamation me-1 small"></i>${st.scd} SCD</span>`);
+          }
+          if (st.acautelado > 0) {
+            badgesArr.push(`<span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-1 py-0 fw-bold" style="font-size: 0.76rem;" title="${st.acautelado} Acautelado"><i class="fa-solid fa-lock me-1 small"></i>${st.acautelado} Acaut.</span>`);
+          }
+          if (st.extraviado > 0) {
+            badgesArr.push(`<span class="badge bg-warning bg-opacity-25 text-dark border border-warning px-1 py-0 fw-bold" style="font-size: 0.76rem;" title="${st.extraviado} Extraviado"><i class="fa-solid fa-xmark me-1 small"></i>${st.extraviado} Extr.</span>`);
+          }
+          if (badgesArr.length === 0) {
+            badgesArr.push(`<span class="badge bg-light text-dark border px-2 py-0 fw-bold" style="font-size: 0.76rem;">${st.total}</span>`);
+          }
+
+          colsLocaisHtml += `
+            <td class="text-center align-middle py-2 px-1">
+              <div class="d-flex flex-wrap gap-1 justify-content-center align-items-center">
+                ${badgesArr.join("")}
+              </div>
+            </td>
+          `;
         }
       });
 
-      const badgeScd = (m.totais.scd || 0) > 0
-        ? `<span class="badge bg-warning text-dark border border-warning px-2 py-1 fw-bold">${m.totais.scd}</span>`
-        : `<span class="text-muted" style="opacity: 0.35;">-</span>`;
-
-      const badgeEcd = (m.totais.ecd || 0) > 0
-        ? `<span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-1 fw-bold">${m.totais.ecd}</span>`
-        : `<span class="text-muted" style="opacity: 0.35;">-</span>`;
-
-      const badgeAcaut = (m.totais.acautelado || 0) > 0
-        ? `<span class="badge bg-info bg-opacity-25 text-dark border border-info px-2 py-1 fw-bold">${m.totais.acautelado}</span>`
-        : `<span class="text-muted" style="opacity: 0.35;">-</span>`;
-
-      const badgeExt = (m.totais.extraviado || 0) > 0
-        ? `<span class="badge bg-danger text-white px-2 py-1 fw-bold">${m.totais.extraviado}</span>`
-        : `<span class="text-muted" style="opacity: 0.35;">-</span>`;
-
-      const badgeTotal = `<span class="badge bg-dark text-white px-2 py-1 fw-bold">${m.totais.total || 0}</span>`;
+      const badgeTotal = `<span class="badge bg-dark text-white px-2 py-1 fw-bold fs-7 shadow-sm">${m.totais.total || 0}</span>`;
 
       linhasHtml += `
         <tr>
           <td class="text-center text-muted small">${idx + 1}</td>
-          <td class="fw-bold text-dark text-wrap" style="min-width: 260px;">${escapeHtmlResumo(m.material)}</td>
+          <td class="fw-bold text-dark text-wrap" style="min-width: 250px;">${escapeHtmlResumo(m.material)}</td>
           ${colsLocaisHtml}
-          <td class="text-center bg-warning bg-opacity-10">${badgeScd}</td>
-          <td class="text-center bg-success bg-opacity-10">${badgeEcd}</td>
-          <td class="text-center bg-info bg-opacity-10">${badgeAcaut}</td>
-          <td class="text-center bg-danger bg-opacity-10">${badgeExt}</td>
           <td class="text-center bg-light">${badgeTotal}</td>
         </tr>
       `;
     });
 
     // Cabeçalho das colunas de locais
-    let thColsLocais = '';
+    let thColsLocais = "";
     colunasDisponiveis.forEach(function(col) {
       thColsLocais += `
-        <th class="text-center text-white" style="min-width: 110px; font-size: 0.82rem;" title="${escapeHtmlResumo(col)}">
+        <th class="text-center text-white" style="min-width: 120px; font-size: 0.82rem;" title="${escapeHtmlResumo(col)}">
           ${escapeHtmlResumo(col)}
         </th>
       `;
     });
 
     // Rodapé de totais
-    let tfColsLocais = '';
+    let tfColsLocais = "";
     colunasDisponiveis.forEach(function(col) {
-      const totCol = totaisPorColuna[col] || 0;
-      tfColsLocais += `
-        <td class="text-center fw-bold ${totCol > 0 ? 'text-dark' : 'text-muted'}" style="${totCol === 0 ? 'opacity: 0.4;' : ''}">
-          ${totCol > 0 ? totCol : '-'}
-        </td>
-      `;
+      const cData = totaisPorColuna[col] || { total: 0, scd: 0, ecd: 0, acautelado: 0, extraviado: 0 };
+      if (cData.total === 0) {
+        tfColsLocais += `<td class="text-center text-muted" style="opacity: 0.35;">-</td>`;
+      } else {
+        let subBadges = [];
+        if (cData.ecd > 0) subBadges.push(`<span class="text-success fw-bold">${cData.ecd} ECD</span>`);
+        if (cData.scd > 0) subBadges.push(`<span class="text-danger fw-bold">${cData.scd} SCD</span>`);
+        if (cData.acautelado > 0) subBadges.push(`<span class="text-primary fw-bold">${cData.acautelado} Ac.</span>`);
+        if (cData.extraviado > 0) subBadges.push(`<span class="text-warning fw-bold text-dark">${cData.extraviado} Ext.</span>`);
+
+        tfColsLocais += `
+          <td class="text-center py-2 px-1">
+            <div class="fw-bold text-dark fs-7">${cData.total}</div>
+            <div class="d-flex flex-wrap gap-1 justify-content-center small" style="font-size: 0.70rem; line-height: 1.1;">
+              ${subBadges.join(" · ")}
+            </div>
+          </td>
+        `;
+      }
     });
 
     const tabelaHtml = `
@@ -7224,13 +7256,9 @@
           <thead class="table-dark sticky-top" style="z-index: 5;">
             <tr>
               <th style="width: 45px;" class="text-center">#</th>
-              <th style="min-width: 260px;">Material (Descrição)</th>
+              <th style="min-width: 250px;">Material (Descrição)</th>
               ${thColsLocais}
-              <th style="width: 90px;" class="text-center text-warning" title="Sem Condições (SCD)"><i class="fa-solid fa-wrench me-1"></i>SCD</th>
-              <th style="width: 90px;" class="text-center text-success" title="Em Condições (ECD)"><i class="fa-solid fa-circle-check me-1"></i>ECD</th>
-              <th style="width: 100px;" class="text-center text-info" title="Acautelado"><i class="fa-solid fa-user-shield me-1"></i>Acaut.</th>
-              <th style="width: 95px;" class="text-center text-danger" title="Extraviado"><i class="fa-solid fa-xmark me-1"></i>Extrav.</th>
-              <th style="width: 100px;" class="text-center bg-primary text-white" title="Total Geral do Material">Total</th>
+              <th style="width: 95px;" class="text-center bg-primary text-white" title="Total Geral do Material em todas as divisões">Total Geral</th>
             </tr>
           </thead>
           <tbody>
@@ -7241,10 +7269,6 @@
               <td class="text-center text-muted">Σ</td>
               <td class="text-uppercase text-secondary small">Total Geral da OME:</td>
               ${tfColsLocais}
-              <td class="text-center text-dark bg-warning bg-opacity-25">${totGeralScd}</td>
-              <td class="text-center text-success bg-success bg-opacity-25">${totGeralEcd}</td>
-              <td class="text-center text-info bg-info bg-opacity-25">${totGeralAcaut}</td>
-              <td class="text-center text-danger bg-danger bg-opacity-25">${totGeralExt}</td>
               <td class="text-center text-white bg-dark fs-6">${totGeralTudo}</td>
             </tr>
           </tfoot>
@@ -7258,20 +7282,20 @@
   function aplicarFiltroStatusMat(status) {
     filtroStatusResumoMatAtual = status;
     const botoes = {
-      todos: document.getElementById('btnFiltroStatusMatTodos'),
-      scd: document.getElementById('btnFiltroStatusMatScd'),
-      ecd: document.getElementById('btnFiltroStatusMatEcd'),
-      acautelado: document.getElementById('btnFiltroStatusMatAcaut'),
-      extraviado: document.getElementById('btnFiltroStatusMatExt')
+      todos: document.getElementById("btnFiltroStatusMatTodos"),
+      scd: document.getElementById("btnFiltroStatusMatScd"),
+      ecd: document.getElementById("btnFiltroStatusMatEcd"),
+      acautelado: document.getElementById("btnFiltroStatusMatAcaut"),
+      extraviado: document.getElementById("btnFiltroStatusMatExt")
     };
 
     for (let k in botoes) {
       if (botoes[k]) {
-        botoes[k].classList.remove('active');
+        botoes[k].classList.remove("active");
       }
     }
     if (botoes[status]) {
-      botoes[status].classList.add('active');
+      botoes[status].classList.add("active");
     }
     renderizarResumoMaterialSubunidade();
   }
@@ -7282,38 +7306,69 @@
 
   function imprimirResumoMaterialPdf() {
     if (!dadosResumoMaterialAtual || !dadosResumoMaterialAtual.materiais || dadosResumoMaterialAtual.materiais.length === 0) {
-      Swal.fire('Aviso', 'Não há dados carregados para impressão.', 'info');
+      Swal.fire("Aviso", "Não há dados carregados para impressão.", "info");
       return;
     }
 
-    const ome = dadosResumoMaterialAtual.ome || 'OME';
-    const dataHora = new Date().toLocaleString('pt-BR');
-    const usarSetores = (nivelColunasResumoAtual === 'setores');
+    const ome = dadosResumoMaterialAtual.ome || "OME";
+    const dataHora = new Date().toLocaleString("pt-BR");
+    const usarSetores = (nivelColunasResumoAtual === "setores");
     const colunasDisponiveis = usarSetores 
       ? (dadosResumoMaterialAtual.setoresDisponiveis || [])
       : (dadosResumoMaterialAtual.subunidadesDisponiveis || []);
-    const mapProp = usarSetores ? 'setoresMap' : 'subunidadesMap';
-    const tituloVisao = usarSetores ? 'Setores em Colunas' : 'Subunidades em Colunas';
+    const mapProp = usarSetores ? "setoresMap" : "subunidadesMap";
+    const tituloVisao = usarSetores ? "Setores em Colunas" : "Subunidades em Colunas";
+
+    const filtroTexto = (document.getElementById("filtroTextoResumoMat")?.value || "").trim().toLowerCase();
+
+    const materiaisFiltrados = dadosResumoMaterialAtual.materiais.filter(function(item) {
+      if (filtroTexto && item.material.toLowerCase().indexOf(filtroTexto) === -1) return false;
+      if (filtroStatusResumoMatAtual === "scd" && (item.totais.scd || 0) <= 0) return false;
+      if (filtroStatusResumoMatAtual === "ecd" && (item.totais.ecd || 0) <= 0) return false;
+      if (filtroStatusResumoMatAtual === "acautelado" && (item.totais.acautelado || 0) <= 0) return false;
+      if (filtroStatusResumoMatAtual === "extraviado" && (item.totais.extraviado || 0) <= 0) return false;
+      return true;
+    });
+
+    if (materiaisFiltrados.length === 0) {
+      Swal.fire("Aviso", "Nenhum material encontrado para impressão com os filtros atuais.", "info");
+      return;
+    }
 
     const totaisPorColuna = {};
-    colunasDisponiveis.forEach(function(c) { totaisPorColuna[c] = 0; });
-    let totGeralScd = 0, totGeralEcd = 0, totGeralAcaut = 0, totGeralExt = 0, totGeralTudo = 0;
+    colunasDisponiveis.forEach(function(c) {
+      totaisPorColuna[c] = { total: 0, scd: 0, ecd: 0, acautelado: 0, extraviado: 0 };
+    });
+    let totGeralTudo = 0;
 
-    let linhasHtml = '';
+    let linhasHtml = "";
     let contador = 1;
 
-    dadosResumoMaterialAtual.materiais.forEach(function(m) {
-      totGeralScd += (m.totais.scd || 0);
-      totGeralEcd += (m.totais.ecd || 0);
-      totGeralAcaut += (m.totais.acautelado || 0);
-      totGeralExt += (m.totais.extraviado || 0);
+    materiaisFiltrados.forEach(function(m) {
       totGeralTudo += (m.totais.total || 0);
 
-      let colsHtml = '';
+      let colsHtml = "";
       colunasDisponiveis.forEach(function(col) {
-        const qtd = (m[mapProp] && m[mapProp][col]) ? m[mapProp][col] : 0;
-        totaisPorColuna[col] = (totaisPorColuna[col] || 0) + qtd;
-        colsHtml += `<td style="text-align: center; border: 1px solid #ccc; padding: 4px;">${qtd > 0 ? qtd : '-'}</td>`;
+        const val = (m[mapProp] && m[mapProp][col]) ? m[mapProp][col] : null;
+        const st = extrairDadosCelulaResumo(val);
+
+        totaisPorColuna[col].total += st.total;
+        totaisPorColuna[col].scd += st.scd;
+        totaisPorColuna[col].ecd += st.ecd;
+        totaisPorColuna[col].acautelado += st.acautelado;
+        totaisPorColuna[col].extraviado += st.extraviado;
+
+        if (st.total === 0) {
+          colsHtml += `<td style="text-align: center; border: 1px solid #ccc; padding: 4px; color: #bbb;">-</td>`;
+        } else {
+          let partes = [];
+          if (st.ecd > 0) partes.push(`<span style="color: #2e7d32; font-weight: bold;">${st.ecd} ECD</span>`);
+          if (st.scd > 0) partes.push(`<span style="color: #c62828; font-weight: bold;">${st.scd} SCD</span>`);
+          if (st.acautelado > 0) partes.push(`<span style="color: #0277bd; font-weight: bold;">${st.acautelado} Ac.</span>`);
+          if (st.extraviado > 0) partes.push(`<span style="color: #ef6c00; font-weight: bold;">${st.extraviado} Ext.</span>`);
+          const celulaTexto = partes.length > 0 ? partes.join("<br>") : st.total;
+          colsHtml += `<td style="text-align: center; border: 1px solid #ccc; padding: 4px; font-size: 8.5px; line-height: 1.2;">${celulaTexto}</td>`;
+        }
       });
 
       linhasHtml += `
@@ -7321,27 +7376,37 @@
           <td style="text-align: center; border: 1px solid #ccc; padding: 4px;">${contador++}</td>
           <td style="border: 1px solid #ccc; padding: 4px; font-weight: bold;">${escapeHtmlResumo(m.material)}</td>
           ${colsHtml}
-          <td style="text-align: center; border: 1px solid #ccc; padding: 4px; background: #fff8e1;">${m.totais.scd || 0}</td>
-          <td style="text-align: center; border: 1px solid #ccc; padding: 4px; background: #e8f5e9;">${m.totais.ecd || 0}</td>
-          <td style="text-align: center; border: 1px solid #ccc; padding: 4px; background: #e1f5fe;">${m.totais.acautelado || 0}</td>
-          <td style="text-align: center; border: 1px solid #ccc; padding: 4px; background: #ffebee;">${m.totais.extraviado || 0}</td>
-          <td style="text-align: center; border: 1px solid #ccc; padding: 4px; font-weight: bold; background: #f5f5f5;">${m.totais.total || 0}</td>
+          <td style="text-align: center; border: 1px solid #ccc; padding: 4px; font-weight: bold; background: #f0f4f8;">${m.totais.total || 0}</td>
         </tr>
       `;
     });
 
-    let thColsLocais = '';
+    let thColsLocais = "";
     colunasDisponiveis.forEach(function(col) {
-      thColsLocais += `<th style="border: 1px solid #999; padding: 5px; background: #f2f2f2; font-size: 10px;">${escapeHtmlResumo(col)}</th>`;
+      thColsLocais += `<th style="border: 1px solid #999; padding: 5px; background: #f2f2f2; font-size: 9.5px;">${escapeHtmlResumo(col)}</th>`;
     });
 
-    let tfColsLocais = '';
+    let tfColsLocais = "";
     colunasDisponiveis.forEach(function(col) {
-      const totCol = totaisPorColuna[col] || 0;
-      tfColsLocais += `<td style="text-align: center; border: 1px solid #999; padding: 5px; font-weight: bold;">${totCol > 0 ? totCol : '-'}</td>`;
+      const cData = totaisPorColuna[col] || { total: 0, scd: 0, ecd: 0, acautelado: 0, extraviado: 0 };
+      if (cData.total === 0) {
+        tfColsLocais += `<td style="text-align: center; border: 1px solid #999; padding: 4px; color: #aaa;">-</td>`;
+      } else {
+        let sub = [];
+        if (cData.ecd > 0) sub.push(`${cData.ecd} ECD`);
+        if (cData.scd > 0) sub.push(`${cData.scd} SCD`);
+        if (cData.acautelado > 0) sub.push(`${cData.acautelado} Ac.`);
+        if (cData.extraviado > 0) sub.push(`${cData.extraviado} Ext.`);
+        tfColsLocais += `
+          <td style="text-align: center; border: 1px solid #999; padding: 4px;">
+            <div style="font-weight: bold; font-size: 10px;">${cData.total}</div>
+            <div style="font-size: 8px; color: #444;">${sub.join(" · ")}</div>
+          </td>
+        `;
+      }
     });
 
-    const janelaPrint = window.open('', '_blank');
+    const janelaPrint = window.open("", "_blank");
     janelaPrint.document.write(`
       <!DOCTYPE html>
       <html>
@@ -7351,11 +7416,11 @@
         <style>
           @page { size: landscape; margin: 10mm; }
           body { font-family: Arial, sans-serif; margin: 10px; font-size: 10px; color: #222; }
-          .header { text-align: center; margin-bottom: 15px; border-bottom: 2px solid #333; padding-bottom: 8px; }
+          .header { text-align: center; margin-bottom: 12px; border-bottom: 2px solid #333; padding-bottom: 6px; }
           .header h2 { margin: 0 0 4px 0; font-size: 14px; }
-          .header h3 { margin: 0 0 4px 0; font-size: 12px; color: #555; }
+          .header h3 { margin: 0 0 4px 0; font-size: 11px; color: #555; }
           .info { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 10px; }
-          table { width: 100%; border-collapse: collapse; margin-top: 5px; font-size: 9.5px; }
+          table { width: 100%; border-collapse: collapse; margin-top: 5px; font-size: 9px; }
           th { background-color: #e9ecef; border: 1px solid #999; padding: 5px; text-align: center; }
           tfoot tr td { background-color: #eaeaea; font-weight: bold; border: 1px solid #999; padding: 5px; }
           @media print {
@@ -7368,7 +7433,7 @@
         <div class="header">
           <h2>ESTADO DE PERNAMBUCO</h2>
           <h3>SISTEMA DE GESTÃO DE ESTOQUE E MATERIAIS</h3>
-          <h4>RELATÓRIO RESUMIDO DE MATERIAIS E SETORES EM COLUNAS</h4>
+          <h4>RELATÓRIO RESUMIDO DE MATERIAIS E STATUS EM COLUNAS</h4>
         </div>
         <div class="info">
           <div><strong>Unidade (OME):</strong> ${escapeHtmlResumo(ome)} | <strong>Modo:</strong> ${tituloVisao}</div>
@@ -7378,13 +7443,9 @@
           <thead>
             <tr>
               <th style="width: 25px;">#</th>
-              <th style="text-align: left; min-width: 180px;">Material (Descrição)</th>
+              <th style="text-align: left; min-width: 170px;">Material (Descrição)</th>
               ${thColsLocais}
-              <th style="width: 50px;">SCD</th>
-              <th style="width: 50px;">ECD</th>
-              <th style="width: 55px;">Acaut.</th>
-              <th style="width: 55px;">Extrav.</th>
-              <th style="width: 60px;">Total</th>
+              <th style="width: 55px; background: #333; color: #fff;">Total</th>
             </tr>
           </thead>
           <tbody>
@@ -7392,28 +7453,92 @@
           </tbody>
           <tfoot>
             <tr>
-              <td colspan="2" style="text-align: right; padding-right: 8px;">TOTAL GERAL:</td>
+              <td colspan="2" style="text-align: right; padding-right: 8px; font-weight: bold;">TOTAL GERAL:</td>
               ${tfColsLocais}
-              <td style="text-align: center;">${totGeralScd}</td>
-              <td style="text-align: center;">${totGeralEcd}</td>
-              <td style="text-align: center;">${totGeralAcaut}</td>
-              <td style="text-align: center;">${totGeralExt}</td>
-              <td style="text-align: center;">${totGeralTudo}</td>
+              <td style="text-align: center; font-weight: bold; background: #333; color: #fff;">${totGeralTudo}</td>
             </tr>
           </tfoot>
         </table>
-        <' + 'script>
-          window.onload = function() {
-            setTimeout(function() { window.print(); }, 500);
-          };
-        <' + '/script>
       </body>
       </html>
     `);
     janelaPrint.document.close();
+    setTimeout(function() {
+      janelaPrint.focus();
+      janelaPrint.print();
+    }, 600);
   }
 
-  function carregarResumoArvoreArmazenamento(forcar) {
+  function exportarResumoMaterialExcel() {
+    if (typeof XLSX === "undefined") {
+      Swal.fire("Erro", "Biblioteca SheetJS (XLSX) não carregada no navegador.", "error");
+      return;
+    }
+    if (!dadosResumoMaterialAtual || !dadosResumoMaterialAtual.materiais || dadosResumoMaterialAtual.materiais.length === 0) {
+      Swal.fire("Aviso", "Não há dados carregados para exportar.", "info");
+      return;
+    }
+
+    const ome = dadosResumoMaterialAtual.ome || (typeof OME_GLOBAL !== "undefined" ? OME_GLOBAL : "OME");
+    const usarSetores = (nivelColunasResumoAtual === "setores");
+    const colunasDisponiveis = usarSetores 
+      ? (dadosResumoMaterialAtual.setoresDisponiveis || [])
+      : (dadosResumoMaterialAtual.subunidadesDisponiveis || []);
+    const mapProp = usarSetores ? "setoresMap" : "subunidadesMap";
+    const tipoVisao = usarSetores ? "Setores" : "Subunidades";
+
+    const filtroTexto = (document.getElementById("filtroTextoResumoMat")?.value || "").trim().toLowerCase();
+
+    const materiaisFiltrados = dadosResumoMaterialAtual.materiais.filter(function(item) {
+      if (filtroTexto && item.material.toLowerCase().indexOf(filtroTexto) === -1) return false;
+      if (filtroStatusResumoMatAtual === "scd" && (item.totais.scd || 0) <= 0) return false;
+      if (filtroStatusResumoMatAtual === "ecd" && (item.totais.ecd || 0) <= 0) return false;
+      if (filtroStatusResumoMatAtual === "acautelado" && (item.totais.acautelado || 0) <= 0) return false;
+      if (filtroStatusResumoMatAtual === "extraviado" && (item.totais.extraviado || 0) <= 0) return false;
+      return true;
+    });
+
+    if (materiaisFiltrados.length === 0) {
+      Swal.fire("Aviso", "Nenhum material encontrado com os filtros atuais.", "info");
+      return;
+    }
+
+    const linhasExcel = [];
+    materiaisFiltrados.forEach(function(m, idx) {
+      const row = {
+        "#": idx + 1,
+        "Material (Descrição)": m.material
+      };
+
+      colunasDisponiveis.forEach(function(col) {
+        const val = (m[mapProp] && m[mapProp][col]) ? m[mapProp][col] : null;
+        const st = extrairDadosCelulaResumo(val);
+        if (st.total === 0) {
+          row[col] = "-";
+        } else {
+          const partes = [];
+          if (st.ecd > 0) partes.push(st.ecd + " ECD");
+          if (st.scd > 0) partes.push(st.scd + " SCD");
+          if (st.acautelado > 0) partes.push(st.acautelado + " Acaut.");
+          if (st.extraviado > 0) partes.push(st.extraviado + " Extr.");
+          row[col] = partes.length > 0 ? partes.join(" | ") : st.total;
+        }
+      });
+
+      row["Total Geral"] = m.totais.total || 0;
+      linhasExcel.push(row);
+    });
+
+    const ws = XLSX.utils.json_to_sheet(linhasExcel);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Resumo Materiais");
+    const dataHoje = new Date().toISOString().slice(0, 10);
+    const nomeArquivo = `Resumo_Materiais_${tipoVisao}_${ome}_${dataHoje}.xlsx`;
+    XLSX.writeFile(wb, nomeArquivo);
+  }
+
+
+    function carregarResumoArvoreArmazenamento(forcar) {
     const selOme = document.getElementById('selectOmeArvore');
     const perfilNorm = (PERFIL_GLOBAL || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
     const omeNorm = (OME_GLOBAL || "").trim().toUpperCase();

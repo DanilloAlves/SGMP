@@ -3799,8 +3799,25 @@ function getResumoMaterialSubunidade(unidadeOme) {
       mapaMateriais[objeto].totais.extraviado += qtdExtraviado;
       mapaMateriais[objeto].totais.total += qtdTotal;
 
-      mapaMateriais[objeto].subunidadesMap[subRes] = (mapaMateriais[objeto].subunidadesMap[subRes] || 0) + qtdTotal;
-      mapaMateriais[objeto].setoresMap[setorKey] = (mapaMateriais[objeto].setoresMap[setorKey] || 0) + qtdTotal;
+      if (!mapaMateriais[objeto].subunidadesMap[subRes]) {
+        mapaMateriais[objeto].subunidadesMap[subRes] = { total: 0, scd: 0, ecd: 0, acautelado: 0, extraviado: 0 };
+      }
+      var subObj = mapaMateriais[objeto].subunidadesMap[subRes];
+      subObj.total += qtdTotal;
+      subObj.scd += qtdScd;
+      subObj.ecd += qtdEcd;
+      subObj.acautelado += qtdAcautelado;
+      subObj.extraviado += qtdExtraviado;
+
+      if (!mapaMateriais[objeto].setoresMap[setorKey]) {
+        mapaMateriais[objeto].setoresMap[setorKey] = { total: 0, scd: 0, ecd: 0, acautelado: 0, extraviado: 0 };
+      }
+      var setObj = mapaMateriais[objeto].setoresMap[setorKey];
+      setObj.total += qtdTotal;
+      setObj.scd += qtdScd;
+      setObj.ecd += qtdEcd;
+      setObj.acautelado += qtdAcautelado;
+      setObj.extraviado += qtdExtraviado;
     });
 
     // 4. Converte mapa para lista ordenada alfabeticamente
