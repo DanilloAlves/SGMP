@@ -791,14 +791,14 @@
               <i class="fa-solid fa-chart-pie text-danger me-2"></i> Dashboard de Materiais por Classe e Situação
             </h6>
             <span class="text-muted" style="font-size: 0.75rem;">
-              Cruzamento do inventário BigQuery com as Classes do Catálogo Oficial (<strong>#CAD_ITENS</strong>).
+              Visão consolidada dos materiais por classes e estado de conservação.
             </span>
           </div>
           <div class="d-flex align-items-center gap-2">
             <span id="badgeUltimaAtualizacaoDash" class="badge bg-light text-muted border py-1 px-2 font-monospace" style="font-size: 0.72rem;">
               <i class="fa-solid fa-clock me-1"></i> Sincronizado
             </span>
-            <button class="btn btn-sm btn-outline-danger py-1 px-2" onclick="carregarDadosDashboardVisaoGeral(true)" title="Recarregar dados do BigQuery e Catálogo" style="font-size: 0.78rem;">
+            <button class="btn btn-sm btn-outline-danger py-1 px-2" onclick="carregarDadosDashboardVisaoGeral(true)" title="Recarregar dados do painel" style="font-size: 0.78rem;">
               <i class="fa-solid fa-rotate me-1"></i> Atualizar
             </button>
             <button class="btn btn-sm btn-outline-secondary py-1 px-2" onclick="exportarDashboardPdf()" title="Exportar / Imprimir Relatório do Dashboard em PDF" style="font-size: 0.78rem;">
@@ -4664,7 +4664,7 @@
       }
     }
 
-    // Inicializa o Dashboard Executivo de Materiais (BigQuery + #CAD_ITENS)
+    // Inicializa o Dashboard Executivo de Materiais
     if (typeof carregarDadosDashboardVisaoGeral === 'function') {
       carregarDadosDashboardVisaoGeral();
     }
@@ -8015,7 +8015,7 @@
                 <div class="d-flex align-items-center gap-1 flex-wrap">
                   <div style="min-width: 280px; max-width: 440px;">
                     <select class="form-select form-select-sm fw-semibold border-primary shadow-sm" id="selectFiltroMaterialBigQueryMacro" onchange="selecionarMaterialBigQueryMacro(this.value)">
-                      <option value="">-- Todos os Materiais (Base BigQuery) --</option>
+                      <option value="">-- Todos os Materiais --</option>
                       ${opcoesMateriaisBigQueryHtml}
                     </select>
                   </div>
@@ -8272,7 +8272,7 @@
             </div>
             <h6 class="fw-bold text-dark mb-1">${escapeHtmlResumo(filtroMaterialBigQueryMacro)}</h6>
             <p class="text-muted small mb-3">
-              Este material consta na base oficial do BigQuery e <strong>não possui nenhum déficit ou extravio pendente de reposição</strong> apurado contra as Cargas Padrão no momento.
+              Este material consta na base oficial do sistema e <strong>não possui nenhum déficit ou extravio pendente de reposição</strong> apurado contra as Cargas Padrão no momento.
             </p>
             <div class="d-flex justify-content-center gap-2 flex-wrap">
               <button class="btn btn-outline-primary btn-sm fw-semibold" onclick="abrirModalSeletorCargasOme()">
@@ -11959,7 +11959,7 @@ window.carregarLocaisArvoreGeral = function() {
     }
   }
 
-  // Cache global de nomes de viaturas classificadas como "VIATURA ATV FIM" no #CAD_ITENS
+  // Cache global de nomes de viaturas classificadas como "VIATURA ATV FIM" no Catálogo
   var cacheViaturasCatalogoSet = new Set();
 
   function atualizarIndicadorViaturaCint() {
@@ -12481,7 +12481,7 @@ window.carregarLocaisArvoreGeral = function() {
       return;
     }
 
-    // Valida viaturas no Catálogo Oficial (#CAD_ITENS) e exige os Números de Série individuais
+    // Valida viaturas no Catálogo Oficial e exige os Números de Série individuais
     verificarSeEhViaturaEColetaSeries(dados, function(dadosComSeries) {
       iniciarFluxoConfirmacaoRecebimento(dadosComSeries);
     });
@@ -24678,7 +24678,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
   }
 
   // =========================================================================
-  // GESTÃO DO DASHBOARD EXECUTIVO DE MATERIAIS (BIGQUERY + #CAD_ITENS)
+  // GESTÃO DO DASHBOARD EXECUTIVO DE MATERIAIS
   // =========================================================================
 
   let cacheDadosDashboard = null;

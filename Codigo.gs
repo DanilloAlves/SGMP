@@ -5171,13 +5171,13 @@ function confirmarRecebimentoCINT(dadosRecebimento) {
           dadosRecebimento.qtdExistente
         );
         if (resDist && resDist.sucesso) {
-          infoSincDist = " (#DIST atualizada na linha " + resDist.linha + (resDist.modo === 'SOMAR_PARCELA' ? ' [Parcela Somada, Total: ' + resDist.qtdTotal + ']' : ' [Novo Registro]') + ")";
+          infoSincDist = " (Registro de distribuição atualizado na linha " + resDist.linha + (resDist.modo === 'SOMAR_PARCELA' ? ' [Parcela Somada, Total: ' + resDist.qtdTotal + ']' : ' [Novo Registro]') + ")";
         } else if (resDist && !resDist.sucesso) {
-          infoSincDist = " [Aviso #DIST: " + resDist.erro + "]";
+          infoSincDist = " [Aviso de distribuição: " + resDist.erro + "]";
         }
       } catch (errDist) {
         console.error("Aviso: Falha na sincronização com #DIST no Recebimento: " + errDist.message);
-        infoSincDist = " [Erro #DIST: " + errDist.message + "]";
+        infoSincDist = " [Erro de distribuição: " + errDist.message + "]";
       }
     } else {
       console.log("9 - Recebimento local da OME " + unidadeFinal + " realizado por " + usuario.nome + " (Chefe de Setor). Integração com DLOG (#DIST) não executada conforme regra de compra própria da OME.");
@@ -8513,7 +8513,7 @@ function avaliarTicketMaterialProvisorio(dadosAvaliacao) {
 
     var abaCatalogo = ssCatalogo.getSheetByName("#CAD_ITENS");
 
-    if (!abaCatalogo) throw new Error("Aba '#CAD_ITENS' não encontrada no arquivo do catálogo oficial.");
+    if (!abaCatalogo) throw new Error("Aba do catálogo oficial de materiais não encontrada.");
 
     
 
