@@ -1884,36 +1884,43 @@
             </div>
           </div>
 
-          <!-- TABELA DE ITENS -->
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <h6 class="fw-bold text-secondary mb-0"><i class="fa-solid fa-boxes-stacked me-1"></i> Selecione os Itens do Estoque:</h6>
-            <div>
-              <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="marcarTodosCautela(true)">Marcar Todos</button>
-              <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="marcarTodosCautela(false)">Desmarcar</button>
+          <!-- TABELA DE ITENS AGRUPADOS -->
+          <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+            <h6 class="fw-bold text-secondary mb-0"><i class="fa-solid fa-boxes-stacked me-1"></i> Materiais Disponíveis (ECD) no Estoque:</h6>
+            <div class="d-flex align-items-center gap-2">
+              <span class="badge bg-light text-dark border px-3 py-2 small" id="badgeResumoSelecaoCautela">
+                <i class="fa-solid fa-cart-flatbed me-1 text-primary"></i> <strong id="badgeQtdItensSelecionadosCautela">0</strong> item(ns) selecionado(s)
+              </span>
+              <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-2 fw-semibold" onclick="zerarQuantidadesCautela()">
+                <i class="fa-solid fa-eraser me-1"></i> Zerar Quantidades
+              </button>
             </div>
           </div>
 
-          <div class="table-responsive border rounded bg-white mb-3" style="max-height: 350px; overflow-y: auto;">
+          <div class="table-responsive border rounded bg-white mb-3" style="max-height: 480px; overflow-y: auto;">
             <table class="table table-sm table-hover align-middle small mb-0">
               <thead class="table-light sticky-top">
                 <tr>
-                  <th class="text-center" style="width: 40px;"><input type="checkbox" id="checkMasterCautela" onclick="marcarTodosCautela(this.checked)"></th>
-                  <th>ID do Sistema</th>
-                  <th>Material</th>
-                  <th>OME / Localização na Árvore</th>
-                  <th>Patrimônio</th>
-                  <th>Status Atual</th>
+                  <th style="min-width: 220px;">Material</th>
+                  <th class="text-center" style="width: 140px;">Qtd Total Disp. (ECD)</th>
+                  <th>Locais de Armazenamento e Quantidades para Retirada</th>
+                  <th class="text-center" style="width: 140px;">Qtd Selecionada</th>
                 </tr>
               </thead>
               <tbody id="tabelaItensCautela">
-                <tr><td colspan="6" class="text-center text-muted py-3">Carregando itens...</td></tr>
+                <tr><td colspan="4" class="text-center text-muted py-3">Carregando itens...</td></tr>
               </tbody>
             </table>
           </div>
 
-          <div class="text-end">
-            <button class="btn btn-primary fw-bold px-4 py-2" onclick="processarTermoAcautelamento()">
-              <i class="fa-solid fa-signature me-1"></i> Prosseguir para Assinaturas
+          <div class="d-flex justify-content-between align-items-center p-3 bg-light rounded border flex-wrap gap-2">
+            <div>
+              <span class="text-muted small">Total selecionado para acautelamento:</span>
+              <strong class="fs-5 text-primary ms-1" id="totalGeralItensCautelaRodape">0</strong>
+              <span class="text-muted small"> item(ns)</span>
+            </div>
+            <button class="btn btn-primary fw-bold px-4 py-2 shadow-sm" onclick="processarTermoAcautelamento()">
+              <i class="fa-solid fa-signature me-1"></i> Prosseguir para Confirmação e Assinatura
             </button>
           </div>
         </div>
@@ -16077,33 +16084,225 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     renderizarTabelaCautela(cacheItensCautelaGlobal);
   }
 
+  // Gestão de agrupamento de materiais e locais para Cautela
+  window.cacheMateriaisAgrupadosCautela = [];
+  window.mapaQuantidadesSelecionadasCautela = {}; // chave: "material|||chaveLocal" -> qtd
+
+  function agruparItensParaCautela(itens) {
+    const mapa = {};
+    (itens || []).forEach(i => {
+      const objNome = String(i.objeto || 'MATERIAL SEM NOME').trim();
+      if (!mapa[objNome]) {
+        mapa[objNome] = {
+          objeto: objNome,
+          unidade: i.unidade,
+          totalEcd: 0,
+          locaisMap: {},
+          locais: []
+        };
+      }
+      const mat = mapa[objNome];
+      mat.totalEcd++;
+
+      const sub = String(i.subunidade || 'SEDE').trim();
+      const set = String(i.setor || '').trim();
+      const locEsp = String(i.localizacaoEspecifica || '').trim();
+
+      const partesLocal = [sub];
+      if (set && set !== '-' && set !== sub) partesLocal.push(set);
+      if (locEsp && locEsp !== '-') partesLocal.push(locEsp);
+      const nomeLocal = partesLocal.join(' > ');
+      const chaveLocal = sub + '|||' + set + '|||' + locEsp;
+
+      if (!mat.locaisMap[chaveLocal]) {
+        mat.locaisMap[chaveLocal] = {
+          chaveLocal: chaveLocal,
+          nomeLocal: nomeLocal,
+          subunidade: sub,
+          setor: set,
+          localizacaoEspecifica: locEsp,
+          qtdDisponivel: 0,
+          qtdRetirar: 0,
+          itens: []
+        };
+        mat.locais.push(mat.locaisMap[chaveLocal]);
+      }
+
+      const locObj = mat.locaisMap[chaveLocal];
+      locObj.qtdDisponivel++;
+      locObj.itens.push(i);
+    });
+
+    const lista = Object.values(mapa).sort((a, b) => a.objeto.localeCompare(b.objeto));
+    lista.forEach(m => {
+      m.locais.forEach(l => {
+        // Ordena itens por ITEM crescente (menor ID primeiro)
+        l.itens.sort((a, b) => a.item.localeCompare(b.item, undefined, { numeric: true, sensitivity: 'base' }));
+        // Restaura quantidade selecionada anterior se houver
+        const chaveQtd = m.objeto + '|||' + l.chaveLocal;
+        if (window.mapaQuantidadesSelecionadasCautela[chaveQtd]) {
+          l.qtdRetirar = Math.min(window.mapaQuantidadesSelecionadasCautela[chaveQtd], l.qtdDisponivel);
+        }
+      });
+    });
+
+    return lista;
+  }
+
   function renderizarTabelaCautela(itens) {
     const tbody = document.getElementById('tabelaItensCautela');
     if (!tbody) return;
 
     if (!itens || itens.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3">Nenhum item encontrado com estes filtros.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-4"><i class="fa-solid fa-inbox me-2"></i>Nenhum material disponível (ECD) encontrado com estes filtros.</td></tr>';
+      atualizarContadoresCautelaGerais();
       return;
     }
 
+    const materiaisAgrupados = agruparItensParaCautela(itens);
+    window.cacheMateriaisAgrupadosCautela = materiaisAgrupados;
+
     let html = '';
-    itens.forEach(i => {
-      const objVisual = formatarDescricaoViaturaVisual(i.objeto, extrairSerieItem(i));
+    materiaisAgrupados.forEach(m => {
+      let subtotalMat = 0;
+      let locaisHtml = '';
+
+      m.locais.forEach(loc => {
+        const qVal = loc.qtdRetirar || 0;
+        subtotalMat += qVal;
+
+        locaisHtml += `
+          <div class="d-flex align-items-center justify-content-between p-2 rounded border bg-light">
+            <div class="me-2 text-start">
+              <div class="fw-bold text-dark" style="font-size: 0.82rem;">
+                <i class="fa-solid fa-location-dot text-danger me-1"></i> ${loc.nomeLocal}
+              </div>
+              <div class="text-muted" style="font-size: 0.73rem;">
+                Disponível (ECD): <strong class="text-success">${loc.qtdDisponivel}</strong> un.
+              </div>
+            </div>
+            <div class="d-flex align-items-center gap-1">
+              <label class="form-label mb-0 small text-muted me-1 fw-semibold">Retirar:</label>
+              <input type="number" 
+                     class="form-control form-control-sm text-center fw-bold input-retirada-cautela" 
+                     style="width: 75px;" 
+                     min="0" 
+                     max="${loc.qtdDisponivel}" 
+                     value="${qVal}" 
+                     data-material="${m.objeto.replace(/"/g, '&quot;')}" 
+                     data-local="${loc.chaveLocal.replace(/"/g, '&quot;')}" 
+                     data-local-nome="${loc.nomeLocal.replace(/"/g, '&quot;')}"
+                     data-max="${loc.qtdDisponivel}"
+                     oninput="aoAlterarQtdRetiradaLocal(this)"
+                     placeholder="0">
+            </div>
+          </div>
+        `;
+      });
+
       html += `
         <tr>
-          <td class="text-center"><input type="checkbox" class="check-item-cautela" value="${i.item}"></td>
-          <td class="fw-bold text-secondary">${i.item}</td>
-          <td class="fw-bold text-dark">${objVisual}</td>
-          <td><small class="text-primary"><i class="fa-solid fa-folder-tree me-1"></i> ${i.unidade} > ${i.localizacao}</small></td>
-          <td><small>${i.patrimonio || '-'}</small></td>
-          <td><span class="badge bg-${i.status === 'ECD' ? 'success' : (i.status === 'ACAUTELADO' ? 'warning text-dark' : 'secondary')}">${i.status}</span></td>
-        </tr>`;
+          <td>
+            <div class="fw-bold text-dark fs-6">${m.objeto}</div>
+            <div class="text-muted" style="font-size: 0.73rem;"><i class="fa-solid fa-building me-1"></i>${m.unidade || 'CBMPE'}</div>
+          </td>
+          <td class="text-center">
+            <span class="badge bg-success-subtle text-success border border-success-subtle fs-6 px-3 py-1 font-monospace fw-bold">
+              ${m.totalEcd}
+            </span>
+          </td>
+          <td>
+            <div class="d-flex flex-column gap-2 py-1">
+              ${locaisHtml}
+            </div>
+          </td>
+          <td class="text-center">
+            <span class="badge bg-primary fs-6 px-3 py-1 font-monospace fw-bold span-subtotal-material" data-material="${m.objeto.replace(/"/g, '&quot;')}">
+              ${subtotalMat}
+            </span>
+            <div class="text-muted small mt-1" style="font-size: 0.72rem;">item(ns)</div>
+          </td>
+        </tr>
+      `;
     });
+
     tbody.innerHTML = html;
+    atualizarContadoresCautelaGerais();
   }
 
-  function marcarTodosCautela(marcar) {
-    document.querySelectorAll('.check-item-cautela').forEach(c => c.checked = marcar);
+  function aoAlterarQtdRetiradaLocal(input) {
+    const max = parseInt(input.getAttribute('data-max') || '0', 10);
+    let val = parseInt(input.value || '0', 10);
+    const locNome = input.getAttribute('data-local-nome') || 'Local';
+
+    if (isNaN(val) || val < 0) {
+      val = 0;
+      input.value = 0;
+    }
+
+    if (val > max) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Quantidade Inválida',
+        text: 'A quantidade informada (' + val + ') supera a quantidade disponível (' + max + ') no local ' + locNome + '.'
+      });
+      val = max;
+      input.value = max;
+    }
+
+    const matNome = input.getAttribute('data-material');
+    const chaveLocal = input.getAttribute('data-local');
+    const chaveQtd = matNome + '|||' + chaveLocal;
+    window.mapaQuantidadesSelecionadasCautela[chaveQtd] = val;
+
+    // Atualiza objeto em memória
+    (window.cacheMateriaisAgrupadosCautela || []).forEach(m => {
+      if (m.objeto === matNome) {
+        let subtotal = 0;
+        m.locais.forEach(l => {
+          if (l.chaveLocal === chaveLocal) {
+            l.qtdRetirar = val;
+          }
+          subtotal += (l.qtdRetirar || 0);
+        });
+
+        // Atualiza badge de subtotal do material
+        const spans = document.querySelectorAll('.span-subtotal-material');
+        spans.forEach(sp => {
+          if (sp.getAttribute('data-material') === matNome) {
+            sp.innerText = subtotal;
+          }
+        });
+      }
+    });
+
+    atualizarContadoresCautelaGerais();
+  }
+
+  function zerarQuantidadesCautela() {
+    window.mapaQuantidadesSelecionadasCautela = {};
+    (window.cacheMateriaisAgrupadosCautela || []).forEach(m => {
+      m.locais.forEach(l => l.qtdRetirar = 0);
+    });
+
+    document.querySelectorAll('.input-retirada-cautela').forEach(inp => inp.value = 0);
+    document.querySelectorAll('.span-subtotal-material').forEach(sp => sp.innerText = 0);
+    atualizarContadoresCautelaGerais();
+  }
+
+  function atualizarContadoresCautelaGerais() {
+    let totalGeral = 0;
+    (window.cacheMateriaisAgrupadosCautela || []).forEach(m => {
+      (m.locais || []).forEach(l => {
+        totalGeral += (l.qtdRetirar || 0);
+      });
+    });
+
+    const badgeTopo = document.getElementById('badgeQtdItensSelecionadosCautela');
+    const rodape = document.getElementById('totalGeralItensCautelaRodape');
+
+    if (badgeTopo) badgeTopo.innerText = totalGeral;
+    if (rodape) rodape.innerText = totalGeral;
   }
 
   function aoSelecionarMilitarCautela() {
@@ -21415,9 +21614,26 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       }
     }
     
-    const checkboxes = document.querySelectorAll('.check-item-cautela:checked');
+    // Coleta os itens selecionados respeitando rigorosamente a quantidade 'n' de cada local
+    // e selecionando os primeiros 'n' materiais de acordo com o número de cadastro (ITEM)
     let itensIds = [];
-    checkboxes.forEach(cb => itensIds.push(cb.value));
+    let resumoMateriaisArray = [];
+
+    (window.cacheMateriaisAgrupadosCautela || []).forEach(mat => {
+      let qtdMat = 0;
+      (mat.locais || []).forEach(loc => {
+        const q = parseInt(loc.qtdRetirar || 0, 10);
+        if (q > 0) {
+          qtdMat += q;
+          // Seleciona os primeiros q itens do local ordenados por ITEM
+          const selecionados = (loc.itens || []).slice(0, q);
+          selecionados.forEach(it => itensIds.push(it.item));
+        }
+      });
+      if (qtdMat > 0) {
+        resumoMateriaisArray.push(`${qtdMat}x ${mat.objeto}`);
+      }
+    });
 
     if (!nomeMilitar) {
       Swal.fire('Atenção', 'Selecione o militar ou civil que receberá os materiais acautelados.', 'warning');
@@ -21425,7 +21641,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     }
 
     if (itensIds.length === 0) {
-      Swal.fire('Atenção', 'Selecione ao menos um item da lista para acautelamento.', 'warning');
+      Swal.fire('Atenção', 'Informe a quantidade que deseja acautelar em ao menos um material e local de armazenamento.', 'warning');
       return;
     }
 
@@ -21459,12 +21675,21 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
               <span><i class="fa-solid fa-boxes-stacked me-1"></i> Total de Itens: <strong>${itensIds.length}</strong> selecionado(s)</span>
               ${dataPrevistaFormatada ? `<span class="text-primary fw-bold"><i class="fa-regular fa-calendar-check me-1"></i> Previsão: <strong>${dataPrevistaFormatada}</strong></span>` : ''}
             </div>
+            <div class="small text-secondary mt-1 border-top pt-1" style="font-size: 0.75rem;">
+              <strong>Materiais:</strong> ${resumoMateriaisArray.join(', ')}
+            </div>
           </div>
 
           <!-- CAMPO PREVISÃO DE DEVOLUÇÃO -->
           <div class="mb-3">
             <label class="form-label small fw-bold mb-1"><i class="fa-regular fa-calendar-check text-primary me-1"></i> Data Prevista para Devolução (Opcional):</label>
             <input type="date" id="swalDataPrevista" class="form-control form-control-sm" value="${dataPrevistaVal}">
+          </div>
+
+          <!-- NOVO CAMPO: OBSERVAÇÕES DO ACAUTELAMENTO -->
+          <div class="mb-3">
+            <label class="form-label small fw-bold mb-1"><i class="fa-regular fa-comment-dots text-primary me-1"></i> Observações do Acautelamento (Opcional):</label>
+            <textarea id="swalObservacoesCautela" class="form-control form-control-sm" rows="2" placeholder="Descreva a finalidade, missão, plantão ou observações particulares..."></textarea>
           </div>
 
           <!-- SELEÇÃO DA FORMA DE CONFIRMAÇÃO -->
@@ -21518,7 +21743,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
             </div>
             <div>
               <label class="form-label small fw-bold">Justificativa / Motivo da Confirmação via SEI (Opcional):</label>
-              <input type="text" id="swalJustificativaSei" class="form-control form-control-sm" placeholder="Ex: Acautelamento de material para civil sob termo / Militar indisponível para PIN no momento">
+              <input type="text" id="swalJustificativaSei" class="form-control form-control-sm" placeholder="Ex: Acautelamento sob termo / Militar indisponível para PIN no momento">
             </div>
           </div>
         </div>
@@ -21565,6 +21790,8 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
           else dataPrevFinal = dataPrevModal;
         }
 
+        const observacoes = document.getElementById('swalObservacoesCautela') ? document.getElementById('swalObservacoesCautela').value.trim() : '';
+
         if (forma === 'PIN') {
           const cpfDigitado = (document.getElementById('swalCpf') ? document.getElementById('swalCpf').value : '').trim().replace(/\D/g, '');
           const pin = (document.getElementById('swalPin') ? document.getElementById('swalPin').value : '').trim();
@@ -21590,10 +21817,10 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
             formaConfirmacao: 'PIN',
             cpfResponsavel: cpfMilitarLimpo,
             docSeiFinal: docSei,
-            dataPrevistaDevolucao: dataPrevFinal
+            dataPrevistaDevolucao: dataPrevFinal,
+            observacoes: observacoes
           };
         } else {
-          // Confirmação via Template SEI
           const templateSei = (document.getElementById('swalTemplateSei') ? document.getElementById('swalTemplateSei').value : '').trim();
           const justificativa = (document.getElementById('swalJustificativaSei') ? document.getElementById('swalJustificativaSei').value : '').trim();
 
@@ -21614,7 +21841,8 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
             templateSei: templateSei,
             justificativa: justificativa,
             docSeiFinal: docFinal,
-            dataPrevistaDevolucao: dataPrevFinal
+            dataPrevistaDevolucao: dataPrevFinal,
+            observacoes: observacoes
           };
         }
       }
@@ -21629,12 +21857,43 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
 
         google.script.run
           .withSuccessHandler(r => {
+            if (!r || !r.sucesso) {
+              Swal.fire('Erro', (r && r.mensagem) || 'Falha ao registrar acautelamento.', 'error');
+              return;
+            }
+
+            const tPdf = r.termoPdf;
+            let botoesAcaoHtml = '';
+            if (tPdf) {
+              window.ultimoTermoGeradoCautela = tPdf;
+              botoesAcaoHtml = `
+                <div class="d-flex flex-column gap-2 mt-3">
+                  ${tPdf.urlDrive ? `<a href="${tPdf.urlDrive}" target="_blank" class="btn btn-danger btn-sm fw-bold py-2"><i class="fa-solid fa-file-pdf me-2"></i> Visualizar Termo em PDF (Google Drive)</a>` : ''}
+                  ${tPdf.base64 ? `<button onclick="baixarTermoPdfBase64('${tPdf.base64}', '${tPdf.protocolo}')" class="btn btn-primary btn-sm fw-bold py-2"><i class="fa-solid fa-download me-2"></i> Baixar Arquivo PDF (para SEI GOV)</button>` : ''}
+                  <button onclick="imprimirHtmlTermoCautelaDirect()" class="btn btn-outline-secondary btn-sm fw-bold py-2"><i class="fa-solid fa-print me-2"></i> Imprimir Termo Agora</button>
+                </div>
+              `;
+            }
+
             Swal.fire({
               icon: 'success',
               title: 'Acautelamento Registrado!',
-              text: r.mensagem || 'Itens acautelados com sucesso.',
-              timer: 3000
+              html: `
+                <div class="text-start">
+                  <p class="mb-2">${r.mensagem || 'Itens acautelados com sucesso.'}</p>
+                  <div class="p-2 bg-light rounded border small mb-2">
+                    <div><strong>Nº Termo / Protocolo:</strong> <span class="font-monospace text-danger fw-bold">${r.protocolo || '-'}</span></div>
+                    <div><strong>Total de Itens:</strong> ${itensIds.length} item(ns)</div>
+                    <div><strong>Militar / Recebedor:</strong> ${postoMilitar ? postoMilitar + ' ' : ''}${nomeMilitar}</div>
+                  </div>
+                  ${botoesAcaoHtml}
+                </div>
+              `,
+              showConfirmButton: true,
+              confirmButtonText: 'Concluir e Fechar'
             });
+
+            zerarQuantidadesCautela();
             const docSeiInput = document.getElementById('inputDocSeiCautela');
             if (docSeiInput) docSeiInput.value = '';
             const inputDataPrev = document.getElementById('inputDataPrevistaDevolucaoCautela');
@@ -21646,24 +21905,51 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
                 $(selectMilitar).val('').trigger('change');
               }
             }
-            carregarDadosAbaAcautelamento();
+            carregarDadosItensNovoAcautelamento();
+            if (typeof carregarMinhasCautelas === 'function') carregarMinhasCautelas(true);
           })
           .withFailureHandler(err => {
-            Swal.fire('Erro', err.message, 'error');
+            Swal.fire({
+              icon: 'error',
+              title: 'Erro ao Acautelar',
+              text: err.message || 'Falha ao processar operação.'
+            });
           })
           .registrarAcautelamentoItens({
-            cpfResponsavel: res.value.cpfResponsavel,
             nomeMilitar: nomeMilitar,
-            postoMilitar: postoMilitar || (selectedOption ? selectedOption.getAttribute('data-posto') : '') || (ehCivil ? 'CIVIL' : 'MILITAR'),
-            matriculaMilitar: matriculaMilitar || '',
+            postoMilitar: postoMilitar,
+            matriculaMilitar: matriculaMilitar,
             cpfMilitar: cpfMilitarLimpo,
             docSei: res.value.docSeiFinal,
+            observacoes: res.value.observacoes,
+            cpfResponsavel: res.value.cpfResponsavel,
+            dataPrevistaDevolucao: res.value.dataPrevistaDevolucao,
             formaConfirmacao: res.value.formaConfirmacao,
-            dataPrevistaDevolucao: res.value.dataPrevistaDevolucao || '',
             itensIds: itensIds
           });
       }
     });
+  }
+
+  function baixarTermoPdfBase64(base64Data, protocolo) {
+    if (!base64Data) return;
+    const link = document.createElement('a');
+    link.href = 'data:application/pdf;base64,' + base64Data;
+    link.download = (protocolo || 'Termo_Acautelamento') + '.pdf';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
+  function imprimirHtmlTermoCautelaDirect() {
+    if (!window.ultimoTermoGeradoCautela || !window.ultimoTermoGeradoCautela.html) return;
+    const printWin = window.open('', '_blank');
+    if (printWin) {
+      printWin.document.write(window.ultimoTermoGeradoCautela.html);
+      printWin.document.close();
+      printWin.focus();
+      setTimeout(() => { printWin.print(); }, 500);
+    }
   }
 
   function abrirModalBaixaCautela() {

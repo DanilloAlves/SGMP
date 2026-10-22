@@ -11178,48 +11178,53 @@ function getItensDisponiveisParaCautela(omeUsuario, perfilUsuario, omeFiltroAdmi
     var perfilClean = String(perfilUsuario || "").trim().toUpperCase();
     var omeCleanUser = String(omeUsuario || "").trim().toUpperCase();
     
-    // Verifica rigorosamente se é Administrador ou DLOG
-    var ehAdmin = (perfilClean === "ADMINISTRADOR");
+    // Verifica se é Administrador ou Comandante
+    var ehAdmin = (perfilClean === "ADMINISTRADOR" || perfilClean.includes("ADMIN"));
 
     var sql = "SELECT ITEM, OBJETO, UNIDADE, SUBUNIDADE, SETOR, LOCALIZACAO_ESPCIFICA_NA_OME_Se_Necessario, N_PATRIMONIO, STATUS " +
               "FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
-              "WHERE (STATUS IS NULL OR UPPER(TRIM(STATUS)) != 'EXTRAVIADO') ";
+              "WHERE (STATUS IS NULL OR UPPER(TRIM(STATUS)) IN ('ECD', 'DISPONIVEL')) " +
+              "  AND UPPER(TRIM(COALESCE(STATUS, 'ECD'))) NOT IN ('ACAUTELADO', 'EXTRAVIADO', 'SCD', 'BAIXADO') ";
 
     if (ehAdmin) {
-      // Se for Administrador, só filtra por OME se ele escolher uma específica no filtro da tela. 
-      // Caso contrário, traz tudo da corporação!
       if (omeFiltroAdmin && omeFiltroAdmin !== "TODAS" && omeFiltroAdmin.trim() !== "") {
-        var omeFiltroClean = obterOmePadronizada(omeFiltroAdmin).toUpperCase();
+        var omeFiltroClean = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(omeFiltroAdmin).toUpperCase() : omeFiltroAdmin.toUpperCase();
         sql += "AND UPPER(TRIM(UNIDADE)) = '" + omeFiltroClean.replace(/'/g, "\\'") + "' ";
       }
     } else {
-      // Usuário comum: Restringe estritamente à sua própria OME
-      var minhaOmeClean = obterOmePadronizada(omeUsuario).toUpperCase();
+      var minhaOmeClean = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(omeUsuario).toUpperCase() : (omeUsuario || "").toUpperCase();
       if (minhaOmeClean) {
         sql += "AND UPPER(TRIM(UNIDADE)) = '" + minhaOmeClean.replace(/'/g, "\\'") + "' ";
       }
     }
     
-    sql += "ORDER BY OBJETO ASC LIMIT 1000";
+    // Ordena por material, localização e por ITEM crescente para que os primeiros itens cadastrados sejam selecionados
+    sql += "ORDER BY OBJETO ASC, SUBUNIDADE ASC, SETOR ASC, LOCALIZACAO_ESPCIFICA_NA_OME_Se_Necessario ASC, ITEM ASC LIMIT 50000";
 
     var res = executarConsultaBigQuerySegura(sql);
     var rows = res.rows || [];
     var lista = [];
 
     rows.forEach(function(r) {
-      var subunidadeBruta = r.f[3].v || "SEDE";
-      var set = r.f[4].v ? " > " + r.f[4].v : "";
-      var loc = r.f[5].v ? " > " + r.f[5].v : "";
+      if (!r || !r.f) return;
+      var subunidadeBruta = (r.f[3] && r.f[3].v) ? String(r.f[3].v).trim() : "SEDE";
+      var setorBruto = (r.f[4] && r.f[4].v) ? String(r.f[4].v).trim() : "";
+      var locEspBruta = (r.f[5] && r.f[5].v) ? String(r.f[5].v).trim() : "";
+
+      var set = setorBruto ? " > " + setorBruto : "";
+      var loc = locEspBruta ? " > " + locEspBruta : "";
       var localizacaoArvore = subunidadeBruta + set + loc;
 
       lista.push({
-        item: r.f[0].v || "",
-        objeto: r.f[1].v || "",
-        unidade: r.f[2].v || "",
+        item: String((r.f[0] && r.f[0].v) || "").trim(),
+        objeto: String((r.f[1] && r.f[1].v) || "").trim(),
+        unidade: String((r.f[2] && r.f[2].v) || "").trim(),
         subunidade: subunidadeBruta,
+        setor: setorBruto,
+        localizacaoEspecifica: locEspBruta,
         localizacao: localizacaoArvore,
-        patrimonio: r.f[6].v || "-",
-        status: r.f[7].v || "ECD"
+        patrimonio: String((r.f[6] && r.f[6].v) || "-").trim(),
+        status: "ECD"
       });
     });
 
@@ -11237,6 +11242,7 @@ function registrarAcautelamentoItens(dados) {
     var matriculaMilitar = String(dados.matriculaMilitar || "").trim();
     var cpfMilitarRecebedor = String(dados.cpfMilitar || "").trim().replace(/\D/g, "");
     var docSei = String(dados.docSei || "").trim();
+    var observacoes = String(dados.observacoes || "").trim();
     var dataPrevista = String(dados.dataPrevistaDevolucao || "").trim();
     if (dataPrevista) {
       var mIso = dataPrevista.match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -11273,7 +11279,6 @@ function registrarAcautelamentoItens(dados) {
       }
     } catch (eUser) {}
 
-    // Fallback para o militar da sessão ativa se não encontrou o CPF
     if (!responsavelValido) {
       var emailSessao = "";
       try { emailSessao = Session.getActiveUser().getEmail(); } catch (e) {}
@@ -11288,13 +11293,11 @@ function registrarAcautelamentoItens(dados) {
       }
     }
 
-    // Grava o CPF do recebedor (civil ou militar) no campo SE_ACAUTELADO_CPF
     var identificacaoMilitarRegistro = cpfMilitarRecebedor || (matriculaMilitar ? "Mat: " + matriculaMilitar : "S/CPF");
 
     function limparSQL(t) { return String(t || '').replace(/'/g, "\\'"); }
     var listaSql = itensIds.map(function(id) { return "'" + limparSQL(id) + "'"; }).join(",");
 
-    // Busca informações atuais dos itens para resolver a SUBUNIDADE pai na árvore e compor histórico
     var normComp_ = function(t) {
       return String(t || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Z0-9]/g, '');
     };
@@ -11374,9 +11377,11 @@ function registrarAcautelamentoItens(dados) {
     }
 
     var agoraData = Utilities.formatDate(new Date(), "America/Recife", "dd/MM/yyyy HH:mm");
-    var obsData = "Acautelado em " + agoraData + (dataPrevista ? " [Prev. Devolução: " + dataPrevista + "]" : "") + (formaConfirmacao === "SEI" ? " (Via Template SEI: " + docSei + ")" : " (Via PIN)");
+    var obsData = "Acautelado em " + agoraData + 
+                  (dataPrevista ? " [Prev. Devolução: " + dataPrevista + "]" : "") + 
+                  (formaConfirmacao === "SEI" ? " (Via Template SEI: " + docSei + ")" : " (Via PIN)") +
+                  (observacoes ? " [Obs: " + observacoes + "]" : "");
 
-    // Executa UPDATE transferindo para a SUBUNIDADE pai na árvore e limpando SETOR / LOCAL
     var subPaisKeys = Object.keys(gruposPorSubPai);
     if (subPaisKeys.length > 0) {
       subPaisKeys.forEach(function(sp) {
@@ -11400,7 +11405,6 @@ function registrarAcautelamentoItens(dados) {
         executarConsultaBigQuerySegura(sqlUpdate, true);
       });
     } else {
-      // Fallback caso a busca inicial de itens não tenha retornado registros
       var sqlUpdateFallback = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` SET " +
                               "STATUS = 'ACAUTELADO', " +
                               "SUBUNIDADE = COALESCE(NULLIF(TRIM(SUBUNIDADE), ''), 'SEDE'), " +
@@ -11415,7 +11419,6 @@ function registrarAcautelamentoItens(dados) {
       executarConsultaBigQuerySegura(sqlUpdateFallback, true);
     }
 
-    // Registra histórico de movimentação (CAUTELA) com origem real e destino na Subunidade pai
     try {
       var eventosCautela = [];
       for (var idxC = 0; idxC < itensIds.length; idxC++) {
@@ -11436,7 +11439,7 @@ function registrarAcautelamentoItens(dados) {
           responsavelNome: responsavelValido,
           responsavelCpf: cpfResponsavel,
           documentoRef: docSei || "-",
-          observacao: "Acautelado para " + (postoMilitar ? postoMilitar + " " : "") + nomeMilitar + " (" + identificacaoMilitarRegistro + ") [Transferido para Subunidade " + subDestino + "]" + (dataPrevista ? " [Previsão de Devolução: " + dataPrevista + "]" : "") + (formaConfirmacao === "SEI" ? " [Confirmação via SEI]" : " [Assinado via PIN]")
+          observacao: "Acautelado para " + (postoMilitar ? postoMilitar + " " : "") + nomeMilitar + " (" + identificacaoMilitarRegistro + ") [Transferido para Subunidade " + subDestino + "]" + (dataPrevista ? " [Previsão de Devolução: " + dataPrevista + "]" : "") + (formaConfirmacao === "SEI" ? " [Confirmação via SEI]" : " [Assinado via PIN]") + (observacoes ? " [Obs: " + observacoes + "]" : "")
         });
       }
       registrarHistoricoMovimentacao(eventosCautela);
@@ -11454,14 +11457,241 @@ function registrarAcautelamentoItens(dados) {
     var itensTxtCaut = itensIds.length <= 10 ? itensIds.join(", ") : (itensIds.slice(0, 10).join(", ") + " e mais " + (itensIds.length - 10) + " itens");
     registrarLogAuditoria(
       "NOVO_ACAUTELAMENTO", 
-      "Acautelou " + itensIds.length + " item(ns)" + descMatTxtCaut + " para " + (postoMilitar ? postoMilitar + " " : "") + nomeMilitar + " (CPF/ID: " + identificacaoMilitarRegistro + "). Código(s) ITEM: [" + itensTxtCaut + "]" + (dataPrevista ? " [Prev. Devolução: " + dataPrevista + "]" : "") + (formaConfirmacao === "SEI" ? " via Template SEI: " + docSei : " via PIN"),
+      "Acautelou " + itensIds.length + " item(ns)" + descMatTxtCaut + " para " + (postoMilitar ? postoMilitar + " " : "") + nomeMilitar + " (CPF/ID: " + identificacaoMilitarRegistro + "). Código(s) ITEM: [" + itensTxtCaut + "]" + (dataPrevista ? " [Prev. Devolução: " + dataPrevista + "]" : "") + (formaConfirmacao === "SEI" ? " via Template SEI: " + docSei : " via PIN") + (observacoes ? " - Obs: " + observacoes : ""),
       responsavelValido
     );
-    return { sucesso: true, mensagem: "Acautelamento concluído com sucesso para " + (postoMilitar ? postoMilitar + " " : "") + nomeMilitar + "!" };
+
+    // Geração do Termo de Acautelamento Oficial em PDF
+    var prefixoData = Utilities.formatDate(new Date(), "America/Recife", "yyyyMMdd");
+    var aleatorio = String(Math.floor(1000 + Math.random() * 9000));
+    var protocoloTermo = "TERMO-CAUT-" + prefixoData + "-" + aleatorio;
+
+    var itensDetalhesTermo = [];
+    for (var tIdx = 0; tIdx < itensIds.length; tIdx++) {
+      var idT = itensIds[tIdx];
+      var infT = itensInfoMap[idT] || {};
+      itensDetalhesTermo.push({
+        item: idT,
+        objeto: infT.objeto || "Material",
+        patrimonio: infT.patrimonio || "-",
+        localizacao: infT.origemLocal || ("Subunidade " + (infT.subPai || "SEDE")),
+        unidade: infT.unidade || ""
+      });
+    }
+
+    var termoPdfResult = null;
+    try {
+      termoPdfResult = gerarTermoAcautelamentoPdf_({
+        protocolo: protocoloTermo,
+        dataHora: Utilities.formatDate(new Date(), "America/Recife", "dd/MM/yyyy HH:mm:ss"),
+        postoMilitar: postoMilitar,
+        nomeMilitar: nomeMilitar,
+        matriculaMilitar: matriculaMilitar,
+        cpfMilitar: identificacaoMilitarRegistro,
+        unidadeMilitar: (itensDetalhesTermo[0] && itensDetalhesTermo[0].unidade) || "CBMPE",
+        responsavelEntrega: responsavelValido,
+        cpfResponsavelEntrega: cpfResponsavel,
+        dataPrevista: dataPrevista,
+        docSei: docSei,
+        formaConfirmacao: formaConfirmacao,
+        observacoes: observacoes,
+        itens: itensDetalhesTermo
+      });
+    } catch (ePdf) {
+      console.warn("Aviso ao gerar PDF do termo de acautelamento: " + ePdf.message);
+    }
+
+    return { 
+      sucesso: true, 
+      mensagem: "Acautelamento concluído com sucesso para " + (postoMilitar ? postoMilitar + " " : "") + nomeMilitar + "!",
+      protocolo: protocoloTermo,
+      termoPdf: termoPdfResult
+    };
   } catch (err) {
     throw new Error("Erro ao registrar acautelamento: " + err.message);
   }
 }
+
+/**
+ * Gera o Termo de Acautelamento oficial formatado em HTML e PDF,
+ * salvando no Google Drive e retornando URL e Base64 para download/impressão e anexação no SEI GOV.
+ */
+function gerarTermoAcautelamentoPdf_(dados) {
+  var protocolo = dados.protocolo || ("CAUT-" + Utilities.formatDate(new Date(), "America/Recife", "yyyyMMdd-HHmmss"));
+  var dataHora = dados.dataHora || Utilities.formatDate(new Date(), "America/Recife", "dd/MM/yyyy HH:mm:ss");
+  var itens = dados.itens || [];
+
+  var linhasTabela = "";
+  for (var i = 0; i < itens.length; i++) {
+    var it = itens[i];
+    linhasTabela += "<tr>" +
+      "<td style='text-align:center; padding: 6px; border: 1px solid #cbd5e1; font-weight: bold;'>" + (i + 1) + "</td>" +
+      "<td style='text-align:center; padding: 6px; border: 1px solid #cbd5e1; font-family: monospace; font-weight: bold; color: #1e293b;'>" + (it.item || "-") + "</td>" +
+      "<td style='padding: 6px; border: 1px solid #cbd5e1; font-weight: bold; color: #0f172a;'>" + (it.objeto || "-") + "</td>" +
+      "<td style='text-align:center; padding: 6px; border: 1px solid #cbd5e1; font-family: monospace;'>" + (it.patrimonio || "-") + "</td>" +
+      "<td style='padding: 6px; border: 1px solid #cbd5e1; font-size: 11px;'>" + (it.localizacao || it.origemLocal || "-") + "</td>" +
+      "<td style='text-align:center; padding: 6px; border: 1px solid #cbd5e1; font-weight: bold; color: #059669;'>ECD</td>" +
+      "<td style='text-align:center; padding: 6px; border: 1px solid #cbd5e1; font-weight: bold;'>1</td>" +
+    "</tr>";
+  }
+
+  var html = "<!DOCTYPE html>" +
+    "<html>" +
+    "<head>" +
+    "<meta charset='utf-8'>" +
+    "<title>Termo de Acautelamento - " + protocolo + "</title>" +
+    "<style>" +
+      "@page { size: A4 portrait; margin: 15mm 15mm 15mm 15mm; }" +
+      "body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 11px; line-height: 1.4; color: #1e293b; margin: 0; padding: 0; }" +
+      ".cabecalho { text-align: center; border-bottom: 2px solid #991b1b; padding-bottom: 8px; margin-bottom: 14px; }" +
+      ".cabecalho img { height: 60px; margin-bottom: 4px; }" +
+      ".cabecalho h1 { font-size: 13px; font-weight: bold; margin: 0; color: #0f172a; text-transform: uppercase; }" +
+      ".cabecalho h2 { font-size: 11px; font-weight: normal; margin: 2px 0; color: #334155; text-transform: uppercase; }" +
+      ".titulo-doc { text-align: center; background-color: #f1f5f9; border: 1px solid #cbd5e1; padding: 6px; font-size: 13px; font-weight: bold; color: #991b1b; margin-bottom: 12px; text-transform: uppercase; border-radius: 4px; }" +
+      ".quadro { border: 1px solid #cbd5e1; border-radius: 4px; padding: 10px; margin-bottom: 12px; background-color: #ffffff; }" +
+      ".quadro-titulo { font-size: 11px; font-weight: bold; color: #991b1b; text-transform: uppercase; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin-bottom: 8px; }" +
+      ".grid-2 { display: table; width: 100%; }" +
+      ".col-50 { display: table-cell; width: 50%; vertical-align: top; padding-right: 8px; }" +
+      "table { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 10px; }" +
+      "th { background-color: #f8fafc; border: 1px solid #cbd5e1; padding: 6px; font-weight: bold; color: #334155; text-align: left; }" +
+      "td { padding: 5px; border: 1px solid #cbd5e1; }" +
+      ".termo-responsabilidade { font-size: 10px; text-align: justify; line-height: 1.45; color: #334155; margin: 12px 0; border: 1px solid #cbd5e1; padding: 10px; background-color: #f8fafc; border-radius: 4px; }" +
+      ".bloco-assinaturas { margin-top: 35px; width: 100%; display: table; page-break-inside: avoid; }" +
+      ".linha-ass { display: table-cell; width: 50%; text-align: center; vertical-align: top; padding: 0 15px; }" +
+      ".traco { border-top: 1px solid #334155; margin-bottom: 6px; }" +
+      ".carimbo-pin { margin-top: 4px; display: inline-block; padding: 2px 8px; background-color: #ecfdf5; border: 1px solid #059669; color: #047857; font-size: 9px; font-weight: bold; border-radius: 3px; }" +
+      ".rodape { margin-top: 20px; font-size: 9px; color: #64748b; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 6px; }" +
+    "</style>" +
+    "</head>" +
+    "<body>" +
+      "<div class='cabecalho'>" +
+        "<img src='https://agendamento.bombeiros.pe.gov.br/assets/logo_cbmpe.png' alt='Brasão CBMPE'>" +
+        "<h1>Governo do Estado de Pernambuco — Secretaria de Defesa Social</h1>" +
+        "<h2>Corpo de Bombeiros Militar de Pernambuco (CBMPE)</h2>" +
+        "<h2>Diretoria de Logística (DLOG) — Sistema de Gestão de Materiais e Patrimônio (SGMP)</h2>" +
+      "</div>" +
+
+      "<div class='titulo-doc'>Termo de Acautelamento e Responsabilidade de Carga de Material</div>" +
+
+      "<div class='quadro'>" +
+        "<div class='quadro-titulo'>1. Identificação do Documento e da Movimentação</div>" +
+        "<div class='grid-2'>" +
+          "<div class='col-50'>" +
+            "<div><strong>Nº Termo / Protocolo:</strong> <span style='font-family: monospace; font-weight: bold; color: #991b1b;'>" + protocolo + "</span></div>" +
+            "<div><strong>Data e Hora:</strong> " + dataHora + "</div>" +
+            "<div><strong>Unidade / OME de Carga:</strong> " + (dados.unidadeMilitar || "CBMPE") + "</div>" +
+          "</div>" +
+          "<div class='col-50'>" +
+            "<div><strong>Previsão de Devolução:</strong> " + (dados.dataPrevista || "A critério da necessidade do serviço") + "</div>" +
+            "<div><strong>Documento / SEI Ref.:</strong> " + (dados.docSei || "N/A") + "</div>" +
+            "<div><strong>Forma de Confirmação:</strong> " + (dados.formaConfirmacao === "PIN" ? "Assinatura Eletrônica por PIN" : "Processo / Template SEI") + "</div>" +
+          "</div>" +
+        "</div>" +
+        (dados.observacoes ? "<div style='margin-top: 6px; padding-top: 6px; border-top: 1px dashed #e2e8f0;'><strong>Observações Gerais:</strong> " + dados.observacoes + "</div>" : "") +
+      "</div>" +
+
+      "<div class='quadro'>" +
+        "<div class='quadro-titulo'>2. Qualificação das Partes Envolvidas</div>" +
+        "<div class='grid-2'>" +
+          "<div class='col-50'>" +
+            "<div style='font-weight: bold; color: #0f172a; margin-bottom: 2px;'>Militar / Civil Recebedor (Cautelado):</div>" +
+            "<div><strong>Nome Completo:</strong> " + (dados.postoMilitar ? dados.postoMilitar + " " : "") + dados.nomeMilitar + "</div>" +
+            (dados.matriculaMilitar ? "<div><strong>Matrícula:</strong> " + dados.matriculaMilitar + "</div>" : "") +
+            "<div><strong>CPF / Identificação:</strong> " + dados.cpfMilitar + "</div>" +
+          "</div>" +
+          "<div class='col-50'>" +
+            "<div style='font-weight: bold; color: #0f172a; margin-bottom: 2px;'>Responsável pela Entrega / Gestor de Estoque:</div>" +
+            "<div><strong>Nome Completo:</strong> " + (dados.responsavelEntrega || "Operador DLOG / CBMPE") + "</div>" +
+            "<div><strong>CPF:</strong> " + (dados.cpfResponsavelEntrega || "-") + "</div>" +
+            "<div><strong>Lotação:</strong> " + (dados.unidadeMilitar || "CBMPE") + "</div>" +
+          "</div>" +
+        "</div>" +
+      "</div>" +
+
+      "<div class='quadro'>" +
+        "<div class='quadro-titulo'>3. Relação de Materiais Acautelados (" + itens.length + " item/itens)</div>" +
+        "<table>" +
+          "<thead>" +
+            "<tr>" +
+              "<th style='width: 30px; text-align: center;'>#</th>" +
+              "<th style='width: 85px; text-align: center;'>Cód. Item</th>" +
+              "<th>Descrição do Material</th>" +
+              "<th style='width: 90px; text-align: center;'>Patrimônio / Série</th>" +
+              "<th>Local de Armazenamento / Origem</th>" +
+              "<th style='width: 60px; text-align: center;'>Situação</th>" +
+              "<th style='width: 40px; text-align: center;'>Qtd</th>" +
+            "</tr>" +
+          "</thead>" +
+          "<tbody>" +
+            linhasTabela +
+          "</tbody>" +
+        "</table>" +
+      "</div>" +
+
+      "<div class='termo-responsabilidade'>" +
+        "<strong>TERMO DE FIEL DEPOSITÁRIO E DECLARAÇÃO DE RESPONSABILIDADE:</strong><br>" +
+        "Declaro para os devidos fins que recebi em perfeitas condições de uso, acondicionamento e funcionamento (ECD) os materiais discriminados neste instrumento, assumindo expressamente a condição de <strong>FIEL DEPOSITÁRIO</strong> sobre os mesmos. Comprometo-me a zelar pela sua integridade física, mantê-los sob minha direta guarda e utilizá-los com zelo e exclusividade nas missões e atribuições do Corpo de Bombeiros Militar de Pernambuco. Declaro ainda estar plenamente ciente do dever de restituição integral no prazo previsto ou quando solicitado pela chefia competente, respondendo civil, penal e administrativamente pelas avarias decorrentes de dolo, negligência, imperícia ou imprudência, bem como por eventuais perdas ou extravios, mediante abertura de sindicância e obrigação de ressarcimento ao erário público estadual, nos termos da legislação vigente." +
+      "</div>" +
+
+      "<div class='bloco-assinaturas'>" +
+        "<div class='linha-ass'>" +
+          "<div class='traco'></div>" +
+          "<strong>" + (dados.postoMilitar ? dados.postoMilitar + " " : "") + dados.nomeMilitar + "</strong><br>" +
+          "<span style='font-size: 10px; color: #475569;'>Militar / Civil Recebedor (CPF: " + dados.cpfMilitar + ")</span><br>" +
+          (dados.formaConfirmacao === "PIN" ? "<span class='carimbo-pin'><i class='fa-solid fa-check'></i> ASSINADO ELETRONICAMENTE POR PIN</span>" : "<span style='font-size: 9px; color: #166534;'>Justificativa SEI: " + (dados.docSei || "Anexo Documental") + "</span>") +
+        "</div>" +
+        "<div class='linha-ass'>" +
+          "<div class='traco'></div>" +
+          "<strong>" + (dados.responsavelEntrega || "Encarregado de Material / Armeiro") + "</strong><br>" +
+          "<span style='font-size: 10px; color: #475569;'>Gestor de Estoque / Responsável pela Entrega</span><br>" +
+          "<span style='font-size: 9px; color: #64748b;'>CBMPE — " + (dados.unidadeMilitar || "DLOG") + "</span>" +
+        "</div>" +
+      "</div>" +
+
+      "<div class='rodape'>" +
+        "Documento emitido eletronicamente pelo Sistema de Gestão de Materiais e Patrimônio (SGMP) em " + dataHora + ". Para anexação e instrução de processo no Sistema Eletrônico de Informações (SEI-PE)." +
+      "</div>" +
+    "</body>" +
+    "</html>";
+
+  var pdfBlob = Utilities.newBlob(html, "text/html", "Termo_Acautelamento_" + protocolo + ".html").getAs("application/pdf");
+  pdfBlob.setName("Termo_Acautelamento_" + protocolo + ".pdf");
+
+  var urlDrive = "";
+  var idArquivo = "";
+  try {
+    var ID_PASTA_DRIVE = "19XnaC8v_hVRQRwasGToMtNpyvsrCl5SW";
+    var pasta = null;
+    if (ID_PASTA_DRIVE) {
+      try { pasta = DriveApp.getFolderById(ID_PASTA_DRIVE); } catch(eP) {}
+    }
+    var arq = pasta ? pasta.createFile(pdfBlob) : DriveApp.createFile(pdfBlob);
+    try {
+      arq.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    } catch(eShare) {
+      try { arq.setSharing(DriveApp.Access.DOMAIN_WITH_LINK, DriveApp.Permission.VIEW); } catch(eDom) {}
+    }
+    idArquivo = arq.getId();
+    urlDrive = "https://drive.google.com/file/d/" + idArquivo + "/view?usp=sharing";
+  } catch(eDrive) {
+    console.warn("Aviso ao salvar PDF no Drive: " + eDrive.message);
+  }
+
+  var base64 = "";
+  try {
+    base64 = Utilities.base64Encode(pdfBlob.getBytes());
+  } catch(eB64) {}
+
+  return {
+    sucesso: true,
+    protocolo: protocolo,
+    urlDrive: urlDrive,
+    idArquivo: idArquivo,
+    base64: base64,
+    html: html
+  };
+}
+
 
 // Busca os materiais acautelados. Para Usuário, filtra pelo CPF/Nome. Para Chefe de Setor e Administrador, exibe materiais com nome e CPF do militar acautelado.
 function getMinhasCautelasUsuario(cpfInformado, perfilInformado, omeInformada) {
