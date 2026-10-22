@@ -1949,31 +1949,31 @@
 
         <!-- ================= SEÇÃO 2: DEVOLUÇÃO / BAIXA DE CAUTELA ================= -->
         <div id="secao-baixa-acautelamento" style="display: none;">
-          <h4 class="fw-bold text-danger mb-2"><i class="fa-solid fa-rotate-left me-2"></i> Gestão de Devoluções e Baixa de Cautela</h4>
-          <p class="text-muted small mb-4">Selecione abaixo os itens que estão retornando do acautelamento para registrar a devolução e o estado de conservação.</p>
+          <h4 class="fw-bold text-danger mb-2"><i class="fa-solid fa-rotate-left me-2"></i> Gestão de Devoluções e Baixa de Solicitações de Cautela</h4>
+          <p class="text-muted small mb-4">Selecione ou identifique abaixo a Solicitação / Termo de Acautelamento para registrar a devolução e baixa consolidada dos materiais vinculados ao pedido.</p>
 
-          <div class="table-responsive border rounded bg-white mb-3" style="max-height: 400px; overflow-y: auto;">
+          <div class="table-responsive border rounded bg-white mb-3" style="max-height: 440px; overflow-y: auto;">
             <table class="table table-sm table-hover align-middle small mb-0">
               <thead class="table-light sticky-top">
                 <tr>
                   <th class="text-center" style="width: 40px;"><input type="checkbox" id="checkMasterBaixa" onclick="marcarTodosBaixa(this.checked)"></th>
-                  <th style="min-width: 145px;"><i class="fa-regular fa-clock me-1 text-primary"></i> Data e Hora da Cautela</th>
-                  <th>ID Sistema</th>
-                  <th>Material</th>
-                  <th>Militar Cautelado</th>
+                  <th style="min-width: 160px;"><i class="fa-solid fa-file-contract me-1 text-danger"></i> Termo / Solicitação</th>
+                  <th style="min-width: 145px;"><i class="fa-regular fa-clock me-1 text-primary"></i> Data da Cautela</th>
+                  <th style="min-width: 180px;"><i class="fa-solid fa-user me-1 text-primary"></i> Militar Responsável</th>
+                  <th style="min-width: 260px;"><i class="fa-solid fa-boxes-stacked me-1 text-primary"></i> Materiais Solicitados</th>
                   <th>OME / Local</th>
-                  <th>Termo SEI</th>
+                  <th class="text-center" style="min-width: 140px;">Ações</th>
                 </tr>
               </thead>
               <tbody id="tabelaItensBaixa">
-                <tr><td colspan="7" class="text-center text-muted py-3">Carregando itens acautelados...</td></tr>
+                <tr><td colspan="7" class="text-center text-muted py-3">Carregando solicitações de acautelamento...</td></tr>
               </tbody>
             </table>
           </div>
 
           <div class="text-end">
             <button class="btn btn-danger fw-bold px-4 py-2" onclick="abrirModalBaixaCautela()">
-              <i class="fa-solid fa-circle-check me-1"></i> Registrar Devolução / Baixa Selecionados
+              <i class="fa-solid fa-circle-check me-1"></i> Baixar Solicitação(ões) Selecionada(s)
             </button>
           </div>
         </div>
@@ -1982,35 +1982,46 @@
         <div id="secao-minhas-cautelas" style="display: block;">
           <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
             <div>
-              <h4 class="fw-bold text-primary mb-1" id="tituloSecaoMinhasCautelas"><i class="fa-solid fa-user-shield me-2"></i> Materiais Acautelados</h4>
-              <p class="text-muted small mb-0" id="subtituloSecaoMinhasCautelas">Consulta consolidada dos materiais acautelados com identificação do militar e CPF.</p>
+              <h4 class="fw-bold text-primary mb-1" id="tituloSecaoMinhasCautelas"><i class="fa-solid fa-file-contract me-2"></i> Solicitações / Termos de Acautelamento</h4>
+              <p class="text-muted small mb-0" id="subtituloSecaoMinhasCautelas">Acompanhamento consolidado das solicitações de acautelamento e relação de materiais por pedido.</p>
             </div>
             <div class="d-flex gap-2">
               <button class="btn btn-sm btn-outline-primary fw-bold" onclick="carregarMinhasCautelas(true)" title="Recarregar lista">
                 <i class="fa-solid fa-rotate me-1"></i> Atualizar
               </button>
-              <button class="btn btn-sm btn-outline-secondary fw-bold" onclick="imprimirTermoMinhasCautelas()" title="Imprimir Termo de Responsabilidade">
+              <button class="btn btn-sm btn-outline-secondary fw-bold" onclick="imprimirTermoMinhasCautelas()" title="Imprimir Relação de Pedidos">
                 <i class="fa-solid fa-print me-1"></i> Imprimir Relação
               </button>
             </div>
           </div>
 
-          <!-- CARD RESUMO / KPI ÚNICO (APENAS TOTAL DE ITENS) -->
+          <!-- CARDS RESUMO / KPIS (TOTAL DE PEDIDOS E TOTAL DE MATERIAIS) -->
           <div class="row g-3 mb-3">
-            <div class="col-md-12">
+            <div class="col-md-6">
               <div class="card p-3 border-start border-primary border-4 shadow-sm bg-white d-flex flex-row justify-content-between align-items-center">
                 <div>
-                  <span class="text-muted small fw-bold text-uppercase"><i class="fa-solid fa-boxes-stacked me-1 text-primary"></i> Total de Materiais Acautelados</span>
-                  <h3 class="fw-bold text-primary mb-0 mt-1" id="cardTotalMinhasCautelas">0</h3>
+                  <span class="text-muted small fw-bold text-uppercase"><i class="fa-solid fa-file-signature me-1 text-primary"></i> Total de Solicitações / Termos</span>
+                  <h3 class="fw-bold text-primary mb-0 mt-1" id="cardTotalPedidosCautelas">0</h3>
                 </div>
                 <div>
-                  <span class="badge bg-primary fs-6 px-3 py-2" id="badgeTotalMinhasCautelasCard">0 item(ns)</span>
+                  <span class="badge bg-primary fs-6 px-3 py-2" id="badgeTotalPedidosCard">0 pedido(s)</span>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="card p-3 border-start border-info border-4 shadow-sm bg-white d-flex flex-row justify-content-between align-items-center">
+                <div>
+                  <span class="text-muted small fw-bold text-uppercase"><i class="fa-solid fa-boxes-stacked me-1 text-info"></i> Total Geral de Materiais</span>
+                  <h3 class="fw-bold text-info mb-0 mt-1" id="cardTotalMinhasCautelas">0</h3>
+                </div>
+                <div>
+                  <span class="badge bg-info text-dark fs-6 px-3 py-2" id="badgeTotalMinhasCautelasCard">0 item(ns)</span>
                 </div>
               </div>
             </div>
           </div>
 
-          <!-- BARRA DE FILTROS PARA ADMIN E CHEFE DE SETOR (NOME, CPF E MATERIAL) -->
+          <!-- BARRA DE FILTROS PARA ADMIN E CHEFE DE SETOR -->
           <div id="blocoFiltrosAdminChefeCautelas" class="row g-2 p-3 bg-light rounded border mb-3 shadow-sm align-items-end" style="display: none;">
             <div class="col-md-4">
               <label class="form-label small fw-bold mb-1"><i class="fa-solid fa-user me-1 text-primary"></i> Militar Acautelado (Lista):</label>
@@ -2023,10 +2034,8 @@
               <input type="text" class="form-control form-control-sm" id="filtroCpfMilitarCautelas" placeholder="Filtrar por CPF..." onkeyup="aplicarFiltrosCautelasAdminChefe()">
             </div>
             <div class="col-md-4">
-              <label class="form-label small fw-bold mb-1"><i class="fa-solid fa-box-archive me-1 text-primary"></i> Descrição do Material (Lista):</label>
-              <select class="form-select form-select-sm" id="filtroMaterialCautelas" onchange="aplicarFiltrosCautelasAdminChefe()">
-                <option value="">Todos os Materiais</option>
-              </select>
+              <label class="form-label small fw-bold mb-1"><i class="fa-solid fa-box-archive me-1 text-primary"></i> Material ou Termo:</label>
+              <input type="text" class="form-control form-control-sm" id="filtroMaterialCautelas" placeholder="Buscar por material ou termo..." onkeyup="aplicarFiltrosCautelasAdminChefe()">
             </div>
             <div class="col-md-1">
               <button class="btn btn-outline-secondary btn-sm w-100 fw-bold" onclick="limparFiltrosCautelasAdminChefe()" title="Limpar Filtros">
@@ -2039,30 +2048,27 @@
           <div id="blocoBuscaRapidaUsuarioCautelas" class="mb-3" style="display: none;">
             <div class="input-group input-group-sm">
               <span class="input-group-text bg-light"><i class="fa-solid fa-magnifying-glass"></i></span>
-              <input type="text" id="inputBuscaMinhasCautelas" class="form-control" placeholder="Buscar por material, patrimônio, termo SEI ou OME..." onkeyup="filtrarTabelaMinhasCautelas()">
+              <input type="text" id="inputBuscaMinhasCautelas" class="form-control" placeholder="Buscar por termo, material, militar, CPF ou OME..." onkeyup="filtrarTabelaMinhasCautelas()">
             </div>
           </div>
 
-          <!-- TABELA DE ITENS ACAUTELADOS (COM NOME E CPF DO MILITAR) -->
-          <div class="table-responsive border rounded bg-white shadow-sm mb-3" style="max-height: 420px; overflow-y: auto;">
+          <!-- TABELA DE SOLICITAÇÕES / TERMOS DE ACAUTELAMENTO -->
+          <div class="table-responsive border rounded bg-white shadow-sm mb-3" style="max-height: 440px; overflow-y: auto;">
             <table class="table table-sm table-hover align-middle small mb-0">
               <thead class="table-light sticky-top">
                 <tr>
-                  <th style="min-width: 145px;"><i class="fa-regular fa-clock me-1 text-primary"></i> Data e Hora da Cautela</th>
+                  <th style="min-width: 160px;"><i class="fa-solid fa-file-contract me-1 text-primary"></i> Termo / Solicitação</th>
+                  <th style="min-width: 145px;"><i class="fa-regular fa-clock me-1 text-primary"></i> Data da Cautela</th>
                   <th style="min-width: 135px;"><i class="fa-regular fa-calendar-check me-1 text-primary"></i> Prev. Devolução</th>
-                  <th>ID Sistema</th>
-                  <th>Descrição do Material</th>
-                  <th>Militar Acautelado</th>
-                  <th>CPF do Militar</th>
-                  <th>Patrimônio</th>
-                  <th>Termo / Doc SEI</th>
-                  <th>Localização / OME</th>
-                  <th class="text-center" style="width: 100px;">Estado</th>
-                  <th>Observações</th>
+                  <th style="min-width: 180px;">Militar Responsável</th>
+                  <th style="min-width: 260px;"><i class="fa-solid fa-boxes-stacked me-1 text-primary"></i> Materiais Solicitados</th>
+                  <th>OME / Local</th>
+                  <th class="text-center" style="width: 95px;">Situação</th>
+                  <th class="text-center" style="min-width: 130px;">Ações</th>
                 </tr>
               </thead>
               <tbody id="tabelaMinhasCautelas">
-                <tr><td colspan="11" class="text-center text-muted py-4"><i class="fa-solid fa-spinner fa-spin me-2"></i> Carregando materiais acautelados...</td></tr>
+                <tr><td colspan="8" class="text-center text-muted py-4"><i class="fa-solid fa-spinner fa-spin me-2"></i> Carregando solicitações de acautelamento...</td></tr>
               </tbody>
             </table>
           </div>
@@ -16469,9 +16475,93 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     }
   }
 
+  // =========================================================
+  // GESTÃO DE PEDIDOS / TERMOS DE ACAUTELAMENTO (AGRUPAMENTO)
+  // =========================================================
+  function agruparItensEmPedidosCautela(itens) {
+    if (!itens || !Array.isArray(itens) || itens.length === 0) return [];
+    const grupos = {};
+
+    itens.forEach(item => {
+      let prot = String(item.protocoloTermo || '').trim();
+      if (!prot || prot === '-' || prot === 'null') {
+        const doc = String(item.docSei || item.docSeiCautela || '');
+        const m = doc.match(/TERMO-CAUT-[\w\-]+/i);
+        if (m) {
+          prot = m[0].toUpperCase();
+        } else {
+          const obs = String(item.observacao || '');
+          const mObs = obs.match(/TERMO-CAUT-[\w\-]+/i);
+          if (mObs) {
+            prot = mObs[0].toUpperCase();
+          }
+        }
+      }
+
+      const milNome = String(item.nomeMilitar || '').trim();
+      const milCpf = String(item.cpfMilitar || item.matriculaCpfMilitar || '').trim();
+      const milIdent = (milCpf || milNome || 'MILITAR').toUpperCase();
+      const dataHoraClean = String(item.dataCautela || '').trim();
+      const unid = String(item.unidade || '').trim().toUpperCase();
+
+      const chavePedido = (prot && prot.startsWith('TERMO-CAUT-'))
+        ? prot
+        : (milIdent + '|||' + dataHoraClean + '|||' + unid);
+
+      if (!grupos[chavePedido]) {
+        const protFormatado = (prot && prot.startsWith('TERMO-CAUT-'))
+          ? prot
+          : ('TERMO-' + (dataHoraClean.replace(/\D+/g, '').slice(0, 8) || 'HIST') + '-' + (milCpf.replace(/\D+/g, '').slice(-4) || milNome.replace(/\W+/g, '').slice(0, 4) || '0000'));
+
+        grupos[chavePedido] = {
+          chavePedido: chavePedido,
+          protocolo: protFormatado,
+          dataCautela: item.dataCautela || '-',
+          dataPrevista: item.dataPrevista || '-',
+          nomeMilitar: milNome,
+          postoMilitar: item.postoMilitar || item.postoGradMilitar || '',
+          cpfMilitar: item.cpfMilitar || '',
+          matriculaCpfMilitar: item.matriculaCpfMilitar || (item.cpfMilitar ? 'CPF: ' + item.cpfMilitar : '-'),
+          unidade: item.unidade || '-',
+          subunidade: item.subunidade || 'SEDE',
+          localizacao: item.localizacao || ((item.unidade || '') + ' > ' + (item.subunidade || 'SEDE')),
+          docSei: item.docSei || item.docSeiCautela || '-',
+          observacao: item.observacao || '',
+          status: item.status || 'ACAUTELADO',
+          itens: [],
+          itensIds: [],
+          materiaisAgrupados: {}
+        };
+      }
+
+      grupos[chavePedido].itens.push(item);
+      if (item.item && !grupos[chavePedido].itensIds.includes(item.item)) {
+        grupos[chavePedido].itensIds.push(item.item);
+      }
+
+      const descObj = String(item.objeto || 'Material').trim().toUpperCase();
+      grupos[chavePedido].materiaisAgrupados[descObj] = (grupos[chavePedido].materiaisAgrupados[descObj] || 0) + 1;
+    });
+
+    const listaPedidos = Object.values(grupos);
+    listaPedidos.forEach(p => {
+      p.totalItens = p.itensIds.length;
+      p.materiaisResumoLista = Object.entries(p.materiaisAgrupados).map(([mat, qtd]) => qtd + 'x ' + mat);
+      p.materiaisResumoTexto = p.materiaisResumoLista.join(', ');
+    });
+
+    return listaPedidos;
+  }
+
+  // =========================================================
+  // GESTÃO DA VISÃO: DEVOLUÇÃO / BAIXA DE CAUTELA (POR PEDIDO)
+  // =========================================================
+  let cacheItensBaixaRawGlobal = [];
+  let cachePedidosBaixaGlobal = [];
+
   function carregarDadosItensBaixa() {
     const tbody = document.getElementById('tabelaItensBaixa');
-    if (tbody) tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-3"><i class="fa-solid fa-spinner fa-spin me-2"></i> Carregando itens...</td></tr>';
+    if (tbody) tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-3"><i class="fa-solid fa-spinner fa-spin me-2"></i> Carregando solicitações de acautelamento...</td></tr>';
 
     const pClean = String(PERFIL_GLOBAL || "").toLowerCase();
     const ehAdmin = typeof ehAdminGlobal === "function" ? ehAdminGlobal() : pClean.includes("admin");
@@ -16497,10 +16587,11 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
           filtrados = filtrados.filter(i => String(i.unidade || "").toUpperCase() === omeUsuarioStr);
         }
 
-        cacheItensBaixaGlobal = filtrados;
+        cacheItensBaixaRawGlobal = filtrados;
+        cachePedidosBaixaGlobal = agruparItensEmPedidosCautela(filtrados);
 
-        if (cacheItensBaixaGlobal.length === 0) {
-          const msgVazia = ehUsuario ? "Você não possui nenhum material acautelado sob sua responsabilidade no momento." : "Nenhum material acautelado encontrado.";
+        if (cachePedidosBaixaGlobal.length === 0) {
+          const msgVazia = ehUsuario ? "Você não possui nenhuma solicitação de acautelamento ativa sob sua responsabilidade no momento." : "Nenhuma solicitação de acautelamento ativa encontrada.";
           tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-3">${msgVazia}</td></tr>`;
           const theadCheck = document.getElementById('checkMasterBaixa');
           if (theadCheck) theadCheck.style.display = ehUsuario ? 'none' : 'inline-block';
@@ -16511,123 +16602,135 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
         if (theadCheck) theadCheck.style.display = ehUsuario ? 'none' : 'inline-block';
 
         let html = '';
-        cacheItensBaixaGlobal.forEach(i => {
-          const checkboxHtml = ehUsuario ? '' : `<td class="text-center"><input type="checkbox" class="check-item-baixa" value="${i.item}"></td>`;
-          const dataCautelaBadge = (i.dataCautela && i.dataCautela !== '-') 
-            ? `<span class="badge bg-light text-dark border font-monospace small"><i class="fa-regular fa-clock me-1 text-primary"></i>${i.dataCautela}</span>` 
+        cachePedidosBaixaGlobal.forEach(p => {
+          const checkboxHtml = ehUsuario ? '' : `<td class="text-center"><input type="checkbox" class="check-pedido-baixa" value="${p.chavePedido}" data-itens="${p.itensIds.join(',')}"></td>`;
+          const dataCautelaBadge = (p.dataCautela && p.dataCautela !== '-') 
+            ? `<span class="badge bg-light text-dark border font-monospace small"><i class="fa-regular fa-clock me-1 text-primary"></i>${p.dataCautela}</span>` 
             : '<span class="text-muted">-</span>';
-          const dataPrevistaBadge = (i.dataPrevista && i.dataPrevista !== '-')
-            ? `<br><span class="badge bg-primary bg-opacity-10 text-primary border border-primary-subtle font-monospace small mt-1" title="Data Prevista para Devolução"><i class="fa-regular fa-calendar-check me-1"></i>Prev: ${i.dataPrevista}</span>`
+          const dataPrevistaBadge = (p.dataPrevista && p.dataPrevista !== '-')
+            ? `<br><span class="badge bg-primary bg-opacity-10 text-primary border border-primary-subtle font-monospace small mt-1" title="Data Prevista para Devolução"><i class="fa-regular fa-calendar-check me-1"></i>Prev: ${p.dataPrevista}</span>`
             : '';
-          
+
+          const badgesMateriaisHtml = Object.entries(p.materiaisAgrupados).map(([mat, qtd]) => 
+            `<span class="badge bg-secondary bg-opacity-10 text-dark border me-1 mb-1 font-monospace" style="font-size: 0.78rem;">${qtd}x ${mat}</span>`
+          ).join('');
+
           html += `
             <tr>
               ${checkboxHtml}
-              <td>${dataCautelaBadge}${dataPrevistaBadge}</td>
-              <td class="fw-bold text-secondary">${i.item}</td>
-              <td class="fw-bold text-dark">${i.objeto}</td>
               <td>
-                <span class="badge bg-warning text-dark mb-1">${i.postoGradMilitar || ''} ${i.nomeMilitar || 'N/I'}</span>
-                <br><small class="text-muted"><i class="fa-solid fa-id-card me-1"></i> ${i.matriculaCpfMilitar || '-'}</small>
+                <span class="badge bg-light text-danger border border-danger-subtle font-monospace fw-bold" style="font-size: 0.82rem;">
+                  <i class="fa-solid fa-file-contract me-1"></i>${p.protocolo}
+                </span>
+                ${p.docSei && p.docSei !== '-' ? `<br><small class="text-muted font-monospace"><i class="fa-solid fa-link me-1"></i>${p.docSei}</small>` : ''}
               </td>
-              <td><small>${i.unidade} > ${i.subunidade}</small></td>
-              <td><small>${i.docSeiCautela || '-'}</small></td>
+              <td>${dataCautelaBadge}${dataPrevistaBadge}</td>
+              <td>
+                <span class="badge bg-warning text-dark mb-1">${p.postoMilitar ? p.postoMilitar + ' ' : ''}${p.nomeMilitar || 'N/I'}</span>
+                <br><small class="text-muted"><i class="fa-solid fa-id-card me-1"></i> ${p.matriculaCpfMilitar || '-'}</small>
+              </td>
+              <td>
+                <div class="mb-1">
+                  <span class="badge bg-primary text-white font-monospace"><i class="fa-solid fa-boxes-stacked me-1"></i>${p.totalItens} material(is)</span>
+                </div>
+                <div>${badgesMateriaisHtml}</div>
+              </td>
+              <td><small>${p.unidade} &gt; ${p.subunidade}</small></td>
+              <td class="text-center">
+                ${ehUsuario ? '' : `
+                  <button class="btn btn-sm btn-outline-danger fw-bold me-1" onclick="abrirModalBaixaPedido('${p.chavePedido}')" title="Registrar devolução e baixa deste pedido">
+                    <i class="fa-solid fa-rotate-left me-1"></i> Baixar
+                  </button>
+                `}
+                <button class="btn btn-sm btn-outline-secondary" onclick="verDetalhesPedidoCautela('${p.chavePedido}', 'baixa')" title="Visualizar materiais detalhados do pedido">
+                  <i class="fa-solid fa-list-ul"></i>
+                </button>
+              </td>
             </tr>`;
         });
         tbody.innerHTML = html;
       })
       .withFailureHandler(err => {
-        if (tbody) tbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger py-3">Erro ao carregar: ${err.message}</td></tr>`;
+        if (tbody) tbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger py-3">Erro ao carregar solicitações: ${err.message}</td></tr>`;
       })
       .getItensAcauteladosAtuais(parametroOme, PERFIL_GLOBAL);
   }
 
   function marcarTodosBaixa(marcar) {
-    document.querySelectorAll('.check-item-baixa').forEach(c => c.checked = marcar);
+    document.querySelectorAll('.check-pedido-baixa').forEach(c => c.checked = marcar);
   }
 
   // =========================================================
-  // GESTÃO DA VISÃO: MINHAS CAUTELAS (PERFIL USUÁRIO E GERAL)
+  // GESTÃO DA VISÃO: MINHAS CAUTELAS / CAUTELA DO EFETIVO
   // =========================================================
-  let cacheMinhasCautelasGlobal = [];
+  let cacheMinhasCautelasRawGlobal = [];
+  let cachePedidosMinhasCautelasGlobal = [];
 
   function carregarMinhasCautelas(forcar = false) {
     const tbody = document.getElementById('tabelaMinhasCautelas');
     if (tbody) {
-      tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-4"><i class="fa-solid fa-spinner fa-spin me-2"></i> Carregando materiais acautelados...</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4"><i class="fa-solid fa-spinner fa-spin me-2"></i> Carregando solicitações de acautelamento...</td></tr>';
     }
 
     const ehAdminOuChefe = (typeof ehAdminOuChefeGlobal === 'function' && ehAdminOuChefeGlobal()) || (typeof temPermissao === 'function' && temPermissao('acautelamento'));
     const perfilUsuario = String((usuarioSessaoAtual && usuarioSessaoAtual.perfil) ? usuarioSessaoAtual.perfil : (PERFIL_GLOBAL || "")).trim();
     const ehAdmin = typeof ehAdminGlobal === "function" ? ehAdminGlobal() : perfilUsuario.toLowerCase().includes("admin");
-    
-    // Para Administrador, busca toda a base corporativa (passa "TODAS")
-    // Para Chefe de Setor ou com permissão de acautelamento, busca todos da sua OME (passa OME_GLOBAL)
-    // Para Usuário comum sem permissão, consulta por CPF
+
     const omeParametro = ehAdmin ? "TODAS" : (OME_GLOBAL || "");
     const cpfUsuario = (usuarioSessaoAtual && usuarioSessaoAtual.cpf) ? String(usuarioSessaoAtual.cpf).replace(/\D/g, '') : "";
 
     google.script.run
       .withSuccessHandler(itens => {
-        // Garantir que permaneçam na lista de Cautelas apenas materiais com status ACAUTELADO
-        cacheMinhasCautelasGlobal = (itens || []).filter(i => {
+        cacheMinhasCautelasRawGlobal = (itens || []).filter(i => {
           const st = String(i.status || "").trim().toUpperCase();
           return st === "ACAUTELADO";
         });
 
-        // Alterna entre os blocos de busca/filtros conforme o perfil
+        cachePedidosMinhasCautelasGlobal = agruparItensEmPedidosCautela(cacheMinhasCautelasRawGlobal);
+
         const blocoAdmin = document.getElementById('blocoFiltrosAdminChefeCautelas');
         const blocoUser = document.getElementById('blocoBuscaRapidaUsuarioCautelas');
 
         if (ehAdminOuChefe) {
           if (blocoAdmin) blocoAdmin.style.display = 'flex';
           if (blocoUser) blocoUser.style.display = 'none';
-          popularFiltrosCautelasAdminChefe(cacheMinhasCautelasGlobal);
+          popularFiltrosCautelasAdminChefe(cachePedidosMinhasCautelasGlobal, cacheMinhasCautelasRawGlobal);
         } else {
           if (blocoAdmin) blocoAdmin.style.display = 'none';
           if (blocoUser) blocoUser.style.display = 'block';
         }
 
-        atualizarKpisMinhasCautelas(cacheMinhasCautelasGlobal);
-        renderizarTabelaMinhasCautelas(cacheMinhasCautelasGlobal);
+        atualizarKpisMinhasCautelas(cachePedidosMinhasCautelasGlobal, cacheMinhasCautelasRawGlobal);
+        renderizarTabelaMinhasCautelas(cachePedidosMinhasCautelasGlobal);
       })
       .withFailureHandler(err => {
         if (tbody) {
-          tbody.innerHTML = `<tr><td colspan="10" class="text-center text-danger py-4">Erro ao carregar materiais: ${err.message}</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="8" class="text-center text-danger py-4">Erro ao carregar solicitações: ${err.message}</td></tr>`;
         }
       })
       .getMinhasCautelasUsuario(cpfUsuario, perfilUsuario, omeParametro);
   }
 
-  function popularFiltrosCautelasAdminChefe(itens) {
+  function popularFiltrosCautelasAdminChefe(pedidos, itens) {
     const selMilitar = document.getElementById('filtroMilitarCautelas');
-    const selMaterial = document.getElementById('filtroMaterialCautelas');
-    if (!selMilitar || !selMaterial) return;
+    if (!selMilitar) return;
 
     const militarAtual = selMilitar.value;
-    const materialAtual = selMaterial.value;
-
     const militaresMap = new Map();
-    const materiaisSet = new Set();
 
-    (itens || []).forEach(i => {
-      const nome = String(i.nomeMilitar || "").trim();
-      const posto = String(i.postoMilitar || "").trim();
-      const cpf = String(i.cpfMilitar || "").trim();
+    (pedidos || []).forEach(p => {
+      const nome = String(p.nomeMilitar || "").trim();
+      const posto = String(p.postoMilitar || "").trim();
+      const cpf = String(p.cpfMilitar || "").trim();
       if (nome) {
         const rotulo = (posto ? posto + " " : "") + nome + (cpf ? " (" + cpf + ")" : "");
         if (!militaresMap.has(nome)) {
           militaresMap.set(nome, { nome: nome, rotulo: rotulo, cpf: cpf });
         }
       }
-      const mat = String(i.objeto || "").trim();
-      if (mat) {
-        materiaisSet.add(mat);
-      }
     });
 
     const militaresSorted = Array.from(militaresMap.values()).sort((a, b) => a.nome.localeCompare(b.nome));
-    const materiaisSorted = Array.from(materiaisSet).sort((a, b) => a.localeCompare(b));
 
     let htmlMilitar = '<option value="">Todos os Militares (' + militaresSorted.length + ')</option>';
     militaresSorted.forEach(m => {
@@ -16635,160 +16738,175 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       htmlMilitar += `<option value="${m.nome.replace(/"/g, '&quot;')}" data-cpf="${m.cpf}" ${selected}>${m.rotulo}</option>`;
     });
     selMilitar.innerHTML = htmlMilitar;
-
-    let htmlMaterial = '<option value="">Todos os Materiais (' + materiaisSorted.length + ')</option>';
-    materiaisSorted.forEach(mat => {
-      const selected = (mat === materialAtual) ? 'selected' : '';
-      htmlMaterial += `<option value="${mat.replace(/"/g, '&quot;')}" ${selected}>${mat}</option>`;
-    });
-    selMaterial.innerHTML = htmlMaterial;
   }
 
   function aplicarFiltrosCautelasAdminChefe() {
     const selMilitarEl = document.getElementById('filtroMilitarCautelas');
     const militarSel = (selMilitarEl ? selMilitarEl.value : "").trim().toLowerCase();
     const cpfDigitado = (document.getElementById('filtroCpfMilitarCautelas')?.value || '').trim().replace(/\D/g, '');
-    const materialSel = (document.getElementById('filtroMaterialCautelas')?.value || '').trim().toLowerCase();
+    const textoFiltro = (document.getElementById('filtroMaterialCautelas')?.value || '').trim().toLowerCase();
 
-    if (!militarSel && !cpfDigitado && !materialSel) {
-      atualizarKpisMinhasCautelas(cacheMinhasCautelasGlobal);
-      renderizarTabelaMinhasCautelas(cacheMinhasCautelasGlobal);
+    if (!militarSel && !cpfDigitado && !textoFiltro) {
+      atualizarKpisMinhasCautelas(cachePedidosMinhasCautelasGlobal, cacheMinhasCautelasRawGlobal);
+      renderizarTabelaMinhasCautelas(cachePedidosMinhasCautelasGlobal);
       return;
     }
 
-    const filtrados = cacheMinhasCautelasGlobal.filter(i => {
-      const nome = String(i.nomeMilitar || '').toLowerCase();
-      const cpfLimpo = String(i.cpfMilitar || '').replace(/\D/g, '');
-      const mat = String(i.objeto || '').toLowerCase();
+    const filtrados = cachePedidosMinhasCautelasGlobal.filter(p => {
+      const nome = String(p.nomeMilitar || '').toLowerCase();
+      const cpfLimpo = String(p.cpfMilitar || p.matriculaCpfMilitar || '').replace(/\D/g, '');
+      const matTexto = String(p.materiaisResumoTexto || '').toLowerCase();
+      const prot = String(p.protocolo || '').toLowerCase();
 
       const matchMilitar = !militarSel || nome === militarSel || nome.includes(militarSel);
       const matchCpf = !cpfDigitado || cpfLimpo.includes(cpfDigitado);
-      const matchMaterial = !materialSel || mat === materialSel || mat.includes(materialSel);
+      const matchTexto = !textoFiltro || matTexto.includes(textoFiltro) || prot.includes(textoFiltro);
 
-      return matchMilitar && matchCpf && matchMaterial;
+      return matchMilitar && matchCpf && matchTexto;
     });
 
-    atualizarKpisMinhasCautelas(filtrados);
+    const itensFiltrados = cacheMinhasCautelasRawGlobal.filter(i => {
+      return filtrados.some(f => f.chavePedido === (f.protocolo && f.protocolo.startsWith('TERMO-CAUT-') ? f.protocolo : (String(i.cpfMilitar || i.matriculaCpfMilitar || i.nomeMilitar || '').toUpperCase() + '|||' + String(i.dataCautela || '') + '|||' + String(i.unidade || '').toUpperCase())));
+    });
+
+    atualizarKpisMinhasCautelas(filtrados, itensFiltrados);
     renderizarTabelaMinhasCautelas(filtrados);
   }
 
   function limparFiltrosCautelasAdminChefe() {
     const selMilitar = document.getElementById('filtroMilitarCautelas');
     const inputCpf = document.getElementById('filtroCpfMilitarCautelas');
-    const selMaterial = document.getElementById('filtroMaterialCautelas');
+    const inputTexto = document.getElementById('filtroMaterialCautelas');
 
     if (selMilitar) selMilitar.value = "";
     if (inputCpf) inputCpf.value = "";
-    if (selMaterial) selMaterial.value = "";
+    if (inputTexto) inputTexto.value = "";
 
-    atualizarKpisMinhasCautelas(cacheMinhasCautelasGlobal);
-    renderizarTabelaMinhasCautelas(cacheMinhasCautelasGlobal);
+    atualizarKpisMinhasCautelas(cachePedidosMinhasCautelasGlobal, cacheMinhasCautelasRawGlobal);
+    renderizarTabelaMinhasCautelas(cachePedidosMinhasCautelasGlobal);
   }
 
-  function obterItensAtuaisMinhasCautelas() {
+  function obterPedidosAtuaisMinhasCautelas() {
     const ehAdminOuChefe = (typeof ehAdminOuChefeGlobal === 'function' && ehAdminOuChefeGlobal()) || (typeof temPermissao === 'function' && temPermissao('acautelamento'));
     if (ehAdminOuChefe) {
       const selMilitarEl = document.getElementById('filtroMilitarCautelas');
       const militarSel = (selMilitarEl ? selMilitarEl.value : "").trim().toLowerCase();
       const cpfDigitado = (document.getElementById('filtroCpfMilitarCautelas')?.value || '').trim().replace(/\D/g, '');
-      const materialSel = (document.getElementById('filtroMaterialCautelas')?.value || '').trim().toLowerCase();
+      const textoFiltro = (document.getElementById('filtroMaterialCautelas')?.value || '').trim().toLowerCase();
 
-      if (!militarSel && !cpfDigitado && !materialSel) return cacheMinhasCautelasGlobal;
+      if (!militarSel && !cpfDigitado && !textoFiltro) return cachePedidosMinhasCautelasGlobal;
 
-      return cacheMinhasCautelasGlobal.filter(i => {
-        const nome = String(i.nomeMilitar || '').toLowerCase();
-        const cpfLimpo = String(i.cpfMilitar || '').replace(/\D/g, '');
-        const mat = String(i.objeto || '').toLowerCase();
+      return cachePedidosMinhasCautelasGlobal.filter(p => {
+        const nome = String(p.nomeMilitar || '').toLowerCase();
+        const cpfLimpo = String(p.cpfMilitar || p.matriculaCpfMilitar || '').replace(/\D/g, '');
+        const matTexto = String(p.materiaisResumoTexto || '').toLowerCase();
+        const prot = String(p.protocolo || '').toLowerCase();
 
         const matchMilitar = !militarSel || nome === militarSel || nome.includes(militarSel);
         const matchCpf = !cpfDigitado || cpfLimpo.includes(cpfDigitado);
-        const matchMaterial = !materialSel || mat === materialSel || mat.includes(materialSel);
+        const matchTexto = !textoFiltro || matTexto.includes(textoFiltro) || prot.includes(textoFiltro);
 
-        return matchMilitar && matchCpf && matchMaterial;
+        return matchMilitar && matchCpf && matchTexto;
       });
     } else {
       const termo = (document.getElementById('inputBuscaMinhasCautelas')?.value || '').toLowerCase().trim();
-      if (!termo) return cacheMinhasCautelasGlobal;
+      if (!termo) return cachePedidosMinhasCautelasGlobal;
 
-      return cacheMinhasCautelasGlobal.filter(i => {
-        const militar = String(i.nomeMilitar || '').toLowerCase();
-        const cpf = String(i.cpfMilitar || '').toLowerCase();
-        const posto = String(i.postoMilitar || '').toLowerCase();
-        const objeto = String(i.objeto || '').toLowerCase();
-        const item = String(i.item || '').toLowerCase();
-        const patrimonio = String(i.patrimonio || '').toLowerCase();
-        const docSei = String(i.docSei || i.docSeiCautela || '').toLowerCase();
-        const local = String(i.localizacao || '').toLowerCase();
-        const unidade = String(i.unidade || '').toLowerCase();
-        const dataCautela = String(i.dataCautela || '').toLowerCase();
+      return cachePedidosMinhasCautelasGlobal.filter(p => {
+        const militar = String(p.nomeMilitar || '').toLowerCase();
+        const cpf = String(p.cpfMilitar || p.matriculaCpfMilitar || '').toLowerCase();
+        const posto = String(p.postoMilitar || '').toLowerCase();
+        const prot = String(p.protocolo || '').toLowerCase();
+        const docSei = String(p.docSei || '').toLowerCase();
+        const matTexto = String(p.materiaisResumoTexto || '').toLowerCase();
+        const unid = String(p.unidade || '').toLowerCase();
 
         return militar.includes(termo) ||
                cpf.includes(termo) ||
                posto.includes(termo) ||
-               objeto.includes(termo) ||
-               item.includes(termo) ||
-               patrimonio.includes(termo) ||
+               prot.includes(termo) ||
                docSei.includes(termo) ||
-               local.includes(termo) ||
-               unidade.includes(termo) ||
-               dataCautela.includes(termo);
+               matTexto.includes(termo) ||
+               unid.includes(termo);
       });
     }
   }
 
-  function atualizarKpisMinhasCautelas(itens) {
-    const total = (itens || []).length;
-    const badgeTotal = document.getElementById('badgeTotalMinhasCautelas');
+  function atualizarKpisMinhasCautelas(pedidos, itens) {
+    const totalPedidos = (pedidos || []).length;
+    const totalItens = (itens || []).length;
+
+    const elTotalPedidos = document.getElementById('cardTotalPedidosCautelas');
+    const elBadgePedidos = document.getElementById('badgeTotalPedidosCard');
     const cardTotal = document.getElementById('cardTotalMinhasCautelas');
     const badgeCard = document.getElementById('badgeTotalMinhasCautelasCard');
 
-    if (badgeTotal) badgeTotal.textContent = total;
-    if (cardTotal) cardTotal.textContent = total;
-    if (badgeCard) badgeCard.textContent = total + ' item(ns)';
+    if (elTotalPedidos) elTotalPedidos.textContent = totalPedidos;
+    if (elBadgePedidos) elBadgePedidos.textContent = totalPedidos + ' pedido(s)';
+    if (cardTotal) cardTotal.textContent = totalItens;
+    if (badgeCard) badgeCard.textContent = totalItens + ' item(ns)';
   }
 
-  function renderizarTabelaMinhasCautelas(itens) {
+  function renderizarTabelaMinhasCautelas(pedidos) {
     const tbody = document.getElementById('tabelaMinhasCautelas');
     if (!tbody) return;
 
-    if (!itens || itens.length === 0) {
+    if (!pedidos || pedidos.length === 0) {
       const ehAdminOuChefe = (typeof ehAdminOuChefeGlobal === 'function' && ehAdminOuChefeGlobal()) || (typeof temPermissao === 'function' && temPermissao('acautelamento'));
       const msgVazia = ehAdminOuChefe
-        ? "Nenhum material acautelado encontrado no sistema para os critérios selecionados."
-        : "Você não possui nenhum material acautelado sob sua responsabilidade no momento.";
-      tbody.innerHTML = `<tr><td colspan="11" class="text-center text-muted py-4"><i class="fa-solid fa-circle-info me-2"></i> ${msgVazia}</td></tr>`;
+        ? "Nenhuma solicitação de acautelamento encontrada para os critérios selecionados."
+        : "Você não possui nenhuma solicitação de acautelamento sob sua responsabilidade no momento.";
+      tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4"><i class="fa-solid fa-circle-info me-2"></i> ${msgVazia}</td></tr>`;
       return;
     }
 
     let html = '';
-    itens.forEach(i => {
-      const statusBadge = i.status === 'ACAUTELADO'
-        ? '<span class="badge bg-warning text-dark"><i class="fa-solid fa-lock me-1"></i>Acautelado</span>'
-        : `<span class="badge bg-${i.status === 'ECD' ? 'success' : 'danger'}">${i.status}</span>`;
-
-      const militarNome = i.nomeMilitar ? (i.postoMilitar ? `<strong>${i.postoMilitar}</strong> ` : '') + i.nomeMilitar : '<span class="text-muted">Não Informado</span>';
-      const militarCpf = i.cpfMilitar ? `<span class="badge bg-light text-dark border"><i class="fa-solid fa-id-card me-1 text-secondary"></i>${i.cpfMilitar}</span>` : '<span class="text-muted">-</span>';
-      const objVisual = formatarDescricaoViaturaVisual(i.objeto, extrairSerieItem(i));
-      const dataBadge = (i.dataCautela && i.dataCautela !== '-') 
-        ? `<span class="badge bg-light text-dark border font-monospace small"><i class="fa-regular fa-clock me-1 text-primary"></i>${i.dataCautela}</span>` 
+    pedidos.forEach(p => {
+      const militarNome = p.nomeMilitar ? (p.postoMilitar ? `<strong>${p.postoMilitar}</strong> ` : '') + p.nomeMilitar : '<span class="text-muted">Não Informado</span>';
+      const militarCpf = p.cpfMilitar ? `<span class="badge bg-light text-dark border"><i class="fa-solid fa-id-card me-1 text-secondary"></i>${p.cpfMilitar}</span>` : '<span class="text-muted">-</span>';
+      const dataBadge = (p.dataCautela && p.dataCautela !== '-') 
+        ? `<span class="badge bg-light text-dark border font-monospace small"><i class="fa-regular fa-clock me-1 text-primary"></i>${p.dataCautela}</span>` 
         : '<span class="text-muted">-</span>';
-      const dataPrevistaBadge = (i.dataPrevista && i.dataPrevista !== '-') 
-        ? `<span class="badge bg-primary bg-opacity-10 text-primary border border-primary-subtle font-monospace small"><i class="fa-regular fa-calendar-check me-1"></i>${i.dataPrevista}</span>` 
+      const dataPrevistaBadge = (p.dataPrevista && p.dataPrevista !== '-') 
+        ? `<span class="badge bg-primary bg-opacity-10 text-primary border border-primary-subtle font-monospace small"><i class="fa-regular fa-calendar-check me-1"></i>${p.dataPrevista}</span>` 
         : '<span class="text-muted small">-</span>';
+
+      const badgesMateriaisHtml = Object.entries(p.materiaisAgrupados).map(([mat, qtd]) => 
+        `<span class="badge bg-secondary bg-opacity-10 text-dark border me-1 mb-1 font-monospace" style="font-size: 0.78rem;">${qtd}x ${mat}</span>`
+      ).join('');
 
       html += `
         <tr>
+          <td>
+            <span class="badge bg-light text-primary border border-primary-subtle font-monospace fw-bold" style="font-size: 0.82rem;">
+              <i class="fa-solid fa-file-contract me-1"></i>${p.protocolo}
+            </span>
+            ${p.docSei && p.docSei !== '-' ? `<br><small class="text-muted font-monospace"><i class="fa-solid fa-link me-1"></i>${p.docSei}</small>` : ''}
+          </td>
           <td>${dataBadge}</td>
           <td>${dataPrevistaBadge}</td>
-          <td class="fw-bold text-secondary">${i.item}</td>
-          <td class="fw-bold text-dark">${objVisual}</td>
-          <td class="text-primary">${militarNome}</td>
-          <td>${militarCpf}</td>
-          <td><span class="badge bg-light text-dark border">${i.patrimonio || '-'}</span></td>
-          <td><small class="text-primary fw-semibold">${i.docSei || i.docSeiCautela || '-'}</small></td>
-          <td><small class="text-muted"><i class="fa-solid fa-building me-1"></i> ${i.unidade || ''} > ${i.localizacao || ''}</small></td>
-          <td class="text-center">${statusBadge}</td>
-          <td><small class="text-muted">${i.observacao || '-'}</small></td>
+          <td>
+            <div class="text-primary">${militarNome}</div>
+            <div class="mt-1">${militarCpf}</div>
+          </td>
+          <td>
+            <div class="mb-1">
+              <span class="badge bg-primary text-white font-monospace"><i class="fa-solid fa-boxes-stacked me-1"></i>${p.totalItens} material(is)</span>
+            </div>
+            <div>${badgesMateriaisHtml}</div>
+          </td>
+          <td><small class="text-muted"><i class="fa-solid fa-building me-1"></i> ${p.unidade} &gt; ${p.subunidade}</small></td>
+          <td class="text-center">
+            <span class="badge bg-warning text-dark"><i class="fa-solid fa-lock me-1"></i>Acautelado</span>
+          </td>
+          <td class="text-center">
+            <button class="btn btn-sm btn-outline-primary fw-bold" onclick="verDetalhesPedidoCautela('${p.chavePedido}', 'consulta')" title="Ver detalhes completos do pedido">
+              <i class="fa-solid fa-eye me-1"></i> Detalhes
+            </button>
+            <button class="btn btn-sm btn-outline-secondary ms-1" onclick="imprimirTermoPedidoEspecifico('${p.chavePedido}')" title="Imprimir Termo de Acautelamento">
+              <i class="fa-solid fa-print"></i>
+            </button>
+          </td>
         </tr>
       `;
     });
@@ -16796,14 +16914,226 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
   }
 
   function filtrarTabelaMinhasCautelas() {
-    const filtrados = obterItensAtuaisMinhasCautelas();
+    const filtrados = obterPedidosAtuaisMinhasCautelas();
     renderizarTabelaMinhasCautelas(filtrados);
   }
 
+  // =========================================================
+  // DETALHES E IMPRESSÃO DE SOLICITAÇÃO / TERMO INDIVIDUAL
+  // =========================================================
+  function verDetalhesPedidoCautela(chavePedido, modo) {
+    let ped = (cachePedidosBaixaGlobal || []).find(p => p.chavePedido === chavePedido) ||
+              (cachePedidosMinhasCautelasGlobal || []).find(p => p.chavePedido === chavePedido);
+
+    if (!ped) {
+      Swal.fire('Não Encontrado', 'Não foi possível localizar os dados desta solicitação de cautela.', 'warning');
+      return;
+    }
+
+    const linhasItens = ped.itens.map((it, idx) => `
+      <tr>
+        <td class="text-center font-monospace">${idx + 1}</td>
+        <td class="fw-bold text-secondary font-monospace">${it.item}</td>
+        <td class="fw-semibold text-dark">${it.objeto}</td>
+        <td class="text-center"><span class="badge bg-light text-dark border">${it.patrimonio || '-'}</span></td>
+        <td class="small text-muted">${it.unidade} &gt; ${it.subunidade || 'SEDE'}</td>
+      </tr>
+    `).join('');
+
+    const resumoBadges = Object.entries(ped.materiaisAgrupados).map(([mat, qtd]) => 
+      `<span class="badge bg-primary bg-opacity-10 text-primary border border-primary-subtle me-1 mb-1 font-monospace fs-7"><i class="fa-solid fa-box me-1"></i>${qtd}x ${mat}</span>`
+    ).join('');
+
+    const modalHtml = `
+      <div class="text-start small">
+        <div class="p-3 bg-light rounded border mb-3">
+          <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+            <div>
+              <span class="badge bg-primary fs-6"><i class="fa-solid fa-file-contract me-1"></i>${ped.protocolo}</span>
+            </div>
+            <div>
+              <span class="badge bg-warning text-dark"><i class="fa-solid fa-lock me-1"></i>ACAUTELADO</span>
+            </div>
+          </div>
+          <div class="row g-2">
+            <div class="col-sm-6">
+              <strong>Militar Responsável:</strong><br>
+              <span class="text-primary fw-semibold">${ped.postoMilitar ? ped.postoMilitar + ' ' : ''}${ped.nomeMilitar}</span><br>
+              <span class="text-muted"><i class="fa-solid fa-id-card me-1"></i>${ped.matriculaCpfMilitar}</span>
+            </div>
+            <div class="col-sm-6">
+              <strong>Datas do Pedido:</strong><br>
+              <span class="text-muted"><i class="fa-regular fa-clock me-1 text-primary"></i>Cautela: <strong>${ped.dataCautela}</strong></span><br>
+              <span class="text-muted"><i class="fa-regular fa-calendar-check me-1 text-primary"></i>Prev. Devolução: <strong>${ped.dataPrevista}</strong></span>
+            </div>
+            <div class="col-12 mt-2">
+              <strong>Unidade / Lotação:</strong> ${ped.unidade} &gt; ${ped.subunidade}<br>
+              <strong>Doc SEI / Referência:</strong> ${ped.docSei || '-'}<br>
+              ${ped.observacao ? `<strong>Observações:</strong> <span class="text-muted">${ped.observacao}</span>` : ''}
+            </div>
+          </div>
+        </div>
+
+        <div class="mb-2">
+          <strong>Materiais do Pedido (${ped.totalItens} materiais no total):</strong>
+          <div class="mt-1">${resumoBadges}</div>
+        </div>
+
+        <div class="table-responsive border rounded bg-white mt-2" style="max-height: 220px; overflow-y: auto;">
+          <table class="table table-sm table-striped align-middle mb-0" style="font-size: 0.82rem;">
+            <thead class="table-light sticky-top">
+              <tr>
+                <th class="text-center" style="width: 35px;">#</th>
+                <th>ID Sistema</th>
+                <th>Material</th>
+                <th class="text-center">Patrimônio</th>
+                <th>Localização</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${linhasItens}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+
+    Swal.fire({
+      title: 'Detalhes da Solicitação de Cautela',
+      html: modalHtml,
+      width: '720px',
+      showCancelButton: true,
+      confirmButtonText: modo === 'baixa' ? '<i class="fa-solid fa-rotate-left me-1"></i> Baixar este Pedido' : '<i class="fa-solid fa-print me-1"></i> Imprimir Termo',
+      confirmButtonColor: modo === 'baixa' ? '#dc3545' : '#0d6efd',
+      cancelButtonText: 'Fechar'
+    }).then(res => {
+      if (res.isConfirmed) {
+        if (modo === 'baixa') {
+          abrirModalBaixaPedido(chavePedido);
+        } else {
+          imprimirTermoPedidoEspecifico(chavePedido);
+        }
+      }
+    });
+  }
+
+  function imprimirTermoPedidoEspecifico(chavePedido) {
+    let ped = (cachePedidosMinhasCautelasGlobal || []).find(p => p.chavePedido === chavePedido) ||
+              (cachePedidosBaixaGlobal || []).find(p => p.chavePedido === chavePedido);
+    if (!ped) {
+      Swal.fire('Erro', 'Solicitação de acautelamento não encontrada.', 'error');
+      return;
+    }
+
+    const linhasTabelaMateriais = Object.entries(ped.materiaisAgrupados).map(([mat, qtd], idx) => `
+      <tr>
+        <td style="text-align:center; padding: 8px; border: 1px solid #ccc; font-weight: bold;">${idx + 1}</td>
+        <td style="padding: 8px; border: 1px solid #ccc; font-weight: bold;">${mat}</td>
+        <td style="text-align:center; padding: 8px; border: 1px solid #ccc; font-weight: bold; font-size: 1.1em; color: #0d6efd;">${qtd}</td>
+        <td style="text-align:center; padding: 8px; border: 1px solid #ccc;">ECD</td>
+      </tr>
+    `).join('');
+
+    const conteudoImpressao = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>Termo de Acautelamento - ${ped.protocolo}</title>
+        <style>
+          body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 30px; color: #333; line-height: 1.4; }
+          .cabecalho { text-align: center; margin-bottom: 25px; border-bottom: 2px solid #0d6efd; padding-bottom: 15px; }
+          .cabecalho h2 { margin: 0 0 5px 0; color: #1a3a5f; text-transform: uppercase; font-size: 1.3rem; }
+          .cabecalho h3 { margin: 0 0 5px 0; color: #444; font-size: 1.1rem; }
+          .protocolo-badge { display: inline-block; background: #eef2f7; border: 1px solid #0d6efd; color: #0d6efd; padding: 4px 12px; font-weight: bold; font-family: monospace; border-radius: 4px; margin-top: 5px; }
+          .info-box { background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 6px; padding: 12px 16px; margin-bottom: 20px; font-size: 0.95rem; }
+          .info-row { display: flex; justify-content: space-between; margin-bottom: 6px; }
+          table { width: 100%; border-collapse: collapse; margin-bottom: 25px; font-size: 0.95rem; }
+          th { background: #0d6efd; color: #ffffff; text-align: left; padding: 8px; border: 1px solid #0b5ed7; text-transform: uppercase; font-size: 0.85rem; }
+          .termo-texto { font-size: 0.88rem; text-align: justify; margin-bottom: 35px; color: #555; line-height: 1.5; border: 1px solid #eee; padding: 12px; border-radius: 6px; }
+          .assinaturas { display: flex; justify-content: space-around; margin-top: 40px; text-align: center; }
+          .assinatura-linha { width: 42%; border-top: 1px solid #333; padding-top: 6px; font-size: 0.9rem; }
+          @media print {
+            body { margin: 15mm; }
+            .no-print { display: none; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="cabecalho">
+          <h2>CORPO DE BOMBEIROS MILITAR DE PERNAMBUCO</h2>
+          <h3>DIRETORIA DE LOGÍSTICA - TERMO DE ACAUTELAMENTO DE MATERIAL</h3>
+          <div class="protocolo-badge">${ped.protocolo}</div>
+        </div>
+
+        <div class="info-box">
+          <div class="info-row">
+            <span><strong>Militar Responsável:</strong> ${(ped.postoMilitar ? ped.postoMilitar + ' ' : '') + ped.nomeMilitar}</span>
+            <span><strong>Identificação / CPF:</strong> ${ped.matriculaCpfMilitar}</span>
+          </div>
+          <div class="info-row">
+            <span><strong>Unidade / OME:</strong> ${ped.unidade} &gt; ${ped.subunidade}</span>
+            <span><strong>Data da Cautela:</strong> ${ped.dataCautela}</span>
+          </div>
+          <div class="info-row">
+            <span><strong>Doc / SEI:</strong> ${ped.docSei || '-'}</span>
+            <span><strong>Previsão de Devolução:</strong> ${ped.dataPrevista || '-'}</span>
+          </div>
+          ${ped.observacao ? `<div style="margin-top: 4px;"><strong>Observações:</strong> ${ped.observacao}</div>` : ''}
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 45px; text-align: center;">Item</th>
+              <th>Descrição do Material Solicitado</th>
+              <th style="width: 90px; text-align: center;">Qtd</th>
+              <th style="width: 100px; text-align: center;">Estado</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${linhasTabelaMateriais}
+          </tbody>
+          <tfoot>
+            <tr style="background: #f8f9fa; font-weight: bold;">
+              <td colspan="2" style="text-align: right; padding: 8px; border: 1px solid #ccc;">TOTAL GERAL DE MATERIAIS SOLICITADOS:</td>
+              <td style="text-align: center; padding: 8px; border: 1px solid #ccc; color: #0d6efd; font-size: 1.1em;">${ped.totalItens}</td>
+              <td style="border: 1px solid #ccc;"></td>
+            </tr>
+          </tfoot>
+        </table>
+
+        <div class="termo-texto">
+          Declaro ter recebido os materiais acima relacionados sob minha inteira guarda e responsabilidade funcional, comprometendo-me a zelar pela sua conservação, utilizando-os estritamente em objeto de serviço e efetuando a respectiva devolução na data aprazada ou assim que determinado, em conformidade com as normas regulamentares do CBMPE.
+        </div>
+
+        <div class="assinaturas">
+          <div class="assinatura-linha">
+            <strong>${(ped.postoMilitar ? ped.postoMilitar + ' ' : '') + ped.nomeMilitar}</strong><br>
+            Militar Responsável pelo Acautelamento
+          </div>
+          <div class="assinatura-linha">
+            <strong>Gestor de Estoque / Comandante</strong><br>
+            CBMPE - ${ped.unidade}
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const janela = window.open('', '_blank');
+    if (janela) {
+      janela.document.write(conteudoImpressao);
+      janela.document.close();
+      janela.focus();
+      setTimeout(() => { janela.print(); }, 500);
+    }
+  }
+
   function imprimirTermoMinhasCautelas() {
-    const itensParaImprimir = obterItensAtuaisMinhasCautelas();
-    if (!itensParaImprimir || itensParaImprimir.length === 0) {
-      Swal.fire('Sem Itens', 'Não há materiais acautelados para emissão do relatório com os filtros atuais.', 'info');
+    const pedidosParaImprimir = obterPedidosAtuaisMinhasCautelas();
+    if (!pedidosParaImprimir || pedidosParaImprimir.length === 0) {
+      Swal.fire('Sem Pedidos', 'Não há solicitações de acautelamento para emissão do relatório com os filtros atuais.', 'info');
       return;
     }
 
@@ -16812,20 +17142,20 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     const militarCpf = (usuarioSessaoAtual && usuarioSessaoAtual.cpf) ? usuarioSessaoAtual.cpf : '-';
     const militarOme = (usuarioSessaoAtual && usuarioSessaoAtual.ome) ? usuarioSessaoAtual.ome : (OME_GLOBAL || '-');
     const dataHoraAtual = new Date().toLocaleString('pt-BR');
-    const tituloRelatorio = ehAdminOuChefe ? "RELAÇÃO GERAL DE MATERIAIS ACAUTELADOS" : "RELAÇÃO DE MATERIAIS ACAUTELADOS / TERMO DE RESPONSABILIDADE";
+    const tituloRelatorio = ehAdminOuChefe ? "RELAÇÃO GERAL DE SOLICITAÇÕES / TERMOS DE ACAUTELAMENTO" : "RELAÇÃO DE SOLICITAÇÕES DE ACAUTELAMENTO / TERMO DE RESPONSABILIDADE";
 
-    let linhasTabelaHtml = itensParaImprimir.map((i, idx) => `
+    let linhasTabelaHtml = pedidosParaImprimir.map((p, idx) => `
       <tr>
-        <td style="text-align:center; padding: 6px; border: 1px solid #ccc;">${idx + 1}</td>
-        <td style="text-align:center; padding: 6px; border: 1px solid #ccc;">${i.dataCautela || '-'}</td>
-        <td style="text-align:center; padding: 6px; border: 1px solid #ccc; font-weight: bold; color: #0d6efd;">${i.dataPrevista || '-'}</td>
-        <td style="padding: 6px; border: 1px solid #ccc; font-weight: bold;">${i.objeto}</td>
-        <td style="padding: 6px; border: 1px solid #ccc;">${(i.postoMilitar ? i.postoMilitar + ' ' : '') + (i.nomeMilitar || '-')}</td>
-        <td style="text-align:center; padding: 6px; border: 1px solid #ccc;">${i.cpfMilitar || '-'}</td>
-        <td style="text-align:center; padding: 6px; border: 1px solid #ccc;">${i.item}</td>
-        <td style="text-align:center; padding: 6px; border: 1px solid #ccc;">${i.patrimonio || '-'}</td>
-        <td style="padding: 6px; border: 1px solid #ccc;">${i.localizacao || '-'}</td>
-        <td style="text-align:center; padding: 6px; border: 1px solid #ccc;">${i.docSei || i.docSeiCautela || '-'}</td>
+        <td style="text-align:center; padding: 6px; border: 1px solid #ccc; font-weight: bold;">${idx + 1}</td>
+        <td style="text-align:center; padding: 6px; border: 1px solid #ccc; font-family: monospace; font-weight: bold; color: #0d6efd;">${p.protocolo}</td>
+        <td style="text-align:center; padding: 6px; border: 1px solid #ccc;">${p.dataCautela || '-'}</td>
+        <td style="text-align:center; padding: 6px; border: 1px solid #ccc; font-weight: bold; color: #0d6efd;">${p.dataPrevista || '-'}</td>
+        <td style="padding: 6px; border: 1px solid #ccc;">${(p.postoMilitar ? p.postoMilitar + ' ' : '') + (p.nomeMilitar || '-')}</td>
+        <td style="text-align:center; padding: 6px; border: 1px solid #ccc;">${p.matriculaCpfMilitar || '-'}</td>
+        <td style="padding: 6px; border: 1px solid #ccc; font-size: 0.9em;">${p.materiaisResumoTexto}</td>
+        <td style="text-align:center; padding: 6px; border: 1px solid #ccc; font-weight: bold;">${p.totalItens}</td>
+        <td style="padding: 6px; border: 1px solid #ccc;">${p.unidade} &gt; ${p.subunidade}</td>
+        <td style="text-align:center; padding: 6px; border: 1px solid #ccc;">${p.docSei || '-'}</td>
       </tr>
     `).join('');
 
@@ -16857,55 +17187,57 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Relação de Materiais Acautelados - CBMPE</title>
+        <meta charset="UTF-8">
+        <title>Relação de Solicitações de Cautela - CBMPE</title>
         <style>
-          body { font-family: Arial, sans-serif; font-size: 12px; margin: 30px; color: #111; }
-          .header { text-align: center; border-bottom: 2px solid #991b1b; padding-bottom: 10px; margin-bottom: 20px; }
-          .header h2 { margin: 0; font-size: 16px; color: #991b1b; text-transform: uppercase; }
-          .header h3 { margin: 4px 0; font-size: 13px; font-weight: normal; }
-          .info-box { background: #f8f9fa; border: 1px solid #ddd; padding: 12px; margin-bottom: 20px; border-radius: 4px; }
-          .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-          table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
-          th { background: #eee; font-weight: bold; padding: 8px; border: 1px solid #ccc; text-align: left; font-size: 11px; }
-          .assinaturas { margin-top: 60px; display: flex; justify-content: space-around; }
-          .assinatura-linha { width: 40%; text-align: center; border-top: 1px solid #000; padding-top: 6px; font-size: 11px; }
-          @media print { .no-print { display: none; } body { margin: 15mm; } }
+          body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 25px; color: #333; line-height: 1.3; }
+          .cabecalho { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #0d6efd; padding-bottom: 10px; }
+          .cabecalho h2 { margin: 0 0 5px 0; color: #1a3a5f; text-transform: uppercase; font-size: 1.25rem; }
+          .cabecalho h4 { margin: 0; color: #555; font-size: 0.95rem; }
+          .meta-relatorio { display: flex; justify-content: space-between; font-size: 0.85rem; color: #666; margin-bottom: 15px; border-bottom: 1px dashed #ccc; padding-bottom: 8px; }
+          table { width: 100%; border-collapse: collapse; margin-bottom: 25px; font-size: 0.82rem; }
+          th { background: #0d6efd; color: #ffffff; text-align: center; padding: 6px; border: 1px solid #0b5ed7; text-transform: uppercase; font-size: 0.75rem; }
+          .assinaturas { display: flex; justify-content: space-around; margin-top: 45px; text-align: center; }
+          .assinatura-linha { width: 40%; border-top: 1px solid #333; padding-top: 5px; font-size: 0.85rem; }
+          @media print {
+            body { margin: 10mm; }
+            .no-print { display: none; }
+          }
         </style>
       </head>
       <body>
-        <div class="header">
-          <h2>Corpo de Bombeiros Militar de Pernambuco</h2>
-          <h3>Sistema de Gestão de Materiais e Patrimônio (SGMP)</h3>
-          <strong>${tituloRelatorio}</strong>
+        <div class="cabecalho">
+          <h2>CORPO DE BOMBEIROS MILITAR DE PERNAMBUCO</h2>
+          <h4>DIRETORIA DE LOGÍSTICA - ${tituloRelatorio}</h4>
         </div>
-        <div class="info-box">
-          <div class="info-grid">
-            <div><strong>Emissor / Responsável:</strong> \${militarNome}</div>
-            <div><strong>CPF:</strong> \${militarCpf}</div>
-            <div><strong>Unidade / OME:</strong> \${militarOme}</div>
-            <div><strong>Data de Emissão:</strong> \${dataHoraAtual}</div>
-          </div>
+
+        <div class="meta-relatorio">
+          <span><strong>Unidade / OME:</strong> ${militarOme}</span>
+          <span><strong>Total de Solicitações:</strong> ${pedidosParaImprimir.length}</span>
+          <span><strong>Data / Hora de Emissão:</strong> ${dataHoraAtual}</span>
         </div>
+
         <table>
           <thead>
             <tr>
-              <th style="width:30px; text-align:center;">#</th>
-              <th style="width:120px; text-align:center;">Data da Cautela</th>
-              <th style="width:110px; text-align:center;">Prev. Devolução</th>
-              <th>Material / Equipamento</th>
-              <th>Militar Acautelado</th>
-              <th style="width:100px; text-align:center;">CPF</th>
-              <th style="width:85px; text-align:center;">ID Sistema</th>
-              <th style="width:95px; text-align:center;">Patrimônio</th>
-              <th>Localização Cadastrada</th>
-              <th style="width:110px; text-align:center;">Termo SEI</th>
+              <th style="width: 30px;">#</th>
+              <th>Protocolo / Termo</th>
+              <th>Data Cautela</th>
+              <th>Prev. Devolução</th>
+              <th>Militar Responsável</th>
+              <th>Identificação / CPF</th>
+              <th>Materiais Solicitados</th>
+              <th style="width: 45px;">Qtd</th>
+              <th>Localização</th>
+              <th>Doc / SEI</th>
             </tr>
           </thead>
           <tbody>
-            \${linhasTabelaHtml}
+            ${linhasTabelaHtml}
           </tbody>
         </table>
-        \${rodapeAssinatura}
+
+        ${rodapeAssinatura}
       </body>
       </html>
     `;
@@ -16918,7 +17250,6 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       setTimeout(() => { janela.print(); }, 500);
     }
   }
-
 
   function carregarDadosAbaChecklist() {
     const accordion = document.getElementById('accordionChecklistLocais');
@@ -21979,35 +22310,110 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     }
   }
 
+  function abrirModalBaixaPedido(chavePedido) {
+    const ped = (cachePedidosBaixaGlobal || []).find(p => p.chavePedido === chavePedido);
+    if (!ped) {
+      Swal.fire('Atenção', 'Solicitação/Termo de acautelamento não encontrado.', 'warning');
+      return;
+    }
+    abrirModalConfirmacaoBaixa([ped], ped.itensIds);
+  }
+
   function abrirModalBaixaCautela() {
-    const checkboxes = document.querySelectorAll('.check-item-baixa:checked');
+    const checkboxes = document.querySelectorAll('.check-pedido-baixa:checked, .check-item-baixa:checked');
     let itensIds = [];
-    checkboxes.forEach(cb => itensIds.push(cb.value));
-    if (itensIds.length === 0) { Swal.fire('Atenção', 'Selecione ao menos um item.', 'warning'); return; }
+    let pedidosSelecionados = [];
+
+    checkboxes.forEach(cb => {
+      const val = cb.value;
+      const ped = (cachePedidosBaixaGlobal || []).find(p => p.chavePedido === val);
+      if (ped) {
+        if (!pedidosSelecionados.includes(ped)) {
+          pedidosSelecionados.push(ped);
+          itensIds = itensIds.concat(ped.itensIds);
+        }
+      } else {
+        const ids = (cb.dataset.itens || val || '').split(',').map(s => s.trim()).filter(Boolean);
+        itensIds = itensIds.concat(ids);
+      }
+    });
+
+    itensIds = Array.from(new Set(itensIds));
+
+    if (itensIds.length === 0) {
+      Swal.fire('Atenção', 'Selecione ao menos uma solicitação/termo de acautelamento para baixa.', 'warning');
+      return;
+    }
+
+    abrirModalConfirmacaoBaixa(pedidosSelecionados, itensIds);
+  }
+
+  function abrirModalConfirmacaoBaixa(pedidosSelecionados, itensIds) {
+    let cabecalhoResumo = '';
+    if (pedidosSelecionados && pedidosSelecionados.length === 1) {
+      const p = pedidosSelecionados[0];
+      cabecalhoResumo = `
+        <div class="p-2 bg-light rounded border mb-3 small">
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <span class="badge bg-danger"><i class="fa-solid fa-file-contract me-1"></i>${p.protocolo}</span>
+            <span class="badge bg-primary font-monospace">${p.totalItens} material(is)</span>
+          </div>
+          <div><strong>Militar:</strong> ${p.postoMilitar ? p.postoMilitar + ' ' : ''}${p.nomeMilitar} (${p.matriculaCpfMilitar})</div>
+          <div class="text-truncate text-muted mt-1" title="${p.materiaisResumoTexto}"><strong>Materiais:</strong> ${p.materiaisResumoTexto}</div>
+        </div>
+      `;
+    } else if (pedidosSelecionados && pedidosSelecionados.length > 1) {
+      cabecalhoResumo = `
+        <div class="p-2 bg-light rounded border mb-3 small">
+          <div class="fw-bold text-danger mb-1"><i class="fa-solid fa-layer-group me-1"></i> Baixa em Lote de Solicitações:</div>
+          <div>${pedidosSelecionados.length} Termo(s) selecionado(s) - Total de <strong>${itensIds.length} materiais</strong> a retornar ao estoque.</div>
+        </div>
+      `;
+    } else {
+      cabecalhoResumo = `
+        <div class="p-2 bg-light rounded border mb-3 small">
+          <div>Total de <strong>${itensIds.length} material(is)</strong> a retornar ao estoque.</div>
+        </div>
+      `;
+    }
 
     Swal.fire({
-      title: '<i class="fa-solid fa-rotate-left text-danger me-2"></i> Confirmação de Devolução',
+      title: '<i class="fa-solid fa-rotate-left text-danger me-2"></i> Baixa de Cautela / Devolução',
       html: `
-        <div class="text-start p-2">
+        <div class="text-start p-1">
+          ${cabecalhoResumo}
           <div class="mb-3">
-            <label class="form-label small fw-bold">1. Estado de Conservação:</label>
+            <label class="form-label small fw-bold">1. Estado de Conservação no Retorno:</label>
             <select id="swalNovoStatus" class="form-select form-select-sm fw-bold text-primary">
-              <option value="ECD">ECD - Em Condições de Uso</option>
-              <option value="SCD">SCD - Sem Condições de Uso</option>
+              <option value="ECD">ECD - Em Condições de Uso (Pronto para o Estoque)</option>
+              <option value="SCD">SCD - Sem Condições de Uso (Avariado / Inservível)</option>
             </select>
           </div>
-          <div class="mb-3"><label class="form-label small fw-bold">2. Observação / Avarias:</label><textarea id="swalObsDevolucao" class="form-control form-control-sm" rows="2"></textarea></div>
-          <div class="mb-3"><label class="form-label small fw-bold">3. SEI de Baixa (Opcional):</label><input type="text" id="swalDocSeiBaixa" class="form-control form-control-sm text-uppercase"></div>
+          <div class="mb-3">
+            <label class="form-label small fw-bold">2. Observação / Avarias (Obrigatório se SCD):</label>
+            <textarea id="swalObsDevolucao" class="form-control form-control-sm" rows="2" placeholder="Descreva observações sobre o recebimento ou detalhes de danos..."></textarea>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-bold">3. Nº Processo SEI de Baixa (Opcional):</label>
+            <input type="text" id="swalDocSeiBaixa" class="form-control form-control-sm text-uppercase" placeholder="Ex: SEI-12345/2026">
+          </div>
           <div class="row g-2">
-            <div class="col-md-6"><label class="form-label small fw-bold">4. Seu CPF (Assinatura):</label><input type="text" id="swalCpf" class="form-control form-control-sm"></div>
-            <div class="col-md-6"><label class="form-label small fw-bold">PIN (Senha):</label><input type="password" id="swalPin" class="form-control form-control-sm"></div>
+            <div class="col-md-6">
+              <label class="form-label small fw-bold">4. Seu CPF (Operador):</label>
+              <input type="text" id="swalCpf" class="form-control form-control-sm" placeholder="Apenas números">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small fw-bold">PIN de Assinatura:</label>
+              <input type="password" id="swalPin" class="form-control form-control-sm" placeholder="Sua senha/PIN">
+            </div>
           </div>
         </div>
       `,
-      width: '580px',
+      width: '600px',
       showCancelButton: true,
-      confirmButtonText: 'Confirmar Devolução',
+      confirmButtonText: 'Confirmar Baixa do Pedido',
       confirmButtonColor: '#dc3545',
+      cancelButtonText: 'Cancelar',
       preConfirm: async () => {
         const novoStatus = document.getElementById('swalNovoStatus').value;
         const observacao = document.getElementById('swalObsDevolucao').value.trim();
@@ -22015,19 +22421,30 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
         const cpf = document.getElementById('swalCpf').value.trim();
         const pin = document.getElementById('swalPin').value.trim();
 
-        if (novoStatus === 'SCD' && !observacao) { Swal.showValidationMessage('Avaria é obrigatória para SCD.'); return false; }
-        if (!cpf || !pin) { Swal.showValidationMessage('Preencha CPF e PIN.'); return false; }
+        if (novoStatus === 'SCD' && !observacao) { 
+          Swal.showValidationMessage('A observação detalhando as avarias é obrigatória para itens SCD.'); 
+          return false; 
+        }
+        if (!cpf || !pin) { 
+          Swal.showValidationMessage('Preencha seu CPF e PIN para assinar a baixa.'); 
+          return false; 
+        }
+
         Swal.showLoading();
         const resPin = await validarPinAssinatura(cpf, pin);
-        if (!resPin.valido) { Swal.showValidationMessage(resPin.mensagem || 'PIN Inválido'); return false; }
+        if (!resPin.valido) { 
+          Swal.showValidationMessage(resPin.mensagem || 'PIN Inválido'); 
+          return false; 
+        }
+
         return { novoStatus, observacao, docSeiBaixa, cpfOperador: cpf };
       }
     }).then(res => {
       if (res.isConfirmed) {
-        Swal.fire({ title: 'Processando devolução...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        Swal.fire({ title: 'Processando baixa da cautela...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
         google.script.run
           .withSuccessHandler(r => {
-            Swal.fire('Sucesso!', r.mensagem, 'success');
+            Swal.fire('Devolução Concluída!', r.mensagem || 'Baixa de cautela realizada com sucesso.', 'success');
             carregarDadosItensBaixa();
             if (typeof carregarMinhasCautelas === 'function') carregarMinhasCautelas(true);
             if (typeof carregarDadosItensNovoAcautelamento === 'function') {

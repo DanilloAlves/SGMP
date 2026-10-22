@@ -11376,10 +11376,17 @@ function registrarAcautelamentoItens(dados) {
       console.warn("Aviso ao buscar localização atual dos itens para transferência à Subunidade pai: " + eBusca.message);
     }
 
+    // Geração prévia do Protocolo Oficial do Termo de Acautelamento
+    var prefixoData = Utilities.formatDate(new Date(), "America/Recife", "yyyyMMdd");
+    var aleatorio = String(Math.floor(1000 + Math.random() * 9000));
+    var protocoloTermo = "TERMO-CAUT-" + prefixoData + "-" + aleatorio;
+    var docSeiRegistro = docSei ? (docSei.indexOf(protocoloTermo) !== -1 ? docSei : (docSei + " [" + protocoloTermo + "]")) : protocoloTermo;
+
     var agoraData = Utilities.formatDate(new Date(), "America/Recife", "dd/MM/yyyy HH:mm");
     var obsData = "Acautelado em " + agoraData + 
+                  " [Termo: " + protocoloTermo + "]" +
                   (dataPrevista ? " [Prev. Devolução: " + dataPrevista + "]" : "") + 
-                  (formaConfirmacao === "SEI" ? " (Via Template SEI: " + docSei + ")" : " (Via PIN)") +
+                  (formaConfirmacao === "SEI" ? " (Via Template SEI: " + (docSei || protocoloTermo) + ")" : " (Via PIN)") +
                   (observacoes ? " [Obs: " + observacoes + "]" : "");
 
     var subPaisKeys = Object.keys(gruposPorSubPai);
@@ -11398,7 +11405,7 @@ function registrarAcautelamentoItens(dados) {
                         "SE_ACAUTELADO_POSTO_GRAD = '" + limparSQL(postoMilitar) + "', " +
                         "SE_ACAUTELADO_NOME_COMPLETO = '" + limparSQL(nomeMilitar) + "', " +
                         "SE_ACAUTELADO_CPF = '" + limparSQL(identificacaoMilitarRegistro) + "', " +
-                        "SE_ACAUTELADO_N_DOC_SEI = '" + limparSQL(docSei) + "', " +
+                        "SE_ACAUTELADO_N_DOC_SEI = '" + limparSQL(docSeiRegistro) + "', " +
                         "OBSERVACAO_Mais_detalhes_sobre_a_situacao_do_material = CONCAT(COALESCE(OBSERVACAO_Mais_detalhes_sobre_a_situacao_do_material, ''), ' | " + limparSQL(obsDataCompleta) + "') " +
                         "WHERE ITEM IN (" + listaSqlGrupo + ")";
 
@@ -11413,7 +11420,7 @@ function registrarAcautelamentoItens(dados) {
                               "SE_ACAUTELADO_POSTO_GRAD = '" + limparSQL(postoMilitar) + "', " +
                               "SE_ACAUTELADO_NOME_COMPLETO = '" + limparSQL(nomeMilitar) + "', " +
                               "SE_ACAUTELADO_CPF = '" + limparSQL(identificacaoMilitarRegistro) + "', " +
-                              "SE_ACAUTELADO_N_DOC_SEI = '" + limparSQL(docSei) + "', " +
+                              "SE_ACAUTELADO_N_DOC_SEI = '" + limparSQL(docSeiRegistro) + "', " +
                               "OBSERVACAO_Mais_detalhes_sobre_a_situacao_do_material = CONCAT(COALESCE(OBSERVACAO_Mais_detalhes_sobre_a_situacao_do_material, ''), ' | " + limparSQL(obsData) + "') " +
                               "WHERE ITEM IN (" + listaSql + ")";
       executarConsultaBigQuerySegura(sqlUpdateFallback, true);
@@ -11438,8 +11445,8 @@ function registrarAcautelamentoItens(dados) {
           statusNovo: "ACAUTELADO",
           responsavelNome: responsavelValido,
           responsavelCpf: cpfResponsavel,
-          documentoRef: docSei || "-",
-          observacao: "Acautelado para " + (postoMilitar ? postoMilitar + " " : "") + nomeMilitar + " (" + identificacaoMilitarRegistro + ") [Transferido para Subunidade " + subDestino + "]" + (dataPrevista ? " [Previsão de Devolução: " + dataPrevista + "]" : "") + (formaConfirmacao === "SEI" ? " [Confirmação via SEI]" : " [Assinado via PIN]") + (observacoes ? " [Obs: " + observacoes + "]" : "")
+          documentoRef: protocoloTermo + (docSei ? " | SEI: " + docSei : ""),
+          observacao: "Acautelado para " + (postoMilitar ? postoMilitar + " " : "") + nomeMilitar + " (" + identificacaoMilitarRegistro + ") [Termo: " + protocoloTermo + "] [Transferido para Subunidade " + subDestino + "]" + (dataPrevista ? " [Previsão de Devolução: " + dataPrevista + "]" : "") + (formaConfirmacao === "SEI" ? " [Confirmação via SEI]" : " [Assinado via PIN]") + (observacoes ? " [Obs: " + observacoes + "]" : "")
         });
       }
       registrarHistoricoMovimentacao(eventosCautela);
@@ -11457,14 +11464,11 @@ function registrarAcautelamentoItens(dados) {
     var itensTxtCaut = itensIds.length <= 10 ? itensIds.join(", ") : (itensIds.slice(0, 10).join(", ") + " e mais " + (itensIds.length - 10) + " itens");
     registrarLogAuditoria(
       "NOVO_ACAUTELAMENTO", 
-      "Acautelou " + itensIds.length + " item(ns)" + descMatTxtCaut + " para " + (postoMilitar ? postoMilitar + " " : "") + nomeMilitar + " (CPF/ID: " + identificacaoMilitarRegistro + "). Código(s) ITEM: [" + itensTxtCaut + "]" + (dataPrevista ? " [Prev. Devolução: " + dataPrevista + "]" : "") + (formaConfirmacao === "SEI" ? " via Template SEI: " + docSei : " via PIN") + (observacoes ? " - Obs: " + observacoes : ""),
+      "Acautelou " + itensIds.length + " item(ns)" + descMatTxtCaut + " para " + (postoMilitar ? postoMilitar + " " : "") + nomeMilitar + " (CPF/ID: " + identificacaoMilitarRegistro + ") [Termo: " + protocoloTermo + "]. Código(s) ITEM: [" + itensTxtCaut + "]" + (dataPrevista ? " [Prev. Devolução: " + dataPrevista + "]" : "") + (formaConfirmacao === "SEI" ? " via Template SEI: " + (docSei || protocoloTermo) : " via PIN") + (observacoes ? " - Obs: " + observacoes : ""),
       responsavelValido
     );
 
-    // Geração do Termo de Acautelamento Oficial em PDF
-    var prefixoData = Utilities.formatDate(new Date(), "America/Recife", "yyyyMMdd");
-    var aleatorio = String(Math.floor(1000 + Math.random() * 9000));
-    var protocoloTermo = "TERMO-CAUT-" + prefixoData + "-" + aleatorio;
+    // Geração do Termo de Acautelamento Oficial em PDF (utiliza protocoloTermo já gerado)
 
     var itensDetalhesTermo = [];
     for (var tIdx = 0; tIdx < itensIds.length; tIdx++) {
@@ -11798,7 +11802,13 @@ function getMinhasCautelasUsuario(cpfInformado, perfilInformado, omeInformada) {
       var localizacaoCompleta = (r.f[2].v || "") + " > " + sub + set + loc;
 
       var dataCautela = r.f[13] ? (r.f[13].v || "") : "";
+      var docSeiRaw = r.f[11] ? (r.f[11].v || "") : "";
       var obs = r.f[12] ? (r.f[12].v || "") : "";
+      var protTermo = "";
+      var mProt = (docSeiRaw + " " + obs).match(/TERMO-CAUT-[\w\-]+/i);
+      if (mProt) {
+        protTermo = mProt[0].toUpperCase();
+      }
       if (!dataCautela) {
         var mData = obs.match(/\b(\d{2}\/\d{2}\/\d{4}(?:\s+\d{2}:\d{2})?)\b/);
         if (mData) dataCautela = mData[1];
@@ -11823,8 +11833,9 @@ function getMinhasCautelasUsuario(cpfInformado, perfilInformado, omeInformada) {
         postoMilitar: r.f[8].v || "",
         nomeMilitar: r.f[9].v || "",
         cpfMilitar: r.f[10].v || "",
-        docSei: r.f[11].v || "-",
-        observacao: r.f[12].v || "",
+        docSei: docSeiRaw || "-",
+        protocoloTermo: protTermo || "",
+        observacao: obs,
         dataCautela: dataCautela || "-",
         dataPrevista: dataPrevista || "-"
       });
@@ -11912,7 +11923,13 @@ function getItensAcauteladosAtuais(omeUsuario, perfilUsuario, omeFiltroAdmin) {
       }
 
       var dataCautela = r.f[9] ? (r.f[9].v || "") : "";
+      var docSeiRaw = r.f[8] ? (r.f[8].v || "") : "";
       var obs = r.f[10] ? (r.f[10].v || "") : "";
+      var protTermo = "";
+      var mProt = (docSeiRaw + " " + obs).match(/TERMO-CAUT-[\w\-]+/i);
+      if (mProt) {
+        protTermo = mProt[0].toUpperCase();
+      }
       if (!dataCautela) {
         var mData = obs.match(/\b(\d{2}\/\d{2}\/\d{4}(?:\s+\d{2}:\d{2})?)\b/);
         if (mData) dataCautela = mData[1];
@@ -11933,7 +11950,8 @@ function getItensAcauteladosAtuais(omeUsuario, perfilUsuario, omeFiltroAdmin) {
         postoGradMilitar: r.f[5].v || "",
         nomeMilitar: nomeMilitarBanco,
         matriculaCpfMilitar: documentoFinal,
-        docSeiCautela: r.f[8].v || "-",
+        docSeiCautela: docSeiRaw || "-",
+        protocoloTermo: protTermo || "",
         dataCautela: dataCautela || "-",
         dataPrevista: dataPrevista || "-"
       });
