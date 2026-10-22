@@ -870,7 +870,7 @@
           <div class="row g-2 mb-3">
             <!-- Total Geral -->
             <div class="col-xl col-md-4 col-sm-6">
-              <div class="card border border-secondary border-opacity-25 shadow-sm p-2 rounded-2 bg-white" style="border-top: 3px solid #475569 !important;">
+              <div class="card border border-secondary border-opacity-25 shadow-sm p-2 rounded-2 bg-white" style="border-top: 3px solid #475569 !important; cursor: pointer;" onclick="limparFiltroStatusTabelaDash()" title="Clique para ver todos os materiais na tabela">
                 <div class="d-flex justify-content-between align-items-center">
                   <div>
                     <div class="text-uppercase text-secondary fw-bold" style="font-size: 0.68rem; letter-spacing: 0.5px;">Total de Itens</div>
@@ -884,7 +884,7 @@
 
             <!-- ECD -->
             <div class="col-xl col-md-4 col-sm-6">
-              <div class="card border border-secondary border-opacity-25 shadow-sm p-2 rounded-2 bg-white" style="border-top: 3px solid #10b981 !important;">
+              <div class="card border border-secondary border-opacity-25 shadow-sm p-2 rounded-2 bg-white card-hover-dash" style="border-top: 3px solid #10b981 !important; cursor: pointer;" onclick="alternarFiltroStatusTabelaDash('ECD')" title="Clique para filtrar a tabela por itens Em Uso (ECD)">
                 <div class="d-flex justify-content-between align-items-center">
                   <div>
                     <div class="text-uppercase text-success fw-bold" style="font-size: 0.68rem; letter-spacing: 0.5px;">Em Uso (ECD)</div>
@@ -898,7 +898,7 @@
 
             <!-- SCD -->
             <div class="col-xl col-md-4 col-sm-4">
-              <div class="card border border-secondary border-opacity-25 shadow-sm p-2 rounded-2 bg-white" style="border-top: 3px solid #ef4444 !important;">
+              <div class="card border border-secondary border-opacity-25 shadow-sm p-2 rounded-2 bg-white card-hover-dash" style="border-top: 3px solid #ef4444 !important; cursor: pointer;" onclick="alternarFiltroStatusTabelaDash('SCD')" title="Clique para filtrar a tabela por itens Sem Condições (SCD)">
                 <div class="d-flex justify-content-between align-items-center">
                   <div>
                     <div class="text-uppercase text-danger fw-bold" style="font-size: 0.68rem; letter-spacing: 0.5px;">Sem Condições (SCD)</div>
@@ -912,7 +912,7 @@
 
             <!-- Acautelado -->
             <div class="col-xl col-md-6 col-sm-4">
-              <div class="card border border-secondary border-opacity-25 shadow-sm p-2 rounded-2 bg-white" style="border-top: 3px solid #3b82f6 !important;">
+              <div class="card border border-secondary border-opacity-25 shadow-sm p-2 rounded-2 bg-white card-hover-dash" style="border-top: 3px solid #3b82f6 !important; cursor: pointer;" onclick="alternarFiltroStatusTabelaDash('ACAUTELADO')" title="Clique para filtrar a tabela por itens Acautelados">
                 <div class="d-flex justify-content-between align-items-center">
                   <div>
                     <div class="text-uppercase text-primary fw-bold" style="font-size: 0.68rem; letter-spacing: 0.5px;">Acautelado</div>
@@ -926,7 +926,7 @@
 
             <!-- Extraviado -->
             <div class="col-xl col-md-6 col-sm-4">
-              <div class="card border border-secondary border-opacity-25 shadow-sm p-2 rounded-2 bg-white" style="border-top: 3px solid #f59e0b !important;">
+              <div class="card border border-secondary border-opacity-25 shadow-sm p-2 rounded-2 bg-white card-hover-dash" style="border-top: 3px solid #f59e0b !important; cursor: pointer;" onclick="alternarFiltroStatusTabelaDash('EXTRAVIADO')" title="Clique para filtrar a tabela por itens Extraviados">
                 <div class="d-flex justify-content-between align-items-center">
                   <div>
                     <div class="text-uppercase text-warning-emphasis fw-bold" style="font-size: 0.68rem; letter-spacing: 0.5px; color: #b45309 !important;">Extraviado</div>
@@ -948,9 +948,14 @@
                   <span class="fw-bold text-dark" style="font-size: 0.78rem;">
                     <i class="fa-solid fa-chart-column text-danger me-1"></i> Quantitativo por Situação / Status
                   </span>
-                  <span class="badge bg-light text-secondary border" style="font-size: 0.68rem;" id="badgeTituloGraficoBarras">
-                    Filtro Ativo
-                  </span>
+                  <div class="d-flex align-items-center gap-1">
+                    <span class="badge bg-light text-muted border d-none d-sm-inline-block" style="font-size: 0.66rem;" title="Clique nas barras ou fatias para filtrar a tabela abaixo">
+                      <i class="fa-solid fa-hand-pointer text-danger me-1"></i>Clique na barra para filtrar
+                    </span>
+                    <span class="badge bg-light text-secondary border" style="font-size: 0.68rem;" id="badgeTituloGraficoBarras">
+                      Filtro Ativo
+                    </span>
+                  </div>
                 </div>
                 <div style="position: relative; height: 210px; width: 100%;">
                   <canvas id="chartDashBarrasStatus"></canvas>
@@ -976,9 +981,12 @@
           <!-- TABELA DE DETALHAMENTO DE MATERIAIS DA CLASSE -->
           <div class="card border border-secondary border-opacity-25 shadow-sm mb-2">
             <div class="card-header bg-white d-flex justify-content-between align-items-center py-2 px-3 flex-wrap gap-2">
-              <span class="fw-bold text-dark" style="font-size: 0.78rem;">
-                <i class="fa-solid fa-list-check me-2 text-danger"></i> Detalhamento dos Materiais (<span id="contadorItensTabelaDash">0</span> itens listados)
-              </span>
+              <div class="d-flex align-items-center flex-wrap gap-2">
+                <span class="fw-bold text-dark" style="font-size: 0.78rem;">
+                  <i class="fa-solid fa-list-check me-2 text-danger"></i> Detalhamento dos Materiais (<span id="contadorItensTabelaDash">0</span> itens listados)
+                </span>
+                <span id="badgeFiltroStatusTabelaDash" class="badge py-1 px-2 border" style="display: none; cursor: pointer; font-size: 0.72rem;" onclick="limparFiltroStatusTabelaDash()" title="Clique para remover este filtro de status"></span>
+              </div>
               <div class="d-flex align-items-center gap-2">
                 <input type="text" id="filtroTextoTabelaDash" class="form-control form-control-sm py-1 px-2" placeholder="Buscar material ou classe..." style="max-width: 260px; font-size: 0.78rem;" onkeyup="filtrarTabelaMateriaisDashLocal()">
               </div>
@@ -24249,6 +24257,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
   let chartDashBarrasInstancia = null;
   let chartDashDonutInstancia = null;
   let listaMateriaisDetalhamentoDash = [];
+  let filtroStatusDashAtivo = null; // 'ECD' | 'SCD' | 'ACAUTELADO' | 'EXTRAVIADO'
 
   // Carrega ou atualiza os dados consolidados do servidor
   function carregarDadosDashboardVisaoGeral(forcar) {
@@ -24523,11 +24532,12 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     }
 
     const labels = ['ECD (Em Uso)', 'SCD (Sem Condições)', 'Acautelado', 'Extraviado'];
+    const statusCodes = ['ECD', 'SCD', 'ACAUTELADO', 'EXTRAVIADO'];
     const dataValues = [ecd, scd, acautelado, extraviado];
     const bgColors = ['#10b981', '#ef4444', '#3b82f6', '#f59e0b'];
     const hoverColors = ['#059669', '#dc2626', '#2563eb', '#d97706'];
 
-    // 1. GRÁFICO DE BARRAS (COMPACTO)
+    // 1. GRÁFICO DE BARRAS (COMPACTO E INTERATIVO AO CLIQUE)
     const ctxBarras = canvasBarras.getContext('2d');
     chartDashBarrasInstancia = new Chart(ctxBarras, {
       type: 'bar',
@@ -24546,6 +24556,16 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        onHover: function(event, chartElement) {
+          event.native.target.style.cursor = chartElement[0] ? 'pointer' : 'default';
+        },
+        onClick: function(event, elements) {
+          if (elements && elements.length > 0) {
+            const elementIndex = elements[0].index;
+            const statusClicado = statusCodes[elementIndex];
+            alternarFiltroStatusTabelaDash(statusClicado);
+          }
+        },
         plugins: {
           legend: { display: false },
           tooltip: {
@@ -24553,7 +24573,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
               label: function(context) {
                 const val = context.parsed.y || 0;
                 const p = total > 0 ? ((val / total) * 100).toFixed(1).replace('.', ',') + '%' : '0%';
-                return ' ' + val.toLocaleString('pt-BR') + ' itens (' + p + ')';
+                return ' ' + val.toLocaleString('pt-BR') + ' itens (' + p + ') - Clique para filtrar tabela';
               }
             }
           }
@@ -24577,7 +24597,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       }
     });
 
-    // 2. GRÁFICO DONUT / ROSCA (COMPACTO)
+    // 2. GRÁFICO DONUT / ROSCA (COMPACTO E INTERATIVO AO CLIQUE)
     const ctxDonut = canvasDonut.getContext('2d');
     chartDashDonutInstancia = new Chart(ctxDonut, {
       type: 'doughnut',
@@ -24588,12 +24608,22 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
           backgroundColor: total > 0 ? bgColors : ['#e2e8f0', '#e2e8f0', '#e2e8f0', '#e2e8f0'],
           borderColor: '#ffffff',
           borderWidth: 2,
-          hoverOffset: 4
+          hoverOffset: 6
         }]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        onHover: function(event, chartElement) {
+          event.native.target.style.cursor = chartElement[0] ? 'pointer' : 'default';
+        },
+        onClick: function(event, elements) {
+          if (elements && elements.length > 0) {
+            const elementIndex = elements[0].index;
+            const statusClicado = statusCodes[elementIndex];
+            alternarFiltroStatusTabelaDash(statusClicado);
+          }
+        },
         plugins: {
           legend: {
             position: 'bottom',
@@ -24609,7 +24639,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
               label: function(context) {
                 const val = context.parsed || 0;
                 const p = total > 0 ? ((val / total) * 100).toFixed(1).replace('.', ',') + '%' : '0%';
-                return ' ' + context.label + ': ' + val.toLocaleString('pt-BR') + ' (' + p + ')';
+                return ' ' + context.label + ': ' + val.toLocaleString('pt-BR') + ' (' + p + ') - Clique para filtrar';
               }
             }
           }
@@ -24619,7 +24649,70 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     });
   }
 
-  // Filtra localmente os materiais da tabela abaixo do gráfico
+  // Alterna o filtro de status da tabela (ao clicar nas barras, fatias da rosca ou cards de KPI)
+  function alternarFiltroStatusTabelaDash(status) {
+    if (!status) return;
+    const stUpper = status.toUpperCase();
+    if (filtroStatusDashAtivo === stUpper) {
+      limparFiltroStatusTabelaDash(true);
+      return;
+    }
+
+    filtroStatusDashAtivo = stUpper;
+    atualizarBadgeFiltroStatusTabelaDash();
+    filtrarTabelaMateriaisDashLocal();
+
+    // Rola suavemente até a tabela de detalhamento
+    const corpoEl = document.getElementById('corpoTabelaMateriaisDash');
+    if (corpoEl) {
+      corpoEl.closest('.card')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }
+
+  // Remove o filtro de status da tabela e exibe todos os itens
+  function limparFiltroStatusTabelaDash(reaplicar = true) {
+    filtroStatusDashAtivo = null;
+    atualizarBadgeFiltroStatusTabelaDash();
+    if (reaplicar) {
+      filtrarTabelaMateriaisDashLocal();
+    }
+  }
+
+  // Atualiza o badge indicador do filtro de status na tabela
+  function atualizarBadgeFiltroStatusTabelaDash() {
+    const badge = document.getElementById('badgeFiltroStatusTabelaDash');
+    if (!badge) return;
+
+    if (!filtroStatusDashAtivo) {
+      badge.style.display = 'none';
+      badge.innerHTML = '';
+      return;
+    }
+
+    let rotulo = '';
+    let classeCor = 'bg-secondary-subtle text-dark border-secondary-subtle';
+
+    if (filtroStatusDashAtivo === 'ECD') {
+      rotulo = 'Em Uso (ECD)';
+      classeCor = 'bg-success-subtle text-success border-success-subtle';
+    } else if (filtroStatusDashAtivo === 'SCD') {
+      rotulo = 'Sem Condições (SCD)';
+      classeCor = 'bg-danger-subtle text-danger border-danger-subtle';
+    } else if (filtroStatusDashAtivo === 'ACAUTELADO') {
+      rotulo = 'Acautelado';
+      classeCor = 'bg-primary-subtle text-primary border-primary-subtle';
+    } else if (filtroStatusDashAtivo === 'EXTRAVIADO') {
+      rotulo = 'Extraviado';
+      classeCor = 'bg-warning-subtle text-warning-emphasis border-warning-subtle';
+    }
+
+    badge.className = 'badge py-1 px-2 border ' + classeCor;
+    badge.innerHTML = '<i class="fa-solid fa-filter me-1"></i> Filtrando por: <strong>' + rotulo + '</strong> <i class="fa-solid fa-circle-xmark ms-1"></i>';
+    badge.style.display = 'inline-flex';
+    badge.style.alignItems = 'center';
+  }
+
+  // Filtra localmente os materiais da tabela abaixo do gráfico (por texto e por status clicado)
   function filtrarTabelaMateriaisDashLocal() {
     const tbody = document.getElementById('corpoTabelaMateriaisDash');
     if (!tbody) return;
@@ -24627,21 +24720,48 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     const inputBusca = document.getElementById('filtroTextoTabelaDash');
     const termo = (inputBusca ? inputBusca.value : '').trim().toLowerCase();
 
-    const filtrados = listaMateriaisDetalhamentoDash.filter(function(m) {
-      if (!termo) return true;
-      return (m.nome && m.nome.toLowerCase().indexOf(termo) !== -1) ||
-             (m.classe1 && m.classe1.toLowerCase().indexOf(termo) !== -1) ||
-             (m.classe2 && m.classe2.toLowerCase().indexOf(termo) !== -1) ||
-             (m.classe3 && m.classe3.toLowerCase().indexOf(termo) !== -1);
-    });
+    let filtrados = listaMateriaisDetalhamentoDash || [];
+
+    // 1. Filtro por status clicado no gráfico (Barras/Donut) ou nos cards
+    if (filtroStatusDashAtivo) {
+      const stKey = filtroStatusDashAtivo.toLowerCase(); // 'ecd', 'scd', 'acautelado', 'extraviado'
+      filtrados = filtrados.filter(function(m) {
+        return (m[stKey] || 0) > 0;
+      });
+      // Ordena decrescente pela quantidade do status selecionado
+      filtrados = filtrados.slice().sort(function(a, b) {
+        return (b[stKey] || 0) - (a[stKey] || 0);
+      });
+    }
+
+    // 2. Filtro por texto digitado
+    if (termo) {
+      filtrados = filtrados.filter(function(m) {
+        return (m.nome && m.nome.toLowerCase().indexOf(termo) !== -1) ||
+               (m.classe1 && m.classe1.toLowerCase().indexOf(termo) !== -1) ||
+               (m.classe2 && m.classe2.toLowerCase().indexOf(termo) !== -1) ||
+               (m.classe3 && m.classe3.toLowerCase().indexOf(termo) !== -1);
+      });
+    }
+
+    const elContador = document.getElementById('contadorItensTabelaDash');
+    if (elContador) elContador.innerText = filtrados.length;
 
     if (filtrados.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-3"><i class="fa-solid fa-inbox me-2"></i>Nenhum material encontrado para os filtros selecionados.</td></tr>';
+      const msgStatus = filtroStatusDashAtivo 
+        ? 'Nenhum material com unidades em status <strong>' + filtroStatusDashAtivo + '</strong> encontrado.'
+        : 'Nenhum material encontrado para os filtros selecionados.';
+      tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-3"><i class="fa-solid fa-inbox me-2"></i>' + msgStatus + '</td></tr>';
       return;
     }
 
     let html = '';
     filtrados.forEach(function(m) {
+      const hEcd = filtroStatusDashAtivo === 'ECD' ? 'style="border: 2px solid #10b981 !important; font-weight: bold; background-color: #ecfdf5 !important;"' : '';
+      const hScd = filtroStatusDashAtivo === 'SCD' ? 'style="border: 2px solid #ef4444 !important; font-weight: bold; background-color: #fef2f2 !important;"' : '';
+      const hAcaut = filtroStatusDashAtivo === 'ACAUTELADO' ? 'style="border: 2px solid #3b82f6 !important; font-weight: bold; background-color: #eff6ff !important;"' : '';
+      const hExtr = filtroStatusDashAtivo === 'EXTRAVIADO' ? 'style="border: 2px solid #f59e0b !important; font-weight: bold; background-color: #fffbeb !important;"' : '';
+
       html += `
         <tr>
           <td><strong class="text-dark">${m.nome}</strong></td>
@@ -24649,10 +24769,10 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
           <td><span class="badge bg-light text-primary border border-primary-subtle" style="font-size: 0.7rem;">${m.classe2 || '-'}</span></td>
           <td><span class="badge bg-light text-info border border-info-subtle" style="font-size: 0.7rem;">${m.classe3 || '-'}</span></td>
           <td class="text-center"><span class="badge bg-secondary-subtle text-dark border px-2 py-1">${m.total.toLocaleString('pt-BR')}</span></td>
-          <td class="text-center"><span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">${m.ecd.toLocaleString('pt-BR')}</span></td>
-          <td class="text-center"><span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1">${m.scd.toLocaleString('pt-BR')}</span></td>
-          <td class="text-center"><span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1">${m.acautelado.toLocaleString('pt-BR')}</span></td>
-          <td class="text-center"><span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-1">${m.extraviado.toLocaleString('pt-BR')}</span></td>
+          <td class="text-center"><span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1" ${hEcd}>${m.ecd.toLocaleString('pt-BR')}</span></td>
+          <td class="text-center"><span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1" ${hScd}>${m.scd.toLocaleString('pt-BR')}</span></td>
+          <td class="text-center"><span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1" ${hAcaut}>${m.acautelado.toLocaleString('pt-BR')}</span></td>
+          <td class="text-center"><span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-1" ${hExtr}>${m.extraviado.toLocaleString('pt-BR')}</span></td>
         </tr>
       `;
     });
@@ -24911,6 +25031,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     if (selCl3) selCl3.value = 'TODAS';
     if (inputBusca) inputBusca.value = '';
 
+    limparFiltroStatusTabelaDash(false);
     aplicarFiltrosDashboard();
   }
 
