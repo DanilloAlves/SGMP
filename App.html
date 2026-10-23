@@ -2961,7 +2961,7 @@
             <p class="text-muted small mb-0" id="subtituloAbaRecebimento">Processo de cadastro e inclusão de materiais na Unidade.</p>
           </div>
           <div class="d-flex align-items-center gap-2 flex-wrap">
-            <button type="button" id="btnGerenciamentoCadastroCadItens" class="btn btn-primary btn-sm fw-bold px-3 py-2 shadow-sm" onclick="abrirModalGerenciamentoCadastro()" style="display: none;" title="Gerenciar e editar cadastro oficial de materiais (#CAD_ITENS)">
+            <button type="button" id="btnGerenciamentoCadastroCadItens" class="btn btn-primary btn-sm fw-bold px-3 py-2 shadow-sm" onclick="abrirModalGerenciamentoCadastro()" style="display: none;" title="Gerenciar e editar cadastro oficial de materiais">
               <i class="fa-solid fa-boxes-packing me-1"></i> Gerenciamento de Cadastro
             </button>
             <button type="button" class="btn btn-success btn-sm fw-bold px-3 py-2 shadow-sm" onclick="abrirModalImportarExcel()">
@@ -3457,7 +3457,7 @@
 <!-- Modal Importação Excel -->
 
 <!-- ========================================================= -->
-<!-- MODAL GERENCIAMENTO DE CADASTRO DE MATERIAIS (#CAD_ITENS)  -->
+<!-- MODAL GERENCIAMENTO DE CADASTRO DE MATERIAIS -->
 <!-- ========================================================= -->
 <div class="modal fade" id="modalGerenciamentoCadastroCadItens" tabindex="-1" aria-labelledby="modalGerencCadItensLabel" aria-hidden="true" data-bs-backdrop="static">
   <div class="modal-dialog modal-xl modal-dialog-scrollable">
@@ -3468,7 +3468,7 @@
         <div class="d-flex align-items-center gap-2">
           <i class="fa-solid fa-boxes-packing fs-5"></i>
           <div>
-            <h5 class="modal-title fw-bold fs-6 mb-0" id="modalGerencCadItensLabel">Gerenciamento de Cadastro de Materiais (#CAD_ITENS)</h5>
+            <h5 class="modal-title fw-bold fs-6 mb-0" id="modalGerencCadItensLabel">Gerenciamento de Cadastro de Materiais</h5>
             <small class="opacity-75" style="font-size: 0.72rem;">Catálogo Oficial de Materiais e Classificações do CBMPE</small>
           </div>
         </div>
@@ -3481,7 +3481,7 @@
         <!-- Indicador de Carregamento -->
         <div id="loadingGerencCadItens" class="text-center py-5">
           <div class="spinner-border text-primary mb-3" role="status"></div>
-          <h6 class="fw-bold text-dark">Carregando catálogo oficial de materiais (#CAD_ITENS)...</h6>
+          <h6 class="fw-bold text-dark">Carregando catálogo oficial de materiais...</h6>
           <span class="text-muted small">Lendo estrutura de colunas e registros cadastrados no Google Sheets...</span>
         </div>
 
@@ -3634,7 +3634,7 @@
             <div class="col-12" id="cardCamposExtrasCadItens" style="display: none;">
               <div class="card border shadow-sm p-3 bg-white">
                 <h6 class="fw-bold text-secondary mb-3 pb-2 border-bottom d-flex align-items-center" style="font-size: 0.85rem;">
-                  <i class="fa-solid fa-ellipsis me-2"></i> Outros Campos da Base #CAD_ITENS
+                  <i class="fa-solid fa-ellipsis me-2"></i> Outros Campos do Cadastro
                 </h6>
                 <div id="containerCamposExtrasCadItens" class="row g-2"></div>
               </div>
@@ -26045,7 +26045,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
 
   
   // =========================================================================
-  // GERENCIAMENTO DE CADASTRO DE MATERIAIS (#CAD_ITENS)
+  // GERENCIAMENTO DE CADASTRO DE MATERIAIS
   // =========================================================================
 
   let cacheDadosCadItens = null;
@@ -26057,7 +26057,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       Swal.fire({
         icon: 'warning',
         title: 'Acesso Restrito',
-        text: 'Apenas Administradores possuem permissão para gerenciar a base oficial de cadastro de materiais (#CAD_ITENS).'
+        text: 'Apenas Administradores possuem permissão para gerenciar o cadastro oficial de materiais.'
       });
       return;
     }
@@ -26343,7 +26343,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
 
     Swal.fire({
       title: 'Gravando no Catálogo...',
-      html: 'Atualizando base oficial #CAD_ITENS no Google Sheets...',
+      html: 'Atualizando cadastro oficial de materiais...',
       allowOutsideClick: false,
       didOpen: () => { Swal.showLoading(); }
     });

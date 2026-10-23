@@ -17367,7 +17367,7 @@ function obterDadosGerenciamentoCadItens(usuarioCliente) {
     var ehAdmin = (perfilNorm === "administrador" || perfilNorm.indexOf("admin") !== -1);
 
     if (!ehAdmin) {
-      throw new Error("Acesso restrito: apenas Administradores possuem permissão para gerenciar o cadastro oficial de materiais (#CAD_ITENS).");
+      throw new Error("Acesso restrito: apenas Administradores possuem permissão para gerenciar o cadastro oficial de materiais.");
     }
 
     var ss = SpreadsheetApp.openById(ID_PLANILHA_COMPRAS);
@@ -17498,7 +17498,7 @@ function salvarCadastroMaterialCadItens(dados, usuarioCliente) {
     var ehAdmin = (perfilNorm === "administrador" || perfilNorm.indexOf("admin") !== -1);
 
     if (!ehAdmin) {
-      throw new Error("Acesso negado: apenas Administradores possuem autorização para salvar ou alterar itens no Catálogo (#CAD_ITENS).");
+      throw new Error("Acesso negado: apenas Administradores possuem autorização para salvar ou alterar itens no Catálogo.");
     }
 
     if (!dados || !dados.objetoResumido) {
