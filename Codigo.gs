@@ -13689,17 +13689,45 @@ function solicitarAcessoUsuario(dados) {
 
 // Aprovar ou Recusar pelo Admin
 // Aprovar ou Recusar pelo Admin
-function avaliarCadastroPendentes(idSolicitacao, acao) {
+function avaliarCadastroPendentes(idSolicitacao, acao, perfilSolicitante, omeSolicitante) {
   try {
     var ss = SpreadsheetApp.openById(ID_PLANILHA_USUARIOS);
     var sheetPend = ss.getSheetByName("CadastrosPendentes");
     if (!sheetPend) throw new Error("Aba pendentes não encontrada.");
     
+    // Identifica o perfil e a OME do avaliador via sessão e parâmetros
+    var emailSessao = "";
+    try { emailSessao = Session.getActiveUser().getEmail().trim().toLowerCase(); } catch (e) {}
+    if (!emailSessao) {
+      try { emailSessao = Session.getEffectiveUser().getEmail().trim().toLowerCase(); } catch (e) {}
+    }
+    var userLogado = emailSessao ? verificarPermissaoUsuario(emailSessao) : null;
+    
+    var pSol = padronizarPerfilUsuario_(perfilSolicitante || (userLogado ? userLogado.perfil : ""));
+    var omeSol = String(omeSolicitante || (userLogado ? userLogado.ome : "")).trim();
+    var ehAdmin = (pSol === "Administrador");
+    var ehComandante = (pSol === "Comandante de Unidade");
+    
+    if (!ehAdmin && !ehComandante) {
+      throw new Error("Acesso negado: Somente Administradores ou Comandantes de Unidade podem avaliar solicitações de acesso.");
+    }
+    
+    var omeSolPadrao = (typeof obterOmePadronizada === "function") ? obterOmePadronizada(omeSol) : omeSol.toUpperCase();
     var dados = sheetPend.getDataRange().getValues();
     
     for (var i = 1; i < dados.length; i++) {
       if (String(dados[i][0]) === String(idSolicitacao)) {
         var row = dados[i];
+        
+        var omeTicket = String(row[5] || "").trim();
+        var omeTicketPadrao = (typeof obterOmePadronizada === "function") ? obterOmePadronizada(omeTicket) : omeTicket.toUpperCase();
+        
+        // Trava estrita de segurança para Comandantes de Unidade: restrito à sua própria OME
+        if (ehComandante && !ehAdmin) {
+          if (!omeSolPadrao || !omeTicketPadrao || omeTicketPadrao !== omeSolPadrao) {
+            throw new Error("Acesso negado: Comandantes de Unidade só podem aprovar solicitações de militares da sua própria OME (" + (omeSolPadrao || "sua unidade") + ").");
+          }
+        }
         
         // Atualiza o status na aba de Pendentes (Coluna J / índice 10)
         sheetPend.getRange(i + 1, 10).setValue(acao.toUpperCase());
@@ -13709,6 +13737,10 @@ function avaliarCadastroPendentes(idSolicitacao, acao) {
           if (!sheetLogins) throw new Error("Aba de Logins não encontrada.");
           
           var perfilAprovado = padronizarPerfilUsuario_(row[7]);
+          // Comandante de Unidade não pode aprovar perfil Administrador
+          if (ehComandante && !ehAdmin && perfilAprovado === "Administrador") {
+            perfilAprovado = "Usuário";
+          }
           var emailAprovado = String(row[3] || "").trim();
           var cpfAprovado = String(row[4] || "").trim();
           var cpfAprovadoLimpo = cpfAprovado.replace(/\D/g, "");
@@ -13739,6 +13771,7 @@ function avaliarCadastroPendentes(idSolicitacao, acao) {
               sheetLogins.getRange(linhaExistente, 7).setValue(pinAprovado);
               sheetLogins.getRange(linhaExistente, 8).setValue("ATIVO");
               sheetLogins.getRange(linhaExistente, 9).setValue("SIM"); // Exige redefinição no primeiro acesso
+              break;
             }
           }
 
@@ -13817,11 +13850,12 @@ function avaliarCadastroPendentes(idSolicitacao, acao) {
             if (cpfAprovadoLimpo) cache.remove("USR_PERM_" + cpfAprovadoLimpo.replace(/[^a-z0-9]/gi, "_").substring(0, 45));
           } catch(eC) {}
 
-          // Registra a auditoria corretamente usando os índices
-          registrarLogAuditoria("APROVACAO_ACESSO", "Aprovado acesso para " + row[2] + " (" + row[4] + ")");
+          var executorDesc = (ehComandante && !ehAdmin) ? "Comandante da OME " + omeSolPadrao : "Administrador";
+          registrarLogAuditoria("APROVACAO_ACESSO", "Aprovado acesso para " + row[2] + " (" + row[4] + ") por " + executorDesc);
         } else if (acao.toUpperCase() === "RECUSADO" || acao.toUpperCase() === "REJEITADO") {
           try {
-            registrarLogAuditoria("RECUSA_ACESSO", "Recusada solicitação de acesso para " + row[2] + " (" + row[4] + ")");
+            var executorDescRec = (ehComandante && !ehAdmin) ? "Comandante da OME " + omeSolPadrao : "Administrador";
+            registrarLogAuditoria("RECUSA_ACESSO", "Recusada solicitação de acesso para " + row[2] + " (" + row[4] + ") por " + executorDescRec);
           } catch(eLogRec) {}
         }
         return "Solicitação " + acao.toUpperCase() + " com sucesso!";
@@ -13832,6 +13866,8 @@ function avaliarCadastroPendentes(idSolicitacao, acao) {
     throw new Error("Erro ao processar aprovação: " + err.message);
   }
 }
+
+
 
 // Validar PIN de transação na hora da assinatura
 function validarPinTransacao(cpfOrEmail, pinInformado) {
@@ -14122,12 +14158,26 @@ function getTicketsAcessoPendentes(filtroOmeSolicitante, perfilSolicitante) {
     var dados = sheet.getDataRange().getValues();
     var tickets = [];
 
-    var pSol = padronizarPerfilUsuario_(perfilSolicitante);
-    var omeSol = String(filtroOmeSolicitante || "").trim().toUpperCase();
+    // Identifica usuário e perfil da sessão / solicitante
+    var emailSessao = "";
+    try { emailSessao = Session.getActiveUser().getEmail().trim().toLowerCase(); } catch (e) {}
+    if (!emailSessao) {
+      try { emailSessao = Session.getEffectiveUser().getEmail().trim().toLowerCase(); } catch (e) {}
+    }
+    var userLogado = emailSessao ? verificarPermissaoUsuario(emailSessao) : null;
+
+    var pSol = padronizarPerfilUsuario_(perfilSolicitante || (userLogado ? userLogado.perfil : ""));
+    var omeSol = String(filtroOmeSolicitante || (userLogado ? userLogado.ome : "")).trim();
     var ehAdmin = (pSol === "Administrador");
     var ehComandante = (pSol === "Comandante de Unidade");
 
-    // [0] ID | [1] Data | [2] Nome | [3] Email | [4] CPF | [5] OME | [6] Subunidade | [7] Perfil | [8] PIN | [9] Status
+    if (!ehAdmin && !ehComandante) {
+      return [];
+    }
+
+    var omeSolPadrao = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(omeSol) : omeSol.toUpperCase();
+
+    // [0] ID | [1] Data | [2] Nome | [3] Email | [4] CPF | [5] OME | [6] Subunidade | [7] Perfil | [8] PIN | [9] Status | [10] EmailInst | [11] EmailVerif
     for (var i = 1; i < dados.length; i++) {
       var linha = dados[i];
       var status = String(linha[9] || "").trim().toUpperCase();
@@ -14135,10 +14185,9 @@ function getTicketsAcessoPendentes(filtroOmeSolicitante, perfilSolicitante) {
       if (status === "PENDENTE") {
         var omeTicket = String(linha[5] || "").trim();
         var omeTicketPadrao = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(omeTicket) : omeTicket.toUpperCase();
-        var omeSolPadrao = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(omeSol) : omeSol;
 
         if (ehComandante && !ehAdmin) {
-          if (omeSolPadrao && omeTicketPadrao && omeTicketPadrao !== omeSolPadrao) {
+          if (!omeSolPadrao || !omeTicketPadrao || omeTicketPadrao !== omeSolPadrao) {
             continue;
           }
         }
@@ -14174,6 +14223,8 @@ function getTicketsAcessoPendentes(filtroOmeSolicitante, perfilSolicitante) {
     return [];
   }
 }
+
+
 
 // =========================================================================
 // GESTÃO DE TICKETS DE DOAÇÃO
