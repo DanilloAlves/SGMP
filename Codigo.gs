@@ -96,10 +96,20 @@ function doGet(e) {
 
   var usuario = verificarPermissaoUsuario(email);
 
+  if (!usuario) {
+    var templateLogin = HtmlService.createTemplateFromFile('Login');
+    templateLogin.appUrl = appUrl;
+    templateLogin.erro = "Acesso Não Autorizado: O e-mail Google (" + (email || "não identificado") + ") não possui cadastro ativo no SGMP. Solicite seu acesso através do botão abaixo.";
+    return templateLogin.evaluate()
+      .setTitle('SGMP — CBMPE | Acesso Não Autorizado')
+      .addMetaTag('viewport', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  }
+
   if (usuario && (usuario.status === "INATIVO" || usuario.status === "BLOQUEADO")) {
     var templateLogin = HtmlService.createTemplateFromFile('Login');
     templateLogin.appUrl = appUrl;
-    templateLogin.erro = "Acesso Bloqueado: Seu cadastro está marcado como INATIVO na tabela de Logins.";
+    templateLogin.erro = "Acesso Bloqueado: Seu cadastro está marcado como " + usuario.status + " na tabela de Logins.";
     return templateLogin.evaluate()
       .setTitle('SGMP — CBMPE | Acesso Bloqueado')
       .addMetaTag('viewport', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no')
@@ -107,7 +117,7 @@ function doGet(e) {
   }
 
   var templateIndex = HtmlService.createTemplateFromFile('App');
-  templateIndex.usuarioLogado = usuario || { nome: "Usuário", email: email, perfil: "Usuário", ome: "GBI", subunidade: "GERAL", cpf: "" }; 
+  templateIndex.usuarioLogado = usuario;
   templateIndex.appUrl = appUrl;
 
   return templateIndex.evaluate()
@@ -365,10 +375,12 @@ function getDadosUsuarioLogado(identificadorCliente) {
       nome: "Não Cadastrado (" + (email || identificadorCliente || "Desconhecido") + ")",
       email: email || identificadorCliente || "",
       ome: "SEM OME",
-      perfil: "Usuário",
+      perfil: "Inativo",
       subunidade: "GERAL",
       cpf: "",
-      permissoes: []
+      status: "NAO_CADASTRADO",
+      permissoes: [],
+      primeiroAcesso: false
     };
   } catch (err) {
     return {
@@ -14323,7 +14335,7 @@ function enviarCodigoVerificacaoInstitucional(emailInstitucional, nome) {
   }
 }
 
-// Valida o código recebido no e-mail institucional e submete a solicitação de acesso
+// Valida o código recebido no e-mail institucional, efetiva o cadastro com PIN temporário de Primeiro Acesso e envia por e-mail
 function confirmarCodigoESolicitarAcesso(dados, codigoDigitado) {
   try {
     var emailInst = String((dados && dados.emailInstitucional) || "").trim().toLowerCase();
@@ -14349,15 +14361,149 @@ function confirmarCodigoESolicitarAcesso(dados, codigoDigitado) {
       throw new Error("Código de confirmação incorreto ou expirado. Verifique a sua caixa postal no Webmail institucional e tente novamente.");
     }
 
-    // Código correto: consome do cache e grava a solicitação verificada
+    // Código correto: consome do cache
     cache.remove(cacheKey);
 
     dados.emailInstitucional = emailInst;
     dados.emailInstitucionalVerificado = "SIM";
 
-    return solicitarAcessoUsuario(dados);
+    var nomeLimpo = String((dados && dados.nome) || "").trim().toUpperCase();
+    var emailGoogle = String((dados && dados.email) || "").trim().toLowerCase();
+    var cpfLimpo = String((dados && dados.cpf) || "").trim().replace(/\D/g, "");
+    if (cpfLimpo.length === 10) cpfLimpo = "0" + cpfLimpo;
+    var omePadrao = (typeof obterOmePadronizada === "function") ? obterOmePadronizada(dados.ome || "") : String(dados.ome || "").trim();
+    var subunidadeLimpa = String(dados.subunidade || "GERAL").trim().toUpperCase();
+    var perfilPadrao = "Usuário";
+
+    // Gera o PIN Temporário de Primeiro Acesso (6 dígitos numéricos)
+    var pinTemporario = String(Math.floor(100000 + Math.random() * 900000));
+
+    var ssUser = SpreadsheetApp.openById(ID_PLANILHA_USUARIOS);
+    var sheetLogins = ssUser.getSheetByName(ABA_USUARIOS);
+    if (!sheetLogins) throw new Error("Aba de Logins não encontrada.");
+
+    var idx = obterIndicesLogins_(sheetLogins);
+    var dadosLogins = sheetLogins.getDataRange().getValues();
+    var linhaExistente = -1;
+
+    for (var i = 1; i < dadosLogins.length; i++) {
+      var rowEmail = String(dadosLogins[i][idx.email] || "").trim().toLowerCase();
+      var rowCpf = String(dadosLogins[i][idx.cpf] || "").trim().replace(/\D/g, "");
+      if (rowCpf.length === 10) rowCpf = "0" + rowCpf;
+
+      if ((emailGoogle && rowEmail === emailGoogle) || (cpfLimpo && rowCpf === cpfLimpo)) {
+        linhaExistente = i + 1;
+        break;
+      }
+    }
+
+    if (linhaExistente !== -1) {
+      sheetLogins.getRange(linhaExistente, idx.email + 1).setValue(emailGoogle);
+      sheetLogins.getRange(linhaExistente, idx.cpf + 1).setNumberFormat('@').setValue(cpfLimpo);
+      sheetLogins.getRange(linhaExistente, idx.nome + 1).setValue(nomeLimpo);
+      sheetLogins.getRange(linhaExistente, idx.ome + 1).setValue(omePadrao);
+      sheetLogins.getRange(linhaExistente, idx.perfil + 1).setValue(perfilPadrao);
+      sheetLogins.getRange(linhaExistente, idx.subunidade + 1).setValue(subunidadeLimpa);
+      sheetLogins.getRange(linhaExistente, idx.pin + 1).setNumberFormat('@').setValue(pinTemporario);
+      sheetLogins.getRange(linhaExistente, idx.status + 1).setValue("ATIVO");
+      sheetLogins.getRange(linhaExistente, idx.primeiroAcesso + 1).setValue("SIM");
+    } else {
+      var maxCols = Math.max(sheetLogins.getLastColumn(), idx.primeiroAcesso + 1, (idx.permissoes || 0) + 1, 9);
+      var novaLinha = new Array(maxCols).fill("");
+      novaLinha[idx.email] = emailGoogle;
+      novaLinha[idx.cpf] = cpfLimpo;
+      novaLinha[idx.nome] = nomeLimpo;
+      novaLinha[idx.ome] = omePadrao;
+      novaLinha[idx.perfil] = perfilPadrao;
+      novaLinha[idx.subunidade] = subunidadeLimpa;
+      novaLinha[idx.pin] = pinTemporario;
+      novaLinha[idx.status] = "ATIVO";
+      novaLinha[idx.primeiroAcesso] = "SIM";
+
+      sheetLogins.appendRow(novaLinha);
+      var novaLinhaIdx = sheetLogins.getLastRow();
+      sheetLogins.getRange(novaLinhaIdx, idx.pin + 1).setNumberFormat('@').setValue(pinTemporario);
+      sheetLogins.getRange(novaLinhaIdx, idx.cpf + 1).setNumberFormat('@').setValue(cpfLimpo);
+    }
+
+    // Registra na aba CadastrosPendentes como APROVADO
+    try {
+      var sheetPend = ssUser.getSheetByName("CadastrosPendentes") || ssUser.insertSheet("CadastrosPendentes");
+      if (sheetPend.getLastRow() === 0) {
+        sheetPend.appendRow(["ID_Solicitacao", "Data", "Nome", "Email", "CPF", "OME", "Subunidade", "Perfil", "PIN", "Status", "Email_Institucional", "Email_Verificado"]);
+      }
+      var idReq = "REQ-" + Date.now();
+      var dataHora = Utilities.formatDate(new Date(), "America/Recife", "yyyy-MM-dd HH:mm:ss");
+      sheetPend.appendRow([
+        idReq, dataHora,
+        nomeLimpo,
+        emailGoogle,
+        cpfLimpo,
+        omePadrao,
+        subunidadeLimpa,
+        perfilPadrao,
+        pinTemporario,
+        "APROVADO",
+        emailInst,
+        "SIM"
+      ]);
+    } catch (ePend) {
+      console.warn("Aviso ao registrar CadastrosPendentes: " + ePend.message);
+    }
+
+    SpreadsheetApp.flush();
+
+    // Limpa cache de permissões do usuário
+    try {
+      if (emailGoogle) cache.remove("USR_PERM_" + emailGoogle.replace(/[^a-z0-9]/gi, "_").substring(0, 45));
+      if (cpfLimpo) cache.remove("USR_PERM_" + cpfLimpo.replace(/[^a-z0-9]/gi, "_").substring(0, 45));
+    } catch (eCache) {}
+
+    // Envia e-mail oficial com o PIN Temporário de Primeiro Acesso
+    try {
+      var appUrl = "";
+      try { appUrl = ScriptApp.getService().getUrl(); } catch (eUrl) { appUrl = "https://sgmp.vercel.app"; }
+      var linkAcesso = appUrl ? appUrl.split("?")[0] + "?auth=true" : "https://sgmp.vercel.app";
+
+      var assunto = "[SGMP - CBMPE] PIN Temporário de Primeiro Acesso: " + pinTemporario;
+      var corpoHtml = 
+        "<div style='font-family: Arial, sans-serif; max-width: 520px; margin: auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 24px; background-color: #ffffff;'>" +
+          "<div style='text-align: center; margin-bottom: 20px;'>" +
+            "<h2 style='color: #15803d; margin: 0; font-size: 22px;'>SGMP — CBMPE</h2>" +
+            "<p style='color: #64748b; font-size: 13px; margin-top: 4px;'>Sistema de Gestão de Materiais e Patrimônio</p>" +
+          "</div>" +
+          "<p style='font-size: 15px; color: #1e293b;'>Olá, <strong>" + nomeLimpo + "</strong>.</p>" +
+          "<p style='font-size: 14px; color: #475569; line-height: 1.5;'>Sua identidade militar foi verificada com sucesso através do seu e-mail funcional institucional <strong>" + emailInst + "</strong>.</p>" +
+          "<p style='font-size: 14px; color: #475569;'>Seu <strong>PIN Temporário de Primeiro Acesso</strong> para login no sistema é:</p>" +
+          "<div style='background-color: #f0fdf4; border: 2px dashed #15803d; border-radius: 6px; padding: 16px; text-align: center; font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #15803d; margin: 24px 0;'>" +
+            pinTemporario +
+          "</div>" +
+          "<div style='background-color: #fffbeb; border: 1px solid #fef3c7; border-radius: 6px; padding: 12px; font-size: 13px; color: #92400e; margin-bottom: 20px; line-height: 1.4;'>" +
+            "<strong>Atenção Obrigatória:</strong> Ao acessar o sistema com sua conta Google (<strong>" + emailGoogle + "</strong>), a tela de segurança solicitará este PIN temporário para você cadastrar o seu <strong>PIN Pessoal Definitivo</strong> para assinaturas digitais." +
+          "</div>" +
+          "<div style='text-align: center; margin-top: 24px;'>" +
+            "<a href='" + linkAcesso + "' style='background-color: #991b1b; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: bold; font-size: 14px; display: inline-block;'>Acessar o SGMP</a>" +
+          "</div>" +
+          "<hr style='border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;'>" +
+          "<p style='font-size: 11px; color: #94a3b8; text-align: center; margin: 0;'>Diretoria de Logística — Corpo de Bombeiros Militar de Pernambuco</p>" +
+        "</div>";
+
+      MailApp.sendEmail({
+        to: emailInst,
+        subject: assunto,
+        htmlBody: corpoHtml
+      });
+    } catch (errMail) {
+      console.error("Erro ao enviar email com PIN temporário: " + errMail.message);
+    }
+
+    registrarLogAuditoria("CADASTRO_PRIMEIRO_ACESSO", "Usuário cadastrado com sucesso e PIN temporário enviado para: " + emailInst + " | Nome: " + nomeLimpo + " | Login: " + emailGoogle);
+    return {
+      sucesso: true,
+      mensagem: "Cadastro confirmado com sucesso! O seu PIN Temporário de Primeiro Acesso foi enviado para " + emailInst + ". Utilize-o ao fazer login para cadastrar seu novo PIN definitivo."
+    };
   } catch (err) {
-    console.error("Erro ao validar código institucional: " + err.message);
+    console.error("Erro ao validar código institucional e cadastrar usuário: " + err.message);
     throw new Error(err.message);
   }
 }
@@ -16175,15 +16321,16 @@ function verificarUsuarioExistente(emailGoogle, cpf, emailInst) {
     var cpfLimpo = String(cpf || "").trim().replace(/\D/g, "");
     var emailInstLimpo = String(emailInst || "").trim().toLowerCase();
 
+    var idx = obterIndicesLogins_(sheetLogins);
     var dados = sheetLogins.getDataRange().getValues();
     var usuarioPorCpf = null;
     var usuarioPorEmailGoogle = null;
 
     for (var i = 1; i < dados.length; i++) {
-      var rowEmail = String(dados[i][0] || "").trim().toLowerCase();
-      var rowCpf = String(dados[i][1] || "").trim().replace(/\D/g, "");
-      var rowNome = String(dados[i][2] || "").trim();
-      var rowStatus = String(dados[i][7] || "ATIVO").trim().toUpperCase();
+      var rowEmail = String(dados[i][idx.email] || "").trim().toLowerCase();
+      var rowCpf = String(dados[i][idx.cpf] || "").trim().replace(/\D/g, "");
+      var rowNome = String(dados[i][idx.nome] || "").trim();
+      var rowStatus = String(dados[i][idx.status] || "ATIVO").trim().toUpperCase();
 
       if (cpfLimpo && rowCpf === cpfLimpo) {
         usuarioPorCpf = {

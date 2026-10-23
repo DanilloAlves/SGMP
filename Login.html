@@ -171,7 +171,7 @@
           </div>
           
           <div class="alert alert-light border small text-muted py-2 mb-2">
-            <i class="fa-solid fa-key me-1 text-danger"></i> <strong>PIN de Acesso:</strong> Após a aprovação do seu cadastro pelo setor responsável, um <strong>PIN temporário</strong> será gerado e enviado para o seu e-mail funcional para realizar o seu primeiro acesso.
+            <i class="fa-solid fa-key me-1 text-danger"></i> <strong>PIN de Acesso:</strong> Ao confirmar o código de segurança do seu e-mail institucional, seu <strong>PIN temporário de primeiro acesso</strong> será gerado e enviado para sua caixa postal para criar sua senha definitiva.
           </div>
 
           <div class="mb-2">
@@ -525,12 +525,19 @@
           .withSuccessHandler(r => {
             Swal.fire({
               icon: 'success',
-              title: 'Identidade Confirmada!',
+              title: 'Cadastro Concluído!',
               html: `
-                <p>Sua identidade militar foi verificada com sucesso através do e-mail <strong>${dadosForm.emailInstitucional}</strong>.</p>
-                <p class="small text-muted mb-0">A solicitação foi encaminhada para a <strong>DLOG / Administrador</strong> para liberação do acesso com sua conta Google.</p>
+                <p class="mb-2">Sua identidade militar foi confirmada com sucesso através do e-mail <strong>${dadosForm.emailInstitucional}</strong>.</p>
+                <p class="mb-3">Enviamos a sua <strong>Senha / PIN Temporário de Primeiro Acesso</strong> para a sua caixa postal institucional.</p>
+                <div class="alert alert-warning border text-start small py-2 mb-0">
+                  <i class="fa-solid fa-key text-danger me-1"></i> <strong>Próximo passo:</strong> Clique em <strong>"Entrar com Conta Google"</strong> na tela inicial. A tela de segurança será exibida para você digitar esse PIN temporário e cadastrar o seu PIN pessoal definitivo.
+                </div>
               `,
+              confirmButtonText: '<i class="fa-solid fa-arrow-right-to-bracket me-1"></i> Ir para Login',
               confirmButtonColor: '#991b1b'
+            }).then(() => {
+              const btnEntrar = document.getElementById('btnEntrarGoogle');
+              if (btnEntrar) btnEntrar.focus();
             });
           })
           .withFailureHandler(err => {

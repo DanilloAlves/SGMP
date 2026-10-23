@@ -4243,17 +4243,23 @@
         carregouSessao = true;
         clearTimeout(safetyTimeout);
         
-        if (usuario && (usuario.status === 'INATIVO' || usuario.status === 'BLOQUEADO')) {
+        if (!usuario || usuario.status === 'INATIVO' || usuario.status === 'BLOQUEADO' || usuario.status === 'NAO_CADASTRADO' || !usuario.cpf) {
           removerOverlayESair(false);
           Swal.fire({
             icon: 'error',
-            title: 'Acesso Bloqueado',
-            text: 'Seu cadastro está marcado como INATIVO na tabela de Logins. Acesso negado por motivos de segurança.',
+            title: 'Acesso Não Autorizado',
+            text: 'Seu usuário não possui cadastro ativo ou liberado no SGMP. Acesso negado por motivos de segurança.',
             allowOutsideClick: false,
             confirmButtonText: 'Sair'
           }).then(() => {
-            deslogarSistema();
+            deslogarSistemaDireto();
           });
+          return;
+        }
+
+        if (usuario.primeiroAcesso === true || String(usuario.primeiroAcesso).toUpperCase() === 'SIM') {
+          removerOverlayESair(true);
+          ativarGatePrimeiroAcesso(usuario);
           return;
         }
 
@@ -14268,6 +14274,20 @@ window.carregarLocaisArvoreGeral = function() {
         carregarDadosTabelaBaseAdmin();
       })
       .getArvoreLocais(omeSelecionada);
+  }
+
+  function deslogarSistemaDireto() {
+    var ref = "";
+    try { ref = document.referrer || ""; } catch(e) {}
+    var fallbackUrl = "https://script.google.com/macros/s/AKfycby0n-qt5bVAp96LnHgdMuNoa2l-I70Sz_FzxgSnjJThxMtiIUoUOcn5OJLEfhzDudGR2Q/exec";
+    var baseUrl = (typeof APP_URL !== 'undefined' && APP_URL) ? APP_URL : fallbackUrl;
+    var urlDestino = baseUrl.split('?')[0].split('#')[0];
+    if (ref.indexOf('/dev') !== -1) {
+      urlDestino = urlDestino.replace('/exec', '/dev');
+    }
+    var urlLogout = urlDestino + '?auth=false&logout=' + Date.now();
+    try { sessionStorage.clear(); localStorage.clear(); } catch(e) {}
+    window.top.location.href = urlLogout;
   }
 
   function deslogarSistema() {
