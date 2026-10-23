@@ -11655,7 +11655,7 @@ function gerarTermoAcautelamentoPdf_(dados) {
             "<div><strong>Forma de Confirmação:</strong> " + (dados.formaConfirmacao === "PIN" ? "Assinatura Eletrônica por PIN" : "Processo / Template SEI") + "</div>" +
           "</div>" +
         "</div>" +
-        (dados.observacoes ? "<div style='margin-top: 6px; padding-top: 6px; border-top: 1px dashed #e2e8f0;'><strong>Observações Gerais:</strong> " + dados.observacoes + "</div>" : "") +
+        "<div style='margin-top: 6px; padding-top: 6px; border-top: 1px dashed #e2e8f0;'><strong>Observações:</strong> " + (dados.observacoes || "-") + "</div>" +
       "</div>" +
 
       "<div class='quadro'>" +
@@ -11862,6 +11862,7 @@ function getMinhasCautelasUsuario(cpfInformado, perfilInformado, omeInformada) {
         if (mPrev) dataPrevista = mPrev[1];
       }
 
+      var obsLimpaUser = extrairObservacaoCautela_(obs);
       lista.push({
         item: r.f[0].v || "",
         objeto: r.f[1].v || "",
@@ -11877,7 +11878,8 @@ function getMinhasCautelasUsuario(cpfInformado, perfilInformado, omeInformada) {
         cpfMilitar: r.f[10].v || "",
         docSei: docSeiRaw || "-",
         protocoloTermo: protTermo || "",
-        observacao: obs,
+        observacao: obsLimpaUser,
+        observacaoCompleta: obs,
         dataCautela: dataCautela || "-",
         dataPrevista: dataPrevista || "-"
       });
@@ -11888,6 +11890,19 @@ function getMinhasCautelasUsuario(cpfInformado, perfilInformado, omeInformada) {
     console.error("Erro em getMinhasCautelasUsuario: " + err.message);
     throw new Error("Erro ao buscar materiais acautelados: " + err.message);
   }
+}
+
+function extrairObservacaoCautela_(obs) {
+  if (!obs) return "";
+  var s = String(obs).trim();
+  var m = s.match(/\[Obs:\s*([^\]]+)\]/i);
+  if (m && m[1]) return m[1].trim();
+  var m2 = s.match(/(?:^|\|\s*)\[?Obs(?:erva[çc][õo]es)?:\s*([^|\]\r\n]+)\]?/i);
+  if (m2 && m2[1]) return m2[1].trim();
+  if (s && s.indexOf("Acautelado em") === -1 && s.indexOf("[Termo:") === -1) {
+    return s;
+  }
+  return "";
 }
 
 function getItensAcauteladosAtuais(omeUsuario, perfilUsuario, omeFiltroAdmin) {
@@ -11983,6 +11998,8 @@ function getItensAcauteladosAtuais(omeUsuario, perfilUsuario, omeFiltroAdmin) {
         if (mPrev) dataPrevista = mPrev[1];
       }
 
+      var obsLimpa = extrairObservacaoCautela_(obs);
+
       lista.push({
         item: r.f[0].v || "",
         objeto: r.f[1].v || "",
@@ -11995,7 +12012,9 @@ function getItensAcauteladosAtuais(omeUsuario, perfilUsuario, omeFiltroAdmin) {
         docSeiCautela: docSeiRaw || "-",
         protocoloTermo: protTermo || "",
         dataCautela: dataCautela || "-",
-        dataPrevista: dataPrevista || "-"
+        dataPrevista: dataPrevista || "-",
+        observacao: obsLimpa,
+        observacaoCompleta: obs
       });
     });
 

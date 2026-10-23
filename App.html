@@ -16912,6 +16912,19 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
   // =========================================================
   // GESTÃO DE PEDIDOS / TERMOS DE ACAUTELAMENTO (AGRUPAMENTO)
   // =========================================================
+  function extrairObservacaoCautelaJs(obs) {
+    if (!obs) return '';
+    const s = String(obs).trim();
+    if (!s.includes('Acautelado em') && !s.includes('[Termo:')) {
+      return s;
+    }
+    const m = s.match(/\[Obs:\s*([^\]]+)\]/i);
+    if (m && m[1]) return m[1].trim();
+    const m2 = s.match(/(?:^|\|\s*)\[?Obs(?:erva[çc][õo]es)?:\s*([^|\]\r\n]+)\]?/i);
+    if (m2 && m2[1]) return m2[1].trim();
+    return '';
+  }
+
   function agruparItensEmPedidosCautela(itens) {
     if (!itens || !Array.isArray(itens) || itens.length === 0) return [];
     const grupos = {};
@@ -16960,12 +16973,17 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
           subunidade: item.subunidade || 'SEDE',
           localizacao: item.localizacao || ((item.unidade || '') + ' > ' + (item.subunidade || 'SEDE')),
           docSei: item.docSei || item.docSeiCautela || '-',
-          observacao: item.observacao || '',
+          observacao: extrairObservacaoCautelaJs(item.observacao || item.observacaoCompleta || ''),
           status: item.status || 'ACAUTELADO',
           itens: [],
           itensIds: [],
           materiaisAgrupados: {}
         };
+      }
+
+      if (!grupos[chavePedido].observacao) {
+        const obsSub = extrairObservacaoCautelaJs(item.observacao || item.observacaoCompleta || '');
+        if (obsSub) grupos[chavePedido].observacao = obsSub;
       }
 
       grupos[chavePedido].itens.push(item);
@@ -17403,7 +17421,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
             <div class="col-12 mt-2">
               <strong>Unidade / Lotação:</strong> ${ped.unidade} &gt; ${ped.subunidade}<br>
               <strong>Doc SEI / Referência:</strong> ${ped.docSei || '-'}<br>
-              ${ped.observacao ? `<strong>Observações:</strong> <span class="text-muted">${ped.observacao}</span>` : ''}
+              <div class="mt-1"><strong>Observações:</strong> <span class="text-muted">${ped.observacao || '-'}</span></div>
             </div>
           </div>
         </div>
@@ -17513,7 +17531,9 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
             <span><strong>Doc / SEI:</strong> ${ped.docSei || '-'}</span>
             <span><strong>Previsão de Devolução:</strong> ${ped.dataPrevista || '-'}</span>
           </div>
-          ${ped.observacao ? `<div style="margin-top: 4px;"><strong>Observações:</strong> ${ped.observacao}</div>` : ''}
+          <div style="margin-top: 6px; padding-top: 6px; border-top: 1px dashed #dee2e6;">
+            <strong>Observações:</strong> ${ped.observacao || '-'}
+          </div>
         </div>
 
         <table>
