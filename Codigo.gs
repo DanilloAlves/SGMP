@@ -17406,10 +17406,25 @@ function obterDadosGerenciamentoCadItens(usuarioCliente) {
     var colunas = [];
     var colMatIdx = -1;
 
+    var colunasIgnoradas = [
+      "COMPARAR",
+      "ITEM COMPARADO",
+      "CLASSIFICACAO IA",
+      "CONFIRMACAO"
+    ];
+
     for (var c = 0; c < cabecalho.length; c++) {
       var colNome = String(cabecalho[c] || "").trim();
       if (!colNome) continue;
       var cNorm = colNome.toUpperCase();
+
+      // Ignora campos descartados pelo usuário (ex: Comparar, Nome Sugerido, Classificação IA, Confirmação)
+      var cNormSemAcento = cNorm.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      var deveIgnorar = colunasIgnoradas.some(function(ign) {
+        return cNormSemAcento.indexOf(ign) !== -1;
+      });
+      if (deveIgnorar) continue;
+
       if (colMatIdx === -1 && (cNorm.includes("OBJETO") || cNorm.includes("MATERIAL") || cNorm.includes("DESCRI"))) {
         colMatIdx = c;
       }
