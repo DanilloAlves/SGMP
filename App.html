@@ -921,20 +921,6 @@
               </div>
             </div>
 
-            <!-- Acautelado -->
-            <div class="col-xl col-md-6 col-sm-4">
-              <div class="card border border-secondary border-opacity-25 shadow-sm p-2 rounded-2 bg-white card-hover-dash" style="border-top: 3px solid #3b82f6 !important; cursor: pointer;" onclick="alternarFiltroStatusTabelaDash('ACAUTELADO')" title="Clique para filtrar a tabela por itens Acautelados">
-                <div class="d-flex justify-content-between align-items-center">
-                  <div>
-                    <div class="text-uppercase text-primary fw-bold" style="font-size: 0.68rem; letter-spacing: 0.5px;">Acautelado</div>
-                    <div class="fs-5 fw-bold text-primary my-1" id="kpiDashAcautelado">0</div>
-                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle" style="font-size: 0.65rem;" id="kpiDashPctAcautelado">0% do total</span>
-                  </div>
-                  <div class="text-primary opacity-50 pe-1"><i class="fa-solid fa-handshake fs-4"></i></div>
-                </div>
-              </div>
-            </div>
-
             <!-- Extraviado -->
             <div class="col-xl col-md-6 col-sm-4">
               <div class="card border border-secondary border-opacity-25 shadow-sm p-2 rounded-2 bg-white card-hover-dash" style="border-top: 3px solid #f59e0b !important; cursor: pointer;" onclick="alternarFiltroStatusTabelaDash('EXTRAVIADO')" title="Clique para filtrar a tabela por itens Extraviados">
@@ -945,6 +931,20 @@
                     <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle" style="font-size: 0.65rem;" id="kpiDashPctExtraviado">0% do total</span>
                   </div>
                   <div class="text-warning opacity-50 pe-1"><i class="fa-solid fa-person-circle-question fs-4"></i></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Acautelado -->
+            <div class="col-xl col-md-6 col-sm-4">
+              <div class="card border border-secondary border-opacity-25 shadow-sm p-2 rounded-2 bg-white card-hover-dash" style="border-top: 3px solid #3b82f6 !important; cursor: pointer;" onclick="alternarFiltroStatusTabelaDash('ACAUTELADO')" title="Clique para filtrar a tabela por itens Acautelados">
+                <div class="d-flex justify-content-between align-items-center">
+                  <div>
+                    <div class="text-uppercase text-primary fw-bold" style="font-size: 0.68rem; letter-spacing: 0.5px;">Acautelado</div>
+                    <div class="fs-5 fw-bold text-primary my-1" id="kpiDashAcautelado">0</div>
+                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle" style="font-size: 0.65rem;" id="kpiDashPctAcautelado">0% do total</span>
+                  </div>
+                  <div class="text-primary opacity-50 pe-1"><i class="fa-solid fa-handshake fs-4"></i></div>
                 </div>
               </div>
             </div>
@@ -1006,19 +1006,21 @@
               <table class="table table-hover table-sm align-middle mb-0" style="font-size: 0.78rem;">
                 <thead class="table-light sticky-top">
                   <tr>
+                    <th class="text-center" style="width: 40px;">#</th>
                     <th>Descrição do Material (Objeto)</th>
                     <th>Classe 1</th>
                     <th>Classe 2</th>
                     <th>Classe 3</th>
-                    <th class="text-center" style="width: 80px;">Total</th>
-                    <th class="text-center text-success" style="width: 80px;">ECD</th>
-                    <th class="text-center text-danger" style="width: 80px;">SCD</th>
-                    <th class="text-center text-primary" style="width: 90px;">Acautelado</th>
-                    <th class="text-center text-warning" style="width: 90px; color: #b45309 !important;">Extraviado</th>
+                    <th class="text-center" style="width: 110px;">Quantidade Ideal</th>
+                    <th class="text-center" style="width: 95px;">Soma Total</th>
+                    <th class="text-center text-success" style="width: 85px;">ECD</th>
+                    <th class="text-center text-danger" style="width: 85px;">SCD</th>
+                    <th class="text-center text-warning" style="width: 95px; color: #b45309 !important;">Extraviado</th>
+                    <th class="text-center text-primary" style="width: 95px;">Acautelado</th>
                   </tr>
                 </thead>
                 <tbody id="corpoTabelaMateriaisDash">
-                  <tr><td colspan="9" class="text-center text-muted py-3">Nenhum dado selecionado.</td></tr>
+                  <tr><td colspan="11" class="text-center text-muted py-3">Nenhum dado selecionado.</td></tr>
                 </tbody>
               </table>
             </div>
@@ -25204,6 +25206,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
             classe1: m.classe1 || item.classe1 || '-',
             classe2: m.classe2 || item.classe2 || '-',
             classe3: m.classe3 || item.classe3 || '-',
+            cargaPadrao: 0,
             ecd: 0,
             scd: 0,
             acautelado: 0,
@@ -25212,6 +25215,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
           };
         }
         const alv = mapaMateriaisAgregados[m.nome];
+        alv.cargaPadrao += (m.cargaPadrao || 0);
         alv.ecd += (m.ecd || 0);
         alv.scd += (m.scd || 0);
         alv.acautelado += (m.acautelado || 0);
@@ -25515,28 +25519,33 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       const msgStatus = filtroStatusDashAtivo 
         ? 'Nenhum material com unidades em status <strong>' + filtroStatusDashAtivo + '</strong> encontrado.'
         : 'Nenhum material encontrado para os filtros selecionados.';
-      tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-3"><i class="fa-solid fa-inbox me-2"></i>' + msgStatus + '</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="11" class="text-center text-muted py-3"><i class="fa-solid fa-inbox me-2"></i>' + msgStatus + '</td></tr>';
       return;
     }
 
     let html = '';
-    filtrados.forEach(function(m) {
+    filtrados.forEach(function(m, idx) {
       const hEcd = filtroStatusDashAtivo === 'ECD' ? 'style="border: 2px solid #10b981 !important; font-weight: bold; background-color: #ecfdf5 !important;"' : '';
       const hScd = filtroStatusDashAtivo === 'SCD' ? 'style="border: 2px solid #ef4444 !important; font-weight: bold; background-color: #fef2f2 !important;"' : '';
-      const hAcaut = filtroStatusDashAtivo === 'ACAUTELADO' ? 'style="border: 2px solid #3b82f6 !important; font-weight: bold; background-color: #eff6ff !important;"' : '';
       const hExtr = filtroStatusDashAtivo === 'EXTRAVIADO' ? 'style="border: 2px solid #f59e0b !important; font-weight: bold; background-color: #fffbeb !important;"' : '';
+      const hAcaut = filtroStatusDashAtivo === 'ACAUTELADO' ? 'style="border: 2px solid #3b82f6 !important; font-weight: bold; background-color: #eff6ff !important;"' : '';
+
+      const badgeIdeal = `<span class="fw-bold ${(m.cargaPadrao || 0) > 0 ? 'text-primary' : 'text-muted'}">${(m.cargaPadrao || 0).toLocaleString('pt-BR')}</span>`;
+      const badgeSomaTotal = `<span class="badge bg-secondary-subtle text-dark border px-2 py-1 fw-bold">${(m.total || 0).toLocaleString('pt-BR')}</span>`;
 
       html += `
         <tr>
+          <td class="text-center text-muted small" style="width: 40px;">${idx + 1}</td>
           <td><strong class="text-dark">${m.nome}</strong></td>
           <td><span class="badge bg-light text-secondary border" style="font-size: 0.7rem;">${m.classe1 || '-'}</span></td>
           <td><span class="badge bg-light text-primary border border-primary-subtle" style="font-size: 0.7rem;">${m.classe2 || '-'}</span></td>
           <td><span class="badge bg-light text-info border border-info-subtle" style="font-size: 0.7rem;">${m.classe3 || '-'}</span></td>
-          <td class="text-center"><span class="badge bg-secondary-subtle text-dark border px-2 py-1">${m.total.toLocaleString('pt-BR')}</span></td>
-          <td class="text-center"><span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1" ${hEcd}>${m.ecd.toLocaleString('pt-BR')}</span></td>
-          <td class="text-center"><span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1" ${hScd}>${m.scd.toLocaleString('pt-BR')}</span></td>
-          <td class="text-center"><span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1" ${hAcaut}>${m.acautelado.toLocaleString('pt-BR')}</span></td>
-          <td class="text-center"><span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-1" ${hExtr}>${m.extraviado.toLocaleString('pt-BR')}</span></td>
+          <td class="text-center">${badgeIdeal}</td>
+          <td class="text-center">${badgeSomaTotal}</td>
+          <td class="text-center"><span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1" ${hEcd}>${(m.ecd || 0).toLocaleString('pt-BR')}</span></td>
+          <td class="text-center"><span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1" ${hScd}>${(m.scd || 0).toLocaleString('pt-BR')}</span></td>
+          <td class="text-center"><span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-1" ${hExtr}>${(m.extraviado || 0).toLocaleString('pt-BR')}</span></td>
+          <td class="text-center"><span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1" ${hAcaut}>${(m.acautelado || 0).toLocaleString('pt-BR')}</span></td>
         </tr>
       `;
     });
@@ -25593,14 +25602,15 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     // Tabela de materiais
     const materiais = listaMateriaisDetalhamentoDash || [];
     let linhasMateriaisHtml = '';
-    let somaTot = 0, somaEcd = 0, somaScd = 0, somaAcaut = 0, somaExtr = 0;
+    let somaIdeal = 0, somaTot = 0, somaEcd = 0, somaScd = 0, somaExtr = 0, somaAcaut = 0;
 
     materiais.forEach((m, idx) => {
+      somaIdeal += (m.cargaPadrao || 0);
       somaTot += (m.total || 0);
       somaEcd += (m.ecd || 0);
       somaScd += (m.scd || 0);
-      somaAcaut += (m.acautelado || 0);
       somaExtr += (m.extraviado || 0);
+      somaAcaut += (m.acautelado || 0);
 
       linhasMateriaisHtml += `
         <tr>
@@ -25609,11 +25619,12 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
           <td style="border: 1px solid #ddd; padding: 4px; font-size: 0.8em; color: #555;">${m.classe1 || '-'}</td>
           <td style="border: 1px solid #ddd; padding: 4px; font-size: 0.8em; color: #0d6efd;">${m.classe2 || '-'}</td>
           <td style="border: 1px solid #ddd; padding: 4px; font-size: 0.8em; color: #0dcaf0;">${m.classe3 || '-'}</td>
+          <td style="text-align: center; border: 1px solid #ddd; padding: 4px; font-weight: bold; color: #0d6efd;">${(m.cargaPadrao || 0).toLocaleString('pt-BR')}</td>
           <td style="text-align: center; border: 1px solid #ddd; padding: 4px; font-weight: bold;">${(m.total || 0).toLocaleString('pt-BR')}</td>
           <td style="text-align: center; border: 1px solid #ddd; padding: 4px; color: #10b981; font-weight: bold;">${(m.ecd || 0).toLocaleString('pt-BR')}</td>
           <td style="text-align: center; border: 1px solid #ddd; padding: 4px; color: #ef4444; font-weight: bold;">${(m.scd || 0).toLocaleString('pt-BR')}</td>
-          <td style="text-align: center; border: 1px solid #ddd; padding: 4px; color: #3b82f6; font-weight: bold;">${(m.acautelado || 0).toLocaleString('pt-BR')}</td>
           <td style="text-align: center; border: 1px solid #ddd; padding: 4px; color: #f59e0b; font-weight: bold;">${(m.extraviado || 0).toLocaleString('pt-BR')}</td>
+          <td style="text-align: center; border: 1px solid #ddd; padding: 4px; color: #3b82f6; font-weight: bold;">${(m.acautelado || 0).toLocaleString('pt-BR')}</td>
         </tr>
       `;
     });
@@ -25722,27 +25733,29 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
             <tr>
               <th class="center" style="width: 30px;">#</th>
               <th>Descrição do Material (Objeto)</th>
-              <th style="width: 100px;">Classe 1</th>
-              <th style="width: 110px;">Classe 2</th>
-              <th style="width: 110px;">Classe 3</th>
-              <th class="center" style="width: 55px;">Total</th>
+              <th style="width: 90px;">Classe 1</th>
+              <th style="width: 100px;">Classe 2</th>
+              <th style="width: 100px;">Classe 3</th>
+              <th class="center" style="width: 65px; color: #0d6efd;">Qtd. Ideal</th>
+              <th class="center" style="width: 60px;">Soma Total</th>
               <th class="center" style="width: 50px; color: #10b981;">ECD</th>
               <th class="center" style="width: 50px; color: #ef4444;">SCD</th>
-              <th class="center" style="width: 55px; color: #3b82f6;">Acaut.</th>
               <th class="center" style="width: 55px; color: #b45309;">Extrav.</th>
+              <th class="center" style="width: 55px; color: #3b82f6;">Acaut.</th>
             </tr>
           </thead>
           <tbody>
-            ${linhasMateriaisHtml || '<tr><td colspan="10" style="text-align: center; color: #888; padding: 10px;">Nenhum material listado com os filtros atuais.</td></tr>'}
+            ${linhasMateriaisHtml || '<tr><td colspan="11" style="text-align: center; color: #888; padding: 10px;">Nenhum material listado com os filtros atuais.</td></tr>'}
           </tbody>
           <tfoot>
             <tr class="tfoot-totais">
               <td colspan="5" style="text-align: right; padding: 5px 8px;">TOTAIS:</td>
+              <td style="text-align: center; font-weight: bold; color: #0d6efd;">${somaIdeal.toLocaleString('pt-BR')}</td>
               <td style="text-align: center; font-weight: bold;">${somaTot.toLocaleString('pt-BR')}</td>
               <td style="text-align: center; font-weight: bold; color: #10b981;">${somaEcd.toLocaleString('pt-BR')}</td>
               <td style="text-align: center; font-weight: bold; color: #ef4444;">${somaScd.toLocaleString('pt-BR')}</td>
-              <td style="text-align: center; font-weight: bold; color: #3b82f6;">${somaAcaut.toLocaleString('pt-BR')}</td>
               <td style="text-align: center; font-weight: bold; color: #b45309;">${somaExtr.toLocaleString('pt-BR')}</td>
+              <td style="text-align: center; font-weight: bold; color: #3b82f6;">${somaAcaut.toLocaleString('pt-BR')}</td>
             </tr>
           </tfoot>
         </table>

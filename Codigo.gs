@@ -17080,7 +17080,30 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao, omeCliente, perfilClie
     var catDados = obterMapaCatalogoClasses_(forcarAtualizacao);
     var mapaCat = catDados.mapa || {};
 
-    // 2. Consulta agregada no BigQuery agrupando por UNIDADE, OBJETO e STATUS
+    // 2. Lê Cargas Padrão (Quantidade Ideal) da planilha auxiliar (Aba Carga_Padrao_Setores)
+    var mapaCargas = {}; // chave: "OME___MATERIAIS_NORM" -> soma das cotas
+    try {
+      var ssAux = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+      var sheetCargas = ssAux.getSheetByName("Carga_Padrao_Setores");
+      if (sheetCargas && sheetCargas.getLastRow() > 1) {
+        var dadosCargas = sheetCargas.getRange(2, 1, sheetCargas.getLastRow() - 1, 5).getValues();
+        for (var c = 0; c < dadosCargas.length; c++) {
+          var cRow = dadosCargas[c];
+          var cOmeRaw = String(cRow[0] || '').trim();
+          var cOme = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(cOmeRaw) : cOmeRaw;
+          var cMat = String(cRow[3] || '').trim();
+          var cVal = parseInt(cRow[4], 10) || 0;
+          if (!cOme || !cMat || cVal <= 0) continue;
+          
+          var normOmeMat = (cOme || '').toUpperCase() + "___" + (cMat || '').toUpperCase();
+          mapaCargas[normOmeMat] = (mapaCargas[normOmeMat] || 0) + cVal;
+        }
+      }
+    } catch (eCarg) {
+      console.warn("Aviso ao ler Cargas Padrão no Dashboard: " + eCarg.message);
+    }
+
+    // 3. Consulta agregada no BigQuery agrupando por UNIDADE, OBJETO e STATUS
     // Se for Comandante de Unidade ou Chefe de Setor (não-Administrador), restringe os dados estritamente à sua OME
     var filtroOmeSql = "";
     if (!ehAdmin && omeUsuario) {
@@ -17178,11 +17201,13 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao, omeCliente, perfilClie
       else if (statusNorm === "EXTRAVIADO") grupo.extraviado += qtd;
 
       if (!grupo.materiais[objNome]) {
+        var chCargaItem = (ome || '').toUpperCase() + "___" + (objNome || '').toUpperCase();
         grupo.materiais[objNome] = {
           nome: objNome,
           classe1: classe1,
           classe2: classe2,
           classe3: classe3,
+          cargaPadrao: mapaCargas[chCargaItem] || 0,
           ecd: 0,
           scd: 0,
           acautelado: 0,
@@ -17196,6 +17221,63 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao, omeCliente, perfilClie
       else if (statusNorm === "SCD") m.scd += qtd;
       else if (statusNorm === "ACAUTELADO") m.acautelado += qtd;
       else if (statusNorm === "EXTRAVIADO") m.extraviado += qtd;
+    }
+
+    // Incorpora materiais com Quantidade Ideal cadastrada que estejam zerados no BigQuery
+    for (var chCarga in mapaCargas) {
+      var partes = chCarga.split("___");
+      var cOme = partes[0];
+      var cMat = partes[1];
+      var cVal = mapaCargas[chCarga];
+      if (!cVal || cVal <= 0) continue;
+      if (!ehAdmin && omeUsuario && cOme !== (typeof obterOmePadronizada === 'function' ? obterOmePadronizada(omeUsuario) : omeUsuario).toUpperCase()) continue;
+
+      var catInfo = mapaCat[cMat];
+      if (!catInfo) {
+        var cleanKey = cMat.replace(/[^A-Z0-9]/g, "");
+        catInfo = mapaCat["_CLEAN_" + cleanKey];
+      }
+      var cl1 = (catInfo && catInfo.classe1) ? catInfo.classe1 : "OUTROS";
+      var cl2 = (catInfo && catInfo.classe2) ? catInfo.classe2 : "OUTROS";
+      var cl3 = (catInfo && catInfo.classe3) ? catInfo.classe3 : "OUTROS";
+
+      mapaOmes[cOme] = true;
+      mapaClasses1Encontradas[cl1] = true;
+      mapaClasses2Encontradas[cl2] = true;
+      mapaClasses3Encontradas[cl3] = true;
+
+      var chaveAgrup = cOme + "||" + cl1 + "||" + cl2 + "||" + cl3;
+      if (!dadosAgrupados[chaveAgrup]) {
+        dadosAgrupados[chaveAgrup] = {
+          ome: cOme,
+          classe1: cl1,
+          classe2: cl2,
+          classe3: cl3,
+          ecd: 0,
+          scd: 0,
+          acautelado: 0,
+          extraviado: 0,
+          total: 0,
+          materiais: {}
+        };
+      }
+      var grupo = dadosAgrupados[chaveAgrup];
+      if (!grupo.materiais[cMat]) {
+        grupo.materiais[cMat] = {
+          nome: cMat,
+          classe1: cl1,
+          classe2: cl2,
+          classe3: cl3,
+          cargaPadrao: cVal,
+          ecd: 0,
+          scd: 0,
+          acautelado: 0,
+          extraviado: 0,
+          total: 0
+        };
+      } else {
+        grupo.materiais[cMat].cargaPadrao = cVal;
+      }
     }
 
     if (detectouOmeNaoPadronizada && ehAdmin) {
