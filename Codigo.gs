@@ -672,42 +672,60 @@ function registrarLogAuditoria(acao, detalhes, usuarioInfo) {
 
 
 
-function gerarProximoIdItem() {
+// Obtém o próximo número sequencial para novos materiais garantindo nunca reutilizar IDs de materiais apagados
+function obterProximoNumeroSequencialItem_(prefixo) {
+  var propKey = "MAX_SEQ_" + String(prefixo || "").replace(/[^a-zA-Z0-9]/g, "_");
+  var props = PropertiesService.getScriptProperties();
+  var seqSalva = parseInt(props.getProperty(propKey), 10) || 0;
 
-  var anoAtual = new Date().getFullYear();
-
-  var prefixo = "CBMPE-" + anoAtual + "-";
-
+  var maxBanco = 0;
   try {
-
-    var sql = "SELECT ITEM FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` WHERE ITEM LIKE '" + prefixo + "%' ORDER BY LENGTH(ITEM) DESC, ITEM DESC LIMIT 1";
-
-    var resultado = executarEscritaBigQuerySegura(sql);
-
-    var rows = resultado.rows || [];
-
-    var proximoNumero = 1;
-
-    if (rows.length > 0 && rows[0].f && rows[0].f[0].v) {
-
-      var ultimoItem = String(rows[0].f[0].v); 
-
+    var sqlMax = "SELECT ITEM FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` WHERE ITEM LIKE '" + prefixo + "%' ORDER BY LENGTH(ITEM) DESC, ITEM DESC LIMIT 1";
+    var resMax = executarEscritaBigQuerySegura(sqlMax);
+    if (resMax.rows && resMax.rows.length > 0 && resMax.rows[0].f && resMax.rows[0].f[0].v) {
+      var ultimoItem = String(resMax.rows[0].f[0].v);
       var partes = ultimoItem.split("-");
-
-      var numeroExtraido = parseInt(partes[partes.length - 1], 10);
-
-      if (!isNaN(numeroExtraido)) proximoNumero = numeroExtraido + 1;
-
+      var numExtraido = parseInt(partes[partes.length - 1], 10);
+      if (!isNaN(numExtraido)) maxBanco = numExtraido;
     }
+  } catch(e) {}
 
-    return prefixo + proximoNumero;
+  // Consulta também na tabela de histórico para nunca reaproveitar código de item excluído
+  try {
+    garantirTabelaHistoricoMovimentacao_();
+    var sqlMaxHist = "SELECT ITEM FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_HISTORICO + "` WHERE ITEM LIKE '" + prefixo + "%' ORDER BY LENGTH(ITEM) DESC, ITEM DESC LIMIT 1";
+    var resMaxHist = executarEscritaBigQuerySegura(sqlMaxHist);
+    if (resMaxHist.rows && resMaxHist.rows.length > 0 && resMaxHist.rows[0].f && resMaxHist.rows[0].f[0].v) {
+      var ultHist = String(resMaxHist.rows[0].f[0].v);
+      var pHist = ultHist.split("-");
+      var nHist = parseInt(pHist[pHist.length - 1], 10);
+      if (!isNaN(nHist) && nHist > maxBanco) maxBanco = nHist;
+    }
+  } catch(eH) {}
 
-  } catch (e) {
+  var maiorNumero = Math.max(seqSalva, maxBanco);
+  if (maiorNumero === 0) maiorNumero = 10000;
 
-    return prefixo + (Math.floor(Math.random() * 90000) + 10000);
+  var proximo = maiorNumero + 1;
+  atualizarSequencialMaximoItem_(prefixo, proximo);
+  return proximo;
+}
 
-  }
+function atualizarSequencialMaximoItem_(prefixo, ultimoNumeroUsado) {
+  try {
+    var propKey = "MAX_SEQ_" + String(prefixo || "").replace(/[^a-zA-Z0-9]/g, "_");
+    var props = PropertiesService.getScriptProperties();
+    var seqAtual = parseInt(props.getProperty(propKey), 10) || 0;
+    if (ultimoNumeroUsado > seqAtual) {
+      props.setProperty(propKey, String(ultimoNumeroUsado));
+    }
+  } catch(e) {}
+}
 
+function gerarProximoIdItem() {
+  var anoAtual = new Date().getFullYear();
+  var prefixo = "CBMPE-" + anoAtual + "-";
+  return prefixo + obterProximoNumeroSequencialItem_(prefixo);
 }
 
 
@@ -860,20 +878,8 @@ function registrarEntradaEstoque(dados) {
 
   var anoAtual = new Date().getFullYear();
   var prefixo = "CBMPE-" + anoAtual + "-";
-  
-  var proximoNumero = Math.floor(Math.random() * 90000) + 10000;
-  try {
-    var sqlMax = "SELECT ITEM FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` WHERE ITEM LIKE '" + prefixo + "%' ORDER BY LENGTH(ITEM) DESC, ITEM DESC LIMIT 1";
-    var resMax = executarEscritaBigQuerySegura(sqlMax);
-    if (resMax.rows && resMax.rows.length > 0 && resMax.rows[0].f[0].v) {
-      var ultimoItem = String(resMax.rows[0].f[0].v);
-      var partes = ultimoItem.split("-");
-      var numExtraido = parseInt(partes[partes.length - 1], 10);
-      if (!isNaN(numExtraido)) proximoNumero = numExtraido + 1;
-    }
-  } catch (e) {
-    proximoNumero = Math.floor(Math.random() * 90000) + 10000;
-  }
+  var proximoNumero = obterProximoNumeroSequencialItem_(prefixo);
+  atualizarSequencialMaximoItem_(prefixo, proximoNumero + quantidade - 1);
 
   // TRATAMENTO RIGOROSO: Se 'bemPermanente' não vier preenchido explicitamente, grava em branco (vazio)
   var bemPermanenteValor = limpar(dados.bemPermanente);
@@ -1212,6 +1218,15 @@ function excluirRegistro(item, usuarioCliente) {
 
   executarConsultaBigQuerySegura(sql, true);
 
+  // Descontinua permanentemente o histórico do material apagado na tabela de movimentações
+  try {
+    garantirTabelaHistoricoMovimentacao_();
+    var sqlDelHist = "DELETE FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_HISTORICO + "` WHERE UPPER(TRIM(ITEM)) = UPPER('" + String(item).replace(/'/g, "\\'") + "')";
+    executarConsultaBigQuerySegura(sqlDelHist, true);
+  } catch(eDelHist) {
+    console.warn("Aviso ao descontinuar histórico de movimentação do item " + item + ": " + (eDelHist.message || String(eDelHist)));
+  }
+
   registrarLogAuditoria("EXCLUSAO", "Removeu item " + item + (descMaterial ? " (" + descMaterial + ")" : ""), usuario);
 
   return "Registro excluído permanentemente.";
@@ -1472,6 +1487,15 @@ function excluirLotePorIds(itensIds, usuarioCliente) {
     var sql = "DELETE FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` WHERE ITEM IN (" + listaItensSql + ")";
 
     executarConsultaBigQuerySegura(sql, true);
+
+    // Descontinua permanentemente o histórico dos materiais apagados em lote na tabela de movimentações
+    try {
+      garantirTabelaHistoricoMovimentacao_();
+      var sqlDelHistLote = "DELETE FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_HISTORICO + "` WHERE UPPER(TRIM(ITEM)) IN (" + listaItensSql + ")";
+      executarConsultaBigQuerySegura(sqlDelHistLote, true);
+    } catch(eDelHistLote) {
+      console.warn("Aviso ao descontinuar histórico de movimentação em lote: " + (eDelHistLote.message || String(eDelHistLote)));
+    }
 
     var descMatTxtExc = descMatsExc.length > 0 ? " (" + descMatsExc.join(", ") + ")" : "";
     var itensTxtExc = itensIds.length <= 10 ? itensIds.join(", ") : (itensIds.slice(0, 10).join(", ") + " e mais " + (itensIds.length - 10) + " itens");
@@ -9175,15 +9199,7 @@ function importarLoteExcelBigQuery(registros, proximoNumeroFornecido, registrarL
     if (typeof proximoNumeroFornecido === 'number' && proximoNumeroFornecido > 0) {
       proximoNumero = proximoNumeroFornecido;
     } else {
-      var sqlMax = "SELECT ITEM FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` WHERE ITEM LIKE '" + prefixo + "%' ORDER BY LENGTH(ITEM) DESC, ITEM DESC LIMIT 1";
-      try {
-        var resMax = executarConsultaBigQuerySegura(sqlMax);
-        if (resMax.rows && resMax.rows.length > 0 && resMax.rows[0].f[0].v) {
-          var partes = String(resMax.rows[0].f[0].v).split("-");
-          var numExtraido = parseInt(partes[partes.length - 1], 10);
-          if (!isNaN(numExtraido)) proximoNumero = numExtraido + 1;
-        }
-      } catch(e) {}
+      proximoNumero = obterProximoNumeroSequencialItem_(prefixo);
     }
 
     function escSql(txt) {
@@ -16024,10 +16040,23 @@ function getHistoricoMovimentacaoItem(codigoOuPatrimonio) {
 
     var resHist = executarConsultaBigQuerySegura(sqlHist);
     var listaEventos = [];
+    var idsHistoricosAntigosDescontinuados = [];
+    var encontrouCadastroAtual = false;
 
     if (resHist.rows && resHist.rows.length > 0) {
-      resHist.rows.forEach(function(r) {
+      for (var rIdx = 0; rIdx < resHist.rows.length; rIdx++) {
+        var r = resHist.rows[rIdx];
         var h = r.f;
+        var rIdHist = String(h[0].v || "").trim();
+        var rTipo = String(h[5].v || "").trim().toUpperCase();
+
+        // Se já encontramos a inclusão (CADASTRO) do material atual na ordem decrescente,
+        // qualquer evento anterior a esse CADASTRO pertence a um ciclo de vida de material que foi apagado
+        if (encontrouCadastroAtual) {
+          if (rIdHist) idsHistoricosAntigosDescontinuados.push(rIdHist);
+          continue;
+        }
+
         var rNome = String(h[12].v || "").trim();
         var rCpf = String(h[13].v || "").trim();
         var rObs = String(h[15].v || "").trim();
@@ -16070,7 +16099,7 @@ function getHistoricoMovimentacaoItem(codigoOuPatrimonio) {
         }
 
         listaEventos.push({
-          idHistorico: h[0].v || "",
+          idHistorico: rIdHist,
           dataHora: h[1].v || "",
           item: h[2].v || "",
           objeto: h[3].v || "",
@@ -16087,7 +16116,23 @@ function getHistoricoMovimentacaoItem(codigoOuPatrimonio) {
           documentoRef: h[14].v || "",
           observacao: rObs
         });
-      });
+
+        // O evento de CADASTRO marca a entrada/inclusão deste material no estoque
+        if (rTipo === "CADASTRO") {
+          encontrouCadastroAtual = true;
+        }
+      }
+
+      // Expurgar da base os eventos descontinuados de materiais anteriores para descontinuar em definitivo
+      if (idsHistoricosAntigosDescontinuados.length > 0) {
+        try {
+          var idsSqlPurge = idsHistoricosAntigosDescontinuados.map(function(id) { return "'" + limpa(id) + "'"; }).join(",");
+          var sqlPurge = "DELETE FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_HISTORICO + "` WHERE ID_HISTORICO IN (" + idsSqlPurge + ")";
+          executarConsultaBigQuerySegura(sqlPurge, true);
+        } catch(ePurge) {
+          console.warn("Aviso ao expurgar histórico descontinuado anterior: " + (ePurge.message || String(ePurge)));
+        }
+      }
     }
 
     // Se o item existe no inventário mas ainda não tinha eventos gravados (ex: importação via planilha ou legado)
