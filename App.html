@@ -17809,15 +17809,17 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     const totalPedidos = (pedidos || []).length;
     const totalItens = (itens || []).length;
 
-    const elTotalPedidos = document.getElementById('cardTotalPedidosCautelas');
-    const elBadgePedidos = document.getElementById('badgeTotalPedidosCard');
-    const cardTotal = document.getElementById('cardTotalMinhasCautelas');
-    const badgeCard = document.getElementById('badgeTotalMinhasCautelasCard');
+    const elTotalPedidos = document.getElementById("cardTotalPedidosCautelas");
+    const elBadgePedidos = document.getElementById("badgeTotalPedidosCard");
+    const cardTotal = document.getElementById("cardTotalMinhasCautelas");
+    const badgeCard = document.getElementById("badgeTotalMinhasCautelasCard");
+    const badgeSubtab = document.getElementById("badgeTotalMinhasCautelas");
 
     if (elTotalPedidos) elTotalPedidos.textContent = totalPedidos;
-    if (elBadgePedidos) elBadgePedidos.textContent = totalPedidos + ' pedido(s)';
+    if (elBadgePedidos) elBadgePedidos.textContent = totalPedidos + " pedido(s)";
     if (cardTotal) cardTotal.textContent = totalItens;
-    if (badgeCard) badgeCard.textContent = totalItens + ' item(ns)';
+    if (badgeCard) badgeCard.textContent = totalItens + " item(ns)";
+    if (badgeSubtab) badgeSubtab.textContent = totalPedidos;
   }
 
   function renderizarTabelaMinhasCautelas(pedidos) {
