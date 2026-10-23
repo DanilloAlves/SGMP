@@ -2535,7 +2535,7 @@
             <button class="btn btn-sm btn-warning fw-bold text-dark py-1 px-3" onclick="abrirModalEdicaoLoteBase()">
               <i class="fa-solid fa-pen-to-square me-1"></i> Editar Lote
             </button>
-            <button class="btn btn-sm btn-danger fw-bold py-1 px-3" onclick="excluirMarcadosBase()">
+            <button class="btn btn-sm btn-danger fw-bold py-1 px-3" id="btnExcluirMarcadosBase" onclick="excluirMarcadosBase()">
               <i class="fa-solid fa-trash me-1"></i> Excluir
             </button>
           </div>
@@ -4399,9 +4399,17 @@
       const ehAdmin = typeof ehAdminGlobal === 'function' ? ehAdminGlobal() : false;
       const podeGerenciar = typeof podeGerenciarUsuariosGlobal === 'function' ? podeGerenciarUsuariosGlobal() : false;
       
-      // Trava de segurança: Base e Logs (Apenas Admin)
-      if ((aba === 'base' || aba === 'logs') && !ehAdmin) {
-        Swal.fire('Acesso Restrito', 'Você não possui permissão para acessar este módulo.', 'error');
+      // Trava de segurança: Base de Dados
+      const podeBase = ehAdmin || (typeof temPermissao === 'function' && temPermissao('base_dados'));
+      if (aba === 'base' && !podeBase) {
+        Swal.fire('Acesso Restrito', 'Você não possui permissão para acessar a Base de Dados.', 'error');
+        return;
+      }
+
+      // Trava de segurança: Logs
+      const podeLogs = ehAdmin || (typeof temPermissao === 'function' && temPermissao('aba_logs'));
+      if (aba === 'logs' && !podeLogs) {
+        Swal.fire('Acesso Restrito', 'Você não possui permissão para acessar os Logs do Sistema.', 'error');
         return;
       }
       // Usuários: Administrador e Comandante de Unidade
@@ -10844,14 +10852,31 @@ window.carregarLocaisArvoreGeral = function() {
     const selMat = document.getElementById('filtroBaseMaterial');
     if (!selOme || !selMat) return;
 
-    selOme.innerHTML = '<option value="">Todas as OMEs</option>' + listaOficialOmes.map(u => `<option value="${u}">${u}</option>`).join('');
+    const perfilLower = (PERFIL_GLOBAL || "").trim().toLowerCase();
+    const ehAdmin = typeof ehAdminGlobal === 'function' ? ehAdminGlobal() : (perfilLower === "administrador" || perfilLower.includes("admin"));
+    const omeUsuario = (typeof OME_GLOBAL !== 'undefined' && OME_GLOBAL) ? OME_GLOBAL : ((usuarioSessaoAtual && usuarioSessaoAtual.ome) ? usuarioSessaoAtual.ome : "");
+
+    if (ehAdmin) {
+      selOme.innerHTML = '<option value="">Todas as OMEs</option>' + (typeof listaOficialOmes !== 'undefined' ? listaOficialOmes.map(u => `<option value="${u}">${u}</option>`).join('') : '');
+      selOme.disabled = false;
+    } else {
+      selOme.innerHTML = `<option value="${omeUsuario}">${omeUsuario}</option>`;
+      selOme.value = omeUsuario;
+      selOme.disabled = true;
+    }
+
+    // Esconde o botão de excluir marcados se não for admin
+    const btnExcluir = document.getElementById('btnExcluirMarcadosBase');
+    if (btnExcluir) {
+      btnExcluir.style.display = ehAdmin ? 'inline-block' : 'none';
+    }
 
     google.script.run.withSuccessHandler(dados => {
       if (dados && dados.materiais) {
         selMat.innerHTML = '<option value="">Todos os Materiais</option>' + dados.materiais.map(m => `<option value="${m.nome || m}">${m.nome || m}</option>`).join('');
       }
       aoMudarOmeFiltrosBase();
-    }).getDadosIniciais();
+    }).getDadosIniciais(usuarioSessaoAtual);
   }
 
   // =========================================================================
@@ -11004,8 +11029,14 @@ window.carregarLocaisArvoreGeral = function() {
     const elStatus = document.getElementById('filtroBaseStatus');
     const valorStatus = elStatus ? elStatus.value.trim() : '';
 
+    const perfilLower = (PERFIL_GLOBAL || "").trim().toLowerCase();
+    const ehAdmin = typeof ehAdminGlobal === 'function' ? ehAdminGlobal() : (perfilLower === "administrador" || perfilLower.includes("admin"));
+    const omeUsuario = (typeof OME_GLOBAL !== 'undefined' && OME_GLOBAL) ? OME_GLOBAL : ((usuarioSessaoAtual && usuarioSessaoAtual.ome) ? usuarioSessaoAtual.ome : "");
+
+    const omeFiltro = ehAdmin ? (document.getElementById('filtroBaseOme')?.value || '') : omeUsuario;
+
     const filtros = {
-      unidade: document.getElementById('filtroBaseOme').value,
+      unidade: omeFiltro,
       subunidade: document.getElementById('filtroBaseSubunidade').value,
       setor: document.getElementById('filtroBaseSetor').value,
       localArmazenamento: document.getElementById('filtroBaseLocal').value,
@@ -11013,7 +11044,8 @@ window.carregarLocaisArvoreGeral = function() {
       statusConservacao: valorStatus,
       status: valorStatus,
       termoGeral: document.getElementById('filtroBaseTermo').value,
-      pagina: paginaAtualBase
+      pagina: paginaAtualBase,
+      usuario: (typeof usuarioSessaoAtual !== 'undefined' && usuarioSessaoAtual) ? usuarioSessaoAtual : null
     };
 
     const tbody = document.getElementById('tabelaBaseDadosAdmin');
@@ -11248,7 +11280,8 @@ window.carregarLocaisArvoreGeral = function() {
       seiCompra: document.getElementById('edit_sei').value,
       codEfisco: document.getElementById('edit_efisco').value,
       bemPermanente: document.getElementById('edit_bemPermanente').value,
-      observacao: document.getElementById('edit_observacao').value
+      observacao: document.getElementById('edit_observacao').value,
+      usuario: (typeof usuarioSessaoAtual !== 'undefined' && usuarioSessaoAtual) ? usuarioSessaoAtual : null
     };
 
     Swal.fire({ title: 'Salvando alterações...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
@@ -11768,7 +11801,8 @@ window.carregarLocaisArvoreGeral = function() {
       subunidade: document.getElementById('lote_subunidade').value,
       setor: document.getElementById('lote_setor').value,
       localArmazenamento: document.getElementById('lote_local').value,
-      bemPermanente: document.getElementById('lote_bemPermanente').value
+      bemPermanente: document.getElementById('lote_bemPermanente').value,
+      usuario: (typeof usuarioSessaoAtual !== 'undefined' && usuarioSessaoAtual) ? usuarioSessaoAtual : null
     };
 
     Swal.fire({ title: 'Atualizando lote...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
@@ -11779,6 +11813,11 @@ window.carregarLocaisArvoreGeral = function() {
   }
 
   function excluirMarcadosBase() {
+    const ehAdmin = typeof ehAdminGlobal === 'function' ? ehAdminGlobal() : false;
+    if (!ehAdmin) {
+      Swal.fire('Acesso Restrito', 'Apenas o Administrador possui autorização para apagar ou excluir materiais do sistema.', 'warning');
+      return;
+    }
     const marcados = Array.from(document.querySelectorAll('.check-item-base:checked')).map(cb => cb.value);
     if (marcados.length === 0) { Swal.fire('Atenção', 'Selecione ao menos um item.', 'warning'); return; }
 
@@ -15890,8 +15929,14 @@ function exportarDadosBaseExcel() {
   const elStatus = document.getElementById('filtroBaseStatus');
   const valorStatus = elStatus ? elStatus.value.trim() : '';
 
+  const perfilLower = (PERFIL_GLOBAL || "").trim().toLowerCase();
+  const ehAdmin = typeof ehAdminGlobal === 'function' ? ehAdminGlobal() : (perfilLower === "administrador" || perfilLower.includes("admin"));
+  const omeUsuario = (typeof OME_GLOBAL !== 'undefined' && OME_GLOBAL) ? OME_GLOBAL : ((usuarioSessaoAtual && usuarioSessaoAtual.ome) ? usuarioSessaoAtual.ome : "");
+
+  const omeFiltro = ehAdmin ? (document.getElementById('filtroBaseOme')?.value || '') : omeUsuario;
+
   const filtros = {
-    unidade: document.getElementById('filtroBaseOme').value,
+    unidade: omeFiltro,
     subunidade: document.getElementById('filtroBaseSubunidade').value,
     setor: document.getElementById('filtroBaseSetor').value,
     localArmazenamento: document.getElementById('filtroBaseLocal').value,
@@ -15901,7 +15946,8 @@ function exportarDadosBaseExcel() {
     termoGeral: document.getElementById('filtroBaseTermo').value,
     pagina: 1,
     // Garante que trará todos os registros de uma vez (aumente se sua base passar de 50 mil itens)
-    itensPorExportacao: 50000 
+    itensPorExportacao: 50000,
+    usuario: (typeof usuarioSessaoAtual !== 'undefined' && usuarioSessaoAtual) ? usuarioSessaoAtual : null
   };
 
   Swal.fire({ 
@@ -24166,12 +24212,14 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
         if (secBaixa && secBaixa.style.display !== 'none') secBaixa.style.display = 'none';
       }
 
-      // Expulsa se usuário não-admin estiver indevidamente na Base de Dados ou Logs
-      if (!ehAdmin) {
+      // Expulsa se usuário não autorizado estiver indevidamente na Base de Dados ou Logs
+      if (!podeBase) {
         const abaBase = document.getElementById('aba-base');
         if (abaBase && abaBase.style.display === 'block') {
           window.mudarAba('locais');
         }
+      }
+      if (!podeLogs) {
         const abaLogs = document.getElementById('aba-logs');
         if (abaLogs && abaLogs.style.display === 'block') {
           window.mudarAba('locais');

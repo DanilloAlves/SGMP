@@ -165,25 +165,33 @@ function padronizarPermissoesUsuario_(permRaw, perfil) {
   if (pPadrao === "Administrador") {
     return LISTA_CHAVES_PERMISSOES.slice();
   }
-  // Comandante de Unidade mantém estritamente as suas permissões operacionais nativas
+
+  // Extrai permissões personalizadas passadas em permRaw
+  var extras = [];
+  if (permRaw) {
+    if (Array.isArray(permRaw)) {
+      extras = permRaw.slice();
+    } else {
+      var str = String(permRaw).trim();
+      if (str.indexOf("[") === 0 && str.lastIndexOf("]") === str.length - 1) {
+        try { extras = JSON.parse(str); } catch(e) {}
+      }
+      if (!Array.isArray(extras) || extras.length === 0) {
+        extras = str.split(",").map(function(s) { return s.trim(); }).filter(Boolean);
+      }
+    }
+  }
+
+  // Comandante de Unidade mantém as suas permissões operacionais nativas + extras liberadas pelo administrador
   if (pPadrao === "Comandante de Unidade") {
-    return LISTA_PERMISSOES_COMANDANTE.slice();
+    var basePerms = LISTA_PERMISSOES_COMANDANTE.slice();
+    extras.forEach(function(p) {
+      if (basePerms.indexOf(p) === -1) basePerms.push(p);
+    });
+    return basePerms;
   }
 
-  if (!permRaw) return [];
-  if (Array.isArray(permRaw)) return permRaw;
-
-  var str = String(permRaw).trim();
-  if (!str) return [];
-
-  if (str.indexOf("[") === 0 && str.lastIndexOf("]") === str.length - 1) {
-    try {
-      var arr = JSON.parse(str);
-      if (Array.isArray(arr)) return arr;
-    } catch(e) {}
-  }
-
-  return str.split(",").map(function(s) { return s.trim(); }).filter(Boolean);
+  return extras;
 }
 
 // Obtém dinamicamente os índices de todas as colunas da aba Logins
@@ -380,14 +388,13 @@ function getDadosUsuarioLogado(identificadorCliente) {
 function verificarPermissaoBaseDados(usuario) {
   if (!usuario) return false;
   
-  var perfil = (usuario.perfil || "").trim();
+  var perfil = padronizarPerfilUsuario_(usuario.perfil);
   if (perfil === "Administrador") return true;
   
   // Verifica se o usuário recebeu permissão específica para a Base de Dados
-  if (usuario.permissoes) {
-    if (Array.isArray(usuario.permissoes) && usuario.permissoes.indexOf("base_dados") !== -1) return true;
-    if (typeof usuario.permissoes === "string" && usuario.permissoes.split(",").map(function(s){return s.trim();}).indexOf("base_dados") !== -1) return true;
-  }
+  var perms = padronizarPermissoesUsuario_(usuario.permissoes, perfil);
+  if (Array.isArray(perms) && perms.indexOf("base_dados") !== -1) return true;
+  if (typeof usuario.permissoes === "string" && usuario.permissoes.split(",").map(function(s){return s.trim();}).indexOf("base_dados") !== -1) return true;
   return false;
 }
 
@@ -401,15 +408,24 @@ function verificarPermissaoBaseDados(usuario) {
 
 // =========================================================================
 
-function getDadosIniciais() {
+function getDadosIniciais(identificadorCliente) {
 
   try {
 
-    var email = "";
-
-    try { email = Session.getActiveUser().getEmail(); } catch (e) {}
-
-    var usuario = verificarPermissaoUsuario(email);
+    var usuario = null;
+    if (identificadorCliente) {
+      if (typeof identificadorCliente === "object") {
+        usuario = verificarPermissaoUsuario(identificadorCliente.cpf || identificadorCliente.email);
+        if (!usuario) usuario = identificadorCliente;
+      } else {
+        usuario = verificarPermissaoUsuario(identificadorCliente);
+      }
+    }
+    if (!usuario) {
+      var email = "";
+      try { email = Session.getActiveUser().getEmail(); } catch (e) {}
+      if (email) usuario = verificarPermissaoUsuario(email);
+    }
 
     // Garante consolidação da coluna única N_SERIE no BigQuery
     try {
@@ -939,17 +955,42 @@ function registrarEntradaEstoque(dados) {
 
 function pesquisarNoBigQuery(filtros) {
   try {
-    var email = "";
-    try { email = Session.getActiveUser().getEmail(); } catch (e) {}
-    var usuario = verificarPermissaoUsuario(email);
-    if (!verificarPermissaoBaseDados(usuario)) {
-      throw new Error("Acesso negado: Apenas Administradores e pessoal do Recebimento podem consultar a Base de Dados.");
+    var usuario = null;
+    var userPayload = filtros ? (filtros.usuario || filtros.usuarioCliente) : null;
+    if (userPayload && (userPayload.cpf || userPayload.email)) {
+      usuario = verificarPermissaoUsuario(userPayload.cpf || userPayload.email);
     }
+    if (!usuario && userPayload && userPayload.nome) {
+      usuario = userPayload;
+    }
+    if (!usuario) {
+      var email = "";
+      try { email = Session.getActiveUser().getEmail().trim().toLowerCase(); } catch (e) {}
+      if (!email) {
+        try { email = Session.getEffectiveUser().getEmail().trim().toLowerCase(); } catch (e2) {}
+      }
+      if (email) usuario = verificarPermissaoUsuario(email);
+    }
+
+    if (!verificarPermissaoBaseDados(usuario)) {
+      throw new Error("Acesso negado: Você não possui autorização para consultar a Base de Dados.");
+    }
+
+    var perfilUser = usuario ? padronizarPerfilUsuario_(usuario.perfil) : "";
+    var ehAdmin = (perfilUser === "Administrador");
 
     var colSerie = obterColunaSerieInventario_();
     var selectSerieSql = colSerie ? ("`" + colSerie + "`") : "CAST(NULL AS STRING)";
 
     var baseSqlWhere = " FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` WHERE 1=1";
+
+    // SEGURANÇA: Se o usuário não for Administrador (ex: Comandante de Unidade), restringe estritamente aos materiais da sua OME
+    if (!ehAdmin) {
+      var omeUser = (usuario && usuario.ome) ? (typeof obterOmePadronizada === 'function' ? obterOmePadronizada(usuario.ome) : usuario.ome) : "";
+      if (omeUser) {
+        baseSqlWhere += " AND UPPER(TRIM(UNIDADE)) = '" + String(obterOmePadronizada(omeUser)).trim().toUpperCase().replace(/'/g, "\\'") + "'";
+      }
+    }
     function limpaSQL(t) { return String(t || '').trim().replace(/'/g, "\\'"); }
 
     if (filtros) {
@@ -1033,15 +1074,25 @@ function pesquisarNoBigQuery(filtros) {
 
 
 
-function atualizarRegistro(dados) {
+function atualizarRegistro(dados, usuarioCliente) {
   try {
-    var email = "";
-    try { email = Session.getActiveUser().getEmail().trim().toLowerCase(); } catch (e) {}
-    if (!email) {
-      try { email = Session.getEffectiveUser().getEmail().trim().toLowerCase(); } catch (e) {}
+    var usuario = null;
+    var userPayload = (dados && dados.usuario) ? dados.usuario : usuarioCliente;
+    if (userPayload && (userPayload.cpf || userPayload.email)) {
+      usuario = verificarPermissaoUsuario(userPayload.cpf || userPayload.email);
     }
-    var usuario = verificarPermissaoUsuario(email);
-    if (!usuario || !usuario.email) {
+    if (!usuario && userPayload && userPayload.nome) {
+      usuario = userPayload;
+    }
+    if (!usuario) {
+      var email = "";
+      try { email = Session.getActiveUser().getEmail().trim().toLowerCase(); } catch (e) {}
+      if (!email) {
+        try { email = Session.getEffectiveUser().getEmail().trim().toLowerCase(); } catch (e) {}
+      }
+      if (email) usuario = verificarPermissaoUsuario(email);
+    }
+    if (!usuario) {
       throw new Error("Acesso negado: Sessão não identificada ou e-mail não encontrado na base de Logins.");
     }
 
@@ -1115,18 +1166,24 @@ function atualizarRegistro(dados) {
 
 
 
-function excluirRegistro(item) {
+function excluirRegistro(item, usuarioCliente) {
 
-  var email = "";
+  var usuario = null;
+  if (usuarioCliente && (usuarioCliente.cpf || usuarioCliente.email)) {
+    usuario = verificarPermissaoUsuario(usuarioCliente.cpf || usuarioCliente.email);
+  }
+  if (!usuario && usuarioCliente && usuarioCliente.nome) {
+    usuario = usuarioCliente;
+  }
+  if (!usuario) {
+    var email = "";
+    try { email = Session.getActiveUser().getEmail(); } catch (e) {}
+    if (email) usuario = verificarPermissaoUsuario(email);
+  }
 
-  try { email = Session.getActiveUser().getEmail(); } catch (e) {}
-
-  var usuario = verificarPermissaoUsuario(email);
-
-  if (!verificarPermissaoBaseDados(usuario)) {
-
-    throw new Error("Acesso negado.");
-
+  var perfilUser = usuario ? padronizarPerfilUsuario_(usuario.perfil) : "";
+  if (perfilUser !== "Administrador") {
+    throw new Error("Acesso negado: Apenas o Administrador possui autorização para apagar ou excluir materiais do sistema.");
   }
 
 
@@ -1151,18 +1208,40 @@ function excluirRegistro(item) {
 
 
 
-function atualizarLotePorIds(itensIds, novosDados) {
+function atualizarLotePorIds(itensIds, novosDados, usuarioCliente) {
 
-  var email = "";
-
-  try { email = Session.getActiveUser().getEmail(); } catch (e) {}
-
-  var usuario = verificarPermissaoUsuario(email);
+  var usuario = null;
+  var userPayload = (novosDados && novosDados.usuario) ? novosDados.usuario : usuarioCliente;
+  if (userPayload && (userPayload.cpf || userPayload.email)) {
+    usuario = verificarPermissaoUsuario(userPayload.cpf || userPayload.email);
+  }
+  if (!usuario && userPayload && userPayload.nome) {
+    usuario = userPayload;
+  }
+  if (!usuario) {
+    var email = "";
+    try { email = Session.getActiveUser().getEmail(); } catch (e) {}
+    if (email) usuario = verificarPermissaoUsuario(email);
+  }
 
   if (!verificarPermissaoBaseDados(usuario)) {
+    throw new Error("Acesso negado: Você não possui autorização para editar a Base de Dados.");
+  }
 
-    throw new Error("Acesso negado.");
+  var perfilUser = usuario ? padronizarPerfilUsuario_(usuario.perfil) : "";
+  var ehAdmin = (perfilUser === "Administrador");
 
+  if (!ehAdmin) {
+    delete novosDados.unidade; // Não permite alterar OME de lotação
+    var omeUser = (usuario && usuario.ome) ? (typeof obterOmePadronizada === 'function' ? obterOmePadronizada(usuario.ome) : usuario.ome).toUpperCase() : "";
+    if (omeUser) {
+      function limparCheck(t) { return String(t || '').replace(/'/g, "\\'"); }
+      var idsSqlCheck = itensIds.map(function(id) { return "'" + limparCheck(id) + "'"; }).join(",");
+      var resOmeCheck = executarConsultaBigQuerySegura("SELECT COUNT(*) as qtd FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` WHERE ITEM IN (" + idsSqlCheck + ") AND UPPER(TRIM(UNIDADE)) != '" + omeUser.replace(/'/g, "\\'") + "'");
+      if (resOmeCheck.rows && resOmeCheck.rows.length > 0 && parseInt(resOmeCheck.rows[0].f[0].v, 10) > 0) {
+        throw new Error("Acesso negado: Você só possui permissão para editar materiais pertencentes à sua própria OME (" + (usuario.ome || "SEM OME") + ").");
+      }
+    }
   }
 
 
@@ -1329,20 +1408,26 @@ function atualizarLotePorIds(itensIds, novosDados) {
 
 
 
-function excluirLotePorIds(itensIds) {
+function excluirLotePorIds(itensIds, usuarioCliente) {
 
   try {
 
-    var email = "";
+    var usuario = null;
+    if (usuarioCliente && (usuarioCliente.cpf || usuarioCliente.email)) {
+      usuario = verificarPermissaoUsuario(usuarioCliente.cpf || usuarioCliente.email);
+    }
+    if (!usuario && usuarioCliente && usuarioCliente.nome) {
+      usuario = usuarioCliente;
+    }
+    if (!usuario) {
+      var email = "";
+      try { email = Session.getActiveUser().getEmail(); } catch (e) {}
+      if (email) usuario = verificarPermissaoUsuario(email);
+    }
 
-    try { email = Session.getActiveUser().getEmail(); } catch (e) {}
-
-    var usuario = verificarPermissaoUsuario(email);
-
-    if (!verificarPermissaoBaseDados(usuario)) {
-
-      throw new Error("Acesso negado.");
-
+    var perfilUser = usuario ? padronizarPerfilUsuario_(usuario.perfil) : "";
+    if (perfilUser !== "Administrador") {
+      throw new Error("Acesso negado: Apenas o Administrador possui autorização para apagar ou excluir materiais do sistema.");
     }
 
 
