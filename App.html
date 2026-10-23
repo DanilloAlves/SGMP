@@ -2791,9 +2791,10 @@
                 <label class="form-label fw-bold small text-secondary mb-1">Categoria / Tipo de Problema: *</label>
                 <select class="form-select form-select-sm" id="novo_chamado_tipo" required>
                   <option value="Problema no Sistema">Problema / Erro no Sistema</option>
+                  <option value="Alteração de Perfil / Acesso">Alteração de Perfil de Acesso</option>
+                  <option value="Permissões e Acessos">Permissões de Acesso / Setor</option>
                   <option value="Dúvida Operacional">Dúvida Operacional de Uso</option>
                   <option value="Manutenção / Correção">Manutenção / Correção de Dados</option>
-                  <option value="Permissões e Acessos">Permissões de Acesso / Setor</option>
                   <option value="Sugestão de Melhoria">Sugestão de Melhoria</option>
                   <option value="Outro">Outro Motivo</option>
                 </select>
@@ -2880,9 +2881,19 @@
             <!-- Renderizado dinamicamente -->
           </div>
 
-          <!-- PAINEL DE TRATAMENTO TÉCNICO (EXCLUSIVO ADMINISTRADOR) -->
+          <!-- PAINEL DE TRATAMENTO TÉCNICO (ADMINISTRADOR E COMANDANTE DA OME) -->
           <div id="boxTratamentoAdmin" class="p-3 border rounded-3 bg-white border-danger border-opacity-50 mb-3 d-none">
-            <h6 class="fw-bold text-danger mb-2"><i class="fa-solid fa-user-shield me-1"></i> Painel do Suporte Técnico (Administrador):</h6>
+            <h6 class="fw-bold text-danger mb-2" id="tituloPainelTratamentoChamado"><i class="fa-solid fa-user-shield me-1"></i> Painel de Tratamento do Chamado:</h6>
+            
+            <div id="boxAtalhoAlterarPerfilChamado" class="mb-3 p-2 bg-light border rounded d-flex justify-content-between align-items-center flex-wrap gap-2">
+              <div>
+                <span class="small fw-bold text-dark"><i class="fa-solid fa-user-gear me-1 text-primary"></i> <strong>Solicitação de Perfil / Acesso:</strong></span>
+                <div class="text-muted" style="font-size: 0.75rem;">Acesse diretamente o gerenciamento para ajustar o perfil e atribuições deste militar.</div>
+              </div>
+              <button type="button" class="btn btn-sm btn-outline-primary fw-bold" onclick="atalhoEditarUsuarioDoChamado()">
+                <i class="fa-solid fa-user-pen me-1"></i> Gerenciar Perfil do Usuário
+              </button>
+            </div>
             <div class="mb-2">
               <label class="form-label small fw-bold mb-1">Parecer / Resposta do Suporte: *</label>
               <textarea class="form-control form-control-sm" id="admin_resposta_chamado" rows="3" placeholder="Digite a resposta técnica, instruções de solução ou questionamentos ao militar..."></textarea>
@@ -24220,16 +24231,25 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
           return;
         }
         ehAdminChamados = resp.ehAdmin === true;
+        window.ehComandanteChamados = resp.ehComandante === true;
+        window.podeGerenciarChamadosGlobal = (resp.ehAdmin === true || resp.ehComandante === true);
         listaChamadosGlobal = resp.chamados || [];
 
         // Ajusta títulos e visibilidade de colunas conforme o perfil
         const subtitulo = document.getElementById('subtituloChamadosAba');
         const thSolicitante = document.getElementById('thSolicitanteChamados');
-        if (ehAdminChamados) {
-          if (subtitulo) subtitulo.innerHTML = '<span class="badge bg-danger me-1">VISÃO DE ADMINISTRADOR</span> Painel Geral de Atendimento — Visualize, responda e conclua as ocorrências relatadas pelos usuários.';
+        if (window.podeGerenciarChamadosGlobal) {
+          if (subtitulo) {
+            if (ehAdminChamados) {
+              subtitulo.innerHTML = '<span class="badge bg-danger me-1">VISÃO DE ADMINISTRADOR</span> Painel Geral de Atendimento — Visualize, responda e conclua as ocorrências relatadas pelos usuários.';
+            } else {
+              const omeExib = (typeof obterNomeOficialOme === 'function') ? obterNomeOficialOme(OME_GLOBAL) : OME_GLOBAL;
+              subtitulo.innerHTML = `<span class="badge bg-warning text-dark border border-warning me-1"><i class="fa-solid fa-shield-halved me-1"></i>COMANDO DA UNIDADE</span> Atendimento da OME (${omeExib}) — Visualize e trate chamados de perfil, acesso e suporte da sua unidade.`;
+            }
+          }
           if (thSolicitante) thSolicitante.style.display = '';
         } else {
-          if (subtitulo) subtitulo.innerText = 'Envie problemas, solicite manutenções ou correções e acompanhe o andamento dos seus protocolos de atendimento.';
+          if (subtitulo) subtitulo.innerText = 'Envie problemas, solicite alterações de perfil ou correções e acompanhe o andamento dos seus protocolos de atendimento.';
           if (thSolicitante) thSolicitante.style.display = 'none';
         }
 
@@ -24317,8 +24337,9 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
         badgeStatus = '<span class="badge bg-warning text-dark border border-dark border-opacity-25"><i class="fa-solid fa-rotate-left me-1"></i> REABERTO</span>';
       }
 
+      const podeTratarEsteChamado = (ch.podeTratar === true || ehAdminChamados);
       let btnAcao = '';
-      if (ehAdminChamados) {
+      if (podeTratarEsteChamado) {
         if (ch.status === 'RESOLVIDO') {
           btnAcao = `<button class="btn btn-outline-secondary btn-sm py-1 px-2 fw-bold" onclick="abrirModalDetalhesChamado('${ch.protocolo}')" title="Visualizar Histórico"><i class="fa-solid fa-eye me-1"></i> Detalhes</button>`;
         } else {
@@ -24335,7 +24356,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
         }
       }
 
-      let solicitanteCol = ehAdminChamados ? 
+      let solicitanteCol = window.podeGerenciarChamadosGlobal ? 
         `<td><strong>${ch.nomeSolicitante || 'Militar'}</strong><br><span class="text-muted" style="font-size: 0.72rem;">${ch.omeSolicitante || ''} (${ch.subunidadeSolicitante || 'GERAL'})</span></td>` : '';
 
       html += `
@@ -24602,7 +24623,17 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       else boxResolvidoEl.classList.add('d-none');
     }
 
-    if (ehAdminChamados) {
+    const podeTratarEste = (chamado.podeTratar === true || ehAdminChamados);
+    
+    // Atualiza título do painel de resposta
+    const titPainel = document.getElementById('tituloPainelTratamentoChamado');
+    if (titPainel) {
+      titPainel.innerHTML = ehAdminChamados 
+        ? '<i class="fa-solid fa-user-shield me-1"></i> Painel do Suporte Técnico (Administrador):' 
+        : '<i class="fa-solid fa-shield-halved me-1"></i> Painel de Tratamento do Chamado (Comando da OME):';
+    }
+
+    if (podeTratarEste) {
       if (boxAdminEl) {
         if (ehResolvido) boxAdminEl.classList.add('d-none');
         else boxAdminEl.classList.remove('d-none');
@@ -24686,6 +24717,28 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
   }
 
   // Ação de tratamento técnico pelo Administrador
+  
+  function atalhoEditarUsuarioDoChamado() {
+    if (!chamadoAtualSelecionado) return;
+    const cpfAlvo = String(chamadoAtualSelecionado.cpfSolicitante || '').replace(/\D/g, '');
+    const modalEl = document.getElementById('modalDetalhesChamado');
+    if (modalEl) {
+      const modal = bootstrap.Modal.getInstance(modalEl);
+      if (modal) modal.hide();
+    }
+    mudarAba('gerenciar-usuarios');
+    if (typeof carregarListaUsuarios === 'function') {
+      carregarListaUsuarios();
+    }
+    setTimeout(() => {
+      const fCpf = document.getElementById('filtroUsuarioCpf');
+      if (fCpf && cpfAlvo) {
+        fCpf.value = cpfAlvo;
+        if (typeof filtrarTabelaUsuarios === 'function') filtrarTabelaUsuarios();
+      }
+    }, 400);
+  }
+
   function salvarTratamentoAdmin(novoStatus) {
     if (!chamadoAtualSelecionado) return;
     const txt = (document.getElementById('admin_resposta_chamado').value || '').trim();

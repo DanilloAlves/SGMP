@@ -15946,7 +15946,10 @@ function listarChamados(filtroStatus) {
       return { ehAdmin: false, chamados: [], semPermissao: true };
     }
     
-    var ehAdmin = (usuario.perfil === "Administrador");
+    var ehAdmin = (perfilUserListar === "Administrador");
+    var ehComandante = (perfilUserListar === "Comandante de Unidade");
+    var omeUserPadrao = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(usuario.ome) : String(usuario.ome || "").trim().toUpperCase();
+
     var cpfUser = String(usuario.cpf || "").replace(/\D/g, "");
     if (cpfUser.length === 10) cpfUser = "0" + cpfUser;
     var emailUser = String(usuario.email || "").trim().toLowerCase();
@@ -15954,7 +15957,7 @@ function listarChamados(filtroStatus) {
     var ss = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
     var sheet = ss.getSheetByName(ABA_CHAMADOS);
     if (!sheet || sheet.getLastRow() <= 1) {
-      return { ehAdmin: ehAdmin, chamados: [] };
+      return { ehAdmin: ehAdmin, ehComandante: ehComandante, chamados: [] };
     }
     
     var dados = sheet.getDataRange().getValues();
@@ -15982,13 +15985,20 @@ function listarChamados(filtroStatus) {
       var rowRespSuporte = String(row[14] || "").trim();
       var rowHistoricoRaw = String(row[15] || "[]").trim();
       
-      // Se não for Administrador, exibe APENAS os chamados abertos pelo próprio usuário (por CPF ou e-mail)
-      if (!ehAdmin) {
-        var pertenceAoUsuario = false;
-        if (cpfUser && rowCpf && cpfUser === rowCpf) pertenceAoUsuario = true;
-        if (emailUser && rowEmail && emailUser === rowEmail) pertenceAoUsuario = true;
-        if (!pertenceAoUsuario) continue;
+      var rowOmePadrao = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(rowOme) : rowOme.toUpperCase();
+      var pertenceAoUsuario = false;
+      if (cpfUser && rowCpf && cpfUser === rowCpf) pertenceAoUsuario = true;
+      if (emailUser && rowEmail && emailUser === rowEmail) pertenceAoUsuario = true;
+
+      // Comandante de Unidade tem visão dos chamados abertos por militares de sua própria OME
+      var daMesmaOme = (ehComandante && omeUserPadrao && rowOmePadrao && omeUserPadrao === rowOmePadrao);
+
+      if (!ehAdmin && !daMesmaOme && !pertenceAoUsuario) {
+        continue;
       }
+
+      // Flag indicando se o operador atual pode tratar/responder a este chamado
+      var podeTratar = ehAdmin || daMesmaOme;
       
       // Filtro opcional por status
       if (filtroStatus && filtroStatus !== "TODOS" && rowStatus !== filtroStatus.toUpperCase()) {
@@ -16020,12 +16030,15 @@ function listarChamados(filtroStatus) {
         dataAtualizacao: rowDataAtualizacao,
         responsavelSuporte: rowRespSuporte,
         historicoMensagens: historicoMensagens,
+        podeTratar: podeTratar,
         linha: i + 1
       });
     }
     
     return {
       ehAdmin: ehAdmin,
+      ehComandante: ehComandante,
+      podeGerenciarChamados: (ehAdmin || ehComandante),
       usuarioSessao: {
         nome: usuario.nome,
         email: usuario.email,
@@ -16051,9 +16064,19 @@ function responderChamadoAdmin(protocolo, respostaTexto, novoStatus) {
     }
     
     var admin = verificarPermissaoUsuario(emailSessao);
-    if (!admin || admin.perfil !== "Administrador") {
-      throw new Error("Apenas usuários com perfil de Administrador podem responder chamados.");
+    if (!admin) {
+      throw new Error("Sessão do usuário não identificada.");
     }
+
+    var perfilOperador = padronizarPerfilUsuario_(admin.perfil);
+    var ehAdmin = (perfilOperador === "Administrador");
+    var ehComandante = (perfilOperador === "Comandante de Unidade");
+
+    if (!ehAdmin && !ehComandante) {
+      throw new Error("Apenas Administradores ou Comandantes de Unidade podem responder chamados.");
+    }
+
+    var omeOperadorPadrao = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(admin.ome) : String(admin.ome || "").trim().toUpperCase();
     
     var protLimpo = String(protocolo || "").trim().toUpperCase();
     var respLimpa = String(respostaTexto || "").trim();
@@ -16093,6 +16116,15 @@ function responderChamadoAdmin(protocolo, respostaTexto, novoStatus) {
     if (linhaAlvo === -1 || !chamado) {
       throw new Error("Chamado " + protLimpo + " não foi localizado.");
     }
+
+    var omeTicketPadrao = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(chamado.ome) : String(chamado.ome || "").trim().toUpperCase();
+
+    // Se for Comandante de Unidade, valida estritamente se o chamado pertence à sua mesma OME
+    if (ehComandante && !ehAdmin) {
+      if (!omeOperadorPadrao || !omeTicketPadrao || omeTicketPadrao !== omeOperadorPadrao) {
+        throw new Error("Acesso negado: Comandantes de Unidade só possuem autorização para tratar chamados de usuários da sua própria OME (" + (omeOperadorPadrao || "sua unidade") + ").");
+      }
+    }
     
     var agora = new Date();
     var dataFormatada = Utilities.formatDate(agora, "America/Recife", "dd/MM/yyyy HH:mm:ss");
@@ -16100,9 +16132,12 @@ function responderChamadoAdmin(protocolo, respostaTexto, novoStatus) {
     var historico = [];
     try { historico = JSON.parse(chamado.historicoRaw); } catch(eH) { historico = []; }
     
+    var cargoRemetente = ehAdmin ? "Administrador SGMP" : ("Comando da OME " + omeOperadorPadrao);
+    var nomeRemetente = admin.nome ? (admin.nome + " (" + cargoRemetente + ")") : cargoRemetente;
+
     historico.push({
-      remetente: admin.nome || admin.email || "Suporte Técnico SGMP",
-      tipo: "ADMIN",
+      remetente: nomeRemetente,
+      tipo: ehAdmin ? "ADMIN" : "COMANDANTE",
       data: dataFormatada,
       mensagem: respLimpa,
       status: statusLimpo
@@ -16111,7 +16146,7 @@ function responderChamadoAdmin(protocolo, respostaTexto, novoStatus) {
     sheet.getRange(linhaAlvo, 12).setValue(statusLimpo);
     sheet.getRange(linhaAlvo, 13).setValue(respLimpa);
     sheet.getRange(linhaAlvo, 14).setValue(dataFormatada);
-    sheet.getRange(linhaAlvo, 15).setValue(admin.nome || admin.email || "Administrador");
+    sheet.getRange(linhaAlvo, 15).setValue(nomeRemetente);
     sheet.getRange(linhaAlvo, 16).setValue(JSON.stringify(historico));
     SpreadsheetApp.flush();
     
