@@ -2816,7 +2816,7 @@ function obterMapaClassificacaoConsumo_() {
   }
 
   var cache = CacheService.getScriptCache();
-  var cachedJson = cache.get("MAPA_MATERIAIS_CONSUMO_V1");
+  var cachedJson = cache.get("MAPA_MATERIAIS_CONSUMO_V2");
   if (cachedJson) {
     try {
       _cacheMapaClassificacaoConsumo = JSON.parse(cachedJson);
@@ -2835,15 +2835,35 @@ function obterMapaClassificacaoConsumo_() {
 
     var lastRow = abaCad.getLastRow();
     var lastCol = abaCad.getLastColumn();
-    var colMat = 3;       // Coluna C padrão (Objeto)
-    var colConsumo = 20;  // Coluna T padrão (CONSUMO)
+    var colMat = 3;       // Coluna C padrão (OBJETO RESUMIDO)
+    var colConsumo = 24;  // Coluna X padrão (CONSUMO, 24ª coluna)
 
+    // Detecta cabeçalhos prioritariamente na linha 6 (com fallback na linha 5)
+    var headerRow = 6;
+    var dataStartRow = 7;
     try {
-      var cabecalho = abaCad.getRange(5, 1, 1, Math.min(lastCol, 35)).getValues()[0];
+      var row6 = lastRow >= 6 ? abaCad.getRange(6, 1, 1, lastCol).getValues()[0] : [];
+      var row5 = abaCad.getRange(5, 1, 1, lastCol).getValues()[0];
+      var cabecalho = row6;
+      var pontuacao6 = 0, pontuacao5 = 0;
+
+      for (var c = 0; c < lastCol; c++) {
+        var v6 = String(row6[c] || "").trim().toUpperCase();
+        var v5 = String(row5[c] || "").trim().toUpperCase();
+        if (v6.includes("CONSUMO") || v6.includes("OBJETO") || v6.includes("CLASSE")) pontuacao6++;
+        if (v5.includes("CONSUMO") || v5.includes("OBJETO") || v5.includes("CLASSE")) pontuacao5++;
+      }
+
+      if (pontuacao5 > pontuacao6) {
+        cabecalho = row5;
+        headerRow = 5;
+        dataStartRow = 6;
+      }
+
       for (var c = 0; c < cabecalho.length; c++) {
         var h = String(cabecalho[c] || "").trim().toLowerCase();
         var hNorm = h.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-        if (hNorm.includes("objeto") || hNorm.includes("material") || hNorm.includes("descri")) {
+        if (colMat === 3 && (hNorm.includes("objeto") || hNorm.includes("material") || hNorm.includes("descri"))) {
           colMat = c + 1;
         }
         if (hNorm === "consumo" || hNorm.includes("consumo")) {
@@ -2851,24 +2871,29 @@ function obterMapaClassificacaoConsumo_() {
         }
       }
     } catch(eCab) {
-      console.warn("Aviso ao ler cabeçalho de #CAD_ITENS: " + eCab.message);
+      console.warn("Aviso ao ler cabeçalho do catálogo de materiais: " + eCab.message);
     }
 
-    var maxCol = Math.max(colMat, colConsumo);
-    var numLinhas = lastRow - 5;
-    var matriz = abaCad.getRange(6, 1, numLinhas, maxCol).getValues();
+    var maxCol = Math.max(colMat, colConsumo, 24);
+    var numLinhas = lastRow - (dataStartRow - 1);
+    if (numLinhas > 0) {
+      var matriz = abaCad.getRange(dataStartRow, 1, numLinhas, maxCol).getValues();
 
-    for (var i = 0; i < matriz.length; i++) {
-      var nomeItem = String(matriz[i][colMat - 1] || "").trim().toUpperCase();
-      var valorConsumo = String(matriz[i][colConsumo - 1] || "").trim().toUpperCase();
+      for (var i = 0; i < matriz.length; i++) {
+        var nomeItem = String(matriz[i][colMat - 1] || "").trim().toUpperCase();
+        // Busca o valor na coluna identificada pelo título CONSUMO e também na coluna X (24)
+        var valorConsumo = String(matriz[i][colConsumo - 1] || "").trim().toUpperCase();
+        if (!valorConsumo && matriz[i][23] !== undefined) {
+          valorConsumo = String(matriz[i][23] || "").trim().toUpperCase();
+        }
 
-      if (nomeItem) {
-        if (valorConsumo === "SIM" || valorConsumo === "S") {
-          mapaConsumo[nomeItem] = true;
-          // Versão limpa de pontuação para match tolerante
-          var cleanKey = nomeItem.replace(/[^A-Z0-9]/g, "");
-          if (cleanKey) {
-            mapaConsumo["_CLEAN_" + cleanKey] = true;
+        if (nomeItem) {
+          if (valorConsumo === "SIM" || valorConsumo === "S" || valorConsumo === "CONSUMO") {
+            mapaConsumo[nomeItem] = true;
+            var cleanKey = nomeItem.replace(/[^A-Z0-9]/g, "");
+            if (cleanKey) {
+              mapaConsumo["_CLEAN_" + cleanKey] = true;
+            }
           }
         }
       }
@@ -2880,7 +2905,7 @@ function obterMapaClassificacaoConsumo_() {
     try {
       var jsonStr = JSON.stringify(mapaConsumo);
       if (jsonStr.length < 95000) {
-        cache.put("MAPA_MATERIAIS_CONSUMO_V1", jsonStr, 900);
+        cache.put("MAPA_MATERIAIS_CONSUMO_V2", jsonStr, 900);
       }
     } catch(eCache) {}
 
@@ -17813,7 +17838,7 @@ function salvarCadastroMaterialCadItens(dados, usuarioCliente) {
       _cacheCatalogoClassesMem = null;
       _cacheMapaClassificacaoConsumo = null;
       CacheService.getScriptCache().remove("MAPA_CATALOGO_CLASSES_DASH_V4");
-      CacheService.getScriptCache().remove("MAPA_MATERIAIS_CONSUMO_V1");
+      CacheService.getScriptCache().remove("MAPA_MATERIAIS_CONSUMO_V2");
     } catch(eCache) {}
 
     // Auditoria
