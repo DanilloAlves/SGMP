@@ -11939,6 +11939,7 @@ function extrairObservacaoCautela_(obs) {
 function getItensAcauteladosAtuais(omeUsuario, perfilUsuario, omeFiltroAdmin) {
   try {
     garantirTabelaHistoricoMovimentacao_();
+    garantirTriggerVerificacaoCautelasVencidas_();
     var perfilClean = String(perfilUsuario || "").trim().toUpperCase();
     var omeCleanUser = String(omeUsuario || "").trim().toUpperCase();
     
@@ -12052,6 +12053,337 @@ function getItensAcauteladosAtuais(omeUsuario, perfilUsuario, omeFiltroAdmin) {
     return lista;
   } catch (err) {
     throw new Error("Erro ao listar itens acautelados: " + err.message);
+  }
+}
+
+/**
+ * Garante a instalação do trigger diário para verificação automática de cautelas com prazo vencido.
+ * Executa diariamente às 07:00 (horário de Recife/PE).
+ */
+function garantirTriggerVerificacaoCautelasVencidas_() {
+  try {
+    var cache = CacheService.getScriptCache();
+    if (cache.get("TRIGGER_CAUTELAS_VENCIDAS_OK") === "1") return;
+
+    var funcaoAlvo = "verificarENotificarCautelasVencidas";
+    var triggers = ScriptApp.getProjectTriggers();
+    var jaExiste = false;
+    for (var i = 0; i < triggers.length; i++) {
+      if (triggers[i].getHandlerFunction() === funcaoAlvo) {
+        jaExiste = true;
+        break;
+      }
+    }
+    if (!jaExiste) {
+      ScriptApp.newTrigger(funcaoAlvo)
+        .timeBased()
+        .everyDays(1)
+        .atHour(7)
+        .inTimezone("America/Recife")
+        .create();
+      console.log("Trigger diário para verificarENotificarCautelasVencidas criado com sucesso (07:00 America/Recife).");
+    }
+    cache.put("TRIGGER_CAUTELAS_VENCIDAS_OK", "1", 21600); // Salva em cache por 6 horas
+  } catch (e) {
+    console.error("Aviso ao garantir trigger diário de cautelas vencidas: " + e.message);
+  }
+}
+
+/**
+ * Verifica todos os acautelamentos ativos no sistema cujo prazo de devolução
+ * chegou ao dia de vencimento ou já se encontra vencido.
+ * Envia notificação por e-mail para todos os usuários com perfil 'Comandante de Unidade'
+ * da respectiva OME e usuários com permissão 'acautelamento' naquela OME.
+ * 
+ * @param {boolean} [forcarEnvio=false] Se true, desconsidera deduplicação do dia para testes.
+ */
+function verificarENotificarCautelasVencidas(forcarEnvio) {
+  try {
+    garantirTriggerVerificacaoCautelasVencidas_();
+
+    // 1. Busca todos os itens acautelados no BigQuery
+    var itens = getItensAcauteladosAtuais("TODAS", "ADMINISTRADOR");
+    if (!itens || itens.length === 0) {
+      return { sucesso: true, mensagem: "Nenhum material acautelado no momento.", totalNotificados: 0 };
+    }
+
+    // 2. Agrupa itens por protocolo de termo de acautelamento
+    var termos = {};
+    itens.forEach(function(item) {
+      var prot = String(item.protocoloTermo || "").trim().toUpperCase();
+      if (!prot) {
+        var obs = String(item.observacaoCompleta || "");
+        var mObs = obs.match(/TERMO-CAUT-[\w\-]+/i);
+        if (mObs) prot = mObs[0].toUpperCase();
+      }
+      var milNome = String(item.nomeMilitar || "").trim();
+      var milCpf = String(item.matriculaCpfMilitar || item.cpfMilitar || "").trim();
+      var dataCaut = String(item.dataCautela || "").trim();
+      var unid = String(item.unidade || "").trim().toUpperCase();
+
+      var chave = (prot && prot.indexOf("TERMO-CAUT-") === 0) ? prot : (milCpf + "|||" + dataCaut + "|||" + unid);
+      if (!termos[chave]) {
+        termos[chave] = {
+          chave: chave,
+          protocolo: (prot && prot.indexOf("TERMO-CAUT-") === 0) ? prot : ("TERMO-" + (dataCaut.replace(/\D+/g, "").slice(0, 8) || "HIST") + "-" + (milCpf.replace(/\D+/g, "").slice(-4) || "0000")),
+          unidade: unid,
+          subunidade: item.subunidade || "SEDE",
+          nomeMilitar: milNome,
+          postoMilitar: item.postoGradMilitar || item.postoMilitar || "",
+          matriculaCpfMilitar: item.matriculaCpfMilitar || (milCpf ? "CPF: " + milCpf : "-"),
+          docSei: item.docSeiCautela || item.docSei || "-",
+          dataCautela: item.dataCautela || "-",
+          dataPrevista: item.dataPrevista || "-",
+          observacao: item.observacao || "",
+          totalItens: 0,
+          materiais: {}
+        };
+      }
+      var matNome = String(item.objeto || "Material").trim().toUpperCase();
+      termos[chave].materiais[matNome] = (termos[chave].materiais[matNome] || 0) + 1;
+      termos[chave].totalItens++;
+    });
+
+    // 3. Determina quais termos atingiram ou ultrapassaram a data limite prevista
+    var hojeRecifeStr = Utilities.formatDate(new Date(), "America/Recife", "yyyy-MM-dd");
+    var hojeDate = new Date(hojeRecifeStr + "T00:00:00");
+    var chaveHoje = Utilities.formatDate(new Date(), "America/Recife", "yyyyMMdd");
+
+    var props = PropertiesService.getScriptProperties();
+    var chavePropNotif = "NOTIF_CAUT_VENC_" + chaveHoje;
+    var jaNotificadosHoje = forcarEnvio ? [] : (props.getProperty(chavePropNotif) || "").split(",").filter(Boolean);
+
+    var termosVencidosPorOme = {};
+    var termosParaNotificar = [];
+
+    Object.keys(termos).forEach(function(k) {
+      var t = termos[k];
+      if (!t.dataPrevista || t.dataPrevista === "-" || t.dataPrevista === "N/I") return;
+
+      var mPrev = String(t.dataPrevista).trim().match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+      if (!mPrev) return;
+
+      var dia = parseInt(mPrev[1], 10);
+      var mes = parseInt(mPrev[2], 10) - 1;
+      var ano = parseInt(mPrev[3], 10);
+      var dtPrev = new Date(ano, mes, dia, 0, 0, 0);
+
+      var diffTime = dtPrev.getTime() - hojeDate.getTime();
+      var diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+      // diffDays <= 0: venceu hoje (0) ou já está em atraso (< 0)
+      if (diffDays <= 0) {
+        if (!forcarEnvio && jaNotificadosHoje.indexOf(t.protocolo) !== -1) {
+          return; // Já notificado na data de hoje
+        }
+
+        t.diasAtraso = Math.abs(diffDays);
+        t.venceHoje = (diffDays === 0);
+
+        var omePad = typeof obterOmePadronizada === "function" ? obterOmePadronizada(t.unidade).toUpperCase() : t.unidade.toUpperCase();
+        if (!termosVencidosPorOme[omePad]) {
+          termosVencidosPorOme[omePad] = [];
+        }
+        termosVencidosPorOme[omePad].push(t);
+        termosParaNotificar.push(t.protocolo);
+      }
+    });
+
+    var omesChaves = Object.keys(termosVencidosPorOme);
+    if (omesChaves.length === 0) {
+      return {
+        sucesso: true,
+        mensagem: "Nenhum termo de acautelamento com prazo vencido pendente de notificação hoje.",
+        totalNotificados: 0
+      };
+    }
+
+    // 4. Carrega usuários da base de Logins
+    var ssUser = SpreadsheetApp.openById(ID_PLANILHA_USUARIOS);
+    var sheetLogins = ssUser.getSheetByName(ABA_USUARIOS);
+    var dadosUsers = (sheetLogins && sheetLogins.getLastRow() > 1) ? sheetLogins.getDataRange().getValues() : [];
+
+    var cabecalho = dadosUsers[0] || [];
+    var idxEmail = -1, idxNome = -1, idxOme = -1, idxPerfil = -1, idxStatus = -1, idxPerm = -1;
+    for (var c = 0; c < cabecalho.length; c++) {
+      var h = String(cabecalho[c] || "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      if (h === "email") idxEmail = c;
+      else if (h === "nome") idxNome = c;
+      else if (h === "ome" || h === "unidade") idxOme = c;
+      else if (h === "perfil") idxPerfil = c;
+      else if (h === "status") idxStatus = c;
+      else if (h === "permissoes" || h === "permissao") idxPerm = c;
+    }
+    if (idxEmail === -1) idxEmail = 0;
+    if (idxNome === -1) idxNome = 2;
+    if (idxOme === -1) idxOme = 3;
+    if (idxPerfil === -1) idxPerfil = 4;
+    if (idxStatus === -1) idxStatus = 7;
+    if (idxPerm === -1) idxPerm = 8;
+
+    // Mapeia destinatários qualificados por OME: Comandante da Unidade ou Permissão 'acautelamento'
+    var emailsPorOme = {};
+    for (var u = 1; u < dadosUsers.length; u++) {
+      var row = dadosUsers[u];
+      var statusUser = String(row[idxStatus] || "ATIVO").trim().toUpperCase();
+      if (statusUser === "INATIVO" || statusUser === "BLOQUEADO") continue;
+
+      var emailUser = String(row[idxEmail] || "").trim().toLowerCase();
+      if (!emailUser || emailUser.indexOf("@") === -1) continue;
+
+      var omeUserRaw = String(row[idxOme] || "").trim();
+      var omeUserPad = typeof obterOmePadronizada === "function" ? obterOmePadronizada(omeUserRaw).toUpperCase() : omeUserRaw.toUpperCase();
+
+      var perfilRaw = String(row[idxPerfil] || "").trim();
+      var perfilPad = padronizarPerfilUsuario_(perfilRaw);
+      var perms = padronizarPermissoesUsuario_(row[idxPerm], perfilPad);
+
+      var ehComandante = (perfilPad === "Comandante de Unidade");
+      var temPermAcautelamento = (perms.indexOf("acautelamento") !== -1);
+
+      if (ehComandante || temPermAcautelamento) {
+        if (!emailsPorOme[omeUserPad]) {
+          emailsPorOme[omeUserPad] = [];
+        }
+        if (emailsPorOme[omeUserPad].indexOf(emailUser) === -1) {
+          emailsPorOme[omeUserPad].push(emailUser);
+        }
+      }
+    }
+
+    // 5. Envia os e-mails estruturados para cada OME
+    var remetenteOficial = "dcsdlog@gmail.com";
+    var totalEmailsEnviados = 0;
+    var protocolosSucesso = [];
+
+    omesChaves.forEach(function(omeKey) {
+      var listaTermosOme = termosVencidosPorOme[omeKey];
+      var destinatarios = emailsPorOme[omeKey] || [];
+
+      // Fallback para admin caso não haja usuários cadastrados para aquela OME
+      if (destinatarios.length === 0) {
+        destinatarios = [remetenteOficial];
+      }
+
+      var dataHojeFormatada = Utilities.formatDate(new Date(), "America/Recife", "dd/MM/yyyy");
+      var assunto = "[SGMP - CBMPE] Alerta: Prazo de Devolução de Acautelamento Vencido — " + omeKey;
+
+      var linhasTabelaHtml = "";
+      listaTermosOme.forEach(function(t) {
+        var statusTexto = t.venceHoje
+          ? "<span style='color: #b91c1c; font-weight: bold; background: #fee2e2; padding: 3px 8px; border-radius: 4px; display: inline-block;'>VENCE HOJE (" + t.dataPrevista + ")</span>"
+          : "<span style='color: #991b1b; font-weight: bold; background: #fecaca; padding: 3px 8px; border-radius: 4px; display: inline-block;'>VENCIDO HÁ " + t.diasAtraso + " DIA(S) (" + t.dataPrevista + ")</span>";
+
+        var matHtml = Object.keys(t.materiais).map(function(m) {
+          return "• <strong>" + t.materiais[m] + "x</strong> " + m;
+        }).join("<br>");
+
+        linhasTabelaHtml += 
+          "<tr style='border-bottom: 1px solid #e2e8f0;'>" +
+            "<td style='padding: 10px 12px; font-family: monospace; font-size: 13px; font-weight: bold; color: #1e293b; vertical-align: top;'>" +
+              t.protocolo +
+              (t.docSei && t.docSei !== "-" ? "<br><span style='font-size: 11px; color: #64748b; font-weight: normal;'>SEI: " + t.docSei + "</span>" : "") +
+            "</td>" +
+            "<td style='padding: 10px 12px; font-size: 13px; color: #334155; vertical-align: top;'>" +
+              "<strong>" + (t.postoMilitar ? t.postoMilitar + " " : "") + (t.nomeMilitar || "Não informado") + "</strong>" +
+              (t.matriculaCpfMilitar ? "<br><span style='font-size: 11px; color: #64748b;'>" + t.matriculaCpfMilitar + "</span>" : "") +
+            "</td>" +
+            "<td style='padding: 10px 12px; font-size: 12px; color: #1e293b; vertical-align: top;'>" + matHtml + "</td>" +
+            "<td style='padding: 10px 12px; font-size: 12px; color: #334155; vertical-align: top;'>" +
+              "<div><strong>Cautela:</strong> " + t.dataCautela + "</div>" +
+              "<div style='margin-top: 4px;'>" + statusTexto + "</div>" +
+            "</td>" +
+            "<td style='padding: 10px 12px; font-size: 12px; color: #64748b; vertical-align: top;'>" + (t.observacao || "-") + "</td>" +
+          "</tr>";
+      });
+
+      var corpoHtml = 
+        "<div style='font-family: Arial, sans-serif; max-width: 750px; margin: auto; border: 1px solid #e2e8f0; border-radius: 8px; background-color: #ffffff; overflow: hidden;'>" +
+          "<div style='background: linear-gradient(135deg, #991b1b, #7f1d1d); padding: 20px; text-align: center; color: #ffffff;'>" +
+            "<h2 style='margin: 0; font-size: 20px; letter-spacing: 0.5px;'>SGMP — CBMPE</h2>" +
+            "<p style='margin: 4px 0 0 0; font-size: 13px; opacity: 0.9;'>Sistema de Gestão de Materiais e Patrimônio • Notificação Automática de Prazos</p>" +
+          "</div>" +
+          "<div style='padding: 24px;'>" +
+            "<div style='background-color: #fff1f2; border-left: 4px solid #e11d48; padding: 14px 16px; border-radius: 4px; margin-bottom: 20px;'>" +
+              "<h3 style='margin: 0 0 6px 0; color: #9f1239; font-size: 15px;'>Atenção: Prazo de Devolução de Material Expirado ou Vencendo Hoje</h3>" +
+              "<p style='margin: 0; font-size: 13px; color: #881337; line-height: 1.5;'>" +
+                "Este é um lembrete automático aos Comandantes da Unidade e Gestores de Cautela da <strong>" + omeKey + "</strong>.<br>" +
+                "Constam na base de dados termo(s) de acautelamento com data limite prevista atingida até a presente data (" + dataHojeFormatada + "). " +
+                "Favor adotar as providências cabíveis para cobrança e recolhimento ou regularização dos materiais." +
+              "</p>" +
+            "</div>" +
+            "<div style='overflow-x: auto; margin-bottom: 20px;'>" +
+              "<table style='width: 100%; border-collapse: collapse; text-align: left; font-size: 13px;'>" +
+                "<thead>" +
+                  "<tr style='background-color: #f1f5f9; border-bottom: 2px solid #cbd5e1; color: #334155; font-size: 12px; text-transform: uppercase;'>" +
+                    "<th style='padding: 10px 12px;'>Termo / Protocolo</th>" +
+                    "<th style='padding: 10px 12px;'>Responsável</th>" +
+                    "<th style='padding: 10px 12px;'>Materiais</th>" +
+                    "<th style='padding: 10px 12px;'>Prazo</th>" +
+                    "<th style='padding: 10px 12px;'>Observação</th>" +
+                  "</tr>" +
+                "</thead>" +
+                "<tbody>" +
+                  linhasTabelaHtml +
+                "</tbody>" +
+              "</table>" +
+            "</div>" +
+            "<div style='background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 14px; margin-top: 15px; font-size: 12px; color: #475569;'>" +
+              "<strong>Instruções de Baixa no Sistema:</strong><br>" +
+              "1. Acesse o sistema <strong>SGMP</strong> com suas credenciais.<br>" +
+              "2. Dirija-se à aba <strong>Acautelamento</strong> &gt; <strong>Devolução / Baixa de Cautela</strong>.<br>" +
+              "3. Os termos pendentes estarão destacados na cor avermelhada.<br>" +
+              "4. Selecione o termo, registre as condições de devolução e conclua a baixa com seu PIN de assinatura." +
+            "</div>" +
+          "</div>" +
+          "<div style='background-color: #f1f5f9; padding: 12px; text-align: center; font-size: 11px; color: #64748b; border-top: 1px solid #e2e8f0;'>" +
+            "Mensagem automática gerada pelo SGMP — Corpo de Bombeiros Militar de Pernambuco. Por favor, não responda diretamente a este e-mail." +
+          "</div>" +
+        "</div>";
+
+      destinatarios.forEach(function(dest) {
+        try {
+          GmailApp.sendEmail(dest, assunto, "", {
+            htmlBody: corpoHtml,
+            from: remetenteOficial,
+            name: "SGMP — CBMPE (Sistema de Materiais)",
+            replyTo: remetenteOficial
+          });
+          totalEmailsEnviados++;
+        } catch (eEnvioG) {
+          try {
+            MailApp.sendEmail({
+              to: dest,
+              subject: assunto,
+              htmlBody: corpoHtml,
+              name: "SGMP — CBMPE (Sistema de Materiais)",
+              replyTo: remetenteOficial
+            });
+            totalEmailsEnviados++;
+          } catch (eMailApp) {
+            console.error("Erro ao enviar email para " + dest + ": " + eMailApp.message);
+          }
+        }
+      });
+
+      listaTermosOme.forEach(function(t) {
+        protocolosSucesso.push(t.protocolo);
+      });
+    });
+
+    // 6. Atualiza a lista de termos notificados hoje no ScriptProperties
+    var listaAtualizada = jaNotificadosHoje.concat(protocolosSucesso);
+    props.setProperty(chavePropNotif, listaAtualizada.join(","));
+
+    return {
+      sucesso: true,
+      totalTermosNotificados: protocolosSucesso.length,
+      totalEmailsEnviados: totalEmailsEnviados,
+      omesNotificadas: omesChaves
+    };
+  } catch (err) {
+    console.error("Erro em verificarENotificarCautelasVencidas: " + err.message);
+    return { sucesso: false, erro: err.message };
   }
 }
 
