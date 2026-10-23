@@ -8362,41 +8362,73 @@ function getTicketsLiberacaoDplFiltrados(filtroSei, filtroMaterial) {
     var sheetRemessa = ssAux.getSheetByName("RemessasPendentes");
     var dadosRemessas = (sheetRemessa && sheetRemessa.getLastRow() > 1) ? sheetRemessa.getDataRange().getValues() : [];
     
-    // Mapeia o quantitativo já comprometido por (SEI + Material) com chave normalizada
+    // Mapeia o quantitativo já comprometido por (SEI + Material) e por Material
     var mapaComprometido = {};
+    var mapaComprometidoPorMat = {};
+    var remessasEmTransito = [];
+
+    function extrairSeiDaColunaKLocal(textoColunaK) {
+      var textoLimpo = String(textoColunaK || "").trim();
+      if (!textoLimpo) return "";
+      var matchSei = textoLimpo.match(/SEI:\s*([^\s|]+)/i);
+      if (matchSei && matchSei[1]) return matchSei[1].trim();
+      var partes = textoLimpo.split("|").map(function(p) { return p.trim(); });
+      for (var pIdx = 0; pIdx < partes.length; pIdx++) {
+        var p = partes[pIdx];
+        var pUpper = p.toUpperCase();
+        if (pUpper.indexOf("IDS_TICKET:") === 0 || pUpper.indexOf("IDS_TRANSF:") === 0 || pUpper.indexOf("INTERNAL_TREE:") === 0) continue;
+        if (pUpper.indexOf("SÉRIE:") === 0 || pUpper.indexOf("SERIE:") === 0) continue;
+        if (pUpper.indexOf("BGE:") === 0 || pUpper.indexOf("BGE ") === 0 || pUpper.indexOf("ND:") === 0 || pUpper.indexOf("ND ") === 0) continue;
+        var pSei = p.replace(/^SEI:\s*/i, "").trim();
+        if (pSei) return pSei;
+      }
+      return textoLimpo;
+    }
+
     for (var i = 1; i < dadosRemessas.length; i++) {
       var statusRem = String(dadosRemessas[i][5] || "").trim().toUpperCase();
       
       if (statusRem === "AGUARDANDO" || statusRem === "PENDENTE" || statusRem === "AGUARDANDO_RECEBIMENTO" || statusRem === "AGUARDANDO_LIBERACAO_CINT") {
-        var matRem = String(dadosRemessas[i][3] || "").trim().toUpperCase();
+        var idRem = String(dadosRemessas[i][0] || "").trim();
+        var dataRem = String(dadosRemessas[i][1] || "").trim();
+        var omeDestRem = String(dadosRemessas[i][2] || "").trim();
+        var matRem = String(dadosRemessas[i][3] || "").trim();
         var qtdRem = parseInt(dadosRemessas[i][4], 10) || 0;
-        var textoColunaK = String(dadosRemessas[i][10] || "").trim().toUpperCase(); 
+        var textoColunaK = String(dadosRemessas[i][10] || "").trim();
         
-        var seiExtraido = textoColunaK;
-        if (textoColunaK.indexOf("SEI:") !== -1) {
-          var partesSei = textoColunaK.split("SEI:")[1].split("|")[0];
-          seiExtraido = partesSei.trim();
-        } else if (textoColunaK.indexOf("|") !== -1) {
-          seiExtraido = textoColunaK.split("|")[0].trim();
-        }
-
-        var cleanSei = seiExtraido.replace(/[^A-Z0-9]/g, '');
-        var cleanMat = matRem.replace(/\s+/g, ' ');
+        var seiExtraido = extrairSeiDaColunaKLocal(textoColunaK);
+        var cleanSei = seiExtraido.toUpperCase().replace(/[^A-Z0-9]/g, "");
+        var cleanMat = matRem.toUpperCase().replace(/\s+/g, " ");
         var chaveMap = cleanSei + "_" + cleanMat;
+
         mapaComprometido[chaveMap] = (mapaComprometido[chaveMap] || 0) + qtdRem;
+        mapaComprometidoPorMat[cleanMat] = (mapaComprometidoPorMat[cleanMat] || 0) + qtdRem;
+
+        remessasEmTransito.push({
+          id: idRem,
+          data: dataRem,
+          omeDestino: omeDestRem,
+          material: matRem,
+          cleanMat: cleanMat,
+          sei: seiExtraido || "N/I",
+          cleanSei: cleanSei,
+          quantidade: qtdRem
+        });
       }
     }
 
     var tickets = [];
+    var lotesProcessados = {};
 
     rowsCint.forEach(function(r) {
       var sei = String(r.f[0].v || "").trim();
       var material = String(r.f[1].v || "").trim();
       var quantidadeTotalFisica = parseInt(r.f[2].v || 0);
 
-      var cleanSeiAlvo = sei.toUpperCase().replace(/[^A-Z0-9]/g, '');
-      var cleanMatAlvo = material.toUpperCase().replace(/\s+/g, ' ');
+      var cleanSeiAlvo = sei.toUpperCase().replace(/[^A-Z0-9]/g, "");
+      var cleanMatAlvo = material.toUpperCase().replace(/\s+/g, " ");
       var chaveAlvo = cleanSeiAlvo + "_" + cleanMatAlvo;
+      lotesProcessados[chaveAlvo] = true;
 
       var quantidadeComprometida = mapaComprometido[chaveAlvo] || 0;
 
@@ -8405,6 +8437,9 @@ function getTicketsLiberacaoDplFiltrados(filtroSei, filtroMaterial) {
           if (k.indexOf(cleanMatAlvo) !== -1 && (!cleanSeiAlvo || k.indexOf(cleanSeiAlvo) !== -1)) {
             quantidadeComprometida += mapaComprometido[k];
           }
+        }
+        if (!quantidadeComprometida && mapaComprometidoPorMat[cleanMatAlvo]) {
+          quantidadeComprometida = mapaComprometidoPorMat[cleanMatAlvo];
         }
       }
 
@@ -8426,6 +8461,44 @@ function getTicketsLiberacaoDplFiltrados(filtroSei, filtroMaterial) {
       }
     });
 
+    // Se houver remessas de materiais que foram 100% despachados e cujo estoque físico na SEDE do CINT ficou zerado,
+    // inclui o registro como TOTALMENTE_EM_TRANSITO para que a aba "Em Trânsito" exiba corretamente o lote
+    remessasEmTransito.forEach(function(rem) {
+      var chaveRem = rem.cleanSei + "_" + rem.cleanMat;
+      if (!lotesProcessados[chaveRem]) {
+        // Verifica se já não foi inserido neste loop complementar
+        var existente = tickets.find(function(t) {
+          return (t.material.toUpperCase().replace(/\s+/g, " ") === rem.cleanMat) &&
+                 (t.sei.toUpperCase().replace(/[^A-Z0-9]/g, "") === rem.cleanSei);
+        });
+        if (existente) {
+          existente.quantidadePendente += rem.quantidade;
+          existente.quantidadeTotal += rem.quantidade;
+        } else {
+          // Aplica filtros se houver
+          if (filtroSei && filtroSei.trim() !== "") {
+            var fSeiClean = filtroSei.toUpperCase().replace(/[^A-Z0-9]/g, "");
+            if (rem.cleanSei.indexOf(fSeiClean) === -1) return;
+          }
+          if (filtroMaterial && filtroMaterial.trim() !== "") {
+            var fMatClean = filtroMaterial.toUpperCase().replace(/\s+/g, " ");
+            if (rem.cleanMat !== fMatClean) return;
+          }
+
+          tickets.push({
+            id: "LOTE-" + rem.sei + "-" + rem.material,
+            data: rem.data || Utilities.formatDate(new Date(), "America/Recife", "dd/MM/yyyy HH:mm:ss"),
+            sei: rem.sei,
+            material: rem.material,
+            quantidadeTotal: rem.quantidade,
+            quantidadeLivre: 0,
+            quantidadePendente: rem.quantidade,
+            fornecedor: "Recebimento CINT",
+            status: "TOTALMENTE_EM_TRANSITO"
+          });
+        }
+      }
+    });
     return tickets;
   } catch (err) {
     console.error("Erro em getTicketsLiberacaoDplFiltrados: " + err.message);
