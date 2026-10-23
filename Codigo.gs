@@ -11022,34 +11022,41 @@ function getListaMilitarPeculio() {
       }
     }
 
-    // 3. Carrega Civis cadastrados na aba 'Civis' da planilha auxiliar
+    // 3. Carrega Civis e Militares de Outra Força cadastrados na aba 'Civis' da planilha auxiliar
     try {
       var sheetCivis = ss.getSheetByName("Civis");
       if (sheetCivis && sheetCivis.getLastRow() > 1) {
-        var dadosCivis = sheetCivis.getRange(2, 1, sheetCivis.getLastRow() - 1, 5).getValues();
+        var numColsCiv = Math.max(sheetCivis.getLastColumn(), 8);
+        var dadosCivis = sheetCivis.getRange(2, 1, sheetCivis.getLastRow() - 1, numColsCiv).getValues();
         for (var cIdx = 0; cIdx < dadosCivis.length; cIdx++) {
           var nomeCiv = String(dadosCivis[cIdx][1] || "").trim().toUpperCase();
           var cpfCiv = String(dadosCivis[cIdx][2] || "").trim().replace(/\D/g, "");
           var telCiv = String(dadosCivis[cIdx][3] || "").trim();
           var emailCiv = String(dadosCivis[cIdx][4] || "").trim();
+          var tipoCiv = String(dadosCivis[cIdx][6] || "CIVIL").trim().toUpperCase();
+          var matCiv = String(dadosCivis[cIdx][7] || "").trim().toUpperCase();
           if (cpfCiv.length === 10) cpfCiv = "0" + cpfCiv;
           if (nomeCiv) {
             var cpfFormatCiv = cpfCiv ? cpfCiv.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4") : "";
-            var descCiv = "[CIVIL] " + nomeCiv + (cpfFormatCiv ? " (CPF: " + cpfFormatCiv : "") + (telCiv ? " | Tel: " + telCiv : "") + (cpfFormatCiv ? ")" : "");
+            var isMilitarOutraForca = (tipoCiv === "MILITAR" || tipoCiv.indexOf("MILITAR") !== -1);
+            var tagTipo = isMilitarOutraForca ? "[MILITAR EXT]" : "[CIVIL]";
+            var matTxt = (isMilitarOutraForca && matCiv) ? " | Mat: " + matCiv : "";
+            var descCiv = tagTipo + " " + nomeCiv + (cpfFormatCiv ? " (CPF: " + cpfFormatCiv : "") + matTxt + (telCiv ? " | Tel: " + telCiv : "") + (cpfFormatCiv ? ")" : "");
             militares.push({
               nome: nomeCiv,
-              posto: "CIVIL",
-              matricula: "",
+              posto: isMilitarOutraForca ? "MILITAR OUTRA FORÇA" : "CIVIL",
+              matricula: matCiv,
               cpf: cpfCiv,
               telefone: telCiv,
               email: emailCiv,
+              tipo: isMilitarOutraForca ? "MILITAR" : "CIVIL",
               identificacaoCompleta: descCiv
             });
           }
         }
       }
     } catch (eCiv) {
-      console.warn("Aviso ao carregar civis no acautelamento: " + eCiv.message);
+      console.warn("Aviso ao carregar civis/militares externos no acautelamento: " + eCiv.message);
     }
 
     militares.sort(function(a, b) { return a.nome.localeCompare(b.nome); });
@@ -11060,7 +11067,7 @@ function getListaMilitarPeculio() {
   }
 }
 
-// Cadastra uma pessoa civil para acautelamento na aba 'Civis' da planilha auxiliar
+// Cadastra uma pessoa civil ou militar de outra força para acautelamento na aba 'Civis' da planilha auxiliar
 function cadastrarPessoaCivil(dados) {
   try {
     if (!dados) throw new Error("Dados não fornecidos.");
@@ -11068,39 +11075,61 @@ function cadastrarPessoaCivil(dados) {
     var cpf = String(dados.cpf || "").trim().replace(/\D/g, "");
     var telefone = String(dados.telefone || "").trim();
     var email = String(dados.email || "").trim().toLowerCase();
+    var tipo = String(dados.tipo || "CIVIL").trim().toUpperCase();
+    var matricula = String(dados.matricula || "").trim().toUpperCase();
 
-    if (!nome) throw new Error("O Nome Completo do civil é obrigatório.");
+    if (!nome) throw new Error("O Nome Completo é obrigatório.");
     if (!cpf || cpf.length !== 11) throw new Error("CPF inválido. Informe os 11 dígitos do CPF.");
+    if (tipo === "MILITAR" && !matricula) {
+      throw new Error("A Matrícula / ID Militar é obrigatória para militar de outra força.");
+    }
+
+    var isMilitar = (tipo === "MILITAR");
+    var tagTipo = isMilitar ? "[MILITAR EXT]" : "[CIVIL]";
+    var cpfFormat = cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+    var matTxt = (isMilitar && matricula) ? " | Mat: " + matricula : "";
+    var descCompleta = tagTipo + " " + nome + " (CPF: " + cpfFormat + matTxt + (telefone ? " | Tel: " + telefone : "") + ")";
 
     var ssAux = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
     var sheet = ssAux.getSheetByName("Civis");
     if (!sheet) {
       sheet = ssAux.insertSheet("Civis");
-      sheet.appendRow(["Data_Hora", "Nome", "CPF", "Telefone", "Email", "Cadastrado_Por"]);
-      sheet.getRange(1, 1, 1, 6).setFontWeight("bold").setBackground("#e9ecef");
+      sheet.appendRow(["Data_Hora", "Nome", "CPF", "Telefone", "Email", "Cadastrado_Por", "Tipo", "Matricula"]);
+      sheet.getRange(1, 1, 1, 8).setFontWeight("bold").setBackground("#e9ecef");
+    }
+
+    // Garante que tenha colunas G e H no cabeçalho se a aba for antiga
+    if (sheet.getLastColumn() < 7) {
+      sheet.getRange(1, 7).setValue("Tipo");
+      sheet.getRange(1, 8).setValue("Matricula");
+      sheet.getRange(1, 7, 1, 2).setFontWeight("bold").setBackground("#e9ecef");
     }
 
     // Verifica se já existe cadastrado com o mesmo CPF
     var lastRow = sheet.getLastRow();
     if (lastRow > 1) {
-      var dadosExistentes = sheet.getRange(2, 1, lastRow - 1, 5).getValues();
+      var numCols = Math.max(sheet.getLastColumn(), 8);
+      var dadosExistentes = sheet.getRange(2, 1, lastRow - 1, numCols).getValues();
       for (var r = 0; r < dadosExistentes.length; r++) {
         var cpfLinha = String(dadosExistentes[r][2] || "").trim().replace(/\D/g, "");
         if (cpfLinha === cpf) {
           sheet.getRange(r + 2, 2).setValue(nome);
           sheet.getRange(r + 2, 4).setValue(telefone);
           sheet.getRange(r + 2, 5).setValue(email);
+          sheet.getRange(r + 2, 7).setValue(tipo);
+          sheet.getRange(r + 2, 8).setValue(matricula);
           return {
             sucesso: true,
-            mensagem: "Cadastro do civil atualizado com sucesso!",
+            mensagem: (isMilitar ? "Militar de outra força" : "Pessoa civil") + " atualizado(a) com sucesso!",
             civil: {
               nome: nome,
-              posto: "CIVIL",
-              matricula: "",
+              posto: isMilitar ? "MILITAR OUTRA FORÇA" : "CIVIL",
+              matricula: matricula,
               cpf: cpf,
               telefone: telefone,
               email: email,
-              identificacaoCompleta: "[CIVIL] " + nome + " (CPF: " + cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4") + (telefone ? " | Tel: " + telefone : "") + ")"
+              tipo: tipo,
+              identificacaoCompleta: descCompleta
             }
           };
         }
@@ -11111,23 +11140,25 @@ function cadastrarPessoaCivil(dados) {
     try { emailSessao = Session.getActiveUser().getEmail(); } catch (e) {}
     var agora = Utilities.formatDate(new Date(), "America/Recife", "dd/MM/yyyy HH:mm:ss");
 
-    sheet.appendRow([agora, nome, "'" + cpf, "'" + telefone, email, emailSessao || "Operador"]);
+    sheet.appendRow([agora, nome, "'" + cpf, "'" + telefone, email, emailSessao || "Operador", tipo, "'" + matricula]);
 
     try {
-      registrarLogAuditoria("CADASTRO_CIVIL", "Cadastrou civil " + nome + " (CPF: " + cpf + ")");
+      var logAcao = isMilitar ? "CADASTRO_MILITAR_EXTERNO" : "CADASTRO_CIVIL";
+      registrarLogAuditoria(logAcao, "Cadastrou " + (isMilitar ? "militar externo" : "civil") + " " + nome + " (CPF: " + cpf + (matricula ? " | Mat: " + matricula : "") + ")");
     } catch(eLogCiv) {}
 
     return {
       sucesso: true,
-      mensagem: "Pessoa civil cadastrada com sucesso!",
+      mensagem: (isMilitar ? "Militar de outra força" : "Pessoa civil") + " cadastrado(a) com sucesso!",
       civil: {
         nome: nome,
-        posto: "CIVIL",
-        matricula: "",
+        posto: isMilitar ? "MILITAR OUTRA FORÇA" : "CIVIL",
+        matricula: matricula,
         cpf: cpf,
         telefone: telefone,
         email: email,
-        identificacaoCompleta: "[CIVIL] " + nome + " (CPF: " + cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4") + (telefone ? " | Tel: " + telefone : "") + ")"
+        tipo: tipo,
+        identificacaoCompleta: descCompleta
       }
     };
   } catch (err) {
