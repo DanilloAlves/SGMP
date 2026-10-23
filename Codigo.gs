@@ -2584,6 +2584,135 @@ function verificarClasse2MaterialCatalogo(nomeMaterial) {
         if (h.includes("objeto") || h.includes("material") || h.includes("descri")) colMat = c + 1;
         if (h.includes("classe 2")) colCl2 = c + 1;
       }
+
+/**
+ * Retorna o mapa de detalhes do catálogo oficial de materiais (Marcas, Modelos, Fornecedores e Contatos)
+ * indexado pelo nome do material (em maiúsculas), para preenchimento dinâmico e listas suspensas condicionadas.
+ */
+function obterMapaDetalhesMateriaisCatalogo() {
+  try {
+    var ss = SpreadsheetApp.openById(ID_PLANILHA_COMPRAS);
+    var abaCad = ss.getSheetByName(ABA_CATALOGO_ITENS) || obterAbaPorNomeAproximado(ss, ABA_CATALOGO_ITENS);
+    if (!abaCad || abaCad.getLastRow() < 6) return {};
+
+    var lastRow = abaCad.getLastRow();
+    var lastCol = abaCad.getLastColumn();
+
+    var headerRow = 5;
+    var dataStartRow = 6;
+    var row5 = abaCad.getRange(5, 1, 1, lastCol).getValues()[0];
+    var row6 = lastRow >= 6 ? abaCad.getRange(6, 1, 1, lastCol).getValues()[0] : [];
+    var p5 = 0, p6 = 0;
+    for (var c = 0; c < lastCol; c++) {
+      var v5 = String(row5[c] || "").toUpperCase();
+      var v6 = String(row6[c] || "").toUpperCase();
+      if (v5.includes("OBJETO") || v5.includes("MARCA") || v5.includes("FORNECEDOR")) p5++;
+      if (v6.includes("OBJETO") || v6.includes("MARCA") || v6.includes("FORNECEDOR")) p6++;
+    }
+    if (p6 > p5) {
+      headerRow = 6;
+      dataStartRow = 7;
+    }
+
+    var cabecalho = abaCad.getRange(headerRow, 1, 1, lastCol).getValues()[0];
+    var colMat = -1;
+    var colunasMapeadas = [];
+
+    for (var i = 0; i < cabecalho.length; i++) {
+      var h = String(cabecalho[i] || "").trim().toUpperCase();
+      if (!h) continue;
+      if (colMat === -1 && (h.includes("OBJETO") || h.includes("MATERIAL") || h.includes("DESCRI"))) {
+        colMat = i;
+      }
+      colunasMapeadas.push({ idx: i, nome: h });
+    }
+
+    if (colMat === -1) colMat = 2;
+
+    var numLinhas = lastRow - (dataStartRow - 1);
+    if (numLinhas <= 0) return {};
+
+    var matriz = abaCad.getRange(dataStartRow, 1, numLinhas, lastCol).getValues();
+    var mapa = {};
+
+    for (var r = 0; r < matriz.length; r++) {
+      var row = matriz[r];
+      var matNome = String(row[colMat] || "").trim();
+      if (!matNome) continue;
+
+      var matKey = matNome.toUpperCase();
+      if (!mapa[matKey]) {
+        mapa[matKey] = {
+          nome: matNome,
+          marcas: [],
+          modelos: [],
+          fornecedores: [],
+          contatos: [],
+          paresMarcaModelo: [],
+          paresFornecedorContato: []
+        };
+      }
+
+      var marcasDaLinha = [];
+      var modelosDaLinha = [];
+      var fornecedoresDaLinha = [];
+      var contatosDaLinha = [];
+
+      for (var k = 0; k < colunasMapeadas.length; k++) {
+        var col = colunasMapeadas[k];
+        var val = String(row[col.idx] !== null && row[col.idx] !== undefined ? row[col.idx] : "").trim();
+        if (!val) continue;
+
+        var n = col.nome;
+        if (n.includes("MARCA")) {
+          marcasDaLinha.push(val);
+        } else if (n.includes("MODELO")) {
+          modelosDaLinha.push(val);
+        } else if (n.includes("FORNECEDOR") && !n.includes("CONTATO")) {
+          fornecedoresDaLinha.push(val);
+        } else if (n.includes("CONTATO")) {
+          contatosDaLinha.push(val);
+        }
+      }
+
+      marcasDaLinha.forEach(function(m) {
+        if (!mapa[matKey].marcas.includes(m)) mapa[matKey].marcas.push(m);
+      });
+      modelosDaLinha.forEach(function(mod) {
+        if (!mapa[matKey].modelos.includes(mod)) mapa[matKey].modelos.push(mod);
+      });
+      fornecedoresDaLinha.forEach(function(f) {
+        if (!mapa[matKey].fornecedores.includes(f)) mapa[matKey].fornecedores.push(f);
+      });
+      contatosDaLinha.forEach(function(c) {
+        if (!mapa[matKey].contatos.includes(c)) mapa[matKey].contatos.push(c);
+      });
+
+      var maxMM = Math.max(marcasDaLinha.length, modelosDaLinha.length);
+      for (var mm = 0; mm < maxMM; mm++) {
+        var mc = marcasDaLinha[mm] || "";
+        var md = modelosDaLinha[mm] || "";
+        if (mc || md) {
+          mapa[matKey].paresMarcaModelo.push({ marca: mc, modelo: md });
+        }
+      }
+
+      var maxFC = Math.max(fornecedoresDaLinha.length, contatosDaLinha.length);
+      for (var fc = 0; fc < maxFC; fc++) {
+        var fn = fornecedoresDaLinha[fc] || "";
+        var ct = contatosDaLinha[fc] || "";
+        if (fn || ct) {
+          mapa[matKey].paresFornecedorContato.push({ fornecedor: fn, contato: ct });
+        }
+      }
+    }
+
+    return mapa;
+  } catch (err) {
+    console.error("Erro em obterMapaDetalhesMateriaisCatalogo: " + err.message);
+    return {};
+  }
+}
     } catch(eCab) {}
 
     var maxCol = Math.max(colMat, colCl2);

@@ -3037,14 +3037,20 @@
               </select>
             </div>
 
+            <!-- DATALISTS PARA LISTAS CONDICIONADAS DO MATERIAL SELECIONADO -->
+            <datalist id="listaSugestoesFornecedorCint"></datalist>
+            <datalist id="listaSugestoesContatoCint"></datalist>
+            <datalist id="listaSugestoesMarcaCint"></datalist>
+            <datalist id="listaSugestoesModeloCint"></datalist>
+
             <div class="col-md-4">
               <label class="form-label fw-bold" id="label_cint_fornecedor" for="cint_fornecedor">Fornecedor:</label>
-              <input type="text" class="form-control" id="cint_fornecedor" placeholder="Nome da empresa fornecedora..." onkeyup="filtrarTabelaProcessosCint()" oninput="filtrarTabelaProcessosCint()">
+              <input type="text" class="form-control" id="cint_fornecedor" list="listaSugestoesFornecedorCint" placeholder="Selecione ou digite o fornecedor..." onkeyup="filtrarTabelaProcessosCint()" oninput="filtrarTabelaProcessosCint(); aoAlterarFornecedorCint(this.value);" onchange="aoAlterarFornecedorCint(this.value)">
             </div>
 
             <div class="col-md-4">
               <label class="form-label fw-bold" id="label_cint_contato" for="cint_contato">Contato do Fornecedor:</label>
-              <input type="text" class="form-control" id="cint_contato" placeholder="Telefone ou e-mail...">
+              <input type="text" class="form-control" id="cint_contato" list="listaSugestoesContatoCint" placeholder="Telefone ou e-mail...">
             </div>
 
             <div class="col-md-4">
@@ -3057,12 +3063,12 @@
 
             <div class="col-md-6">
               <label class="form-label fw-bold">Marca:</label>
-              <input type="text" class="form-control" id="cint_marca" placeholder="Fabricante / Marca...">
+              <input type="text" class="form-control" id="cint_marca" list="listaSugestoesMarcaCint" placeholder="Selecione ou digite a marca..." oninput="aoAlterarMarcaCint(this.value)" onchange="aoAlterarMarcaCint(this.value)">
             </div>
 
             <div class="col-md-6">
               <label class="form-label fw-bold">Modelo:</label>
-              <input type="text" class="form-control" id="cint_modelo" placeholder="Modelo do equipamento...">
+              <input type="text" class="form-control" id="cint_modelo" list="listaSugestoesModeloCint" placeholder="Selecione ou digite o modelo...">
             </div>
 
             <div class="col-md-6" id="bloco_cint_notaDist">
@@ -12280,15 +12286,127 @@ window.carregarLocaisArvoreGeral = function() {
   }
 
   // Monitora alterações no select2 de material da aba Recebimento
-  $(document).on('change', '#cint_material', function() {
+  // Cache global de detalhes do catálogo oficial de materiais (Marcas, Modelos, Fornecedores e Contatos)
+  var cacheMapaDetalhesMateriaisCatalogo = {};
+
+  // Atualiza listas suspensas (datalists) condicionadas à Descrição do Material selecionada
+  function atualizarListasCondicionadasMaterialCint(nomeMaterial) {
+    const dlFornecedor = document.getElementById("listaSugestoesFornecedorCint");
+    const dlContato = document.getElementById("listaSugestoesContatoCint");
+    const dlMarca = document.getElementById("listaSugestoesMarcaCint");
+    const dlModelo = document.getElementById("listaSugestoesModeloCint");
+
+    if (!dlFornecedor || !dlMarca) return;
+
+    const matUpper = String(nomeMaterial || "").trim().toUpperCase();
+    const info = cacheMapaDetalhesMateriaisCatalogo[matUpper];
+
+    if (!info) {
+      dlFornecedor.innerHTML = "";
+      if (dlContato) dlContato.innerHTML = "";
+      dlMarca.innerHTML = "";
+      if (dlModelo) dlModelo.innerHTML = "";
+      return;
+    }
+
+    // Preenche Fornecedores
+    const forns = info.fornecedores || [];
+    dlFornecedor.innerHTML = forns.map(f => `<option value="${escapeHtmlResumo(f)}">`).join("");
+
+    // Preenche Contatos
+    if (dlContato) {
+      const conts = info.contatos || [];
+      dlContato.innerHTML = conts.map(c => `<option value="${escapeHtmlResumo(c)}">`).join("");
+    }
+
+    // Preenche Marcas
+    const marcas = info.marcas || [];
+    dlMarca.innerHTML = marcas.map(m => `<option value="${escapeHtmlResumo(m)}">`).join("");
+
+    // Preenche Modelos
+    if (dlModelo) {
+      const modelos = info.modelos || [];
+      dlModelo.innerHTML = modelos.map(mod => `<option value="${escapeHtmlResumo(mod)}">`).join("");
+    }
+
+    // Auto-preenche se houver apenas 1 opção disponível no catálogo para o material
+    const inputForn = document.getElementById("cint_fornecedor");
+    const inputCont = document.getElementById("cint_contato");
+    const inputMarca = document.getElementById("cint_marca");
+    const inputModelo = document.getElementById("cint_modelo");
+
+    if (inputForn && !inputForn.value && forns.length === 1) {
+      inputForn.value = forns[0];
+      aoAlterarFornecedorCint(forns[0]);
+    }
+    if (inputMarca && !inputMarca.value && marcas.length === 1) {
+      inputMarca.value = marcas[0];
+      aoAlterarMarcaCint(marcas[0]);
+    }
+  }
+
+  // Ao selecionar/digitar o fornecedor, se houver contato associado no par, sugere/preenche
+  function aoAlterarFornecedorCint(valorFornecedor) {
+    const selectEl = document.getElementById("cint_material");
+    const matUpper = selectEl ? selectEl.value.trim().toUpperCase() : "";
+    const info = cacheMapaDetalhesMateriaisCatalogo[matUpper];
+    if (!info) return;
+
+    const dlContato = document.getElementById("listaSugestoesContatoCint");
+    const inputCont = document.getElementById("cint_contato");
+    const vFornUpper = String(valorFornecedor || "").trim().toUpperCase();
+
+    if (vFornUpper && info.paresFornecedorContato && info.paresFornecedorContato.length > 0) {
+      const par = info.paresFornecedorContato.find(p => String(p.fornecedor || "").trim().toUpperCase() === vFornUpper);
+      if (par && par.contato) {
+        if (inputCont && (!inputCont.value || inputCont.value === "")) {
+          inputCont.value = par.contato;
+        }
+        if (dlContato) {
+          dlContato.innerHTML = `<option value="${escapeHtmlResumo(par.contato)}">`;
+        }
+      }
+    }
+  }
+
+  // Ao selecionar/digitar a marca, se houver modelo associado no par, sugere/preenche
+  function aoAlterarMarcaCint(valorMarca) {
+    const selectEl = document.getElementById("cint_material");
+    const matUpper = selectEl ? selectEl.value.trim().toUpperCase() : "";
+    const info = cacheMapaDetalhesMateriaisCatalogo[matUpper];
+    if (!info) return;
+
+    const dlModelo = document.getElementById("listaSugestoesModeloCint");
+    const inputMod = document.getElementById("cint_modelo");
+    const vMarcaUpper = String(valorMarca || "").trim().toUpperCase();
+
+    if (vMarcaUpper && info.paresMarcaModelo && info.paresMarcaModelo.length > 0) {
+      const paresFiltrados = info.paresMarcaModelo.filter(p => String(p.marca || "").trim().toUpperCase() === vMarcaUpper);
+      if (paresFiltrados.length > 0) {
+        if (dlModelo) {
+          dlModelo.innerHTML = paresFiltrados.filter(p => p.modelo).map(p => `<option value="${escapeHtmlResumo(p.modelo)}">`).join("");
+        }
+        if (paresFiltrados.length === 1 && paresFiltrados[0].modelo) {
+          if (inputMod && (!inputMod.value || inputMod.value === "")) {
+            inputMod.value = paresFiltrados[0].modelo;
+          }
+        }
+      }
+    }
+  }
+
+  // Monitora alterações no select2 de material da aba Recebimento
+  $(document).on("change", "#cint_material", function() {
     atualizarContadorEstoqueChefe();
     atualizarIndicadorViaturaCint();
+    const matNome = document.getElementById("cint_material") ? document.getElementById("cint_material").value : "";
+    atualizarListasCondicionadasMaterialCint(matNome);
   });
 
   function carregarMateriaisSelectCint() {
     google.script.run
       .withSuccessHandler(materiais => {
-        const selectEl = document.getElementById('cint_material');
+        const selectEl = document.getElementById("cint_material");
         if (!selectEl) return;
 
         let html = '<option value="">Selecione ou busque o material...</option>';
@@ -12300,15 +12418,26 @@ window.carregarLocaisArvoreGeral = function() {
         selectEl.innerHTML = html;
 
         if (window.jQuery && $.fn.select2) {
-          $('.select2-cint-material').select2({
-            theme: 'bootstrap-5',
-            width: '100%',
-            dropdownParent: $('#aba-cint')
-          }).off('select2:select.chefe change.chefe').on('select2:select.chefe change.chefe', function() {
+          $(".select2-cint-material").select2({
+            theme: "bootstrap-5",
+            width: "100%",
+            dropdownParent: $("#aba-cint")
+          }).off("select2:select.chefe change.chefe").on("select2:select.chefe change.chefe", function() {
             atualizarContadorEstoqueChefe();
             atualizarIndicadorViaturaCint();
+            const matVal = document.getElementById("cint_material") ? document.getElementById("cint_material").value : "";
+            atualizarListasCondicionadasMaterialCint(matVal);
           });
         }
+
+        // Carrega o mapa de detalhes das marcas, modelos, fornecedores e contatos do catálogo
+        google.script.run
+          .withSuccessHandler(mapaDetalhes => {
+            cacheMapaDetalhesMateriaisCatalogo = mapaDetalhes || {};
+            const matAtual = selectEl ? selectEl.value : "";
+            if (matAtual) atualizarListasCondicionadasMaterialCint(matAtual);
+          })
+          .obterMapaDetalhesMateriaisCatalogo();
 
         // Pré-carrega cache de viaturas do catálogo oficial
         google.script.run
