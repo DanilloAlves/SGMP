@@ -17345,3 +17345,282 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao, omeCliente, perfilClie
     };
   }
 }
+
+// =========================================================================
+// GERENCIAMENTO OFICIAL DE CADASTRO DE MATERIAIS (#CAD_ITENS)
+// =========================================================================
+
+/**
+ * Carrega a estrutura de colunas e todos os materiais cadastrados na base oficial #CAD_ITENS
+ * Acesso exclusivo ao perfil de Administrador.
+ */
+function obterDadosGerenciamentoCadItens(usuarioCliente) {
+  try {
+    var emailSessao = "";
+    try { emailSessao = Session.getActiveUser().getEmail().trim().toLowerCase(); } catch (e) {}
+    if (!emailSessao) {
+      try { emailSessao = Session.getEffectiveUser().getEmail().trim().toLowerCase(); } catch (e) {}
+    }
+    var usuario = verificarPermissaoUsuario(emailSessao);
+    var perfilUsuario = usuario ? padronizarPerfilUsuario_(usuario.perfil) : (usuarioCliente && usuarioCliente.perfil ? padronizarPerfilUsuario_(usuarioCliente.perfil) : "Usuário");
+    var perfilNorm = (perfilUsuario || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+    var ehAdmin = (perfilNorm === "administrador" || perfilNorm.indexOf("admin") !== -1);
+
+    if (!ehAdmin) {
+      throw new Error("Acesso restrito: apenas Administradores possuem permissão para gerenciar o cadastro oficial de materiais (#CAD_ITENS).");
+    }
+
+    var ss = SpreadsheetApp.openById(ID_PLANILHA_COMPRAS);
+    var abaCad = ss.getSheetByName(ABA_CATALOGO_ITENS) || obterAbaPorNomeAproximado(ss, ABA_CATALOGO_ITENS);
+    if (!abaCad) {
+      throw new Error("Aba " + ABA_CATALOGO_ITENS + " não encontrada na planilha de compras.");
+    }
+
+    var lastRow = abaCad.getLastRow();
+    var lastCol = abaCad.getLastColumn();
+    if (lastRow < 5 || lastCol < 1) {
+      return { sucesso: true, colunas: [], materiais: [], totalMateriais: 0 };
+    }
+
+    // Identifica dinamicamente se o cabeçalho está na linha 5 ou 6
+    var headerRow = 5;
+    var dataStartRow = 6;
+    var row5 = abaCad.getRange(5, 1, 1, lastCol).getValues()[0];
+    var row6 = lastRow >= 6 ? abaCad.getRange(6, 1, 1, lastCol).getValues()[0] : [];
+
+    var pontuacaoRow5 = 0;
+    var pontuacaoRow6 = 0;
+    for (var c = 0; c < lastCol; c++) {
+      var v5 = String(row5[c] || "").trim().toUpperCase();
+      var v6 = String(row6[c] || "").trim().toUpperCase();
+      if (v5.includes("OBJETO") || v5.includes("CLASSE") || v5.includes("FISCO") || v5.includes("MARCA") || v5.includes("FORNECEDOR")) pontuacaoRow5++;
+      if (v6.includes("OBJETO") || v6.includes("CLASSE") || v6.includes("FISCO") || v6.includes("MARCA") || v6.includes("FORNECEDOR")) pontuacaoRow6++;
+    }
+
+    if (pontuacaoRow6 > pontuacaoRow5) {
+      headerRow = 6;
+      dataStartRow = 7;
+    }
+
+    var cabecalho = abaCad.getRange(headerRow, 1, 1, lastCol).getValues()[0];
+    var colunas = [];
+    var colMatIdx = -1;
+
+    for (var c = 0; c < cabecalho.length; c++) {
+      var colNome = String(cabecalho[c] || "").trim();
+      if (!colNome) continue;
+      var cNorm = colNome.toUpperCase();
+      if (colMatIdx === -1 && (cNorm.includes("OBJETO") || cNorm.includes("MATERIAL") || cNorm.includes("DESCRI"))) {
+        colMatIdx = c;
+      }
+      colunas.push({
+        colIndex: c + 1,
+        nome: colNome,
+        nomeNorm: cNorm
+      });
+    }
+
+    if (colMatIdx === -1) colMatIdx = 2; // Coluna C por padrão
+
+    var numLinhas = lastRow - (dataStartRow - 1);
+    var materiais = [];
+    var setsClasses = { classe1: {}, classe2: {}, classe3: {} };
+
+    if (numLinhas > 0) {
+      var dadosMatriz = abaCad.getRange(dataStartRow, 1, numLinhas, lastCol).getValues();
+      for (var i = 0; i < dadosMatriz.length; i++) {
+        var rData = dadosMatriz[i];
+        var nomeMat = String(rData[colMatIdx] || "").trim();
+        if (!nomeMat) continue;
+
+        var valoresCampos = {};
+        for (var k = 0; k < colunas.length; k++) {
+          var colInfo = colunas[k];
+          var rawVal = rData[colInfo.colIndex - 1];
+          valoresCampos[colInfo.nome] = (rawVal instanceof Date) ? rawVal.toLocaleDateString('pt-BR') : String(rawVal !== null && rawVal !== undefined ? rawVal : "").trim();
+
+          if (colInfo.nomeNorm.includes("CLASSE 1")) {
+            var c1Val = valoresCampos[colInfo.nome];
+            if (c1Val) setsClasses.classe1[c1Val] = true;
+          } else if (colInfo.nomeNorm.includes("CLASSE 2")) {
+            var c2Val = valoresCampos[colInfo.nome];
+            if (c2Val) setsClasses.classe2[c2Val] = true;
+          } else if (colInfo.nomeNorm.includes("CLASSE 3")) {
+            var c3Val = valoresCampos[colInfo.nome];
+            if (c3Val) setsClasses.classe3[c3Val] = true;
+          }
+        }
+
+        materiais.push({
+          rowNumber: dataStartRow + i,
+          nome: nomeMat,
+          campos: valoresCampos
+        });
+      }
+    }
+
+    materiais.sort(function(a, b) {
+      return a.nome.localeCompare(b.nome, undefined, { sensitivity: 'base' });
+    });
+
+    return {
+      sucesso: true,
+      headerRow: headerRow,
+      dataStartRow: dataStartRow,
+      colunas: colunas,
+      colObjetoIndex: colMatIdx + 1,
+      colObjetoNome: cabecalho[colMatIdx] || "OBJETO RESUMIDO",
+      materiais: materiais,
+      classes1: Object.keys(setsClasses.classe1).sort(),
+      classes2: Object.keys(setsClasses.classe2).sort(),
+      classes3: Object.keys(setsClasses.classe3).sort()
+    };
+  } catch (err) {
+    console.error("Erro em obterDadosGerenciamentoCadItens: " + err.message);
+    return { sucesso: false, erro: err.message };
+  }
+}
+
+/**
+ * Salva ou atualiza os dados de um material no catálogo oficial (#CAD_ITENS).
+ * Acesso exclusivo ao perfil de Administrador.
+ */
+function salvarCadastroMaterialCadItens(dados, usuarioCliente) {
+  try {
+    var emailSessao = "";
+    try { emailSessao = Session.getActiveUser().getEmail().trim().toLowerCase(); } catch (e) {}
+    if (!emailSessao) {
+      try { emailSessao = Session.getEffectiveUser().getEmail().trim().toLowerCase(); } catch (e) {}
+    }
+    var usuario = verificarPermissaoUsuario(emailSessao);
+    var perfilUsuario = usuario ? padronizarPerfilUsuario_(usuario.perfil) : (usuarioCliente && usuarioCliente.perfil ? padronizarPerfilUsuario_(usuarioCliente.perfil) : "Usuário");
+    var perfilNorm = (perfilUsuario || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+    var ehAdmin = (perfilNorm === "administrador" || perfilNorm.indexOf("admin") !== -1);
+
+    if (!ehAdmin) {
+      throw new Error("Acesso negado: apenas Administradores possuem autorização para salvar ou alterar itens no Catálogo (#CAD_ITENS).");
+    }
+
+    if (!dados || !dados.objetoResumido) {
+      throw new Error("O nome do material (OBJETO RESUMIDO) é obrigatório.");
+    }
+
+    var objResumido = String(dados.objetoResumido).trim().toUpperCase();
+    var ehNovo = dados.ehNovo === true;
+    var rowNum = parseInt(dados.rowNumber, 10) || 0;
+    var campos = dados.campos || {};
+
+    var ss = SpreadsheetApp.openById(ID_PLANILHA_COMPRAS);
+    var abaCad = ss.getSheetByName(ABA_CATALOGO_ITENS) || obterAbaPorNomeAproximado(ss, ABA_CATALOGO_ITENS);
+    if (!abaCad) throw new Error("Aba " + ABA_CATALOGO_ITENS + " não encontrada.");
+
+    var lastRow = abaCad.getLastRow();
+    var lastCol = abaCad.getLastColumn();
+
+    // Detecta cabeçalhos
+    var headerRow = 5;
+    var dataStartRow = 6;
+    var row5 = abaCad.getRange(5, 1, 1, lastCol).getValues()[0];
+    var row6 = lastRow >= 6 ? abaCad.getRange(6, 1, 1, lastCol).getValues()[0] : [];
+    var p5 = 0, p6 = 0;
+    for (var c = 0; c < lastCol; c++) {
+      var v5 = String(row5[c] || "").toUpperCase();
+      var v6 = String(row6[c] || "").toUpperCase();
+      if (v5.includes("OBJETO") || v5.includes("CLASSE") || v5.includes("FISCO")) p5++;
+      if (v6.includes("OBJETO") || v6.includes("CLASSE") || v6.includes("FISCO")) p6++;
+    }
+    if (p6 > p5) {
+      headerRow = 6;
+      dataStartRow = 7;
+    }
+
+    var cabecalho = abaCad.getRange(headerRow, 1, 1, lastCol).getValues()[0];
+    var mapaColIndice = {};
+    var colMatIdx = -1;
+
+    for (var c = 0; c < cabecalho.length; c++) {
+      var cNome = String(cabecalho[c] || "").trim();
+      if (!cNome) continue;
+      mapaColIndice[cNome.toUpperCase()] = c + 1;
+      if (colMatIdx === -1 && (cNome.toUpperCase().includes("OBJETO") || cNome.toUpperCase().includes("MATERIAL") || cNome.toUpperCase().includes("DESCRI"))) {
+        colMatIdx = c + 1;
+      }
+    }
+    if (colMatIdx === -1) colMatIdx = 3;
+
+    var linhaAlvo = -1;
+
+    if (ehNovo) {
+      // Checa duplicidade
+      var numRows = lastRow >= dataStartRow ? (lastRow - dataStartRow + 1) : 0;
+      if (numRows > 0) {
+        var valsColMat = abaCad.getRange(dataStartRow, colMatIdx, numRows, 1).getValues();
+        for (var r = 0; r < valsColMat.length; r++) {
+          var valItem = String(valsColMat[r][0] || "").trim().toUpperCase();
+          if (valItem === objResumido) {
+            throw new Error("O material '" + objResumido + "' já está cadastrado no catálogo (linha " + (dataStartRow + r) + "). Selecione-o na lista suspensa para editar.");
+          }
+          if (linhaAlvo === -1 && valItem === "") {
+            linhaAlvo = dataStartRow + r;
+          }
+        }
+      }
+      if (linhaAlvo === -1) {
+        linhaAlvo = Math.max(lastRow + 1, dataStartRow);
+      }
+    } else {
+      if (rowNum < dataStartRow) {
+        throw new Error("Linha inválida para edição.");
+      }
+      linhaAlvo = rowNum;
+    }
+
+    // 1. Grava OBJETO RESUMIDO
+    abaCad.getRange(linhaAlvo, colMatIdx).setValue(objResumido);
+
+    // 2. Grava os demais campos
+    for (var colNome in campos) {
+      var cUpper = String(colNome).trim().toUpperCase();
+      var colIndex = mapaColIndice[cUpper];
+      if (colIndex && colIndex > 0) {
+        var cell = abaCad.getRange(linhaAlvo, colIndex);
+        try { cell.clearDataValidations(); } catch(eDv) {}
+        cell.setValue(campos[colNome]);
+      }
+    }
+
+    SpreadsheetApp.flush();
+
+    // Invalida caches do catálogo
+    try {
+      _cacheCatalogoClassesMem = null;
+      _cacheMapaClassificacaoConsumo = null;
+      CacheService.getScriptCache().remove("MAPA_CATALOGO_CLASSES_DASH_V4");
+      CacheService.getScriptCache().remove("MAPA_MATERIAIS_CONSUMO_V1");
+    } catch(eCache) {}
+
+    // Auditoria
+    try {
+      var dadosUser = {
+        nome: (usuario && usuario.nome) || (usuarioCliente && usuarioCliente.nome) || "Administrador",
+        email: emailSessao || (usuarioCliente && usuarioCliente.email) || "",
+        ome: (usuario && usuario.ome) || (usuarioCliente && usuarioCliente.ome) || "DLOG",
+        perfil: "Administrador"
+      };
+      var acaoLog = ehNovo ? "CRIOU_ITEM_CATALOGO" : "EDITOU_ITEM_CATALOGO";
+      var detalheLog = (ehNovo ? "Cadastrou novo material oficial: " : "Atualizou cadastro do material oficial: ") + objResumido + " na linha " + linhaAlvo;
+      registrarLogAuditoria(acaoLog, detalheLog, dadosUser);
+    } catch(eLog) {}
+
+    return {
+      sucesso: true,
+      ehNovo: ehNovo,
+      rowNumber: linhaAlvo,
+      objetoResumido: objResumido,
+      mensagem: ehNovo ? "Novo material cadastrado com sucesso!" : "Cadastro do material atualizado com sucesso!"
+    };
+  } catch (err) {
+    console.error("Erro em salvarCadastroMaterialCadItens: " + err.message);
+    return { sucesso: false, erro: err.message };
+  }
+}

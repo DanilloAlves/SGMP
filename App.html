@@ -2960,7 +2960,10 @@
             <h4 class="fw-bold mb-1 text-primary" id="tituloAbaRecebimento"><i class="fa-solid fa-circle-plus me-2"></i> Inclusão de Materiais</h4>
             <p class="text-muted small mb-0" id="subtituloAbaRecebimento">Processo de cadastro e inclusão de materiais na Unidade.</p>
           </div>
-          <div>
+          <div class="d-flex align-items-center gap-2 flex-wrap">
+            <button type="button" id="btnGerenciamentoCadastroCadItens" class="btn btn-primary btn-sm fw-bold px-3 py-2 shadow-sm" onclick="abrirModalGerenciamentoCadastro()" style="display: none;" title="Gerenciar e editar cadastro oficial de materiais (#CAD_ITENS)">
+              <i class="fa-solid fa-boxes-packing me-1"></i> Gerenciamento de Cadastro
+            </button>
             <button type="button" class="btn btn-success btn-sm fw-bold px-3 py-2 shadow-sm" onclick="abrirModalImportarExcel()">
               <i class="fa-solid fa-file-excel me-1"></i> Inclusão em Lote (Excel)
             </button>
@@ -3452,6 +3455,216 @@
 </div>
 
 <!-- Modal Importação Excel -->
+
+<!-- ========================================================= -->
+<!-- MODAL GERENCIAMENTO DE CADASTRO DE MATERIAIS (#CAD_ITENS)  -->
+<!-- ========================================================= -->
+<div class="modal fade" id="modalGerenciamentoCadastroCadItens" tabindex="-1" aria-labelledby="modalGerencCadItensLabel" aria-hidden="true" data-bs-backdrop="static">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content border-0 shadow">
+      
+      <!-- Cabeçalho do Modal -->
+      <div class="modal-header bg-primary text-white py-2 px-3 d-flex align-items-center justify-content-between">
+        <div class="d-flex align-items-center gap-2">
+          <i class="fa-solid fa-boxes-packing fs-5"></i>
+          <div>
+            <h5 class="modal-title fw-bold fs-6 mb-0" id="modalGerencCadItensLabel">Gerenciamento de Cadastro de Materiais (#CAD_ITENS)</h5>
+            <small class="opacity-75" style="font-size: 0.72rem;">Catálogo Oficial de Materiais e Classificações do CBMPE</small>
+          </div>
+        </div>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+
+      <!-- Corpo do Modal -->
+      <div class="modal-body p-3 bg-light bg-opacity-50">
+        
+        <!-- Indicador de Carregamento -->
+        <div id="loadingGerencCadItens" class="text-center py-5">
+          <div class="spinner-border text-primary mb-3" role="status"></div>
+          <h6 class="fw-bold text-dark">Carregando catálogo oficial de materiais (#CAD_ITENS)...</h6>
+          <span class="text-muted small">Lendo estrutura de colunas e registros cadastrados no Google Sheets...</span>
+        </div>
+
+        <!-- Formulário de Edição e Cadastro -->
+        <div id="corpoFormGerencCadItens" style="display: none;">
+          
+          <!-- SELETOR PRINCIPAL: OBJETO RESUMIDO / NOVO CADASTRO -->
+          <div class="card border border-primary border-opacity-25 shadow-sm p-3 mb-3 bg-white">
+            <div class="row g-2 align-items-center">
+              <div class="col-md-8">
+                <label class="form-label fw-bold text-dark mb-1" style="font-size: 0.85rem;">
+                  <i class="fa-solid fa-list-check text-primary me-1"></i> Selecionar Material Cadastrado (OBJETO RESUMIDO):
+                </label>
+                <select id="selectGerencCadItensMaterial" class="form-select form-select-sm fw-bold border-primary shadow-none" onchange="aoSelecionarMaterialCadItens(this.value)">
+                  <option value="__NOVO__">✨ + Novo Cadastro (Criar Novo Material)</option>
+                </select>
+                <div class="form-text" style="font-size: 0.72rem;">
+                  Selecione um material existente para editar seus dados ou mantenha "+ Novo Cadastro" para incluir um novo material oficial.
+                </div>
+              </div>
+              <div class="col-md-4 text-md-end text-start mt-2 mt-md-0">
+                <div id="statusModoCadItens" class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 py-2 px-3 fs-6">
+                  <i class="fa-solid fa-plus me-1"></i> Modo: <strong>Novo Cadastro</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- DATALISTS PARA SUGESTÕES DE AUTOCOMPLETE -->
+          <datalist id="datalistClasse1CadItens"></datalist>
+          <datalist id="datalistClasse2CadItens"></datalist>
+          <datalist id="datalistClasse3CadItens"></datalist>
+
+          <div class="row g-3">
+            
+            <!-- 1. IDENTIFICAÇÃO E CLASSIFICAÇÃO -->
+            <div class="col-12">
+              <div class="card border shadow-sm p-3 bg-white">
+                <h6 class="fw-bold text-primary mb-3 pb-2 border-bottom d-flex align-items-center" style="font-size: 0.85rem;">
+                  <i class="fa-solid fa-tags me-2"></i> Identificação e Classificação
+                </h6>
+                <div class="row g-2">
+                  <div class="col-md-7">
+                    <label class="form-label small fw-bold mb-1">Nome do Material (OBJETO RESUMIDO) <span class="text-danger">*</span>:</label>
+                    <input type="text" id="cadItens_inputObjetoResumido" class="form-control form-control-sm text-uppercase fw-bold border-primary" placeholder="EX: BOTA TÁTICA DE COMBATE A INCÊNDIO..." required>
+                  </div>
+                  <div class="col-md-3">
+                    <label class="form-label small fw-bold mb-1">Código E-FISCO:</label>
+                    <input type="text" id="cadItens_inputEFisco" class="form-control form-control-sm text-uppercase" placeholder="EX: 123456-7">
+                  </div>
+                  <div class="col-md-2">
+                    <label class="form-label small fw-bold mb-1">Material Consumo?:</label>
+                    <select id="cadItens_inputConsumo" class="form-select form-select-sm fw-semibold">
+                      <option value="NÃO" selected>NÃO (Permanente / Carga)</option>
+                      <option value="SIM">SIM (Consumo)</option>
+                    </select>
+                  </div>
+
+                  <div class="col-md-4 mt-2">
+                    <label class="form-label small fw-bold mb-1">Classe 1:</label>
+                    <input type="text" id="cadItens_inputClasse1" class="form-control form-control-sm text-uppercase" list="datalistClasse1CadItens" placeholder="OPERACIONAL, ADMINISTRATIVO...">
+                  </div>
+                  <div class="col-md-4 mt-2">
+                    <label class="form-label small fw-bold mb-1">Classe 2:</label>
+                    <input type="text" id="cadItens_inputClasse2" class="form-control form-control-sm text-uppercase" list="datalistClasse2CadItens" placeholder="SALVAMENTO, INCÊNDIO, APH...">
+                  </div>
+                  <div class="col-md-4 mt-2">
+                    <label class="form-label small fw-bold mb-1">Classe 3:</label>
+                    <input type="text" id="cadItens_inputClasse3" class="form-control form-control-sm text-uppercase" list="datalistClasse3CadItens" placeholder="EQUIPAMENTO, FERRAMENTA...">
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 2. MARCAS E MODELOS -->
+            <div class="col-lg-6 col-12">
+              <div class="card border shadow-sm p-3 bg-white h-100">
+                <h6 class="fw-bold text-primary mb-3 pb-2 border-bottom d-flex align-items-center" style="font-size: 0.85rem;">
+                  <i class="fa-solid fa-trademark me-2"></i> Marcas e Modelos Homologados / Cadastrados
+                </h6>
+                <div class="row g-2">
+                  <div class="col-6">
+                    <label class="form-label small fw-bold mb-1">Marca 1:</label>
+                    <input type="text" id="cadItens_inputMarca1" class="form-control form-control-sm text-uppercase" placeholder="Marca 1">
+                  </div>
+                  <div class="col-6">
+                    <label class="form-label small fw-bold mb-1">Modelo 1:</label>
+                    <input type="text" id="cadItens_inputModelo1" class="form-control form-control-sm text-uppercase" placeholder="Modelo 1">
+                  </div>
+
+                  <div class="col-6 mt-2">
+                    <label class="form-label small fw-bold mb-1">Marca 2:</label>
+                    <input type="text" id="cadItens_inputMarca2" class="form-control form-control-sm text-uppercase" placeholder="Marca 2">
+                  </div>
+                  <div class="col-6 mt-2">
+                    <label class="form-label small fw-bold mb-1">Modelo 2:</label>
+                    <input type="text" id="cadItens_inputModelo2" class="form-control form-control-sm text-uppercase" placeholder="Modelo 2">
+                  </div>
+
+                  <div class="col-6 mt-2">
+                    <label class="form-label small fw-bold mb-1">Marca 3:</label>
+                    <input type="text" id="cadItens_inputMarca3" class="form-control form-control-sm text-uppercase" placeholder="Marca 3">
+                  </div>
+                  <div class="col-6 mt-2">
+                    <label class="form-label small fw-bold mb-1">Modelo 3:</label>
+                    <input type="text" id="cadItens_inputModelo3" class="form-control form-control-sm text-uppercase" placeholder="Modelo 3">
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 3. FORNECEDORES E CONTATOS -->
+            <div class="col-lg-6 col-12">
+              <div class="card border shadow-sm p-3 bg-white h-100">
+                <h6 class="fw-bold text-primary mb-3 pb-2 border-bottom d-flex align-items-center" style="font-size: 0.85rem;">
+                  <i class="fa-solid fa-truck-field me-2"></i> Fornecedores e Contatos
+                </h6>
+                <div class="row g-2">
+                  <div class="col-6">
+                    <label class="form-label small fw-bold mb-1">Fornecedor 1:</label>
+                    <input type="text" id="cadItens_inputFornecedor1" class="form-control form-control-sm text-uppercase" placeholder="Fornecedor 1">
+                  </div>
+                  <div class="col-6">
+                    <label class="form-label small fw-bold mb-1">Contato Fornecedor 1:</label>
+                    <input type="text" id="cadItens_inputContato1" class="form-control form-control-sm text-uppercase" placeholder="Tel / E-mail 1">
+                  </div>
+
+                  <div class="col-6 mt-2">
+                    <label class="form-label small fw-bold mb-1">Fornecedor 2:</label>
+                    <input type="text" id="cadItens_inputFornecedor2" class="form-control form-control-sm text-uppercase" placeholder="Fornecedor 2">
+                  </div>
+                  <div class="col-6 mt-2">
+                    <label class="form-label small fw-bold mb-1">Contato Fornecedor 2:</label>
+                    <input type="text" id="cadItens_inputContato2" class="form-control form-control-sm text-uppercase" placeholder="Tel / E-mail 2">
+                  </div>
+
+                  <div class="col-6 mt-2">
+                    <label class="form-label small fw-bold mb-1">Fornecedor 3:</label>
+                    <input type="text" id="cadItens_inputFornecedor3" class="form-control form-control-sm text-uppercase" placeholder="Fornecedor 3">
+                  </div>
+                  <div class="col-6 mt-2">
+                    <label class="form-label small fw-bold mb-1">Contato Fornecedor 3:</label>
+                    <input type="text" id="cadItens_inputContato3" class="form-control form-control-sm text-uppercase" placeholder="Tel / E-mail 3">
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 4. CAMPOS COMPLEMENTARES DINÂMICOS (SE HOUVER MAIS COLUNAS NA PLANILHA) -->
+            <div class="col-12" id="cardCamposExtrasCadItens" style="display: none;">
+              <div class="card border shadow-sm p-3 bg-white">
+                <h6 class="fw-bold text-secondary mb-3 pb-2 border-bottom d-flex align-items-center" style="font-size: 0.85rem;">
+                  <i class="fa-solid fa-ellipsis me-2"></i> Outros Campos da Base #CAD_ITENS
+                </h6>
+                <div id="containerCamposExtrasCadItens" class="row g-2"></div>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- Rodapé do Modal -->
+      <div class="modal-footer bg-white border-top py-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">
+          <i class="fa-solid fa-xmark me-1"></i> Fechar
+        </button>
+        <div class="d-flex align-items-center gap-2">
+          <button type="button" class="btn btn-outline-primary btn-sm" onclick="aoSelecionarMaterialCadItens('__NOVO__')">
+            <i class="fa-solid fa-plus me-1"></i> Limpar / Novo Cadastro
+          </button>
+          <button type="button" id="btnSalvarCadItens" class="btn btn-primary btn-sm fw-bold px-4 shadow-sm" onclick="salvarFormularioCadItens()">
+            <i class="fa-solid fa-floppy-disk me-1"></i> Salvar no Catálogo
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
 <div class="modal fade" id="modalImportarExcel" tabindex="-1">
   <div class="modal-dialog modal-lg">
     <div class="modal-content">
@@ -12121,7 +12334,10 @@ window.carregarLocaisArvoreGeral = function() {
     const blocoNota = document.getElementById('bloco_cint_notaDist');
     const blocoBge = document.getElementById('bloco_cint_numeroBge');
 
+    const btnGerenc = document.getElementById('btnGerenciamentoCadastroCadItens');
+
     if (ehAdmin) {
+      if (btnGerenc) btnGerenc.style.display = 'inline-flex';
       if (tituloEl) {
         tituloEl.innerHTML = '<i class="fa-solid fa-circle-plus me-2 text-primary"></i> Inclusão de Materiais';
       }
@@ -12136,6 +12352,7 @@ window.carregarLocaisArvoreGeral = function() {
       if (blocoBge) blocoBge.style.display = 'block';
     } else {
       // Chefe de Setor: Acesso à aba Inclusão garantido, porém SEM acesso à tabela da DLOG
+      if (btnGerenc) btnGerenc.style.display = 'none';
       const nomeOme = omeUser ? ` (${omeUser})` : '';
       if (tituloEl) {
         tituloEl.innerHTML = `<i class="fa-solid fa-box-open me-2 text-primary"></i> Inclusão de Materiais da Unidade${nomeOme}`;
@@ -25824,6 +26041,347 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     } else {
       Swal.fire('Aviso', 'Permita a abertura de pop-ups no navegador para gerar o PDF do Dashboard.', 'warning');
     }
+  }
+
+  
+  // =========================================================================
+  // GERENCIAMENTO DE CADASTRO DE MATERIAIS (#CAD_ITENS)
+  // =========================================================================
+
+  let cacheDadosCadItens = null;
+  let materialCadItensSelecionado = null;
+
+  function abrirModalGerenciamentoCadastro() {
+    const ehAdmin = (typeof ehAdminGlobal === 'function') ? ehAdminGlobal() : false;
+    if (!ehAdmin) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Acesso Restrito',
+        text: 'Apenas Administradores possuem permissão para gerenciar a base oficial de cadastro de materiais (#CAD_ITENS).'
+      });
+      return;
+    }
+
+    const modalEl = document.getElementById('modalGerenciamentoCadastroCadItens');
+    if (!modalEl) return;
+
+    const bsModal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    bsModal.show();
+
+    carregarDadosGerenciamentoCadItens();
+  }
+
+  function carregarDadosGerenciamentoCadItens(forcar, materialParaSelecionar) {
+    const loadingEl = document.getElementById('loadingGerencCadItens');
+    const corpoEl = document.getElementById('corpoFormGerencCadItens');
+
+    if (loadingEl) loadingEl.style.display = 'block';
+    if (corpoEl) corpoEl.style.display = 'none';
+
+    google.script.run
+      .withSuccessHandler(function(resp) {
+        if (loadingEl) loadingEl.style.display = 'none';
+        if (corpoEl) corpoEl.style.display = 'block';
+
+        if (!resp || !resp.sucesso) {
+          Swal.fire('Erro', (resp && resp.erro) ? resp.erro : 'Falha ao carregar dados do catálogo.', 'error');
+          return;
+        }
+
+        cacheDadosCadItens = resp;
+
+        // Popula datalists
+        popularDatalistsCadItens(resp);
+
+        // Popula Select de Materiais
+        popularSelectMateriaisCadItens(resp, materialParaSelecionar);
+      })
+      .withFailureHandler(function(err) {
+        if (loadingEl) loadingEl.style.display = 'none';
+        Swal.fire('Erro', 'Falha na comunicação com o servidor: ' + (err.message || String(err)), 'error');
+      })
+      .obterDadosGerenciamentoCadItens((typeof usuarioSessaoAtual !== 'undefined') ? usuarioSessaoAtual : null);
+  }
+
+  function popularDatalistsCadItens(dados) {
+    const dl1 = document.getElementById('datalistClasse1CadItens');
+    const dl2 = document.getElementById('datalistClasse2CadItens');
+    const dl3 = document.getElementById('datalistClasse3CadItens');
+
+    if (dl1 && dados.classes1) dl1.innerHTML = dados.classes1.map(c => `<option value="${c}">`).join('');
+    if (dl2 && dados.classes2) dl2.innerHTML = dados.classes2.map(c => `<option value="${c}">`).join('');
+    if (dl3 && dados.classes3) dl3.innerHTML = dados.classes3.map(c => `<option value="${c}">`).join('');
+  }
+
+  function popularSelectMateriaisCadItens(dados, materialParaSelecionar) {
+    const selMat = document.getElementById('selectGerencCadItensMaterial');
+    if (!selMat) return;
+
+    let html = '<option value="__NOVO__">✨ + Novo Cadastro (Criar Novo Material)</option>';
+    (dados.materiais || []).forEach((m, idx) => {
+      html += `<option value="${idx}">${escapeHtmlResumo(m.nome)}` + (m.campos && m.campos['E-FISCO'] ? ` [E-FISCO: ${escapeHtmlResumo(m.campos['E-FISCO'])}]` : '') + `</option>`;
+    });
+
+    selMat.innerHTML = html;
+
+    if (materialParaSelecionar) {
+      const idxEncontrado = (dados.materiais || []).findIndex(m => m.nome.toUpperCase() === String(materialParaSelecionar).toUpperCase());
+      if (idxEncontrado !== -1) {
+        selMat.value = String(idxEncontrado);
+        aoSelecionarMaterialCadItens(String(idxEncontrado));
+        return;
+      }
+    }
+
+    selMat.value = '__NOVO__';
+    aoSelecionarMaterialCadItens('__NOVO__');
+  }
+
+  function aoSelecionarMaterialCadItens(val) {
+    const selMat = document.getElementById('selectGerencCadItensMaterial');
+    if (selMat && selMat.value !== val) selMat.value = val;
+
+    const inputNome = document.getElementById('cadItens_inputObjetoResumido');
+    const inputEFisco = document.getElementById('cadItens_inputEFisco');
+    const selConsumo = document.getElementById('cadItens_inputConsumo');
+    const inputC1 = document.getElementById('cadItens_inputClasse1');
+    const inputC2 = document.getElementById('cadItens_inputClasse2');
+    const inputC3 = document.getElementById('cadItens_inputClasse3');
+    const inputM1 = document.getElementById('cadItens_inputMarca1');
+    const inputMod1 = document.getElementById('cadItens_inputModelo1');
+    const inputM2 = document.getElementById('cadItens_inputMarca2');
+    const inputMod2 = document.getElementById('cadItens_inputModelo2');
+    const inputM3 = document.getElementById('cadItens_inputMarca3');
+    const inputMod3 = document.getElementById('cadItens_inputModelo3');
+    const inputF1 = document.getElementById('cadItens_inputFornecedor1');
+    const inputCont1 = document.getElementById('cadItens_inputContato1');
+    const inputF2 = document.getElementById('cadItens_inputFornecedor2');
+    const inputCont2 = document.getElementById('cadItens_inputContato2');
+    const inputF3 = document.getElementById('cadItens_inputFornecedor3');
+    const inputCont3 = document.getElementById('cadItens_inputContato3');
+    const badgeModo = document.getElementById('statusModoCadItens');
+    const btnSalvar = document.getElementById('btnSalvarCadItens');
+
+    if (val === '__NOVO__') {
+      materialCadItensSelecionado = null;
+      if (badgeModo) {
+        badgeModo.innerHTML = '<i class="fa-solid fa-plus me-1"></i> Modo: <strong>Novo Cadastro</strong>';
+        badgeModo.className = 'badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 py-2 px-3 fs-6';
+      }
+      if (btnSalvar) btnSalvar.innerHTML = '<i class="fa-solid fa-plus me-1"></i> Cadastrar Material';
+
+      if (inputNome) { inputNome.value = ''; inputNome.focus(); }
+      if (inputEFisco) inputEFisco.value = '';
+      if (selConsumo) selConsumo.value = 'NÃO';
+      if (inputC1) inputC1.value = '';
+      if (inputC2) inputC2.value = '';
+      if (inputC3) inputC3.value = '';
+      if (inputM1) inputM1.value = '';
+      if (inputMod1) inputMod1.value = '';
+      if (inputM2) inputM2.value = '';
+      if (inputMod2) inputMod2.value = '';
+      if (inputM3) inputM3.value = '';
+      if (inputMod3) inputMod3.value = '';
+      if (inputF1) inputF1.value = '';
+      if (inputCont1) inputCont1.value = '';
+      if (inputF2) inputF2.value = '';
+      if (inputCont2) inputCont2.value = '';
+      if (inputF3) inputF3.value = '';
+      if (inputCont3) inputCont3.value = '';
+
+      renderizarCamposExtrasCadItens({}, cacheDadosCadItens ? cacheDadosCadItens.colunas : []);
+      return;
+    }
+
+    const idx = parseInt(val, 10);
+    if (!cacheDadosCadItens || !cacheDadosCadItens.materiais || !cacheDadosCadItens.materiais[idx]) return;
+
+    const mat = cacheDadosCadItens.materiais[idx];
+    materialCadItensSelecionado = mat;
+
+    if (badgeModo) {
+      badgeModo.innerHTML = `<i class="fa-solid fa-pen-to-square me-1"></i> Modo: <strong>Editando Cadastro Existente (Linha ${mat.rowNumber})</strong>`;
+      badgeModo.className = 'badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 py-2 px-3 fs-6';
+    }
+    if (btnSalvar) btnSalvar.innerHTML = '<i class="fa-solid fa-floppy-disk me-1"></i> Salvar Alterações';
+
+    const campos = mat.campos || {};
+
+    function buscarValor(criterioFn) {
+      for (const k in campos) {
+        if (criterioFn(k.toUpperCase())) return campos[k];
+      }
+      return '';
+    }
+
+    if (inputNome) inputNome.value = mat.nome;
+    if (inputEFisco) inputEFisco.value = buscarValor(k => k.includes('FISCO'));
+    
+    const vConsumo = buscarValor(k => k === 'CONSUMO' || k.includes('CONSUMO')).toUpperCase();
+    if (selConsumo) selConsumo.value = (vConsumo === 'SIM' || vConsumo === 'S') ? 'SIM' : 'NÃO';
+
+    if (inputC1) inputC1.value = buscarValor(k => k === 'CLASSE 1' || (k.includes('CLASSE 1') && !k.includes('2') && !k.includes('3')));
+    if (inputC2) inputC2.value = buscarValor(k => k === 'CLASSE 2' || k.includes('CLASSE 2'));
+    if (inputC3) inputC3.value = buscarValor(k => k === 'CLASSE 3' || k.includes('CLASSE 3'));
+
+    if (inputM1) inputM1.value = buscarValor(k => k.includes('MARCA') && k.includes('1'));
+    if (inputMod1) inputMod1.value = buscarValor(k => k.includes('MODELO') && k.includes('1'));
+    if (inputM2) inputM2.value = buscarValor(k => k.includes('MARCA') && k.includes('2'));
+    if (inputMod2) inputMod2.value = buscarValor(k => k.includes('MODELO') && k.includes('2'));
+    if (inputM3) inputM3.value = buscarValor(k => k.includes('MARCA') && k.includes('3'));
+    if (inputMod3) inputMod3.value = buscarValor(k => k.includes('MODELO') && k.includes('3'));
+
+    if (inputF1) inputF1.value = buscarValor(k => k.includes('FORNECEDOR') && !k.includes('CONTATO') && k.includes('1'));
+    if (inputCont1) inputCont1.value = buscarValor(k => k.includes('CONTATO') && k.includes('1'));
+    if (inputF2) inputF2.value = buscarValor(k => k.includes('FORNECEDOR') && !k.includes('CONTATO') && k.includes('2'));
+    if (inputCont2) inputCont2.value = buscarValor(k => k.includes('CONTATO') && k.includes('2'));
+    if (inputF3) inputF3.value = buscarValor(k => k.includes('FORNECEDOR') && !k.includes('CONTATO') && k.includes('3'));
+    if (inputCont3) inputCont3.value = buscarValor(k => k.includes('CONTATO') && k.includes('3'));
+
+    renderizarCamposExtrasCadItens(campos, cacheDadosCadItens ? cacheDadosCadItens.colunas : []);
+  }
+
+  function renderizarCamposExtrasCadItens(campos, colunas) {
+    const container = document.getElementById('containerCamposExtrasCadItens');
+    const cardExtras = document.getElementById('cardCamposExtrasCadItens');
+    if (!container) return;
+
+    const colunasPadraoNorm = [
+      'OBJETO', 'MATERIAL', 'DESCRI', 'FISCO', 'CLASSE 1', 'CLASSE 2', 'CLASSE 3', 'CONSUMO',
+      'MARCA 1', 'MARCA 2', 'MARCA 3', 'MODELO 1', 'MODELO 2', 'MODELO 3',
+      'FORNECEDOR 1', 'FORNECEDOR 2', 'FORNECEDOR 3',
+      'CONTATO'
+    ];
+
+    const extras = (colunas || []).filter(c => {
+      const n = c.nomeNorm;
+      return !colunasPadraoNorm.some(pad => n.includes(pad));
+    });
+
+    if (extras.length === 0) {
+      if (cardExtras) cardExtras.style.display = 'none';
+      container.innerHTML = '';
+      return;
+    }
+
+    if (cardExtras) cardExtras.style.display = 'block';
+    let html = '';
+    extras.forEach(col => {
+      const val = campos[col.nome] || '';
+      html += `
+        <div class="col-md-4">
+          <label class="form-label small fw-bold mb-1">${escapeHtmlResumo(col.nome)}:</label>
+          <input type="text" class="form-control form-control-sm input-extra-cad-itens" data-coluna="${escapeHtmlResumo(col.nome)}" value="${escapeHtmlResumo(val)}">
+        </div>
+      `;
+    });
+
+    container.innerHTML = html;
+  }
+
+  function salvarFormularioCadItens() {
+    const inputNome = document.getElementById('cadItens_inputObjetoResumido');
+    const nome = (inputNome ? inputNome.value : '').trim().toUpperCase();
+
+    if (!nome) {
+      Swal.fire('Atenção', 'Por favor, informe a descrição do material (OBJETO RESUMIDO).', 'warning');
+      if (inputNome) inputNome.focus();
+      return;
+    }
+
+    const ehNovo = !materialCadItensSelecionado;
+    const rowNum = materialCadItensSelecionado ? materialCadItensSelecionado.rowNumber : 0;
+
+    const mapaCampos = {};
+
+    function atribuirSeColunaExiste(criterioFn, valor) {
+      if (!cacheDadosCadItens || !cacheDadosCadItens.colunas) return;
+      const colEncontrada = cacheDadosCadItens.colunas.find(c => criterioFn(c.nomeNorm));
+      if (colEncontrada) {
+        mapaCampos[colEncontrada.nome] = valor;
+      }
+    }
+
+    atribuirSeColunaExiste(n => n.includes('FISCO'), (document.getElementById('cadItens_inputEFisco')?.value || '').trim());
+    atribuirSeColunaExiste(n => n === 'CONSUMO' || n.includes('CONSUMO'), document.getElementById('cadItens_inputConsumo')?.value || 'NÃO');
+    atribuirSeColunaExiste(n => n === 'CLASSE 1' || (n.includes('CLASSE 1') && !n.includes('2') && !n.includes('3')), (document.getElementById('cadItens_inputClasse1')?.value || '').trim().toUpperCase());
+    atribuirSeColunaExiste(n => n === 'CLASSE 2' || n.includes('CLASSE 2'), (document.getElementById('cadItens_inputClasse2')?.value || '').trim().toUpperCase());
+    atribuirSeColunaExiste(n => n === 'CLASSE 3' || n.includes('CLASSE 3'), (document.getElementById('cadItens_inputClasse3')?.value || '').trim().toUpperCase());
+
+    atribuirSeColunaExiste(n => n.includes('MARCA') && n.includes('1'), (document.getElementById('cadItens_inputMarca1')?.value || '').trim().toUpperCase());
+    atribuirSeColunaExiste(n => n.includes('MODELO') && n.includes('1'), (document.getElementById('cadItens_inputModelo1')?.value || '').trim().toUpperCase());
+    atribuirSeColunaExiste(n => n.includes('MARCA') && n.includes('2'), (document.getElementById('cadItens_inputMarca2')?.value || '').trim().toUpperCase());
+    atribuirSeColunaExiste(n => n.includes('MODELO') && n.includes('2'), (document.getElementById('cadItens_inputModelo2')?.value || '').trim().toUpperCase());
+    atribuirSeColunaExiste(n => n.includes('MARCA') && n.includes('3'), (document.getElementById('cadItens_inputMarca3')?.value || '').trim().toUpperCase());
+    atribuirSeColunaExiste(n => n.includes('MODELO') && n.includes('3'), (document.getElementById('cadItens_inputModelo3')?.value || '').trim().toUpperCase());
+
+    atribuirSeColunaExiste(n => n.includes('FORNECEDOR') && !n.includes('CONTATO') && n.includes('1'), (document.getElementById('cadItens_inputFornecedor1')?.value || '').trim().toUpperCase());
+    atribuirSeColunaExiste(n => n.includes('CONTATO') && n.includes('1'), (document.getElementById('cadItens_inputContato1')?.value || '').trim().toUpperCase());
+    atribuirSeColunaExiste(n => n.includes('FORNECEDOR') && !n.includes('CONTATO') && n.includes('2'), (document.getElementById('cadItens_inputFornecedor2')?.value || '').trim().toUpperCase());
+    atribuirSeColunaExiste(n => n.includes('CONTATO') && n.includes('2'), (document.getElementById('cadItens_inputContato2')?.value || '').trim().toUpperCase());
+    atribuirSeColunaExiste(n => n.includes('FORNECEDOR') && !n.includes('CONTATO') && n.includes('3'), (document.getElementById('cadItens_inputFornecedor3')?.value || '').trim().toUpperCase());
+    atribuirSeColunaExiste(n => n.includes('CONTATO') && n.includes('3'), (document.getElementById('cadItens_inputContato3')?.value || '').trim().toUpperCase());
+
+    document.querySelectorAll('.input-extra-cad-itens').forEach(inp => {
+      const colName = inp.getAttribute('data-coluna');
+      if (colName) mapaCampos[colName] = (inp.value || '').trim();
+    });
+
+    const payload = {
+      ehNovo: ehNovo,
+      rowNumber: rowNum,
+      objetoResumido: nome,
+      campos: mapaCampos
+    };
+
+    const btnSalvar = document.getElementById('btnSalvarCadItens');
+    const txtOriginal = btnSalvar ? btnSalvar.innerHTML : 'Salvar';
+    if (btnSalvar) {
+      btnSalvar.disabled = true;
+      btnSalvar.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i> Gravando...';
+    }
+
+    Swal.fire({
+      title: 'Gravando no Catálogo...',
+      html: 'Atualizando base oficial #CAD_ITENS no Google Sheets...',
+      allowOutsideClick: false,
+      didOpen: () => { Swal.showLoading(); }
+    });
+
+    google.script.run
+      .withSuccessHandler(function(resp) {
+        if (btnSalvar) {
+          btnSalvar.disabled = false;
+          btnSalvar.innerHTML = txtOriginal;
+        }
+
+        if (!resp || !resp.sucesso) {
+          Swal.fire('Erro', (resp && resp.erro) ? resp.erro : 'Falha ao salvar material no catálogo.', 'error');
+          return;
+        }
+
+        Swal.fire({
+          icon: 'success',
+          title: 'Sucesso!',
+          text: resp.mensagem || 'Dados salvos com sucesso no catálogo oficial.',
+          timer: 2500,
+          showConfirmButton: false
+        });
+
+        if (typeof carregarMateriaisSelectCint === 'function') {
+          carregarMateriaisSelectCint();
+        }
+
+        carregarDadosGerenciamentoCadItens(true, resp.objetoResumido);
+      })
+      .withFailureHandler(function(err) {
+        if (btnSalvar) {
+          btnSalvar.disabled = false;
+          btnSalvar.innerHTML = txtOriginal;
+        }
+        Swal.fire('Erro', 'Falha ao comunicar com o servidor: ' + (err.message || String(err)), 'error');
+      })
+      .salvarCadastroMaterialCadItens(payload, (typeof usuarioSessaoAtual !== 'undefined') ? usuarioSessaoAtual : null);
   }
 
   // Restaura os filtros para visão geral
