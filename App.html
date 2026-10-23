@@ -16746,8 +16746,8 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
                        oninput="aoAlterarQtdRetiradaLocal(this)"
                        placeholder="0">
               </div>
-              <span class="badge bg-white text-secondary border px-2 py-1 shadow-sm" style="font-size: 0.76rem;" title="Quantidade disponível neste local de armazenamento">
-                Disponível: <strong class="text-success">${loc.qtdDisponivel}</strong> un.
+              <span class="badge bg-white text-secondary border px-2 py-1 shadow-sm" style="font-size: 0.76rem;" title="Prévia do que ficará livre no estoque deste local">
+                Disponível: <strong class="${(loc.qtdDisponivel - qVal) <= 0 ? 'text-danger' : 'text-success'} strong-qtd-disp" data-disp-inicial="${loc.qtdDisponivel}">${Math.max(0, loc.qtdDisponivel - qVal)}</strong> un.
               </span>
             </div>
           </div>
@@ -16761,8 +16761,8 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
             <div class="text-muted" style="font-size: 0.73rem;"><i class="fa-solid fa-building me-1"></i>${m.unidade || 'CBMPE'}</div>
           </td>
           <td class="text-center">
-            <span class="badge bg-success-subtle text-success border border-success-subtle fs-6 px-3 py-1 font-monospace fw-bold">
-              ${m.totalEcd}
+            <span class="badge ${(m.totalEcd - subtotalMat) <= 0 ? 'bg-secondary-subtle text-muted border border-secondary-subtle' : 'bg-success-subtle text-success border border-success-subtle'} fs-6 px-3 py-1 font-monospace fw-bold badge-total-disp-ecd" data-material="${m.objeto.replace(/"/g, '&quot;')}" data-total-inicial="${m.totalEcd}" title="Prévia do que ficará livre no estoque desta OME">
+              ${Math.max(0, m.totalEcd - subtotalMat)}
             </span>
           </td>
           <td>
@@ -16809,6 +16809,21 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     const chaveQtd = matNome + '|||' + chaveLocal;
     window.mapaQuantidadesSelecionadasCautela[chaveQtd] = val;
 
+    // Atualiza imediatamente a prévia do Disponível deste local (à direita do input Retirar)
+    const containerLocal = input.closest('.d-flex.align-items-center.justify-content-between');
+    if (containerLocal) {
+      const strongDisp = containerLocal.querySelector('.strong-qtd-disp');
+      if (strongDisp) {
+        const dispLivre = Math.max(0, max - val);
+        strongDisp.innerText = dispLivre;
+        if (dispLivre === 0) {
+          strongDisp.className = 'text-danger strong-qtd-disp';
+        } else {
+          strongDisp.className = 'text-success strong-qtd-disp';
+        }
+      }
+    }
+
     // Atualiza objeto em memória
     (window.cacheMateriaisAgrupadosCautela || []).forEach(m => {
       if (m.objeto === matNome) {
@@ -16820,13 +16835,29 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
           subtotal += (l.qtdRetirar || 0);
         });
 
-        // Atualiza badge de subtotal do material
+        // Atualiza badge de subtotal do material (Qtd Selecionada)
         const spans = document.querySelectorAll('.span-subtotal-material');
         spans.forEach(sp => {
           if (sp.getAttribute('data-material') === matNome) {
             sp.innerText = subtotal;
           }
         });
+
+        // Atualiza badge da Qtd Total Disp. (ECD) da linha (prévia do que ficará livre no estoque)
+        const tr = input.closest('tr');
+        if (tr) {
+          const badgeTotalDisp = tr.querySelector('.badge-total-disp-ecd');
+          if (badgeTotalDisp) {
+            const totInicial = parseInt(badgeTotalDisp.getAttribute('data-total-inicial') || '0', 10);
+            const totLivre = Math.max(0, totInicial - subtotal);
+            badgeTotalDisp.innerText = totLivre;
+            if (totLivre === 0) {
+              badgeTotalDisp.className = 'badge bg-secondary-subtle text-muted border border-secondary-subtle fs-6 px-3 py-1 font-monospace fw-bold badge-total-disp-ecd';
+            } else {
+              badgeTotalDisp.className = 'badge bg-success-subtle text-success border border-success-subtle fs-6 px-3 py-1 font-monospace fw-bold badge-total-disp-ecd';
+            }
+          }
+        }
       }
     });
 
@@ -16841,6 +16872,16 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
 
     document.querySelectorAll('.input-retirada-cautela').forEach(inp => inp.value = 0);
     document.querySelectorAll('.span-subtotal-material').forEach(sp => sp.innerText = 0);
+    document.querySelectorAll('.strong-qtd-disp').forEach(str => {
+      const init = str.getAttribute('data-disp-inicial') || '0';
+      str.innerText = init;
+      str.className = 'text-success strong-qtd-disp';
+    });
+    document.querySelectorAll('.badge-total-disp-ecd').forEach(bdg => {
+      const totInit = bdg.getAttribute('data-total-inicial') || '0';
+      bdg.innerText = totInit;
+      bdg.className = 'badge bg-success-subtle text-success border border-success-subtle fs-6 px-3 py-1 font-monospace fw-bold badge-total-disp-ecd';
+    });
     atualizarContadoresCautelaGerais();
   }
 
