@@ -3529,45 +3529,45 @@ function getResumoArvoreArmazenamento(unidadeOme) {
         var totDesvioSetor = 0;
         var totItensSetor = 0;
 
+        var totAcauteladoSetor = 0;
+        var totSomaTotalSetor = 0;
+
         for (var matNome in mapaMat) {
           var mData = mapaMat[matNome];
           var chaveCarga = norm(omePadrao) + "___" + norm(subRes) + "___" + norm(setKey) + "___" + norm(matNome);
           var cargaPadrao = mapaCargas[chaveCarga] !== undefined ? mapaCargas[chaveCarga] : 0;
-          var qtdReal = mData.qtdEcd;
+          var qtdReal = mData.qtdEcd || 0;
           var qtdScd = mData.qtdScd || 0;
           var qtdAcautelado = mData.qtdAcautelado || 0;
-          var qtdExtBanco = mData.qtdExtraviado || 0;
+          var extraviado = mData.qtdExtraviado || 0;
 
-          var totalExistente = qtdReal + qtdScd + qtdAcautelado;
-          var extraviado = 0;
-          if (cargaPadrao > totalExistente) {
-            extraviado = (cargaPadrao - totalExistente) + qtdExtBanco;
-          } else {
-            extraviado = qtdExtBanco;
-          }
-
-          var desvioReposicao = extraviado + qtdScd;
+          var somaTotal = qtdReal + qtdScd + extraviado + qtdAcautelado;
+          var desvio = somaTotal - cargaPadrao;
 
           totEcdSetor += qtdReal;
           totCargaSetor += cargaPadrao;
           totScdSetor += qtdScd;
           totExtraviadoSetor += extraviado;
-          totDesvioSetor += desvioReposicao;
+          totAcauteladoSetor += qtdAcautelado;
+          totSomaTotalSetor += somaTotal;
+          totDesvioSetor += desvio;
           totItensSetor += mData.qtdTotal;
 
           materiaisDoSetor.push({
             nome: matNome,
             cargaPadrao: cargaPadrao,
+            somaTotal: somaTotal,
             qtdReal: qtdReal,
             qtdScd: qtdScd,
             extraviado: extraviado,
-            desvioReposicao: desvioReposicao,
-            qtdTotal: mData.qtdTotal,
-            qtdAcautelado: qtdAcautelado
+            qtdAcautelado: qtdAcautelado,
+            desvio: desvio,
+            desvioReposicao: desvio,
+            qtdTotal: mData.qtdTotal
           });
         }
 
-        // Incorpora materiais com Carga Padrão cadastrada que estejam zerados no setor
+        // Incorpora materiais com Quantidade Ideal cadastrada que estejam zerados no setor
         var prefixSet = norm(omePadrao) + "___" + norm(subRes) + "___" + norm(setKey);
         var cargasDoSetor = listaCargasPorSetor[prefixSet] || [];
         cargasDoSetor.forEach(function(cItem) {
@@ -3576,22 +3576,21 @@ function getResumoArvoreArmazenamento(unidadeOme) {
           var jaExiste = materiaisDoSetor.some(function(m) { return norm(m.nome) === matNorm; });
           if (!jaExiste) {
             var cargaPadrao = cItem.carga;
-            var qtdReal = 0;
-            var qtdScd = 0;
-            var extraviado = cargaPadrao;
-            var desvioReposicao = cargaPadrao;
+            var somaTotal = 0;
+            var desvio = somaTotal - cargaPadrao; // Negativo (faltando)
             totCargaSetor += cargaPadrao;
-            totExtraviadoSetor += extraviado;
-            totDesvioSetor += desvioReposicao;
+            totDesvioSetor += desvio;
             materiaisDoSetor.push({
               nome: cItem.material,
               cargaPadrao: cargaPadrao,
+              somaTotal: 0,
               qtdReal: 0,
               qtdScd: 0,
-              extraviado: extraviado,
-              desvioReposicao: desvioReposicao,
-              qtdTotal: 0,
-              qtdAcautelado: 0
+              extraviado: 0,
+              qtdAcautelado: 0,
+              desvio: desvio,
+              desvioReposicao: desvio,
+              qtdTotal: 0
             });
           }
         });
@@ -3604,8 +3603,11 @@ function getResumoArvoreArmazenamento(unidadeOme) {
           materiais: materiaisDoSetor,
           totalEcd: totEcdSetor,
           totalCarga: totCargaSetor,
+          totalSomaTotal: totSomaTotalSetor,
           totalScd: totScdSetor,
           totalExtraviado: totExtraviadoSetor,
+          totalAcautelado: totAcauteladoSetor,
+          totalDesvio: totDesvioSetor,
           totalDesvioReposicao: totDesvioSetor,
           totalItens: totItensSetor
         });
@@ -3639,16 +3641,20 @@ function getResumoArvoreArmazenamento(unidadeOme) {
 
       var totSubEcd = 0;
       var totSubCarga = 0;
+      var totSubSomaTotal = 0;
       var totSubScd = 0;
       var totSubExtraviado = 0;
+      var totSubAcautelado = 0;
       var totSubDesvio = 0;
       var totSubItens = 0;
       setoresResultado.forEach(function(s) {
         totSubEcd += s.totalEcd;
         totSubCarga += s.totalCarga;
+        totSubSomaTotal += (s.totalSomaTotal || 0);
         totSubScd += (s.totalScd || 0);
         totSubExtraviado += s.totalExtraviado;
-        totSubDesvio += (s.totalDesvioReposicao || 0);
+        totSubAcautelado += (s.totalAcautelado || 0);
+        totSubDesvio += (s.totalDesvio || 0);
         totSubItens += s.totalItens;
       });
 
@@ -3658,8 +3664,11 @@ function getResumoArvoreArmazenamento(unidadeOme) {
         setores: setoresResultado,
         totalEcd: totSubEcd,
         totalCarga: totSubCarga,
+        totalSomaTotal: totSubSomaTotal,
         totalScd: totSubScd,
         totalExtraviado: totSubExtraviado,
+        totalAcautelado: totSubAcautelado,
+        totalDesvio: totSubDesvio,
         totalDesvioReposicao: totSubDesvio,
         totalItens: totSubItens
       });
@@ -3688,8 +3697,10 @@ function getResumoArvoreArmazenamento(unidadeOme) {
     // 6. Totais globais da OME
     var totalGeralEcd = 0;
     var totalGeralCarga = 0;
+    var totalGeralSomaTotal = 0;
     var totalGeralScd = 0;
     var totalGeralExtraviado = 0;
+    var totalGeralAcautelado = 0;
     var totalGeralDesvio = 0;
     var totalGeralItens = 0;
     var totalSetoresGeral = 0;
@@ -3698,9 +3709,11 @@ function getResumoArvoreArmazenamento(unidadeOme) {
     subunidadesResultado.forEach(function(sub) {
       totalGeralEcd += sub.totalEcd;
       totalGeralCarga += sub.totalCarga;
+      totalGeralSomaTotal += (sub.totalSomaTotal || 0);
       totalGeralScd += (sub.totalScd || 0);
       totalGeralExtraviado += sub.totalExtraviado;
-      totalGeralDesvio += (sub.totalDesvioReposicao || 0);
+      totalGeralAcautelado += (sub.totalAcautelado || 0);
+      totalGeralDesvio += (sub.totalDesvio || 0);
       totalGeralItens += sub.totalItens;
       totalSetoresGeral += sub.setores.length;
       sub.setores.forEach(function(set) {
@@ -3721,8 +3734,11 @@ function getResumoArvoreArmazenamento(unidadeOme) {
         totalMateriaisDistintos: Object.keys(materiaisUnicosSet).length,
         totalQtdRealEcd: totalGeralEcd,
         totalCargaPadrao: totalGeralCarga,
+        totalSomaTotal: totalGeralSomaTotal,
         totalScd: totalGeralScd,
         totalExtraviado: totalGeralExtraviado,
+        totalAcautelado: totalGeralAcautelado,
+        totalDesvio: totalGeralDesvio,
         totalDesvioReposicao: totalGeralDesvio,
         totalItensFisicos: totalGeralItens
       }
@@ -3999,7 +4015,7 @@ function salvarCargaPadraoSetor(unidadeOme, subunidade, setor, material, novaCar
     var ehChefe = perfilNorm.indexOf("CHEFE") !== -1 || perfilNorm.indexOf("COMANDANTE") !== -1;
 
     if (!ehAdmin && !ehChefe) {
-      throw new Error("Acesso restrito: apenas Administradores ou Comandantes de Unidade possuem permissão para definir ou alterar a Carga Padrão.");
+      throw new Error("Acesso restrito: apenas Administradores ou Comandantes de Unidade possuem permissão para definir ou alterar a Quantidade Ideal.");
     }
 
     var omePadrao = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(unidadeOme) : String(unidadeOme || "").trim();
@@ -4050,7 +4066,7 @@ function salvarCargaPadraoSetor(unidadeOme, subunidade, setor, material, novaCar
     SpreadsheetApp.flush();
 
     try {
-      registrarLogAuditoria("CARGA_PADRAO", "Definiu carga padrão de " + cargaNum + " un(s) para " + matPadrao + " em " + omePadrao + " > " + subPadrao + " > " + setPadrao, dadosUser);
+      registrarLogAuditoria("CARGA_PADRAO", "Definiu quantidade ideal de " + cargaNum + " un(s) para " + matPadrao + " em " + omePadrao + " > " + subPadrao + " > " + setPadrao, dadosUser);
     } catch(eLogCg) {}
 
     return {
@@ -4062,7 +4078,7 @@ function salvarCargaPadraoSetor(unidadeOme, subunidade, setor, material, novaCar
       cargaPadrao: cargaNum
     };
   } catch (err) {
-    console.error("Erro ao salvar carga padrão: " + err.message);
+    console.error("Erro ao salvar quantidade ideal: " + err.message);
     return { sucesso: false, erro: err.message };
   }
 }

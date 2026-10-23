@@ -1087,7 +1087,7 @@
                 <i class="fa-solid fa-triangle-exclamation text-danger me-2"></i> Materiais com Itens Extraviados — Resumo da Árvore (<span id="contadorExtraviadosAdmin">0</span>)
               </span>
               <div class="text-muted" style="font-size: 0.75rem;">
-                Materiais cuja quantidade real (ECD) está abaixo da Carga Padrão cadastrada para o setor. Relação consolidada para análise e reposição imediata.
+                Materiais cuja quantidade real (ECD) está abaixo da Quantidade Ideal cadastrada para o setor. Relação consolidada para análise e reposição imediata.
               </div>
             </div>
             <div class="d-flex align-items-center gap-2 flex-wrap">
@@ -1166,7 +1166,7 @@
                 <i class="fa-solid fa-triangle-exclamation text-danger me-2"></i> Materiais com Itens Extraviados na Unidade (<span id="contadorExtraviadosChefe">0</span>)
               </span>
               <div class="text-muted" style="font-size: 0.75rem;">
-                Materiais da unidade com divergência entre a Carga Padrão e o quantitativo real existente no setor.
+                Materiais da unidade com divergência entre a Quantidade Ideal e o quantitativo real existente no setor.
               </div>
             </div>
             <div class="d-flex align-items-center gap-2">
@@ -1755,7 +1755,7 @@
                   <i class="fa-solid fa-bullseye fs-5"></i>
                 </div>
                 <div>
-                  <div class="text-muted small fw-semibold" style="font-size: 0.75rem;">Carga Padrão Total</div>
+                  <div class="text-muted small fw-semibold" style="font-size: 0.75rem;">Quantidade Ideal Total</div>
                   <div class="fs-5 fw-bold text-info" id="kpiCargaPadraoResumo">0</div>
                 </div>
               </div>
@@ -5230,7 +5230,7 @@
               ${thOme}
               <th>Subunidade / Setor</th>
               <th>Material</th>
-              <th class="text-center" style="width: 100px;">Carga Padrão</th>
+              <th class="text-center" style="width: 100px;">Quantidade Ideal</th>
               <th class="text-center" style="width: 100px;">Qtd. Real (ECD)</th>
               <th class="text-center" style="width: 80px;">SCD</th>
               <th class="text-center" style="width: 90px;">Extraviado</th>
@@ -5250,7 +5250,7 @@
           Total acumulado para reposição (Extraviados + SCD): <strong class="text-danger">${totalExtraviados} unidade(s)</strong> em <strong>${totalItens} apontamento(s)</strong>.
         </div>
         <div>
-          <i class="fa-solid fa-circle-info me-1"></i> Para ajustar a Carga Padrão ou remanejar estoques, utilize a aba <strong>Armazenamento &gt; Resumo da Árvore</strong>.
+          <i class="fa-solid fa-circle-info me-1"></i> Para ajustar a Quantidade Ideal ou remanejar estoques, utilize a aba <strong>Armazenamento &gt; Resumo da Árvore</strong>.
         </div>
       </div>
     `;
@@ -5360,7 +5360,7 @@
               <th style="width: 120px;">Unidade (OME)</th>
               <th style="width: 150px;">Subunidade / Setor</th>
               <th>Material</th>
-              <th style="text-align: center; width: 75px;">Carga Padrão</th>
+              <th style="text-align: center; width: 85px;">Qtd. Ideal</th>
               <th style="text-align: center; width: 75px;">Qtd. Real (ECD)</th>
               <th style="text-align: center; width: 55px;">SCD</th>
               <th style="text-align: center; width: 65px;">Extraviado</th>
@@ -7651,7 +7651,7 @@
       <div class="text-center text-muted py-5">
         <i class="fa-solid fa-spinner fa-spin fs-2 text-primary mb-3 d-block"></i>
         <h6 class="fw-bold text-dark">Carregando Reposição de Cargas...</h6>
-        <span class="small text-secondary">Consolidando Cargas Padrão, Extravios e itens SCD de todas as Unidades...</span>
+        <span class="small text-secondary">Consolidando Quantidades Ideais, Extravios e itens SCD de todas as Unidades...</span>
       </div>
     `;
 
@@ -7795,10 +7795,10 @@
 
     if (window.Swal) {
       Swal.fire({
-        title: '<i class="fa-solid fa-folder-tree text-primary me-2"></i>Configurar Cargas Padrão',
+        title: '<i class="fa-solid fa-folder-tree text-primary me-2"></i>Configurar Quantidades Ideais',
         html: `
           <p class="text-muted small text-start mb-3">
-            Selecione a Unidade (OME) para acessar a lista completa de materiais e cadastrar ou editar as Cargas Padrão de cada setor:
+            Selecione a Unidade (OME) para acessar a lista completa de materiais e cadastrar ou editar as Quantidades Ideais de cada setor:
           </p>
           <select id="swalSelectOmeCarga" class="form-select mb-2">
             <option value="">Selecione uma OME...</option>
@@ -7823,7 +7823,7 @@
         }
       });
     } else {
-      const escolheu = prompt("Digite o nome da OME para visualizar/editar cargas:");
+      const escolheu = prompt("Digite o nome da OME para visualizar/editar quantidades ideais:");
       if (escolheu) abrirOmeNaArvoreResumo(escolheu.trim());
     }
   }
@@ -7862,7 +7862,7 @@
         </div>
         <div class="d-flex align-items-center gap-2 flex-wrap">
           <button class="btn btn-primary btn-sm fw-bold shadow-sm" onclick="abrirModalSeletorCargasOme()">
-            <i class="fa-solid fa-folder-tree me-1"></i> Configurar Cargas Padrão (Árvore Completa)
+            <i class="fa-solid fa-folder-tree me-1"></i> Configurar Quantidade Ideal (Árvore Completa)
           </button>
           <button class="btn btn-outline-secondary btn-sm" onclick="carregarPainelMacroGestaoArvore(true)" title="Recarregar Dados">
             <i class="fa-solid fa-rotate"></i>
@@ -7906,7 +7906,7 @@
           </div>
         </div>
 
-        <!-- 2. ACESSO DIRETO: CONFIGURAÇÃO DE CARGAS PADRÃO DOS MATERIAIS -->
+        <!-- 2. ACESSO DIRETO: CONFIGURAÇÃO DE QUANTIDADES IDEAIS DOS MATERIAIS -->
         <div class="col-lg-6 col-md-12">
           <div class="card border-0 shadow-sm p-3 h-100 rounded-3" style="background: linear-gradient(135deg, #f0f7ff 0%, #ffffff 100%); border-left: 6px solid #0d6efd !important;">
             <div class="d-flex align-items-center gap-3 mb-2">
@@ -7914,7 +7914,7 @@
                 <i class="fa-solid fa-sliders fs-4"></i>
               </div>
               <div>
-                <div class="text-primary small fw-bold text-uppercase" style="letter-spacing: 0.5px; font-size: 0.75rem;">CONFIGURAR CARGA PADRÃO</div>
+                <div class="text-primary small fw-bold text-uppercase" style="letter-spacing: 0.5px; font-size: 0.75rem;">CONFIGURAR QUANTIDADE IDEAL</div>
                 <h6 class="fw-bold text-dark mb-0">Árvore Completa de Materiais</h6>
               </div>
             </div>
@@ -7952,7 +7952,7 @@
           <i class="fa-solid fa-circle-check fs-1 text-success mb-2 d-block"></i>
           <h6 class="fw-bold text-dark mb-1">Nenhum Desvio ou Necessidade de Reposição Identificada</h6>
           <p class="text-muted small mb-3">
-            Como as Cargas Padrão ainda não foram configuradas nas Unidades, selecione qualquer OME abaixo para acessar a lista completa de materiais e cadastrar as Cargas Padrão dos setores:
+            Como as Quantidades Ideais ainda não foram configuradas nas Unidades, selecione qualquer OME abaixo para acessar a lista completa de materiais e cadastrar as Quantidades Ideais dos setores:
           </p>
           <div class="d-flex justify-content-center gap-2 flex-wrap" style="max-height: 250px; overflow-y: auto;">
             ${(typeof listaOficialOmes !== 'undefined' ? listaOficialOmes : []).map(function(u) {
@@ -8265,7 +8265,7 @@
                 <th class="text-center" style="width: 35px;">#</th>
                 <th>Tipo</th>
                 <th>Material</th>
-                <th class="text-center" style="width: 95px;">Carga Padrão</th>
+                <th class="text-center" style="width: 105px;">Quantidade Ideal</th>
                 <th class="text-center" style="width: 95px;">ECD (Real)</th>
                 <th class="text-center" style="width: 80px;">SCD</th>
                 <th class="text-center" style="width: 85px;">Extraviado</th>
@@ -8297,11 +8297,11 @@
             </div>
             <h6 class="fw-bold text-dark mb-1">${escapeHtmlResumo(filtroMaterialBigQueryMacro)}</h6>
             <p class="text-muted small mb-3">
-              Este material consta na base oficial do sistema e <strong>não possui nenhum déficit ou extravio pendente de reposição</strong> apurado contra as Cargas Padrão no momento.
+              Este material consta na base oficial do sistema e <strong>não possui nenhum déficit ou extravio pendente de reposição</strong> apurado contra as Quantidades Ideais no momento.
             </p>
             <div class="d-flex justify-content-center gap-2 flex-wrap">
               <button class="btn btn-outline-primary btn-sm fw-semibold" onclick="abrirModalSeletorCargasOme()">
-                <i class="fa-solid fa-sliders me-1"></i> Configurar Cargas Padrão deste Material
+                <i class="fa-solid fa-sliders me-1"></i> Configurar Quantidade Ideal deste Material
               </button>
               <button class="btn btn-outline-secondary btn-sm fw-semibold" onclick="limparFiltroMaterialBigQueryMacro()">
                 <i class="fa-solid fa-rotate-left me-1"></i> Ver Todos os Materiais c/ Déficit
@@ -8548,7 +8548,7 @@
               <tr>
                 <th class="text-center" style="width: 35px;">#</th>
                 <th>Unidade (OME)</th>
-                <th class="text-center" style="width: 105px;">Carga Padrão</th>
+                <th class="text-center" style="width: 115px;">Quantidade Ideal</th>
                 <th class="text-center" style="width: 105px;">ECD (Real)</th>
                 <th class="text-center" style="width: 95px;">Extraviado</th>
                 <th class="text-center" style="width: 85px;">SCD</th>
@@ -8672,7 +8672,7 @@
         if (materiais.length === 0) {
           linhasMateriais = `
             <tr class="item-material-resumo-vazio">
-              <td colspan="8" class="text-center py-3 text-muted small fst-italic">
+              <td colspan="10" class="text-center py-3 text-muted small fst-italic">
                 <i class="fa-solid fa-circle-info me-1"></i> Nenhum material físico alocado neste setor.
               </td>
             </tr>
@@ -8681,10 +8681,17 @@
           materiais.forEach(function(m, mIdx) {
             const hasExtravio = (m.extraviado || 0) > 0;
             const hasScd = (m.qtdScd || 0) > 0;
-            const hasDesvio = (m.desvioReposicao || 0) > 0;
+            const hasAcautelado = (m.qtdAcautelado || 0) > 0;
+            const somaTotal = (m.somaTotal !== undefined) ? m.somaTotal : ((m.qtdReal || 0) + (m.qtdScd || 0) + (m.extraviado || 0) + (m.qtdAcautelado || 0));
+            const desvio = somaTotal - (m.cargaPadrao || 0);
+            const hasDesvio = desvio !== 0;
 
-            const badgeCarga = `<span class="fw-bold ${m.cargaPadrao > 0 ? 'text-primary' : 'text-muted'}">${m.cargaPadrao}</span>`;
-            const badgeEcd = `<span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-1 fw-bold">${m.qtdReal}</span>`;
+            const badgeIdeal = `<span class="fw-bold ${m.cargaPadrao > 0 ? 'text-primary' : 'text-muted'}">${m.cargaPadrao || 0}</span>`;
+            const badgeSomaTotal = `<span class="badge bg-secondary bg-opacity-10 text-dark border px-2 py-1 fw-bold fs-6">${somaTotal}</span>`;
+
+            const badgeEcd = (m.qtdReal || 0) > 0
+              ? `<span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-1 fw-bold" title="Em Condições de Uso (ECD)">${m.qtdReal}</span>`
+              : `<span class="badge bg-light text-muted border px-2 py-1">0</span>`;
 
             const badgeScd = hasScd
               ? `<span class="badge bg-warning bg-opacity-25 text-dark border border-warning px-2 py-1 fw-bold" title="Sem Condições de Uso (SCD)"><i class="fa-solid fa-triangle-exclamation me-1"></i>${m.qtdScd}</span>`
@@ -8694,9 +8701,18 @@
               ? `<span class="badge bg-danger text-white px-2 py-1 fw-bold" title="Falta física / Extraviado"><i class="fa-solid fa-xmark me-1"></i>${m.extraviado}</span>`
               : `<span class="badge bg-light text-muted border px-2 py-1">0</span>`;
 
-            const badgeDesvio = hasDesvio
-              ? `<span class="badge bg-danger bg-opacity-10 text-danger border border-danger px-2 py-1 fw-bold" title="Total para Reposição: ${m.extraviado} extraviado(s) + ${m.qtdScd} SCD"><i class="fa-solid fa-arrow-down me-1"></i>-${m.desvioReposicao}</span>`
-              : `<span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-1 fw-bold"><i class="fa-solid fa-check me-1"></i>0</span>`;
+            const badgeAcautelado = hasAcautelado
+              ? `<span class="badge bg-info text-dark px-2 py-1 fw-bold" title="Material Acautelado"><i class="fa-solid fa-lock me-1"></i>${m.qtdAcautelado}</span>`
+              : `<span class="badge bg-light text-muted border px-2 py-1">0</span>`;
+
+            let badgeDesvio = '';
+            if (desvio < 0) {
+              badgeDesvio = `<span class="badge bg-danger bg-opacity-10 text-danger border border-danger px-2 py-1 fw-bold" title="Déficit de ${Math.abs(desvio)} item(ns) em relação à Quantidade Ideal"><i class="fa-solid fa-arrow-down me-1"></i>${desvio}</span>`;
+            } else if (desvio > 0) {
+              badgeDesvio = `<span class="badge bg-primary bg-opacity-10 text-primary border border-primary-subtle px-2 py-1 fw-bold" title="Excedente de ${desvio} item(ns) acima da Quantidade Ideal"><i class="fa-solid fa-arrow-up me-1"></i>+${desvio}</span>`;
+            } else {
+              badgeDesvio = `<span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-1 fw-bold" title="Quantidade conforme"><i class="fa-solid fa-check me-1"></i>0</span>`;
+            }
 
             const acaoEditar = podeEditarCarga ? `
               <button class="btn btn-outline-primary btn-sm py-0 px-2 fw-semibold btn-editar-carga-padrao"
@@ -8706,23 +8722,24 @@
                 data-setor="${escapeHtmlResumo(setNome)}"
                 data-material="${escapeHtmlResumo(m.nome)}"
                 data-carga="${m.cargaPadrao}"
-                title="Definir / Editar Carga Padrão">
-                <i class="fa-solid fa-pen-to-square me-1"></i> Editar Carga
+                title="Definir / Editar Quantidade Ideal">
+                <i class="fa-solid fa-pen-to-square me-1"></i> Editar Ideal
               </button>
             ` : `<span class="text-muted small">-</span>`;
 
             linhasMateriais += `
-              <tr class="item-material-resumo" data-material="${escapeHtmlResumo(m.nome.toLowerCase())}" data-extraviado="${hasExtravio ? '1' : '0'}" data-tem-scd="${hasScd ? '1' : '0'}" data-tem-desvio="${hasDesvio ? '1' : '0'}" data-tem-carga="${m.cargaPadrao > 0 ? '1' : '0'}">
+              <tr class="item-material-resumo" data-material="${escapeHtmlResumo(m.nome.toLowerCase())}" data-extraviado="${hasExtravio ? '1' : '0'}" data-tem-scd="${hasScd ? '1' : '0'}" data-tem-acautelado="${hasAcautelado ? '1' : '0'}" data-tem-desvio="${hasDesvio ? '1' : '0'}" data-tem-carga="${m.cargaPadrao > 0 ? '1' : '0'}">
                 <td class="text-center text-muted small" style="width: 40px;">${mIdx + 1}</td>
                 <td>
                   <span class="fw-bold text-dark">${escapeHtmlResumo(m.nome)}</span>
-                  ${m.qtdAcautelado > 0 ? `<span class="badge bg-info text-dark ms-1 small" title="Acautelado">${m.qtdAcautelado} Acautelado(s)</span>` : ''}
                 </td>
-                <td class="text-center" style="width: 110px;">${badgeCarga}</td>
-                <td class="text-center" style="width: 110px;">${badgeEcd}</td>
-                <td class="text-center" style="width: 90px;">${badgeScd}</td>
-                <td class="text-center" style="width: 100px;">${badgeExtravio}</td>
-                <td class="text-center" style="width: 140px;">${badgeDesvio}</td>
+                <td class="text-center" style="width: 110px;">${badgeIdeal}</td>
+                <td class="text-center" style="width: 95px;">${badgeSomaTotal}</td>
+                <td class="text-center" style="width: 85px;">${badgeEcd}</td>
+                <td class="text-center" style="width: 85px;">${badgeScd}</td>
+                <td class="text-center" style="width: 95px;">${badgeExtravio}</td>
+                <td class="text-center" style="width: 95px;">${badgeAcautelado}</td>
+                <td class="text-center" style="width: 110px;">${badgeDesvio}</td>
                 <td class="text-center" style="width: 110px;">${acaoEditar}</td>
               </tr>
             `;
@@ -8754,11 +8771,13 @@
                 ${badgeSetorRepor}
               </div>
               <div class="d-flex align-items-center gap-2 small flex-wrap">
-                <span class="badge bg-white text-dark border"><i class="fa-solid fa-bullseye text-primary me-1"></i>Carga: <strong>${set.totalCarga}</strong></span>
-                <span class="badge bg-white text-dark border"><i class="fa-solid fa-check text-success me-1"></i>ECD: <strong>${set.totalEcd}</strong></span>
+                <span class="badge bg-white text-dark border"><i class="fa-solid fa-bullseye text-primary me-1"></i>Ideal: <strong>${set.totalCarga || 0}</strong></span>
+                <span class="badge bg-white text-dark border"><i class="fa-solid fa-boxes-stacked text-secondary me-1"></i>Total: <strong>${set.totalSomaTotal || 0}</strong></span>
+                <span class="badge bg-white text-dark border"><i class="fa-solid fa-check text-success me-1"></i>ECD: <strong>${set.totalEcd || 0}</strong></span>
                 ${(set.totalScd || 0) > 0 ? `<span class="badge bg-white text-dark border"><i class="fa-solid fa-wrench text-warning me-1"></i>SCD: <strong>${set.totalScd}</strong></span>` : ''}
                 ${(set.totalExtraviado || 0) > 0 ? `<span class="badge bg-white text-dark border"><i class="fa-solid fa-xmark text-danger me-1"></i>Extraviado: <strong>${set.totalExtraviado}</strong></span>` : ''}
-                ${(set.totalDesvioReposicao || 0) > 0 ? `<span class="badge bg-danger text-white"><i class="fa-solid fa-dolly me-1"></i>Reposição: <strong>${set.totalDesvioReposicao}</strong></span>` : ''}
+                ${(set.totalAcautelado || 0) > 0 ? `<span class="badge bg-white text-dark border"><i class="fa-solid fa-lock text-info me-1"></i>Acautelado: <strong>${set.totalAcautelado}</strong></span>` : ''}
+                <span class="badge ${(set.totalDesvio || 0) < 0 ? 'bg-danger text-white' : ((set.totalDesvio || 0) > 0 ? 'bg-primary text-white' : 'bg-success text-white')}">Desvio: <strong>${(set.totalDesvio || 0) > 0 ? '+' : ''}${set.totalDesvio || 0}</strong></span>
                 ${botaoAdicionarMaterial}
               </div>
             </div>
@@ -8768,11 +8787,13 @@
                   <tr class="small text-secondary">
                     <th class="text-center" style="width: 40px;">#</th>
                     <th>Material</th>
-                    <th class="text-center" style="width: 110px;">Carga Padrão</th>
-                    <th class="text-center" style="width: 110px;">Qtd Real (ECD)</th>
-                    <th class="text-center" style="width: 90px;">SCD</th>
-                    <th class="text-center" style="width: 100px;">Extraviado</th>
-                    <th class="text-center" style="width: 140px;">Desvio (Reposição)</th>
+                    <th class="text-center" style="width: 110px;">Quantidade Ideal</th>
+                    <th class="text-center" style="width: 95px;">Soma Total</th>
+                    <th class="text-center" style="width: 85px;">ECD</th>
+                    <th class="text-center" style="width: 85px;">SCD</th>
+                    <th class="text-center" style="width: 95px;">Extraviado</th>
+                    <th class="text-center" style="width: 95px;">Acautelado</th>
+                    <th class="text-center" style="width: 110px;">Desvio</th>
                     <th class="text-center" style="width: 110px;">Ações</th>
                   </tr>
                 </thead>
@@ -8801,11 +8822,13 @@
             </div>
             <div class="d-flex align-items-center gap-3">
               <div class="d-none d-md-flex align-items-center gap-2 small flex-wrap">
-                <span class="badge bg-white text-primary border"><i class="fa-solid fa-bullseye me-1"></i>Carga: ${sub.totalCarga}</span>
-                <span class="badge bg-white text-success border"><i class="fa-solid fa-circle-check me-1"></i>ECD: ${sub.totalEcd}</span>
+                <span class="badge bg-white text-primary border"><i class="fa-solid fa-bullseye me-1"></i>Ideal: ${sub.totalCarga || 0}</span>
+                <span class="badge bg-white text-dark border"><i class="fa-solid fa-boxes-stacked me-1"></i>Total: ${sub.totalSomaTotal || 0}</span>
+                <span class="badge bg-white text-success border"><i class="fa-solid fa-circle-check me-1"></i>ECD: ${sub.totalEcd || 0}</span>
                 ${(sub.totalScd || 0) > 0 ? `<span class="badge bg-white text-dark border"><i class="fa-solid fa-wrench text-warning me-1"></i>SCD: ${sub.totalScd}</span>` : ''}
                 ${(sub.totalExtraviado || 0) > 0 ? `<span class="badge bg-white text-dark border"><i class="fa-solid fa-xmark text-danger me-1"></i>Extraviado: ${sub.totalExtraviado}</span>` : ''}
-                ${(sub.totalDesvioReposicao || 0) > 0 ? `<span class="badge bg-danger text-white"><i class="fa-solid fa-dolly me-1"></i>Reposição: ${sub.totalDesvioReposicao}</span>` : ''}
+                ${(sub.totalAcautelado || 0) > 0 ? `<span class="badge bg-white text-dark border"><i class="fa-solid fa-lock text-info me-1"></i>Acautelado: ${sub.totalAcautelado}</span>` : ''}
+                <span class="badge ${(sub.totalDesvio || 0) < 0 ? 'bg-danger text-white' : ((sub.totalDesvio || 0) > 0 ? 'bg-primary text-white' : 'bg-success text-white')}">Desvio: ${(sub.totalDesvio || 0) > 0 ? '+' : ''}${sub.totalDesvio || 0}</span>
               </div>
               <i class="fa-solid fa-chevron-down text-secondary small chevron-icon-resumo"></i>
             </div>
@@ -8930,12 +8953,12 @@
     const ehAdmin = (typeof ehAdminGlobal === 'function') ? ehAdminGlobal() : false;
     const ehAdminOuChefe = (typeof ehAdminOuChefeGlobal === 'function') ? ehAdminOuChefeGlobal() : false;
     if (!ehAdmin && !ehAdminOuChefe) {
-      Swal.fire('Acesso Restrito', 'Apenas o perfil de Administrador ou Chefia possui permissão para definir ou alterar a Carga Padrão.', 'warning');
+      Swal.fire('Acesso Restrito', 'Apenas o perfil de Administrador ou Chefia possui permissão para definir ou alterar a Quantidade Ideal.', 'warning');
       return;
     }
 
     Swal.fire({
-      title: 'Definir Carga Padrão',
+      title: 'Definir Quantidade Ideal',
       html: `
         <div class="text-start small mb-3">
           <p class="mb-1"><strong>Unidade (OME):</strong> ${escapeHtmlResumo(ome)}</p>
@@ -8944,10 +8967,10 @@
           <p class="mb-1"><strong>Material:</strong> <span class="text-primary fw-bold">${escapeHtmlResumo(material)}</span></p>
         </div>
         <div class="text-start">
-          <label class="form-label fw-bold small">Carga Padrão (Quantidade Ideal no Setor):</label>
+          <label class="form-label fw-bold small">Quantidade Ideal no Setor:</label>
           <input type="number" id="inputNovaCargaPadrao" class="form-control" min="0" value="${cargaAtual || 0}">
           <small class="text-muted d-block mt-1">
-            A <strong>Qtd. Real (ECD)</strong> será subtraída deste valor para determinar o <strong>Extraviado</strong> (Carga Padrão - Qtd. Real).
+            A <strong>Quantidade Ideal</strong> será comparada com a <strong>Soma Total</strong> física no setor para apurar o <strong>Desvio</strong>.
           </small>
         </div>
       `,
@@ -8968,7 +8991,7 @@
       if (result.isConfirmed) {
         const novaCarga = result.value;
         Swal.fire({
-          title: 'Salvando Carga Padrão...',
+          title: 'Salvando Quantidade Ideal...',
           allowOutsideClick: false,
           didOpen: () => Swal.showLoading()
         });
@@ -8982,14 +9005,14 @@
             if (resp && resp.sucesso) {
               Swal.fire({
                 icon: 'success',
-                title: 'Carga Padrão Salva!',
-                text: `Carga Padrão definida para ${novaCarga} unidade(s).`,
+                title: 'Quantidade Ideal Salva!',
+                text: `Quantidade Ideal definida para ${novaCarga} unidade(s).`,
                 timer: 1800,
                 showConfirmButton: false
               });
               carregarResumoArvoreArmazenamento(true);
             } else {
-              Swal.fire('Erro', (resp && resp.erro) ? resp.erro : 'Falha ao salvar carga padrão.', 'error');
+              Swal.fire('Erro', (resp && resp.erro) ? resp.erro : 'Falha ao salvar quantidade ideal.', 'error');
             }
           })
           .withFailureHandler(function(err) {
@@ -9004,7 +9027,7 @@
     const ehAdmin = (typeof ehAdminGlobal === 'function') ? ehAdminGlobal() : false;
     const ehAdminOuChefe = (typeof ehAdminOuChefeGlobal === 'function') ? ehAdminOuChefeGlobal() : false;
     if (!ehAdmin && !ehAdminOuChefe) {
-      Swal.fire('Acesso Restrito', 'Apenas o perfil de Administrador ou Chefia possui permissão para definir ou alterar a Carga Padrão.', 'warning');
+      Swal.fire('Acesso Restrito', 'Apenas o perfil de Administrador ou Chefia possui permissão para definir ou alterar a Quantidade Ideal.', 'warning');
       return;
     }
 
@@ -9015,7 +9038,7 @@
     });
 
     Swal.fire({
-      title: 'Adicionar Carga Padrão ao Setor',
+      title: 'Adicionar Quantidade Ideal ao Setor',
       html: `
         <div class="text-start small mb-3">
           <p class="mb-1"><strong>Unidade (OME):</strong> ${escapeHtmlResumo(ome)}</p>
@@ -9031,7 +9054,7 @@
           <input type="text" id="swalInputMatCarga" class="form-control form-control-sm" placeholder="Nome exato do material...">
         </div>
         <div class="text-start">
-          <label class="form-label fw-bold small">Carga Padrão (Quantidade Ideal):</label>
+          <label class="form-label fw-bold small">Quantidade Ideal:</label>
           <input type="number" id="swalInputQtdCarga" class="form-control form-control-sm" min="1" value="1">
         </div>
       `,
@@ -9074,7 +9097,7 @@
               Swal.fire({
                 icon: 'success',
                 title: 'Carga Adicionada!',
-                text: `Carga Padrão de ${material} definida para ${carga} unidade(s).`,
+                text: `Quantidade Ideal de ${material} definida para ${carga} unidade(s).`,
                 timer: 1800,
                 showConfirmButton: false
               });
@@ -10204,7 +10227,7 @@ window.carregarLocaisArvoreGeral = function() {
       kpisHtml = `
         <div class="kpis-grid">
           <div class="kpi-card" style="border-top: 3px solid #0d6efd;">
-            <div class="kpi-title">Carga Padrão Total</div>
+            <div class="kpi-title">Quantidade Ideal Total</div>
             <div class="kpi-val" style="color: #0d6efd;">${(totais.totalCarga || 0).toLocaleString('pt-BR')}</div>
           </div>
           <div class="kpi-card" style="border-top: 3px solid #10b981;">
@@ -10250,26 +10273,22 @@ window.carregarLocaisArvoreGeral = function() {
             linhasMats = '<tr><td colspan="8" style="text-align: center; color: #888; font-style: italic; padding: 6px;">Nenhum material físico alocado neste setor.</td></tr>';
           } else {
             materiais.forEach((m, idx) => {
-              const hasExtravio = (m.extraviado || 0) > 0;
-              const hasScd = (m.qtdScd || 0) > 0;
-              const hasDesvio = (m.desvioReposicao || 0) > 0;
-
-              const corDesvio = hasDesvio ? 'color: #dc2626; font-weight: bold;' : 'color: #10b981;';
-              const bgLinha = hasDesvio ? 'background-color: #fef2f2;' : '';
+              const somaTotal = (m.somaTotal !== undefined) ? m.somaTotal : ((m.qtdReal || 0) + (m.qtdScd || 0) + (m.extraviado || 0) + (m.qtdAcautelado || 0));
+              const desvio = somaTotal - (m.cargaPadrao || 0);
+              const corDesvio = desvio < 0 ? 'color: #dc2626; font-weight: bold;' : (desvio > 0 ? 'color: #0d6efd; font-weight: bold;' : 'color: #10b981;');
+              const bgLinha = desvio < 0 ? 'background-color: #fef2f2;' : '';
 
               linhasMats += `
                 <tr style="${bgLinha}">
                   <td style="text-align: center; width: 35px;">${idx + 1}</td>
-                  <td style="font-weight: 600;">
-                    ${m.nome}
-                    ${m.qtdAcautelado > 0 ? `<span class="badge-acaut">(${m.qtdAcautelado} Acautelado)</span>` : ''}
-                  </td>
+                  <td style="font-weight: 600;">${m.nome}</td>
                   <td style="text-align: center; font-weight: bold; color: #0d6efd;">${m.cargaPadrao || 0}</td>
+                  <td style="text-align: center; font-weight: bold; color: #1e293b;">${somaTotal}</td>
                   <td style="text-align: center; font-weight: bold; color: #10b981;">${m.qtdReal || 0}</td>
                   <td style="text-align: center; color: #b45309; font-weight: bold;">${m.qtdScd || 0}</td>
                   <td style="text-align: center; color: #dc2626; font-weight: bold;">${m.extraviado || 0}</td>
-                  <td style="text-align: center; ${corDesvio}">${hasDesvio ? '-' + m.desvioReposicao : '0'}</td>
-                  <td style="text-align: center; color: #0284c7;">${m.qtdAcautelado || 0}</td>
+                  <td style="text-align: center; color: #0284c7; font-weight: bold;">${m.qtdAcautelado || 0}</td>
+                  <td style="text-align: center; ${corDesvio}">${desvio > 0 ? '+' : ''}${desvio}</td>
                 </tr>
               `;
             });
@@ -10286,12 +10305,13 @@ window.carregarLocaisArvoreGeral = function() {
                   <tr>
                     <th style="width: 35px; text-align: center;">#</th>
                     <th>Material</th>
-                    <th style="width: 80px; text-align: center;">Carga</th>
-                    <th style="width: 80px; text-align: center;">Qtd Real</th>
-                    <th style="width: 75px; text-align: center;">SCD</th>
+                    <th style="width: 80px; text-align: center;">Qtd. Ideal</th>
+                    <th style="width: 75px; text-align: center;">Soma Total</th>
+                    <th style="width: 75px; text-align: center;">ECD</th>
+                    <th style="width: 65px; text-align: center;">SCD</th>
                     <th style="width: 75px; text-align: center;">Extraviado</th>
-                    <th style="width: 90px; text-align: center;">Desvio</th>
-                    <th style="width: 75px; text-align: center;">Acaut.</th>
+                    <th style="width: 75px; text-align: center;">Acautelado</th>
+                    <th style="width: 80px; text-align: center;">Desvio</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -10488,9 +10508,14 @@ window.carregarLocaisArvoreGeral = function() {
               }
             }
 
+            const somaTotal = (m.somaTotal !== undefined) ? m.somaTotal : ((m.qtdReal || 0) + (m.qtdScd || 0) + (m.extraviado || 0) + (m.qtdAcautelado || 0));
+            const desvio = somaTotal - (m.cargaPadrao || 0);
+
             let situacao = 'REGULAR';
-            if ((m.desvioReposicao || 0) > 0) {
-              situacao = 'REPOSIÇÃO NECESSÁRIA';
+            if (desvio < 0) {
+              situacao = 'DÉFICIT (' + Math.abs(desvio) + ' FALTANDO)';
+            } else if (desvio > 0) {
+              situacao = 'EXCEDENTE (+' + desvio + ')';
             } else if ((m.extraviado || 0) > 0) {
               situacao = 'EXTRAVIADO';
             } else if ((m.qtdScd || 0) > 0) {
@@ -10502,12 +10527,13 @@ window.carregarLocaisArvoreGeral = function() {
               "Subunidade": subNome,
               "Setor": setNome,
               "Material (Objeto)": m.nome,
-              "Carga Padrão (Prevista)": m.cargaPadrao || 0,
+              "Quantidade Ideal": m.cargaPadrao || 0,
+              "Soma Total": somaTotal,
               "Qtd Real (ECD)": m.qtdReal || 0,
               "Qtd Avariada (SCD)": m.qtdScd || 0,
               "Qtd Extraviada": m.extraviado || 0,
-              "Desvio p/ Reposição": m.desvioReposicao || 0,
               "Qtd Acautelada": m.qtdAcautelado || 0,
+              "Desvio": desvio,
               "Situação": situacao
             });
           });
@@ -10525,12 +10551,13 @@ window.carregarLocaisArvoreGeral = function() {
         { wch: 20 }, // Subunidade
         { wch: 25 }, // Setor
         { wch: 38 }, // Material
-        { wch: 16 }, // Carga Padrao
+        { wch: 18 }, // Quantidade Ideal
+        { wch: 14 }, // Soma Total
         { wch: 15 }, // Qtd Real (ECD)
         { wch: 16 }, // SCD
-        { wch: 18 }, // Extraviada
-        { wch: 18 }, // Desvio Reposicao
+        { wch: 16 }, // Extraviada
         { wch: 16 }, // Acautelada
+        { wch: 14 }, // Desvio
         { wch: 24 }  // Situacao
       ];
 
