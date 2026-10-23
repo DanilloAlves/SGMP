@@ -8746,10 +8746,6 @@
           });
         }
 
-        const badgeSetorRepor = (set.totalDesvioReposicao || 0) > 0
-          ? `<span class="badge bg-danger ms-1"><i class="fa-solid fa-triangle-exclamation me-1"></i>${set.totalDesvioReposicao} p/ reposição</span>`
-          : '';
-
         const botaoAdicionarMaterial = podeEditarCarga ? `
           <button class="btn btn-outline-secondary btn-sm py-0 px-2 small ms-auto"
             onclick="aoClicarAdicionarCargaMaterial(this)"
@@ -8768,7 +8764,6 @@
                 <i class="fa-solid fa-location-dot text-danger"></i>
                 <span class="fw-bold text-dark">${escapeHtmlResumo(setNome)}</span>
                 <span class="badge bg-secondary opacity-75">${materiais.length} material(is)</span>
-                ${badgeSetorRepor}
               </div>
               <div class="d-flex align-items-center gap-2 small flex-wrap">
                 <span class="badge bg-white text-dark border"><i class="fa-solid fa-bullseye text-primary me-1"></i>Ideal: <strong>${set.totalCarga || 0}</strong></span>
@@ -8806,10 +8801,6 @@
         `;
       });
 
-      const badgeSubRepor = (sub.totalDesvioReposicao || 0) > 0
-        ? `<span class="badge bg-danger ms-2"><i class="fa-solid fa-triangle-exclamation me-1"></i>${sub.totalDesvioReposicao} p/ reposição</span>`
-        : '';
-
       html += `
         <div class="card mb-3 border shadow-sm subunidade-card-resumo" data-subunidade="${escapeHtmlResumo(subNome.toLowerCase())}">
           <div class="card-header bg-light py-2 px-3 d-flex align-items-center justify-content-between header-subunidade-resumo collapsed" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#collapseResumoSub_${subIdx}">
@@ -8818,7 +8809,6 @@
               <span class="fw-bold text-dark fs-6">${escapeHtmlResumo(subNome)}${escapeHtmlResumo(subOficial)}</span>
               <span class="badge bg-secondary ms-1">${sub.setores.length} setor(es)</span>
               <span class="badge bg-light text-secondary border ms-1">${totalMateriaisSub} material(is)</span>
-              ${badgeSubRepor}
             </div>
             <div class="d-flex align-items-center gap-3">
               <div class="d-none d-md-flex align-items-center gap-2 small flex-wrap">
