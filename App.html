@@ -270,10 +270,12 @@
 
     /* Tags Rápidas de Avaria (1 Toque) */
     .tag-avaria-rapida {
-      display: inline-block;
-      padding: 4px 10px;
-      margin: 3px 2px;
-      font-size: 0.78rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 9px;
+      margin: 2px 2px;
+      font-size: 0.74rem;
       font-weight: 600;
       background: #fee2e2;
       color: #991b1b;
@@ -281,6 +283,7 @@
       border-radius: 12px;
       cursor: pointer;
       transition: all 0.15s;
+      user-select: none;
     }
     .tag-avaria-rapida:active, .tag-avaria-rapida:hover {
       background: #fecaca;
@@ -291,9 +294,9 @@
     .card-item-checklist-mobile {
       background: #ffffff;
       border: 1px solid #e2e8f0;
-      border-radius: 10px;
-      padding: 14px;
-      margin-bottom: 12px;
+      border-radius: 8px;
+      padding: 12px 10px;
+      margin-bottom: 10px;
       box-shadow: 0 1px 3px rgba(0,0,0,0.03);
       transition: all 0.2s ease;
     }
@@ -313,19 +316,70 @@
     }
 
     /* Botões Táteis Mobile */
-    .btn-touch-check {
-      min-height: 38px;
-      font-size: 0.78rem;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 5px;
-      border-radius: 8px;
-      font-weight: 600;
+    .btn-group-checklist-mobile {
+      display: flex !important;
+      flex-direction: row !important;
+      gap: 5px !important;
+      width: 100% !important;
+      align-items: stretch !important;
+      box-sizing: border-box !important;
+    }
+
+    .btn-group-checklist-mobile .btn-touch-check {
+      flex: 1 1 0 !important;
+      width: 0 !important;
+      min-width: 0 !important;
+      min-height: 38px !important;
+      padding: 6px 3px !important;
+      font-size: 0.74rem !important;
+      font-weight: 600 !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      gap: 4px !important;
+      border-radius: 8px !important;
+      line-height: 1.15 !important;
+      box-sizing: border-box !important;
+      transition: all 0.15s ease-in-out !important;
+      white-space: nowrap !important;
+    }
+
+    .btn-group-checklist-mobile .btn-touch-check i {
+      font-size: 0.8rem !important;
+      flex-shrink: 0 !important;
+    }
+
+    .btn-group-checklist-mobile .btn-touch-check .btn-text {
+      overflow: hidden !important;
+      text-overflow: ellipsis !important;
+      white-space: nowrap !important;
+      display: inline-block !important;
+    }
+
+    /* Cores de Botão Ativo */
+    .btn-touch-check.btn-outline-success.active {
+      background-color: #16a34a !important;
+      border-color: #16a34a !important;
+      color: #ffffff !important;
+      box-shadow: 0 2px 4px rgba(22, 163, 74, 0.25) !important;
+    }
+
+    .btn-touch-check.btn-outline-warning.active {
+      background-color: #d97706 !important;
+      border-color: #d97706 !important;
+      color: #ffffff !important;
+      box-shadow: 0 2px 4px rgba(217, 119, 6, 0.25) !important;
+    }
+
+    .btn-touch-check.btn-outline-danger.active {
+      background-color: #dc2626 !important;
+      border-color: #dc2626 !important;
+      color: #ffffff !important;
+      box-shadow: 0 2px 4px rgba(220, 38, 38, 0.25) !important;
     }
 
     .banner-subnivel-mobile {
-      font-size: 0.95rem;
+      font-size: 0.88rem;
       font-weight: 700;
     }
 
@@ -335,7 +389,7 @@
         overflow-x: hidden;
       }
       .app-header-top {
-        padding: 10px 14px;
+        padding: 10px 12px;
       }
       .app-title {
         font-size: 1.05rem;
@@ -386,14 +440,86 @@
         margin-bottom: 10px;
       }
       #content {
-        padding: 10px 8px !important;
+        padding: 8px 6px !important;
         width: 100% !important;
         max-width: 100vw;
         box-sizing: border-box;
       }
       .card-custom {
-        padding: 14px 10px !important;
+        padding: 10px 8px !important;
         border-radius: 10px;
+      }
+
+      /* Compactação e eliminação de bordas aninhadas na aba Checklist */
+      #aba-checklist .card-custom {
+        padding: 4px 2px !important;
+        border: none !important;
+        background: transparent !important;
+        box-shadow: none !important;
+      }
+
+      .ome-accordion-group {
+        border-radius: 8px !important;
+        margin-bottom: 8px !important;
+      }
+      .ome-accordion-group > .card-body {
+        padding: 4px 2px !important;
+      }
+
+      .subunidade-accordion-group {
+        border-radius: 8px !important;
+        margin-bottom: 6px !important;
+      }
+      .subunidade-accordion-group > .card-header {
+        padding: 6px 8px !important;
+      }
+      .subunidade-accordion-group > .collapse > .card-body {
+        padding: 4px 2px !important;
+      }
+
+      .item-local-accordion {
+        border-radius: 8px !important;
+        margin-bottom: 6px !important;
+      }
+      .item-local-accordion .accordion-button {
+        padding: 8px 34px 8px 8px !important;
+        display: flex !important;
+        flex-wrap: wrap !important;
+        align-items: center !important;
+        gap: 4px !important;
+        font-size: 0.92rem !important;
+      }
+      .item-local-accordion .accordion-button::after {
+        position: absolute !important;
+        right: 8px !important;
+        margin-left: auto !important;
+      }
+      .item-local-accordion .accordion-body {
+        padding: 6px 4px !important;
+      }
+
+      .card-grupo-objeto-mobile {
+        margin-bottom: 6px !important;
+        border-radius: 8px !important;
+      }
+      .header-grupo-mob {
+        padding: 8px 10px !important;
+      }
+      .corpo-grupo-mob {
+        padding: 6px 4px !important;
+      }
+
+      .card-item-checklist-mobile {
+        padding: 10px 8px !important;
+        margin-bottom: 8px !important;
+        border-radius: 8px !important;
+      }
+
+      .banner-subnivel-mobile {
+        padding: 6px 8px !important;
+        margin-top: 6px !important;
+        margin-bottom: 6px !important;
+        font-size: 0.86rem !important;
       }
 
       .marca-dagua-cbmpe-container {
@@ -416,7 +542,7 @@
         right: 0;
         background: #ffffff;
         border-top: 1px solid #cbd5e1;
-        padding: 10px 14px;
+        padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0px)) 14px;
         box-shadow: 0 -4px 12px rgba(0,0,0,0.08);
         z-index: 1030;
         align-items: center;
@@ -424,9 +550,26 @@
         gap: 10px;
       }
       .espacador-rodape-mobile {
-        height: 70px;
+        height: 80px;
         display: block;
       }
+    }
+
+    body.modo-mobile-ativo #aba-checklist .card-custom {
+      padding: 4px 2px !important;
+      border: none !important;
+      background: transparent !important;
+      box-shadow: none !important;
+    }
+    body.modo-mobile-ativo .ome-accordion-group > .card-body,
+    body.modo-mobile-ativo .subunidade-accordion-group > .collapse > .card-body,
+    body.modo-mobile-ativo .item-local-accordion .accordion-body,
+    body.modo-mobile-ativo .corpo-grupo-mob {
+      padding: 6px 4px !important;
+    }
+    body.modo-mobile-ativo .card-item-checklist-mobile {
+      padding: 10px 8px !important;
+      margin-bottom: 8px !important;
     }
 
     /* Modos Forçados Manualmente pelo Usuário */
@@ -18782,11 +18925,11 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     const exibirHeaderSubnivel = temSubniveis || numSubgrupos > 1;
 
     let bodyHtml = `
-      <div class="d-flex justify-content-between align-items-center mb-2 px-1">
-        <div class="small text-muted">
-          <i class="fa-solid fa-layer-group me-1 text-primary"></i>Materiais agrupados por nome
+      <div class="d-flex justify-content-between align-items-center mb-2 px-1 barra-agrupados-nome">
+        <div class="small text-muted text-truncate fw-semibold" style="font-size: 0.78rem;">
+          <i class="fa-solid fa-layer-group me-1 text-primary"></i>Agrupados por nome
         </div>
-        <div class="d-flex gap-1">
+        <div class="d-flex gap-1 flex-shrink-0">
           <button type="button" class="btn btn-xs btn-outline-secondary py-1 px-2" style="font-size: 0.72rem;" onclick="toggleTodosGruposDivisao('${unitIndex}', true)">
             <i class="fa-solid fa-expand me-1"></i>Expandir Todos
           </button>
@@ -19021,22 +19164,16 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
               </div>
 
               <!-- BOTÕES TÁTEIS: CONFORME vs AVARIA vs EXTRAVIADO -->
-              <div class="row g-1 mt-2">
-                <div class="col-4">
-                  <button type="button" class="btn btn-sm btn-outline-success w-100 btn-touch-check active px-1" id="btn-mob-ok-${i.item}" onclick="marcarItemMobile('${i.item}', 'conforme')">
-                    <i class="fa-solid fa-circle-check me-1"></i>Conforme
-                  </button>
-                </div>
-                <div class="col-4">
-                  <button type="button" class="btn btn-sm btn-outline-warning w-100 btn-touch-check px-1" id="btn-mob-avaria-${i.item}" onclick="marcarItemMobile('${i.item}', 'avaria')" ${disabledAttr}>
-                    <i class="fa-solid fa-triangle-exclamation me-1"></i>Avaria
-                  </button>
-                </div>
-                <div class="col-4">
-                  <button type="button" class="btn btn-sm btn-outline-danger w-100 btn-touch-check px-1" id="btn-mob-extraviado-${i.item}" onclick="marcarItemMobile('${i.item}', 'extraviado')" ${disabledAttr}>
-                    <i class="fa-solid fa-person-falling-burst me-1"></i>Extraviado
-                  </button>
-                </div>
+              <div class="btn-group-checklist-mobile mt-2">
+                <button type="button" class="btn btn-sm btn-outline-success btn-touch-check active" id="btn-mob-ok-${i.item}" onclick="marcarItemMobile('${i.item}', 'conforme')">
+                  <i class="fa-solid fa-circle-check"></i><span class="btn-text">Conforme</span>
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-warning btn-touch-check" id="btn-mob-avaria-${i.item}" onclick="marcarItemMobile('${i.item}', 'avaria')" ${disabledAttr}>
+                  <i class="fa-solid fa-triangle-exclamation"></i><span class="btn-text">Avaria</span>
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-danger btn-touch-check" id="btn-mob-extraviado-${i.item}" onclick="marcarItemMobile('${i.item}', 'extraviado')" ${disabledAttr}>
+                  <i class="fa-solid fa-person-falling-burst"></i><span class="btn-text">Extraviado</span>
+                </button>
               </div>
 
               <!-- CAMPO DE DESCRIÇÃO DA AVARIA / EXTRAVIO COM TAGS RÁPIDAS DE 1 TOQUE -->
@@ -19101,14 +19238,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
         </h2>
         <div id="${collapseId}" class="accordion-collapse collapse" aria-labelledby="${headingId}">
           <div class="accordion-body p-2 p-md-3">
-            <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom flex-wrap gap-2">
-              <div class="small text-muted">
-                <i class="fa-solid fa-layer-group me-1"></i>Divisão: <strong>${tituloFlag}</strong> (${subRes} • ${omeRaw})
-              </div>
-              <button type="button" class="btn btn-xs btn-outline-secondary px-2 py-1 small" onclick="abrirModalQrCodeChecklist(event, '${(omeRaw || '').replace(/'/g, "\\'")}', '${(subRes || '').replace(/'/g, "\\'")}', '${(tituloFlag || '').replace(/'/g, "\\'")}')">
-                <i class="fa-solid fa-qrcode me-1 text-danger"></i>Plaqueta QR Code desta Divisão
-              </button>
-            </div>
+              <button type="button" class="btn btn-xs btn-outline-secondary px-2 py-1 text-nowrap flex-shrink-0" style="font-size: 0.74rem;" onclick="abrirModalQrCodeChecklist(event, '${(omeRaw || '').replace(/'/g, "\\'")}', '${(subRes || '').replace(/'/g, "\\'")}', '${(tituloFlag || '').replace(/'/g, "\\'")}')">
             ${corpoHtml}
           </div>
         </div>
