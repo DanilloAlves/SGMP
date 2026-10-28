@@ -856,6 +856,9 @@
     <button class="top-tab-btn" id="menu-checklist" onclick="mudarAba('checklist')">
       <i class="fa-solid fa-clipboard-check"></i> Checklist & Inspeção
     </button>
+    <button class="top-tab-btn" id="menu-frotas" onclick="mudarAba('frotas')">
+      <i class="fa-solid fa-car-side"></i> Gestão de Frotas
+    </button>
     
     <!-- NOVO BOTÃO DE USUÁRIOS AQUI -->
     <button class="top-tab-btn" id="menu-gerenciar-usuarios" onclick="mudarAba('gerenciar-usuarios'); carregarListaUsuarios();" style="display: none;">
@@ -3334,6 +3337,349 @@
 
 </div>
 
+<!-- ========================================================================= -->
+<!-- ABA: GESTÃO DE FROTAS (Peculio_Viatura) -->
+<!-- ========================================================================= -->
+<div id="aba-frotas" class="container-fluid p-0" style="display: none;">
+  <div class="frotas-wrapper d-flex rounded-3 overflow-hidden shadow-sm border bg-white mb-4" style="min-height: calc(100vh - 170px);">
+    
+    <!-- SIDEBAR FROTAS (Idêntica ao layout em anexo) -->
+    <aside id="sidebarFrotas" class="frotas-sidebar d-flex flex-column justify-content-between p-2 text-white" style="background-color: #800000; width: 220px; transition: width 0.25s ease; flex-shrink: 0;">
+      <div>
+        <!-- Botão Toggle de Recolher/Expandir Menu -->
+        <div class="d-flex justify-content-end mb-2 px-1">
+          <button type="button" class="btn btn-sm text-white-50 p-1" onclick="alternarSidebarFrotas()" title="Recolher/Expandir menu" style="font-size: 13px;">
+            <i class="fa-solid fa-bars" id="iconeToggleSidebarFrotas"></i>
+          </button>
+        </div>
+
+        <!-- Menu de Itens -->
+        <ul class="nav flex-column gap-1 list-unstyled mb-0">
+          <li>
+            <a href="#" class="nav-link frotas-nav-link active d-flex align-items-center text-white py-2 px-3 rounded-2" id="navFrotasPeculio" onclick="alternarMenuFrotas('peculio'); return false;">
+              <i class="fa-solid fa-car-side frotas-icon fs-5"></i>
+              <span class="frotas-nav-text ms-3 fw-semibold small">Pecúlio</span>
+            </a>
+          </li>
+          <li>
+            <a href="#" class="nav-link frotas-nav-link d-flex align-items-center text-white-50 py-2 px-3 rounded-2" id="navFrotasDesativadas" onclick="alternarMenuFrotas('desativadas'); return false;">
+              <i class="fa-solid fa-road-barrier frotas-icon fs-5"></i>
+              <span class="frotas-nav-text ms-3 fw-semibold small">Desativadas</span>
+            </a>
+          </li>
+          <li>
+            <a href="#" class="nav-link frotas-nav-link d-flex align-items-center text-white-50 py-2 px-3 rounded-2" id="navFrotasRelatorios" onclick="alternarMenuFrotas('relatorios'); return false;">
+              <i class="fa-solid fa-gas-pump frotas-icon fs-5"></i>
+              <span class="frotas-nav-text ms-3 fw-semibold small">Relatórios</span>
+            </a>
+          </li>
+          <li>
+            <a href="#" class="nav-link frotas-nav-link d-flex align-items-center text-white-50 py-2 px-3 rounded-2" id="navFrotasPermissoes" onclick="alternarMenuFrotas('permissoes'); return false;">
+              <i class="fa-solid fa-user-shield frotas-icon fs-5"></i>
+              <span class="frotas-nav-text ms-3 fw-semibold small">Permissões</span>
+            </a>
+          </li>
+        </ul>
+      </div>
+
+      <!-- Rodapé do Usuário na Sidebar -->
+      <div class="frotas-user-box border-top border-white-50 pt-2 px-2 mt-auto d-flex align-items-center justify-content-between">
+        <div class="d-flex align-items-center overflow-hidden">
+          <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/7/7c/NOVO_BRAS%C3%83O_2024_CBMPE.png/500px-NOVO_BRAS%C3%83O_2024_CBMPE.png" alt="Brasão" class="rounded-circle bg-white p-1" style="width: 32px; height: 32px; object-fit: contain; flex-shrink: 0;">
+          <div class="ms-2 frotas-nav-text text-truncate">
+            <span class="d-block fw-bold small text-white" id="frotasNomeUsuarioSidebar">MILITAR</span>
+            <span class="d-block text-white-50" style="font-size: 10px;">Gestão de Frotas</span>
+          </div>
+        </div>
+        <button class="btn btn-sm text-white-50 p-1 ms-1" onclick="deslogarSistema()" title="Sair">
+          <i class="fa-solid fa-arrow-right-from-bracket"></i>
+        </button>
+      </div>
+    </aside>
+
+    <!-- ÁREA PRINCIPAL DA GESTÃO DE FROTAS -->
+    <main class="frotas-main flex-grow-1 p-4 bg-light overflow-auto">
+      
+      <!-- CABEÇALHO COM ÍCONE, TÍTULO E CONTADOR TOTAL -->
+      <div class="d-flex justify-content-between align-items-center mb-4 pb-2 border-bottom">
+        <div class="d-flex align-items-center">
+          <div class="frotas-badge-header rounded-3 d-flex align-items-center justify-content-center shadow-sm" style="width: 48px; height: 48px; background-color: #800000; color: #ffffff;">
+            <i class="fa-solid fa-car-side fs-4"></i>
+          </div>
+          <div class="ms-3">
+            <h2 class="fw-bold mb-0 text-dark" id="frotasTituloPrincipal" style="letter-spacing: -0.02em;">Viaturas</h2>
+          </div>
+        </div>
+        <div class="text-end">
+          <span class="d-block text-muted small fw-semibold text-uppercase" style="font-size: 11px; letter-spacing: 0.05em;">Total</span>
+          <span class="fw-bold text-dark" id="frotasContadorTotal" style="font-size: 42px; line-height: 1;">0</span>
+        </div>
+      </div>
+
+      <!-- VISÃO: PECÚLIO (LISTAGEM PRINCIPAL) -->
+      <div id="visaoFrotasPeculio">
+        
+        <!-- BARRA DE FILTROS (OME, BUSCA, BOTÃO FILTRAR) -->
+        <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+          <!-- Dropdown OME -->
+          <div class="input-group input-group-sm" style="max-width: 250px;">
+            <span class="input-group-text bg-white text-danger border-end-0">
+              <i class="fa-solid fa-location-dot"></i>
+            </span>
+            <select class="form-select border-start-0 ps-0" id="filtroFrotasOme" onchange="aplicarFiltrosFrotas()">
+              <option value="">Todas as OMEs</option>
+            </select>
+          </div>
+
+          <!-- Campo de Busca -->
+          <div class="input-group input-group-sm flex-grow-1" style="max-width: 320px;">
+            <span class="input-group-text bg-white text-muted border-end-0">
+              <i class="fa-solid fa-magnifying-glass"></i>
+            </span>
+            <input type="text" class="form-control border-start-0 ps-0" id="filtroFrotasPesquisa" placeholder="Pesquisar..." onkeyup="if(event.key==='Enter') aplicarFiltrosFrotas()">
+          </div>
+
+          <!-- Botão Filtrar -->
+          <button type="button" class="btn btn-sm text-white fw-bold px-3 shadow-sm" style="background-color: #800000; border-color: #800000;" onclick="aplicarFiltrosFrotas()">
+            <i class="fa-solid fa-filter me-1"></i> Filtrar
+          </button>
+
+          <!-- Botão Recarregar -->
+          <button type="button" class="btn btn-sm btn-outline-secondary px-2" title="Recarregar base" onclick="carregarDadosFrotas(true)">
+            <i class="fa-solid fa-rotate"></i>
+          </button>
+        </div>
+
+        <!-- BARRA DE LEGENDAS / FILTROS RÁPIDOS POR SITUAÇÃO -->
+        <div class="d-flex align-items-center gap-2 mb-4 flex-wrap small">
+          <span class="text-danger me-1"><i class="fa-solid fa-circle-info"></i></span>
+          
+          <button type="button" class="btn btn-sm btn-light border py-1 px-3 rounded-pill d-inline-flex align-items-center gap-2 frotas-pill-filtro active" id="pillFiltroAtiva" onclick="alternarFiltroRapidoSituacao('Ativa')">
+            <span class="rounded-circle" style="width: 8px; height: 8px; background-color: #22c55e;"></span>
+            <span>Ativa</span>
+            <span class="badge bg-success rounded-pill px-2 py-1 ms-1" id="contFrotasAtiva">0</span>
+          </button>
+
+          <button type="button" class="btn btn-sm btn-light border py-1 px-3 rounded-pill d-inline-flex align-items-center gap-2 frotas-pill-filtro active" id="pillFiltroManutencao" onclick="alternarFiltroRapidoSituacao('Manutenção')">
+            <span class="rounded-circle" style="width: 8px; height: 8px; background-color: #ef4444;"></span>
+            <span>Manutenção</span>
+            <span class="badge bg-danger rounded-pill px-2 py-1 ms-1" id="contFrotasManutencao">0</span>
+          </button>
+
+          <button type="button" class="btn btn-sm btn-light border py-1 px-3 rounded-pill d-inline-flex align-items-center gap-2 frotas-pill-filtro active" id="pillFiltroDesfazimento" onclick="alternarFiltroRapidoSituacao('Processo de Desfazimento')">
+            <span class="rounded-circle" style="width: 8px; height: 8px; background-color: #f97316;"></span>
+            <span>Processo de Desfazimento</span>
+            <span class="badge bg-warning text-dark rounded-pill px-2 py-1 ms-1" id="contFrotasDesfazimento">0</span>
+          </button>
+
+          <button type="button" class="btn btn-link btn-sm text-secondary text-decoration-none p-0 ms-2" onclick="limparFiltrosFrotas()">
+            <i class="fa-solid fa-xmark me-1"></i> Limpar filtros
+          </button>
+        </div>
+
+        <!-- TABELA DE VIATURAS -->
+        <div class="card border-0 shadow-sm rounded-3 overflow-hidden bg-white mb-3">
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0 text-nowrap" id="tabelaFrotasViaturas">
+              <thead class="bg-light text-uppercase text-secondary" style="font-size: 11px; letter-spacing: 0.05em;">
+                <tr>
+                  <th class="text-center py-3" style="width: 140px;">SITUAÇÃO</th>
+                  <th class="text-center py-3">NOME</th>
+                  <th class="text-center py-3">OME</th>
+                  <th class="text-center py-3">PLACA</th>
+                  <th class="text-center py-3">PATRIMÔNIO</th>
+                  <th class="py-3">MARCA/MODELO</th>
+                  <th class="text-center py-3">ANO</th>
+                  <th class="text-center py-3" style="width: 120px;">SALDO</th>
+                </tr>
+              </thead>
+              <tbody id="corpoTabelaFrotas" class="small">
+                <tr>
+                  <td colspan="8" class="text-center py-5 text-muted">
+                    <i class="fa-solid fa-spinner fa-spin fa-2x text-danger mb-2"></i><br>Carregando viaturas da frota...
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- PAGINAÇÃO -->
+          <div class="card-footer bg-white d-flex justify-content-between align-items-center py-2 px-3 border-top flex-wrap gap-2">
+            <div class="d-flex align-items-center gap-2">
+              <span class="small text-muted" id="infoPaginacaoFrotas">Exibindo 0 de 0 viaturas</span>
+              <select class="form-select form-select-sm" id="selectItensPorPaginaFrotas" style="width: auto;" onchange="mudarItensPorPaginaFrotas(this.value)">
+                <option value="25">25 por página</option>
+                <option value="50" selected>50 por página</option>
+                <option value="100">100 por página</option>
+                <option value="99999">Mostrar todas</option>
+              </select>
+            </div>
+            <div class="btn-group btn-group-sm" id="controlesPaginacaoFrotas"></div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- VISÃO: RELATÓRIOS (RESUMO EXECUTIVO) -->
+      <div id="visaoFrotasRelatorios" style="display: none;">
+        <div class="row g-3 mb-4">
+          <div class="col-md-3 col-sm-6">
+            <div class="card border-0 shadow-sm p-3 bg-white h-100 border-start border-4 border-danger">
+              <span class="text-muted small fw-semibold text-uppercase">Total da Frota</span>
+              <h3 class="fw-bold mb-0 text-dark" id="relatorioFrotasTotal">0</h3>
+            </div>
+          </div>
+          <div class="col-md-3 col-sm-6">
+            <div class="card border-0 shadow-sm p-3 bg-white h-100 border-start border-4 border-success">
+              <span class="text-muted small fw-semibold text-uppercase">Ativas / Operacionais</span>
+              <h3 class="fw-bold mb-0 text-success" id="relatorioFrotasAtivas">0</h3>
+            </div>
+          </div>
+          <div class="col-md-3 col-sm-6">
+            <div class="card border-0 shadow-sm p-3 bg-white h-100 border-start border-4 border-danger">
+              <span class="text-muted small fw-semibold text-uppercase">Em Manutenção</span>
+              <h3 class="fw-bold mb-0 text-danger" id="relatorioFrotasManutencao">0</h3>
+            </div>
+          </div>
+          <div class="col-md-3 col-sm-6">
+            <div class="card border-0 shadow-sm p-3 bg-white h-100 border-start border-4 border-warning">
+              <span class="text-muted small fw-semibold text-uppercase">Em Desfazimento</span>
+              <h3 class="fw-bold mb-0 text-warning" id="relatorioFrotasDesfazimento">0</h3>
+            </div>
+          </div>
+        </div>
+
+        <div class="card border-0 shadow-sm p-4 bg-white mb-4">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="fw-bold mb-0"><i class="fa-solid fa-chart-pie me-2 text-danger"></i> Distribuição da Frota por OME</h5>
+            <button type="button" class="btn btn-sm btn-success fw-bold px-3 shadow-sm" onclick="exportarFrotasExcel()">
+              <i class="fa-solid fa-file-excel me-1"></i> Exportar Frota (.xlsx)
+            </button>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-sm table-striped small align-middle mb-0" id="tabelaRelatorioPorOme">
+              <thead class="table-light">
+                <tr>
+                  <th>OME / Unidade</th>
+                  <th class="text-center">Total</th>
+                  <th class="text-center text-success">Ativas</th>
+                  <th class="text-center text-danger">Manutenção</th>
+                  <th class="text-center text-warning">Desfazimento</th>
+                  <th class="text-center">% Operacional</th>
+                </tr>
+              </thead>
+              <tbody id="corpoRelatorioPorOme">
+                <tr><td colspan="6" class="text-center py-3 text-muted">Carregando relatório...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- VISÃO: PERMISSÕES -->
+      <div id="visaoFrotasPermissoes" style="display: none;">
+        <div class="card border-0 shadow-sm p-4 bg-white">
+          <h5 class="fw-bold text-dark mb-3"><i class="fa-solid fa-shield-halved me-2 text-danger"></i> Permissões da Gestão de Frotas</h5>
+          <p class="text-muted small">
+            O módulo de Gestão de Frotas do SGMP está integrado à base oficial de Viaturas (Pecúlio).
+          </p>
+          <div class="alert alert-light border small text-secondary">
+            <ul class="mb-0 ps-3">
+              <li><strong>Administradores e DLOG/CMAN:</strong> Acesso irrestrito a todas as viaturas de todas as OMEs do Estado.</li>
+              <li><strong>Comandantes e Chefes de OME:</strong> Visualização e acompanhamento da frota alocada na sua Unidade.</li>
+              <li><strong>Operadores / Motoristas:</strong> Consulta de dados técnicos e verificação de saldo de abastecimento.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<!-- MODAL: VER SALDO / ESPECIFICAÇÕES DA VIATURA -->
+<div class="modal fade" id="modalSaldoViatura" tabindex="-1" aria-labelledby="modalSaldoViaturaLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header text-white" style="background-color: #800000;">
+        <h6 class="modal-title fw-bold" id="modalSaldoViaturaLabel">
+          <i class="fa-solid fa-gas-pump me-2"></i> Detalhes & Saldo da Viatura
+        </h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body p-4 bg-light">
+        <div class="card border-0 shadow-sm p-3 bg-white mb-3">
+          <div class="row g-3 align-items-center">
+            <div class="col-md-3 text-center border-end">
+              <span class="d-block small text-muted text-uppercase fw-semibold">Prefixo / Nome</span>
+              <h4 class="fw-bold text-danger mb-0" id="modalViatNome">-</h4>
+              <span class="badge bg-light text-dark border mt-1" id="modalViatPlaca">-</span>
+            </div>
+            <div class="col-md-9">
+              <div class="row g-2 small">
+                <div class="col-6 col-sm-4">
+                  <span class="text-muted d-block">OME:</span>
+                  <strong id="modalViatOme">-</strong>
+                </div>
+                <div class="col-6 col-sm-4">
+                  <span class="text-muted d-block">Patrimônio:</span>
+                  <strong id="modalViatPatr">-</strong>
+                </div>
+                <div class="col-6 col-sm-4">
+                  <span class="text-muted d-block">Situação:</span>
+                  <span id="modalViatSituacao">-</span>
+                </div>
+                <div class="col-12 col-sm-8">
+                  <span class="text-muted d-block">Marca / Modelo:</span>
+                  <strong id="modalViatMarcaModelo">-</strong>
+                </div>
+                <div class="col-6 col-sm-4">
+                  <span class="text-muted d-block">Ano:</span>
+                  <strong id="modalViatAno">-</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SALDO / COMBUSTÍVEL -->
+        <div class="card border-0 shadow-sm p-3 bg-white">
+          <h6 class="fw-bold mb-3 d-flex align-items-center text-dark" style="font-size: 0.9rem;">
+            <i class="fa-solid fa-gas-pump text-danger me-2"></i> Saldo e Informações de Abastecimento
+          </h6>
+          <div class="row g-3">
+            <div class="col-md-4">
+              <div class="p-3 bg-light rounded text-center border">
+                <span class="text-muted small d-block mb-1">Saldo Atual</span>
+                <h5 class="fw-bold text-success mb-0" id="modalViatSaldo">Disponível</h5>
+                <small class="text-muted" style="font-size: 11px;">Conforme Diretriz</small>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="p-3 bg-light rounded text-center border">
+                <span class="text-muted small d-block mb-1">Tipo de Combustível</span>
+                <h5 class="fw-bold text-dark mb-0" id="modalViatCombustivel">DIESEL / GASOLINA</h5>
+                <small class="text-muted" style="font-size: 11px;">Cadastro do Veículo</small>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="p-3 bg-light rounded text-center border">
+                <span class="text-muted small d-block mb-1">Chassi / Renavam</span>
+                <div class="small fw-semibold text-dark text-truncate" id="modalViatChassiRenavam">-</div>
+                <small class="text-muted" style="font-size: 11px;">Identificação Oficial</small>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+      <div class="modal-footer bg-white border-0 py-2">
+        <button type="button" class="btn btn-secondary btn-sm px-4" data-bs-dismiss="modal">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Modais -->
 <div class="modal fade" id="modalEditar" tabindex="-1">
   <div class="modal-dialog modal-xl">
@@ -4809,7 +5155,7 @@
     // ...
       
     // ADICIONADO 'aba-gerenciar-usuarios' e 'aba-logs' NA LISTA DE ABAS DO SISTEMA
-    const abasIds = ['aba-inventario', 'aba-visao-geral', 'aba-locais', 'aba-base', 'aba-cint', 'aba-acautelamento', 'aba-checklist', 'aba-gerenciar-usuarios', 'aba-logs', 'aba-chamados'];
+    const abasIds = ['aba-inventario', 'aba-visao-geral', 'aba-locais', 'aba-base', 'aba-cint', 'aba-acautelamento', 'aba-checklist', 'aba-gerenciar-usuarios', 'aba-logs', 'aba-chamados', 'aba-frotas'];
     abasIds.forEach(id => {
       const elemento = document.getElementById(id);
       if (elemento) elemento.style.display = 'none';
@@ -4825,7 +5171,7 @@
     const content = document.getElementById('content');
 
     // Abas que ocupam a largura total (ocultam o menu lateral de materiais)
-    const abasTelaCheia = ['cint', 'base', 'visao-geral', 'acautelamento', 'checklist', 'gerenciar-usuarios', 'inventario', 'aba-inventario', 'logs', 'chamados'];
+    const abasTelaCheia = ['cint', 'base', 'visao-geral', 'acautelamento', 'checklist', 'gerenciar-usuarios', 'inventario', 'aba-inventario', 'logs', 'chamados', 'frotas'];
     const ehAbaLocaisSemSidebar = (aba === 'locais' && typeof modoVisaoArmazenamento !== 'undefined' && (modoVisaoArmazenamento === 'consumo' || modoVisaoArmazenamento === 'resumo' || modoVisaoArmazenamento === 'resumo_material'));
     const deveOcultarSubSidebar = abasTelaCheia.includes(aba) || ehAbaLocaisSemSidebar;
     
@@ -4895,6 +5241,10 @@
     } else if (aba === 'checklist') {
       if (typeof carregarDadosAbaChecklist === 'function') {
         carregarDadosAbaChecklist();
+      }
+    } else if (aba === 'frotas') {
+      if (typeof carregarDadosFrotas === 'function') {
+        carregarDadosFrotas();
       }
     } else if (aba === 'gerenciar-usuarios') {
       // GATILHO PARA A ABA DE USUÁRIOS
@@ -26847,6 +27197,537 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     limparFiltroStatusTabelaDash(false);
     aplicarFiltrosDashboard();
   }
+
+
+// =========================================================================
+// MÓDULO GESTÃO DE FROTAS (Peculio_Viatura)
+// =========================================================================
+
+let cacheDadosFrotas = null;
+let viaturasFiltradasFrotas = [];
+let paginaAtualFrotas = 1;
+let itensPorPaginaFrotas = 50;
+let menuFrotasAtivo = 'peculio';
+let filtroSituacoesFrotas = {
+  'Ativa': true,
+  'Manutenção': true,
+  'Processo de Desfazimento': true
+};
+
+function alternarSidebarFrotas() {
+  const sidebar = document.getElementById('sidebarFrotas');
+  const icone = document.getElementById('iconeToggleSidebarFrotas');
+  if (!sidebar) return;
+  const colapsada = sidebar.style.width === '68px';
+  sidebar.style.width = colapsada ? '220px' : '68px';
+  document.querySelectorAll('.frotas-nav-text').forEach(el => {
+    el.style.display = colapsada ? 'inline-block' : 'none';
+  });
+  if (icone) {
+    icone.className = colapsada ? 'fa-solid fa-bars' : 'fa-solid fa-angles-right';
+  }
+}
+
+function alternarMenuFrotas(menu) {
+  menuFrotasAtivo = menu;
+  ['peculio', 'desativadas', 'relatorios', 'permissoes'].forEach(m => {
+    const el = document.getElementById('navFrotas' + m.charAt(0).toUpperCase() + m.slice(1));
+    if (el) {
+      if (m === menu) {
+        el.classList.add('active', 'text-white');
+        el.classList.remove('text-white-50');
+      } else {
+        el.classList.remove('active', 'text-white');
+        el.classList.add('text-white-50');
+      }
+    }
+  });
+
+  const visaoPeculio = document.getElementById('visaoFrotasPeculio');
+  const visaoRelatorios = document.getElementById('visaoFrotasRelatorios');
+  const visaoPermissoes = document.getElementById('visaoFrotasPermissoes');
+  const titulo = document.getElementById('frotasTituloPrincipal');
+
+  if (visaoPeculio) visaoPeculio.style.display = (menu === 'peculio' || menu === 'desativadas') ? 'block' : 'none';
+  if (visaoRelatorios) visaoRelatorios.style.display = (menu === 'relatorios') ? 'block' : 'none';
+  if (visaoPermissoes) visaoPermissoes.style.display = (menu === 'permissoes') ? 'block' : 'none';
+
+  if (menu === 'peculio') {
+    if (titulo) titulo.innerText = 'Viaturas';
+    filtroSituacoesFrotas = { 'Ativa': true, 'Manutenção': true, 'Processo de Desfazimento': true };
+    atualizarEstiloPillsSituacao();
+    aplicarFiltrosFrotas();
+  } else if (menu === 'desativadas') {
+    if (titulo) titulo.innerText = 'Viaturas Desativadas';
+    filtroSituacoesFrotas = { 'Ativa': false, 'Manutenção': false, 'Processo de Desfazimento': true };
+    atualizarEstiloPillsSituacao();
+    aplicarFiltrosFrotas();
+  } else if (menu === 'relatorios') {
+    if (titulo) titulo.innerText = 'Relatórios de Frotas';
+    renderizarRelatorioFrotas();
+  } else if (menu === 'permissoes') {
+    if (titulo) titulo.innerText = 'Permissões';
+  }
+}
+
+function carregarDadosFrotas(forcar) {
+  if (cacheDadosFrotas && !forcar) {
+    aplicarFiltrosFrotas();
+    return;
+  }
+
+  const tbody = document.getElementById('corpoTabelaFrotas');
+  if (tbody) {
+    tbody.innerHTML = '<tr><td colspan="8" class="text-center py-5 text-muted"><i class="fa-solid fa-spinner fa-spin fa-2x text-danger mb-2"></i><br>Carregando dados da frota...</td></tr>';
+  }
+
+  // Preenche nome do militar na sidebar frotas
+  const elNome = document.getElementById('frotasNomeUsuarioSidebar');
+  if (elNome) {
+    const nomeU = (usuarioSessaoAtual && usuarioSessaoAtual.nome) || (typeof NOME_USUARIO_GLOBAL !== 'undefined' ? NOME_USUARIO_GLOBAL : 'MILITAR');
+    elNome.innerText = String(nomeU).split(' ').slice(0, 2).join(' ').toUpperCase();
+  }
+
+  google.script.run
+    .withSuccessHandler(function(resp) {
+      if (!resp || !resp.sucesso) {
+        if (tbody) {
+          tbody.innerHTML = '<tr><td colspan="8" class="text-center py-5 text-danger"><i class="fa-solid fa-triangle-exclamation fa-2x mb-2"></i><br>' + ((resp && resp.erro) || 'Erro ao carregar dados da frota.') + '</td></tr>';
+        }
+        return;
+      }
+
+      cacheDadosFrotas = resp;
+
+      // Popula select de OMEs
+      const selectOme = document.getElementById('filtroFrotasOme');
+      if (selectOme && resp.omes) {
+        let optHtml = '<option value="">Todas as OMEs</option>';
+        resp.omes.forEach(o => {
+          optHtml += '<option value="' + o + '">' + o + '</option>';
+        });
+        selectOme.innerHTML = optHtml;
+      }
+
+      // Atualiza contadores
+      const totalEl = document.getElementById('frotasContadorTotal');
+      if (totalEl) totalEl.innerText = resp.total || 0;
+
+      const cAtiva = document.getElementById('contFrotasAtiva');
+      if (cAtiva) cAtiva.innerText = (resp.resumo && resp.resumo.ativas) || 0;
+
+      const cManut = document.getElementById('contFrotasManutencao');
+      if (cManut) cManut.innerText = (resp.resumo && resp.resumo.manutencao) || 0;
+
+      const cDesfaz = document.getElementById('contFrotasDesfazimento');
+      if (cDesfaz) cDesfaz.innerText = (resp.resumo && resp.resumo.desfazimento) || 0;
+
+      aplicarFiltrosFrotas();
+    })
+    .withFailureHandler(function(err) {
+      console.error('Erro em carregarDadosFrotas:', err);
+      if (tbody) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center py-5 text-danger"><i class="fa-solid fa-triangle-exclamation fa-2x mb-2"></i><br>Falha na comunicação com o servidor: ' + (err.message || err) + '</td></tr>';
+      }
+    })
+    .getDadosGestaoFrotas();
+}
+
+function alternarFiltroRapidoSituacao(situacaoAlvo) {
+  filtroSituacoesFrotas[situacaoAlvo] = !filtroSituacoesFrotas[situacaoAlvo];
+  atualizarEstiloPillsSituacao();
+  aplicarFiltrosFrotas();
+}
+
+function atualizarEstiloPillsSituacao() {
+  const pAtiva = document.getElementById('pillFiltroAtiva');
+  const pManut = document.getElementById('pillFiltroManutencao');
+  const pDesfaz = document.getElementById('pillFiltroDesfazimento');
+
+  if (pAtiva) {
+    if (filtroSituacoesFrotas['Ativa']) pAtiva.classList.add('active', 'border-success', 'bg-white');
+    else pAtiva.classList.remove('active', 'border-success', 'bg-white');
+  }
+  if (pManut) {
+    if (filtroSituacoesFrotas['Manutenção']) pManut.classList.add('active', 'border-danger', 'bg-white');
+    else pManut.classList.remove('active', 'border-danger', 'bg-white');
+  }
+  if (pDesfaz) {
+    if (filtroSituacoesFrotas['Processo de Desfazimento']) pDesfaz.classList.add('active', 'border-warning', 'bg-white');
+    else pDesfaz.classList.remove('active', 'border-warning', 'bg-white');
+  }
+}
+
+function limparFiltrosFrotas() {
+  const selectOme = document.getElementById('filtroFrotasOme');
+  const inputPesquisa = document.getElementById('filtroFrotasPesquisa');
+  if (selectOme) selectOme.value = '';
+  if (inputPesquisa) inputPesquisa.value = '';
+  filtroSituacoesFrotas = { 'Ativa': true, 'Manutenção': true, 'Processo de Desfazimento': true };
+  atualizarEstiloPillsSituacao();
+  aplicarFiltrosFrotas();
+}
+
+function aplicarFiltrosFrotas() {
+  if (!cacheDadosFrotas || !cacheDadosFrotas.viaturas) return;
+
+  const selectOme = document.getElementById('filtroFrotasOme');
+  const inputPesquisa = document.getElementById('filtroFrotasPesquisa');
+
+  const omeFiltro = selectOme ? selectOme.value.trim().toUpperCase() : '';
+  const termo = inputPesquisa ? inputPesquisa.value.trim().toUpperCase() : '';
+
+  viaturasFiltradasFrotas = cacheDadosFrotas.viaturas.filter(function(v) {
+    // 1. Filtro OME
+    if (omeFiltro && String(v.ome || '').trim().toUpperCase() !== omeFiltro) {
+      return false;
+    }
+
+    // 2. Filtro Situação
+    var sitNorm = String(v.situacao || '').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    var categoriaSit = 'Ativa';
+    if (sitNorm.indexOf('MANUTEN') !== -1 || sitNorm.indexOf('OFICINA') !== -1 || sitNorm.indexOf('REPARO') !== -1) {
+      categoriaSit = 'Manutenção';
+    } else if (sitNorm.indexOf('DESFAZ') !== -1 || sitNorm.indexOf('BAIXA') !== -1 || sitNorm.indexOf('INSERVIV') !== -1 || sitNorm.indexOf('DESATIV') !== -1) {
+      categoriaSit = 'Processo de Desfazimento';
+    }
+
+    if (!filtroSituacoesFrotas[categoriaSit]) {
+      return false;
+    }
+
+    // 3. Filtro Pesquisa (nome, placa, patrimonio, marca/modelo, ano)
+    if (termo) {
+      var haystack = [v.nome, v.placa, v.patrimonio, v.marcaModelo, v.ano, v.ome].join(' ').toUpperCase();
+      if (haystack.indexOf(termo) === -1) return false;
+    }
+
+    return true;
+  });
+
+  // Atualiza contador no topo da tela para refletir o total atual filtrado
+  const totalEl = document.getElementById('frotasContadorTotal');
+  if (totalEl) {
+    totalEl.innerText = viaturasFiltradasFrotas.length;
+  }
+
+  paginaAtualFrotas = 1;
+  renderizarTabelaFrotas();
+}
+
+function mudarItensPorPaginaFrotas(valor) {
+  itensPorPaginaFrotas = parseInt(valor, 10) || 50;
+  paginaAtualFrotas = 1;
+  renderizarTabelaFrotas();
+}
+
+function renderizarTabelaFrotas() {
+  const tbody = document.getElementById('corpoTabelaFrotas');
+  const infoPag = document.getElementById('infoPaginacaoFrotas');
+  const paginacaoControles = document.getElementById('controlesPaginacaoFrotas');
+  if (!tbody) return;
+
+  if (viaturasFiltradasFrotas.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" class="text-center py-5 text-muted"><i class="fa-solid fa-car-tunnel fa-2x mb-2 opacity-50"></i><br>Nenhuma viatura localizada com os filtros aplicados.</td></tr>';
+    if (infoPag) infoPag.innerText = 'Exibindo 0 de 0 viaturas';
+    if (paginacaoControles) paginacaoControles.innerHTML = '';
+    return;
+  }
+
+  const total = viaturasFiltradasFrotas.length;
+  const totalPaginas = Math.ceil(total / itensPorPaginaFrotas) || 1;
+  if (paginaAtualFrotas > totalPaginas) paginaAtualFrotas = totalPaginas;
+
+  const inicio = (paginaAtualFrotas - 1) * itensPorPaginaFrotas;
+  const fim = Math.min(inicio + itensPorPaginaFrotas, total);
+  const paginaItens = viaturasFiltradasFrotas.slice(inicio, fim);
+
+  let html = '';
+  paginaItens.forEach(function(v) {
+    // Badges idênticos ao print
+    var sitNorm = String(v.situacao || '').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    var badgeClass = 'badge-frotas-ativa';
+    var sitExibida = v.situacao || 'Ativa';
+
+    if (sitNorm.indexOf('MANUTEN') !== -1 || sitNorm.indexOf('OFICINA') !== -1 || sitNorm.indexOf('REPARO') !== -1) {
+      badgeClass = 'badge-frotas-manutencao';
+      sitExibida = 'Manutenção';
+    } else if (sitNorm.indexOf('DESFAZ') !== -1 || sitNorm.indexOf('BAIXA') !== -1 || sitNorm.indexOf('INSERVIV') !== -1 || sitNorm.indexOf('DESATIV') !== -1) {
+      badgeClass = 'badge-frotas-desfazimento';
+      sitExibida = 'Processo de Desfazimento';
+    } else {
+      badgeClass = 'badge-frotas-ativa';
+      sitExibida = 'Ativa';
+    }
+
+    var vEncoded = encodeURIComponent(JSON.stringify(v));
+
+    html += '<tr class="frotas-row">' +
+      '<td class="text-center"><span class="badge-frotas-status ' + badgeClass + '">' + sitExibida + '</span></td>' +
+      '<td class="text-center fw-bold text-dark">' + (v.nome || '-') + '</td>' +
+      '<td class="text-center fw-semibold text-secondary">' + (v.ome || '-') + '</td>' +
+      '<td class="text-center font-monospace">' + (v.placa || '-') + '</td>' +
+      '<td class="text-center font-monospace">' + (v.patrimonio || '-') + '</td>' +
+      '<td>' + (v.marcaModelo || '-') + '</td>' +
+      '<td class="text-center">' + (v.ano || '-') + '</td>' +
+      '<td class="text-center">' +
+        '<button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-3 py-1 btn-ver-saldo" onclick="abrirModalSaldoViatura(\'' + vEncoded + '\')">' +
+          'Ver Saldo' +
+        '</button>' +
+      '</td>' +
+    '</tr>';
+  });
+
+  tbody.innerHTML = html;
+
+  if (infoPag) {
+    infoPag.innerText = 'Exibindo ' + (inicio + 1) + ' a ' + fim + ' de ' + total + ' viaturas';
+  }
+
+  // Controles de paginação
+  if (paginacaoControles) {
+    if (totalPaginas <= 1) {
+      paginacaoControles.innerHTML = '';
+    } else {
+      let btns = '<button type="button" class="btn btn-outline-secondary" ' + (paginaAtualFrotas === 1 ? 'disabled' : '') + ' onclick="irPaginaFrotas(' + (paginaAtualFrotas - 1) + ')">&laquo;</button>';
+      
+      const maxB = 5;
+      let startB = Math.max(1, paginaAtualFrotas - 2);
+      let endB = Math.min(totalPaginas, startB + maxB - 1);
+      if (endB - startB < maxB - 1) startB = Math.max(1, endB - maxB + 1);
+
+      for (let p = startB; p <= endB; p++) {
+        btns += '<button type="button" class="btn ' + (p === paginaAtualFrotas ? 'btn-danger text-white' : 'btn-outline-secondary') + '" onclick="irPaginaFrotas(' + p + ')">' + p + '</button>';
+      }
+
+      btns += '<button type="button" class="btn btn-outline-secondary" ' + (paginaAtualFrotas === totalPaginas ? 'disabled' : '') + ' onclick="irPaginaFrotas(' + (paginaAtualFrotas + 1) + ')">&raquo;</button>';
+      paginacaoControles.innerHTML = btns;
+    }
+  }
+}
+
+function irPaginaFrotas(p) {
+  paginaAtualFrotas = p;
+  renderizarTabelaFrotas();
+}
+
+function abrirModalSaldoViatura(vEncoded) {
+  let v = null;
+  try {
+    v = JSON.parse(decodeURIComponent(vEncoded));
+  } catch(e) {
+    console.error('Erro ao ler viatura:', e);
+    return;
+  }
+  if (!v) return;
+
+  const elNome = document.getElementById('modalViatNome');
+  const elPlaca = document.getElementById('modalViatPlaca');
+  const elOme = document.getElementById('modalViatOme');
+  const elPatr = document.getElementById('modalViatPatr');
+  const elMarca = document.getElementById('modalViatMarcaModelo');
+  const elAno = document.getElementById('modalViatAno');
+  const elSit = document.getElementById('modalViatSituacao');
+  const elSaldo = document.getElementById('modalViatSaldo');
+  const elComb = document.getElementById('modalViatCombustivel');
+  const elChassi = document.getElementById('modalViatChassiRenavam');
+
+  if (elNome) elNome.innerText = v.nome || '-';
+  if (elPlaca) elPlaca.innerText = 'PLACA: ' + (v.placa || '-');
+  if (elOme) elOme.innerText = v.ome || '-';
+  if (elPatr) elPatr.innerText = v.patrimonio || '-';
+  if (elMarca) elMarca.innerText = v.marcaModelo || '-';
+  if (elAno) elAno.innerText = v.ano || '-';
+  if (elSit) elSit.innerHTML = '<span class="badge bg-secondary">' + (v.situacao || 'Ativa') + '</span>';
+  if (elSaldo) elSaldo.innerText = v.saldo || 'Disponível';
+  if (elComb) elComb.innerText = v.combustivel || 'DIESEL / GASOLINA';
+  if (elChassi) {
+    let cr = [];
+    if (v.chassi) cr.push('Chassi: ' + v.chassi);
+    if (v.renavam) cr.push('Renavam: ' + v.renavam);
+    elChassi.innerText = cr.length ? cr.join(' | ') : 'Não informado';
+  }
+
+  const modalEl = document.getElementById('modalSaldoViatura');
+  if (modalEl && typeof bootstrap !== 'undefined') {
+    const modal = new bootstrap.Modal(modalEl);
+    modal.show();
+  }
+}
+
+function renderizarRelatorioFrotas() {
+  if (!cacheDadosFrotas || !cacheDadosFrotas.viaturas) return;
+
+  const total = cacheDadosFrotas.total || cacheDadosFrotas.viaturas.length;
+  const ativas = (cacheDadosFrotas.resumo && cacheDadosFrotas.resumo.ativas) || 0;
+  const manut = (cacheDadosFrotas.resumo && cacheDadosFrotas.resumo.manutencao) || 0;
+  const desfaz = (cacheDadosFrotas.resumo && cacheDadosFrotas.resumo.desfazimento) || 0;
+
+  const rTotal = document.getElementById('relatorioFrotasTotal');
+  const rAtivas = document.getElementById('relatorioFrotasAtivas');
+  const rManut = document.getElementById('relatorioFrotasManutencao');
+  const rDesfaz = document.getElementById('relatorioFrotasDesfazimento');
+
+  if (rTotal) rTotal.innerText = total;
+  if (rAtivas) rAtivas.innerText = ativas;
+  if (rManut) rManut.innerText = manut;
+  if (rDesfaz) rDesfaz.innerText = desfaz;
+
+  // Agrupa por OME
+  const mapaOme = {};
+  cacheDadosFrotas.viaturas.forEach(function(v) {
+    const o = v.ome || 'NÃO INFORMADA';
+    if (!mapaOme[o]) mapaOme[o] = { total: 0, ativas: 0, manut: 0, desfaz: 0 };
+    mapaOme[o].total++;
+
+    const sitNorm = String(v.situacao || '').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    if (sitNorm.indexOf('MANUTEN') !== -1 || sitNorm.indexOf('OFICINA') !== -1 || sitNorm.indexOf('REPARO') !== -1) {
+      mapaOme[o].manut++;
+    } else if (sitNorm.indexOf('DESFAZ') !== -1 || sitNorm.indexOf('BAIXA') !== -1 || sitNorm.indexOf('INSERVIV') !== -1 || sitNorm.indexOf('DESATIV') !== -1) {
+      mapaOme[o].desfaz++;
+    } else {
+      mapaOme[o].ativas++;
+    }
+  });
+
+  const tbodyOme = document.getElementById('corpoRelatorioPorOme');
+  if (tbodyOme) {
+    let html = '';
+    const omesOrdenadas = Object.keys(mapaOme).sort((a,b) => mapaOme[b].total - mapaOme[a].total);
+    omesOrdenadas.forEach(function(o) {
+      const d = mapaOme[o];
+      const perc = d.total ? Math.round((d.ativas / d.total) * 100) : 0;
+      html += '<tr>' +
+        '<td class="fw-bold">' + o + '</td>' +
+        '<td class="text-center fw-bold">' + d.total + '</td>' +
+        '<td class="text-center text-success fw-semibold">' + d.ativas + '</td>' +
+        '<td class="text-center text-danger fw-semibold">' + d.manut + '</td>' +
+        '<td class="text-center text-warning fw-semibold">' + d.desfaz + '</td>' +
+        '<td class="text-center">' +
+          '<div class="progress" style="height: 16px;">' +
+            '<div class="progress-bar bg-success" role="progressbar" style="width: ' + perc + '%; font-size: 10px;">' + perc + '%</div>' +
+          '</div>' +
+        '</td>' +
+      '</tr>';
+    });
+    tbodyOme.innerHTML = html;
+  }
+}
+
+function exportarFrotasExcel() {
+  if (!cacheDadosFrotas || !cacheDadosFrotas.viaturas || !cacheDadosFrotas.viaturas.length) {
+    Swal.fire('Aviso', 'Não há dados de frota para exportar.', 'warning');
+    return;
+  }
+
+  try {
+    const dadosExportar = cacheDadosFrotas.viaturas.map(v => ({
+      'SITUAÇÃO': v.situacao,
+      'NOME / PREFIXO': v.nome,
+      'OME': v.ome,
+      'PLACA': v.placa,
+      'PATRIMÔNIO': v.patrimonio,
+      'MARCA / MODELO': v.marcaModelo,
+      'ANO': v.ano,
+      'CHASSI': v.chassi || '',
+      'RENAVAM': v.renavam || '',
+      'COMBUSTÍVEL': v.combustivel || '',
+      'SALDO': v.saldo || ''
+    }));
+
+    if (typeof XLSX !== 'undefined') {
+      const ws = XLSX.utils.json_to_sheet(dadosExportar);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Frotas_CBMPE");
+      XLSX.writeFile(wb, "Relatorio_Frotas_CBMPE_" + new Date().toISOString().slice(0,10) + ".xlsx");
+    } else {
+      // Fallback CSV
+      let csv = 'SITUAÇÃO;NOME;OME;PLACA;PATRIMÔNIO;MARCA/MODELO;ANO;CHASSI;RENAVAM\n';
+      dadosExportar.forEach(r => {
+        csv += [r['SITUAÇÃO'], r['NOME / PREFIXO'], r['OME'], r['PLACA'], r['PATRIMÔNIO'], r['MARCA / MODELO'], r['ANO'], r['CHASSI'], r['RENAVAM']].join(';') + '\n';
+      });
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "Relatorio_Frotas_CBMPE.csv";
+      link.click();
+    }
+  } catch(e) {
+    console.error('Erro na exportação:', e);
+    Swal.fire('Erro', 'Não foi possível gerar a exportação: ' + e.message, 'error');
+  }
+}
+
+// Estilos CSS do Módulo Frotas
+const frotasStyles = `
+  .frotas-nav-link {
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .frotas-nav-link:hover {
+    background-color: rgba(255, 255, 255, 0.12) !important;
+    color: #ffffff !important;
+  }
+  .frotas-nav-link.active {
+    background-color: rgba(0, 0, 0, 0.28) !important;
+    color: #ffffff !important;
+    font-weight: 700 !important;
+  }
+  .frotas-sidebar.collapsed {
+    width: 68px !important;
+  }
+  .frotas-pill-filtro {
+    cursor: pointer;
+    transition: all 0.15s ease;
+    font-size: 12px;
+  }
+  .frotas-pill-filtro:hover {
+    background-color: #f8fafc !important;
+  }
+  .badge-frotas-status {
+    display: inline-block;
+    padding: 4px 14px;
+    font-size: 11.5px;
+    font-weight: 600;
+    border-radius: 50px;
+    line-height: 1.2;
+    text-align: center;
+  }
+  .badge-frotas-ativa {
+    background-color: #bbf7d0 !important;
+    color: #166534 !important;
+    border: 1px solid #86efac;
+  }
+  .badge-frotas-manutencao {
+    background-color: #fca5a5 !important;
+    color: #7f1d1d !important;
+    border: 1px solid #f87171;
+  }
+  .badge-frotas-desfazimento {
+    background-color: #fed7aa !important;
+    color: #9a3412 !important;
+    border: 1px solid #fdba74;
+  }
+  .btn-ver-saldo {
+    font-size: 11.5px;
+    border-color: #cbd5e1;
+    color: #475569;
+    background: #ffffff;
+    transition: all 0.15s ease;
+  }
+  .btn-ver-saldo:hover {
+    background-color: #f1f5f9;
+    color: #0f172a;
+    border-color: #94a3b8;
+  }
+  .frotas-row:hover {
+    background-color: #f8fafc !important;
+  }
+`;
+
+const frotasStyleTag = document.createElement('style');
+frotasStyleTag.textContent = frotasStyles;
+document.head.appendChild(frotasStyleTag);
 
 </script>
 </body>

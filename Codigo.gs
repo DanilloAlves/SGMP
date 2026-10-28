@@ -18071,3 +18071,227 @@ function salvarCadastroMaterialCadItens(dados, usuarioCliente) {
     return { sucesso: false, erro: err.message };
   }
 }
+
+
+// =========================================================================
+// MÓDULO DE GESTÃO DE FROTAS (Peculio_Viatura)
+// =========================================================================
+
+function getDadosGestaoFrotas() {
+  try {
+    var ss = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR); // 1VJ6dEc2K1bKt9qUTpBnqf2n6qE_bVHpgW3Ojn7_bvjY
+    var sheet = ss.getSheetByName("Peculio_Viatura");
+    
+    // Busca flexível caso o nome da aba tenha acento ou pequena variação
+    if (!sheet) {
+      var sheets = ss.getSheets();
+      for (var s = 0; s < sheets.length; s++) {
+        var n = sheets[s].getName().trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Z]/g, "");
+        if (n === "PECULIOVIATURA" || n === "PECULIOVIATURAS" || (n.indexOf("PECULIO") !== -1 && n.indexOf("VIAT") !== -1)) {
+          sheet = sheets[s];
+          break;
+        }
+      }
+    }
+
+    if (!sheet) {
+      console.warn("Aba Peculio_Viatura não encontrada na planilha " + ID_PLANILHA_AUXILIAR);
+      return { 
+        sucesso: false, 
+        erro: "Aba 'Peculio_Viatura' não encontrada na planilha auxiliar.", 
+        viaturas: [], 
+        total: 0, 
+        nomesColunas: [],
+        omes: [], 
+        resumo: { total: 0, ativas: 0, manutencao: 0, desfazimento: 0 } 
+      };
+    }
+
+    var lastRow = sheet.getLastRow();
+    var lastCol = sheet.getLastColumn();
+    if (lastRow <= 1 || lastCol < 1) {
+      return { 
+        sucesso: true, 
+        viaturas: [], 
+        total: 0, 
+        nomesColunas: [],
+        omes: [], 
+        resumo: { total: 0, ativas: 0, manutencao: 0, desfazimento: 0 } 
+      };
+    }
+
+    var dados = sheet.getRange(1, 1, lastRow, lastCol).getValues();
+    var rawHeaders = dados[0] || [];
+    var headers = rawHeaders.map(function(h) { return String(h || "").trim(); });
+    var headersUpper = headers.map(function(h) {
+      return h.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Z0-9]/g, "_");
+    });
+
+    function findCol(candidates) {
+      for (var c = 0; c < candidates.length; c++) {
+        var cand = candidates[c];
+        for (var i = 0; i < headersUpper.length; i++) {
+          if (headersUpper[i] === cand) return i;
+        }
+      }
+      for (var c2 = 0; c2 < candidates.length; c2++) {
+        var cand2 = candidates[c2];
+        for (var j = 0; j < headersUpper.length; j++) {
+          if (headersUpper[j].indexOf(cand2) !== -1) return j;
+        }
+      }
+      return -1;
+    }
+
+    var idxSituacao = findCol(["SITUACAO", "STATUS", "CONDICAO", "ESTADO"]);
+    var idxNome = findCol(["NOME", "PREFIXO", "VIATURA", "DESIGNACAO", "IDENTIFICACAO", "CODIGO"]);
+    var idxOme = findCol(["OME", "UNIDADE", "LOTACAO", "DESTINO"]);
+    var idxPlaca = findCol(["PLACA", "PLACAS"]);
+    var idxPatrimonio = findCol(["PATRIMONIO", "TOMBO", "N_PATRIMONIO", "PATR"]);
+    var idxMarcaModelo = findCol(["MARCA_MODELO", "MARCAMODELO", "MARCA_E_MODELO"]);
+    var idxMarca = findCol(["MARCA", "FABRICANTE"]);
+    var idxModelo = findCol(["MODELO"]);
+    var idxAno = findCol(["ANO", "ANO_FABRICACAO", "ANO_MODELO", "FABRICACAO"]);
+    var idxSaldo = findCol(["SALDO", "SALDO_COMBUSTIVEL", "VALOR", "COTA"]);
+    var idxChassi = findCol(["CHASSI"]);
+    var idxRenavam = findCol(["RENAVAM"]);
+    var idxCombustivel = findCol(["COMBUSTIVEL", "TIPO_COMBUSTIVEL"]);
+
+    var viaturas = [];
+    var omesSet = {};
+    var ativasCount = 0;
+    var manutencaoCount = 0;
+    var desfazimentoCount = 0;
+
+    for (var r = 1; r < dados.length; r++) {
+      var row = dados[r];
+      var placa = idxPlaca !== -1 ? String(row[idxPlaca] || "").trim() : "";
+      var nome = idxNome !== -1 ? String(row[idxNome] || "").trim() : "";
+      var patrimonio = idxPatrimonio !== -1 ? String(row[idxPatrimonio] || "").trim() : "";
+
+      // Pula linhas totalmente vazias
+      if (!placa && !nome && !patrimonio) {
+        var temAlgumaCoisa = false;
+        for (var k = 0; k < row.length; k++) {
+          if (String(row[k] || "").trim()) { temAlgumaCoisa = true; break; }
+        }
+        if (!temAlgumaCoisa) continue;
+      }
+
+      var situacao = idxSituacao !== -1 ? String(row[idxSituacao] || "").trim() : "Ativa";
+      var ome = idxOme !== -1 ? String(row[idxOme] || "").trim() : "";
+      if (ome) omesSet[ome] = true;
+
+      var marcaModelo = "";
+      if (idxMarcaModelo !== -1 && row[idxMarcaModelo]) {
+        marcaModelo = String(row[idxMarcaModelo]).trim();
+      } else {
+        var mMarca = (idxMarca !== -1 && idxMarca !== idxMarcaModelo) ? String(row[idxMarca] || "").trim() : "";
+        var mModelo = (idxModelo !== -1 && idxModelo !== idxMarcaModelo) ? String(row[idxModelo] || "").trim() : "";
+        marcaModelo = (mMarca + " " + mModelo).trim();
+      }
+
+      var ano = idxAno !== -1 ? String(row[idxAno] || "").trim() : "";
+      var saldo = idxSaldo !== -1 ? String(row[idxSaldo] || "").trim() : "";
+      var chassi = idxChassi !== -1 ? String(row[idxChassi] || "").trim() : "";
+      var renavam = idxRenavam !== -1 ? String(row[idxRenavam] || "").trim() : "";
+      var combustivel = idxCombustivel !== -1 ? String(row[idxCombustivel] || "").trim() : "";
+
+      // Normaliza situação para contadores
+      var sitNorm = situacao.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      if (sitNorm.indexOf("MANUTEN") !== -1 || sitNorm.indexOf("OFICINA") !== -1 || sitNorm.indexOf("REPARO") !== -1) {
+        manutencaoCount++;
+      } else if (sitNorm.indexOf("DESFAZ") !== -1 || sitNorm.indexOf("BAIXA") !== -1 || sitNorm.indexOf("INSERVIV") !== -1 || sitNorm.indexOf("DESATIV") !== -1) {
+        desfazimentoCount++;
+      } else {
+        ativasCount++;
+      }
+
+      // Constrói objeto com todos os dados genéricos da linha para consulta detalhada
+      var detalhesObj = {};
+      for (var colIdx = 0; colIdx < headers.length; colIdx++) {
+        var colNome = headers[colIdx] || ("Coluna_" + (colIdx + 1));
+        detalhesObj[colNome] = String(row[colIdx] || "").trim();
+      }
+
+      viaturas.push({
+        id: r,
+        situacao: situacao || "Ativa",
+        nome: nome || (placa ? "VTR-" + placa : "Viatura #" + r),
+        ome: ome || "Não informada",
+        placa: placa || "N/I",
+        patrimonio: patrimonio || "N/I",
+        marcaModelo: marcaModelo || "N/I",
+        ano: ano || "-",
+        saldo: saldo,
+        chassi: chassi,
+        renavam: renavam,
+        combustivel: combustivel,
+        detalhes: detalhesObj
+      });
+    }
+
+    var listaOmes = Object.keys(omesSet).sort();
+
+    return {
+      sucesso: true,
+      viaturas: viaturas,
+      total: viaturas.length,
+      nomesColunas: headers,
+      omes: listaOmes,
+      resumo: {
+        total: viaturas.length,
+        ativas: ativasCount,
+        manutencao: manutencaoCount,
+        desfazimento: desfazimentoCount
+      }
+    };
+  } catch (err) {
+    console.error("Erro em getDadosGestaoFrotas: " + err.message);
+    return {
+      sucesso: false,
+      erro: err.message,
+      viaturas: [],
+      total: 0,
+      nomesColunas: [],
+      omes: [],
+      resumo: { total: 0, ativas: 0, manutencao: 0, desfazimento: 0 }
+    };
+  }
+}
+
+function getSaldoViatura(placaOuPatrimonio) {
+  try {
+    var dados = getDadosGestaoFrotas();
+    if (!dados || !dados.viaturas) return { sucesso: false, erro: "Não foi possível carregar a frota." };
+
+    var alvo = String(placaOuPatrimonio || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+    var viatEncontrada = null;
+
+    for (var i = 0; i < dados.viaturas.length; i++) {
+      var v = dados.viaturas[i];
+      var vPlaca = String(v.placa || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+      var vPatr = String(v.patrimonio || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+      var vNome = String(v.nome || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+      if ((vPlaca && vPlaca === alvo) || (vPatr && vPatr === alvo) || (vNome && vNome === alvo)) {
+        viatEncontrada = v;
+        break;
+      }
+    }
+
+    if (!viatEncontrada) {
+      return { sucesso: false, erro: "Viatura não localizada para a identificação informada." };
+    }
+
+    return {
+      sucesso: true,
+      viatura: viatEncontrada,
+      saldo: viatEncontrada.saldo || "Disponível conforme cota",
+      cotaMensal: "Conforme Diretriz DLOG/CMAN",
+      ultimoAbastecimento: "Registrado no Sistema de Combustíveis"
+    };
+  } catch (err) {
+    console.error("Erro em getSaldoViatura: " + err.message);
+    return { sucesso: false, erro: err.message };
+  }
+}
