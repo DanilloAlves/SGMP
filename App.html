@@ -7898,33 +7898,101 @@
       return;
     }
 
-    const linhasExcel = [];
+    // Matriz de dados para a planilha (Array of Arrays)
+    const aoa = [];
+    const merges = [];
+
+    // Linha 1 do Cabeçalho:
+    // Coluna A: "#"
+    // Coluna B: "Material (Descrição)"
+    // Demais colunas: Nome da divisão mesclado em 3 colunas (ECD, SCD, EXTRAVIADO)
+    // Bloco final: "TOTAL GERAL" mesclado em 4 colunas (ECD, SCD, EXTRAVIADO, TOTAL)
+    const headerRow1 = ["#", "Material (Descrição)"];
+    const headerRow2 = ["", "STATUS"];
+
+    // Mescla a célula "#" verticalmente entre Linha 1 e 2
+    merges.push({ s: { r: 0, c: 0 }, e: { r: 1, c: 0 } });
+
+    let currentCol = 2;
+    colunasDisponiveis.forEach(function(col) {
+      // Mescla o cabeçalho da divisão nas 3 colunas de status (ECD, SCD, EXTRAVIADO)
+      merges.push({ s: { r: 0, c: currentCol }, e: { r: 0, c: currentCol + 2 } });
+      headerRow1.push(col, "", "");
+      headerRow2.push("ECD", "SCD", "EXTRAVIADO");
+      currentCol += 3;
+    });
+
+    // Bloco TOTAL GERAL no final
+    const totGeralStartCol = currentCol;
+    merges.push({ s: { r: 0, c: totGeralStartCol }, e: { r: 0, c: totGeralStartCol + 3 } });
+    headerRow1.push("TOTAL GERAL", "", "", "");
+    headerRow2.push("ECD", "SCD", "EXTRAVIADO", "TOTAL");
+
+    aoa.push(headerRow1);
+    aoa.push(headerRow2);
+
+    // Acumuladores de totais por coluna para a linha de rodapé
+    const totaisCols = {};
+    colunasDisponiveis.forEach(function(col) {
+      totaisCols[col] = { ecd: 0, scd: 0, extraviado: 0 };
+    });
+    let sumTotalEcd = 0;
+    let sumTotalScd = 0;
+    let sumTotalExt = 0;
+    let sumTotalGeral = 0;
+
+    // Linhas de dados (materiais)
     materiaisFiltrados.forEach(function(m, idx) {
-      const row = {
-        "#": idx + 1,
-        "Material (Descrição)": m.material
-      };
+      const row = [idx + 1, m.material];
 
       colunasDisponiveis.forEach(function(col) {
         const val = (m[mapProp] && m[mapProp][col]) ? m[mapProp][col] : null;
         const st = extrairDadosCelulaResumo(val);
-        if (st.total === 0) {
-          row[col] = "-";
-        } else {
-          const partes = [];
-          if (st.ecd > 0) partes.push(st.ecd + " ECD");
-          if (st.scd > 0) partes.push(st.scd + " SCD");
-          if (st.acautelado > 0) partes.push(st.acautelado + " Acaut.");
-          if (st.extraviado > 0) partes.push(st.extraviado + " Extr.");
-          row[col] = partes.length > 0 ? partes.join(" | ") : st.total;
-        }
+
+        const ecdVal = Number(st.ecd || 0);
+        const scdVal = Number(st.scd || 0);
+        const extVal = Number(st.extraviado || 0);
+
+        totaisCols[col].ecd += ecdVal;
+        totaisCols[col].scd += scdVal;
+        totaisCols[col].extraviado += extVal;
+
+        row.push(ecdVal, scdVal, extVal);
       });
 
-      row["Total Geral"] = m.totais.total || 0;
-      linhasExcel.push(row);
+      const totEcd = Number(m.totais.ecd || 0);
+      const totScd = Number(m.totais.scd || 0);
+      const totExt = Number(m.totais.extraviado || 0);
+      const totGeral = Number(m.totais.total || 0);
+
+      sumTotalEcd += totEcd;
+      sumTotalScd += totScd;
+      sumTotalExt += totExt;
+      sumTotalGeral += totGeral;
+
+      row.push(totEcd, totScd, totExt, totGeral);
+      aoa.push(row);
     });
 
-    const ws = XLSX.utils.json_to_sheet(linhasExcel);
+    // Linha de Rodapé com Totais Gerais da Unidade
+    const footerRow = ["Σ", "TOTAL GERAL:"];
+    colunasDisponiveis.forEach(function(col) {
+      footerRow.push(totaisCols[col].ecd, totaisCols[col].scd, totaisCols[col].extraviado);
+    });
+    footerRow.push(sumTotalEcd, sumTotalScd, sumTotalExt, sumTotalGeral);
+    aoa.push(footerRow);
+
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!merges'] = merges;
+
+    // Configuração de largura das colunas
+    const colWidths = [{ wch: 6 }, { wch: 36 }];
+    colunasDisponiveis.forEach(function() {
+      colWidths.push({ wch: 10 }, { wch: 10 }, { wch: 14 });
+    });
+    colWidths.push({ wch: 10 }, { wch: 10 }, { wch: 14 }, { wch: 12 });
+    ws['!cols'] = colWidths;
+
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Resumo Materiais");
     const dataHoje = new Date().toISOString().slice(0, 10);
@@ -7932,8 +8000,7 @@
     XLSX.writeFile(wb, nomeArquivo);
   }
 
-
-    function carregarResumoArvoreArmazenamento(forcar) {
+  function carregarResumoArvoreArmazenamento(forcar) {
     const selOme = document.getElementById('selectOmeArvore');
     const perfilNorm = (PERFIL_GLOBAL || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
     const omeNorm = (OME_GLOBAL || "").trim().toUpperCase();
