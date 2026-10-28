@@ -18147,15 +18147,28 @@ function getDadosGestaoFrotas() {
     var idxNome = findCol(["NOME", "PREFIXO", "VIATURA", "DESIGNACAO", "IDENTIFICACAO", "CODIGO"]);
     var idxOme = findCol(["OME", "UNIDADE", "LOTACAO", "DESTINO"]);
     var idxPlaca = findCol(["PLACA", "PLACAS"]);
-    var idxPatrimonio = findCol(["PATRIMONIO", "TOMBO", "N_PATRIMONIO", "PATR"]);
+    var idxPatrimonio = findCol(["PATRIMONIO", "TOMBO", "N_PATRIMONIO", "PATR", "N_DO_PATRIMONIO"]);
     var idxMarcaModelo = findCol(["MARCA_MODELO", "MARCAMODELO", "MARCA_E_MODELO"]);
     var idxMarca = findCol(["MARCA", "FABRICANTE"]);
     var idxModelo = findCol(["MODELO"]);
     var idxAno = findCol(["ANO", "ANO_FABRICACAO", "ANO_MODELO", "FABRICACAO"]);
     var idxSaldo = findCol(["SALDO", "SALDO_COMBUSTIVEL", "VALOR", "COTA"]);
-    var idxChassi = findCol(["CHASSI"]);
+    var idxChassi = findCol(["CHASSIS", "CHASSI"]);
     var idxRenavam = findCol(["RENAVAM"]);
-    var idxCombustivel = findCol(["COMBUSTIVEL", "TIPO_COMBUSTIVEL"]);
+    var idxCombustivel = findCol(["TIPO_DE_COMBUSTIVEL", "TIPO_COMBUSTIVEL", "COMBUSTIVEL"]);
+    var idxPosse = findCol(["POSSE", "VINCULO", "TIPO_POSSE"]);
+    var idxTipo = findCol(["TIPO", "TIPO_VIATURA", "CLASSIFICACAO"]);
+    var idxNOrdem = findCol(["N_DE_ORDEM", "N_ORDEM", "NUMERO_ORDEM", "ORDEM"]);
+    var idxDestinacao = findCol(["DESTINACAO", "DESTINACAO_"]);
+    var idxRastreado = findCol(["RASTREADO", "RASTREADO_", "RASTREADOR"]);
+    var idxCaracterizado = findCol(["CARACTERIZADO", "CARACTERIZADO_", "CARACTERIZADA"]);
+    var idxCondutores = findCol(["CONDUTORES", "MOTORISTAS", "NUMERO_CONDUTORES"]);
+    var idxCategoriaCnh = findCol(["CATEGORIA_DE_HABILITACAO", "CATEGORIA_HABILITACAO", "CATEGORIA_CNH", "CNH", "HABILITACAO"]);
+    var idxOdometro = findCol(["ODOMETRO", "KM", "QUILOMETRAGEM", "KM_ATUAL"]);
+    var idxUltimoAbastecimento = findCol(["ULTIMO_ABASTECIMENTO", "VALOR_ABASTECIMENTO", "ABASTECIMENTO"]);
+    var idxDataAbastecimento = findCol(["DATA_ABASTECIMENTO", "DATA_ULTIMO_ABASTECIMENTO"]);
+    var idxSaldoCartao = findCol(["SALDO_DO_CARTAO", "SALDO_CARTAO", "SALDO"]);
+    var idxObs = findCol(["OBSERVACOES", "OBSERVACAO", "OBS"]);
 
     var viaturas = [];
     var omesSet = {};
@@ -18214,19 +18227,51 @@ function getDadosGestaoFrotas() {
         detalhesObj[colNome] = String(row[colIdx] || "").trim();
       }
 
+      var posse = idxPosse !== -1 ? String(row[idxPosse] || "").trim() : "Próprio";
+      var tipo = idxTipo !== -1 ? String(row[idxTipo] || "").trim() : (nome ? nome.split("-")[0] : "");
+      var nOrdem = idxNOrdem !== -1 ? String(row[idxNOrdem] || "").trim() : (nome && nome.indexOf("-") !== -1 ? nome.split("-")[1] : "");
+      var mMarcaSolo = idxMarca !== -1 ? String(row[idxMarca] || "").trim() : "";
+      var mModeloSolo = idxModelo !== -1 ? String(row[idxModelo] || "").trim() : "";
+      var destinacao = idxDestinacao !== -1 ? String(row[idxDestinacao] || "").trim() : "Operacional";
+      var rastreado = idxRastreado !== -1 ? String(row[idxRastreado] || "").trim() : "Sim";
+      var caracterizado = idxCaracterizado !== -1 ? String(row[idxCaracterizado] || "").trim() : "Sim";
+      var condutores = idxCondutores !== -1 ? String(row[idxCondutores] || "").trim() : "-";
+      var categoriaCnh = idxCategoriaCnh !== -1 ? String(row[idxCategoriaCnh] || "").trim() : "B";
+      var odometro = idxOdometro !== -1 ? String(row[idxOdometro] || "").trim() : "-";
+      var ultimoAbast = idxUltimoAbastecimento !== -1 ? String(row[idxUltimoAbastecimento] || "").trim() : "-";
+      var dataAbast = idxDataAbastecimento !== -1 ? String(row[idxDataAbastecimento] || "").trim() : "";
+      var saldoCartao = idxSaldoCartao !== -1 ? String(row[idxSaldoCartao] || "").trim() : "";
+      var observacoes = idxObs !== -1 ? String(row[idxObs] || "").trim() : "";
+
       viaturas.push({
         id: r,
+        linha: r + 1,
         situacao: situacao || "Ativa",
         nome: nome || (placa ? "VTR-" + placa : "Viatura #" + r),
         ome: ome || "Não informada",
         placa: placa || "N/I",
         patrimonio: patrimonio || "N/I",
         marcaModelo: marcaModelo || "N/I",
+        marca: mMarcaSolo || marcaModelo.split(" ")[0] || "",
+        modelo: mModeloSolo || marcaModelo.replace(mMarcaSolo, "").trim() || "",
         ano: ano || "-",
         saldo: saldo,
         chassi: chassi,
         renavam: renavam,
-        combustivel: combustivel,
+        combustivel: combustivel || "Diesel",
+        posse: posse || "Próprio",
+        tipo: tipo || "",
+        nOrdem: nOrdem || "",
+        destinacao: destinacao || "Operacional",
+        rastreado: rastreado || "Sim",
+        caracterizado: caracterizado || "Sim",
+        condutores: condutores || "-",
+        categoriaCnh: categoriaCnh || "B",
+        odometro: odometro || "-",
+        ultimoAbastecimento: ultimoAbast || "-",
+        dataAbastecimento: dataAbast || "",
+        saldoCartao: saldoCartao || "",
+        observacoes: observacoes || "",
         detalhes: detalhesObj
       });
     }
@@ -18292,6 +18337,107 @@ function getSaldoViatura(placaOuPatrimonio) {
     };
   } catch (err) {
     console.error("Erro em getSaldoViatura: " + err.message);
+    return { sucesso: false, erro: err.message };
+  }
+}
+
+
+
+// Salva edições na planilha Peculio_Viatura
+function salvarEdicaoViatura(dados) {
+  try {
+    if (!dados) throw new Error("Dados não fornecidos.");
+    var ss = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+    var sheet = ss.getSheetByName("Peculio_Viatura");
+    if (!sheet) {
+      var sheets = ss.getSheets();
+      for (var s = 0; s < sheets.length; s++) {
+        var n = sheets[s].getName().trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Z]/g, "");
+        if (n === "PECULIOVIATURA" || n === "PECULIOVIATURAS" || (n.indexOf("PECULIO") !== -1 && n.indexOf("VIAT") !== -1)) {
+          sheet = sheets[s];
+          break;
+        }
+      }
+    }
+    if (!sheet) throw new Error("Aba Peculio_Viatura não encontrada.");
+
+    var lastRow = sheet.getLastRow();
+    var lastCol = sheet.getLastColumn();
+    var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+    var headersUpper = headers.map(function(h) {
+      return String(h || "").trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Z0-9]/g, "_");
+    });
+
+    var rowIdx = parseInt(dados.linha || dados.id, 10);
+    if (!rowIdx || rowIdx <= 1 || rowIdx > lastRow) {
+      var dadosSheet = sheet.getDataRange().getValues();
+      var idxPlaca = headersUpper.indexOf("PLACA");
+      var idxPatr = headersUpper.indexOf("PATRIMONIO");
+      for (var r = 1; r < dadosSheet.length; r++) {
+        var p = idxPlaca !== -1 ? String(dadosSheet[r][idxPlaca] || "").trim() : "";
+        var pt = idxPatr !== -1 ? String(dadosSheet[r][idxPatr] || "").trim() : "";
+        if ((p && p === dados.placa) || (pt && pt === dados.patrimonio)) {
+          rowIdx = r + 1;
+          break;
+        }
+      }
+    }
+
+    if (!rowIdx || rowIdx <= 1) {
+      throw new Error("Linha da viatura não localizada na planilha.");
+    }
+
+    function setValCol(candList, valor) {
+      if (valor === undefined || valor === null) return;
+      for (var c = 0; c < candList.length; c++) {
+        var idx = headersUpper.indexOf(candList[c]);
+        if (idx !== -1) {
+          sheet.getRange(rowIdx, idx + 1).setValue(valor);
+          return;
+        }
+      }
+      for (var c2 = 0; c2 < candList.length; c2++) {
+        for (var j = 0; j < headersUpper.length; j++) {
+          if (headersUpper[j].indexOf(candList[c2]) !== -1) {
+            sheet.getRange(rowIdx, j + 1).setValue(valor);
+            return;
+          }
+        }
+      }
+    }
+
+    setValCol(["SITUACAO", "STATUS"], dados.situacao);
+    setValCol(["NOME", "PREFIXO", "VIATURA"], dados.nome);
+    setValCol(["OME", "UNIDADE", "LOTACAO"], dados.ome);
+    setValCol(["POSSE"], dados.posse);
+    setValCol(["TIPO"], dados.tipo);
+    setValCol(["N_DE_ORDEM", "N_ORDEM", "ORDEM", "NUMERO_ORDEM"], dados.nOrdem);
+    setValCol(["TIPO_DE_COMBUSTIVEL", "TIPO_COMBUSTIVEL", "COMBUSTIVEL"], dados.combustivel);
+    setValCol(["ANO", "ANO_FABRICACAO", "ANO_MODELO"], dados.ano);
+    setValCol(["MARCA"], dados.marca);
+    setValCol(["MODELO"], dados.modelo);
+    setValCol(["PLACA"], dados.placa);
+    setValCol(["N_DO_PATRIMONIO", "PATRIMONIO", "TOMBO"], dados.patrimonio);
+    setValCol(["RENAVAM"], dados.renavam);
+    setValCol(["DESTINACAO", "DESTINACAO_"], dados.destinacao);
+    setValCol(["RASTREADO", "RASTREADO_"], dados.rastreado);
+    setValCol(["CHASSIS", "CHASSI"], dados.chassi);
+    setValCol(["CARACTERIZADO", "CARACTERIZADO_"], dados.caracterizado);
+    setValCol(["CONDUTORES"], dados.condutores);
+    setValCol(["CATEGORIA_DE_HABILITACAO", "CATEGORIA_HABILITACAO", "CNH"], dados.categoriaCnh);
+    setValCol(["ODOMETRO", "KM"], dados.odometro);
+    setValCol(["SALDO", "SALDO_DO_CARTAO", "SALDO_CARTAO"], dados.saldoCartao);
+    setValCol(["OBSERVACOES", "OBSERVACAO"], dados.observacoes);
+
+    try {
+      var nomeOp = "";
+      try { nomeOp = Session.getActiveUser().getEmail(); } catch(eU) {}
+      registrarLogAuditoria("EDICAO_VIATURA", "Editou viatura " + (dados.nome || dados.placa) + " (Placa: " + dados.placa + ", OME: " + dados.ome + ") por " + nomeOp);
+    } catch(eLog) {}
+
+    return { sucesso: true, mensagem: "Viatura atualizada com sucesso na base oficial!" };
+  } catch (err) {
+    console.error("Erro em salvarEdicaoViatura: " + err.message);
     return { sucesso: false, erro: err.message };
   }
 }

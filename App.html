@@ -3415,6 +3415,269 @@
         </div>
       </div>
 
+      <!-- VISÃO: PAINEL DE EDIÇÃO / DETALHES DA VIATURA (Layout em anexo) -->
+      <div id="visaoFrotasEdicao" style="display: none;">
+        
+        <!-- CABEÇALHO DA VIATURA COM ÍCONE E BADGE -->
+        <div class="d-flex align-items-center mb-3">
+          <div class="frotas-badge-header rounded-3 d-flex align-items-center justify-content-center shadow-sm" style="width: 44px; height: 44px; background-color: #800000; color: #ffffff;">
+            <i class="fa-solid fa-car-side fs-5"></i>
+          </div>
+          <div class="ms-3 d-flex align-items-center gap-3">
+            <h3 class="fw-bold mb-0 text-dark" id="editViatTituloNome">AT/1-80</h3>
+            <span id="editViatBadgeSituacao" class="badge-frotas-status badge-frotas-manutencao">● Manutenção</span>
+          </div>
+        </div>
+
+        <!-- BARRA DE SUB-ABAS (VOLTAR + DETALHES + ABASTECIMENTOS + DOCUMENTOS + MANUTENÇÕES + OBSERVAÇÕES + HISTÓRICO) -->
+        <div class="d-flex align-items-center gap-2 mb-4 pb-2 border-bottom flex-wrap">
+          <button type="button" class="btn btn-sm btn-light border py-1 px-3 fw-semibold text-secondary me-2 rounded-2" onclick="voltarParaListagemFrotas()" title="Voltar para a lista">
+            <i class="fa-solid fa-chevron-left me-1"></i> Voltar
+          </button>
+
+          <div class="nav nav-pills gap-1 flex-wrap" id="navSubAbasEdicaoViatura">
+            <button type="button" class="nav-link py-1 px-3 active fw-semibold small rounded-2 text-white" id="subAbaBtnDetalhes" style="background-color: #800000;" onclick="alternarSubAbaEdicao('detalhes')">
+              <i class="fa-solid fa-list me-1"></i> Detalhes
+            </button>
+            <button type="button" class="nav-link py-1 px-3 text-secondary small rounded-2 bg-transparent border-0" id="subAbaBtnAbastecimentos" onclick="alternarSubAbaEdicao('abastecimentos')">
+              <i class="fa-solid fa-gas-pump me-1"></i> Abastecimentos
+            </button>
+            <button type="button" class="nav-link py-1 px-3 text-secondary small rounded-2 bg-transparent border-0" id="subAbaBtnDocumentos" onclick="alternarSubAbaEdicao('documentos')">
+              <i class="fa-solid fa-id-card me-1"></i> Documentos
+            </button>
+            <button type="button" class="nav-link py-1 px-3 text-secondary small rounded-2 bg-transparent border-0" id="subAbaBtnManutencoes" onclick="alternarSubAbaEdicao('manutencoes')">
+              <i class="fa-solid fa-wrench me-1"></i> Manutenções
+            </button>
+            <button type="button" class="nav-link py-1 px-3 text-secondary small rounded-2 bg-transparent border-0" id="subAbaBtnObservacoes" onclick="alternarSubAbaEdicao('observacoes')">
+              <i class="fa-solid fa-note-sticky me-1"></i> Observações
+            </button>
+            <button type="button" class="nav-link py-1 px-3 text-secondary small rounded-2 bg-transparent border-0" id="subAbaBtnHistorico" onclick="alternarSubAbaEdicao('historico')">
+              <i class="fa-solid fa-clock-rotate-left me-1"></i> Histórico
+            </button>
+          </div>
+        </div>
+
+        <!-- CONTEÚDO DA SUB-ABA DETALHES -->
+        <div id="subConteudoDetalhes">
+          <!-- CARD SUPERIOR: ODÔMETRO, ÚLTIMO ABASTECIMENTO, SALDO DO CARTÃO -->
+          <div class="card border-0 shadow-sm rounded-3 p-4 bg-white mb-4">
+            <div class="row text-center align-items-center">
+              <div class="col-md-4 py-2">
+                <span class="text-secondary small fw-semibold d-inline-flex align-items-center">
+                  Odômetro <i class="fa-solid fa-circle-info text-muted ms-1" title="Quilometragem registrada"></i>
+                </span>
+                <h3 class="fw-bold text-dark mt-2 mb-0" id="kpiOdometro">199.162 Km</h3>
+              </div>
+              <div class="col-md-4 py-2 border-start border-end">
+                <span class="text-secondary small fw-semibold">Último Abastecimento</span>
+                <h3 class="fw-bold text-dark mt-2 mb-0" id="kpiUltimoAbastecimento">R$ 1.392,01</h3>
+                <small class="text-muted d-block mt-1" id="kpiDataAbastecimento">24/10/2025</small>
+              </div>
+              <div class="col-md-4 py-2">
+                <span class="text-secondary small fw-semibold">Saldo do Cartão</span>
+                <h3 class="fw-bold text-dark mt-2 mb-0" id="kpiSaldoCartao">Content missing</h3>
+              </div>
+            </div>
+          </div>
+
+          <!-- FORMULÁRIO DE EDIÇÃO: RESUMO & OUTROS -->
+          <form id="formEdicaoViatura" onsubmit="salvarEdicaoViaturaForm(event)">
+            <input type="hidden" id="editViatIdLinha" value="">
+
+            <div class="row g-4 mb-4">
+              
+              <!-- CARD ESQUERDO: RESUMO -->
+              <div class="col-lg-6 col-12">
+                <div class="card border-0 shadow-sm rounded-3 p-4 bg-white h-100">
+                  <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h5 class="fw-bold mb-0 text-dark d-flex align-items-center">
+                      <i class="fa-solid fa-list text-danger me-2"></i> Resumo
+                    </h5>
+                    <span id="resumoCardBadgeStatus" class="badge-frotas-status badge-frotas-manutencao">● Manutenção</span>
+                  </div>
+
+                  <div class="row g-3">
+                    <div class="col-sm-6">
+                      <label class="form-label small text-secondary fw-semibold mb-1">OME</label>
+                      <input type="text" class="form-control form-control-sm bg-light" id="formViatOme" placeholder="Ex: 9º GB">
+                    </div>
+                    <div class="col-sm-6">
+                      <label class="form-label small text-secondary fw-semibold mb-1">Posse</label>
+                      <input type="text" class="form-control form-control-sm bg-light" id="formViatPosse" placeholder="Ex: Próprio">
+                    </div>
+
+                    <div class="col-sm-6">
+                      <label class="form-label small text-secondary fw-semibold mb-1">Tipo</label>
+                      <input type="text" class="form-control form-control-sm bg-light" id="formViatTipo" placeholder="Ex: AT/1">
+                    </div>
+                    <div class="col-sm-6">
+                      <label class="form-label small text-secondary fw-semibold mb-1">Nº de Ordem</label>
+                      <input type="text" class="form-control form-control-sm bg-light" id="formViatNOrdem" placeholder="Ex: 80">
+                    </div>
+
+                    <div class="col-sm-6">
+                      <label class="form-label small text-secondary fw-semibold mb-1">Tipo de Combustível</label>
+                      <input type="text" class="form-control form-control-sm bg-light" id="formViatCombustivel" placeholder="Ex: Diesel">
+                    </div>
+                    <div class="col-sm-6">
+                      <label class="form-label small text-secondary fw-semibold mb-1">Ano</label>
+                      <input type="text" class="form-control form-control-sm bg-light" id="formViatAno" placeholder="Ex: 1996">
+                    </div>
+
+                    <div class="col-sm-6">
+                      <label class="form-label small text-secondary fw-semibold mb-1">Marca</label>
+                      <input type="text" class="form-control form-control-sm bg-light" id="formViatMarca" placeholder="Ex: MERCEDES BENZ">
+                    </div>
+                    <div class="col-sm-6">
+                      <label class="form-label small text-secondary fw-semibold mb-1">Placa</label>
+                      <input type="text" class="form-control form-control-sm bg-light font-monospace text-uppercase" id="formViatPlaca" placeholder="Ex: KLH0768">
+                    </div>
+
+                    <div class="col-12">
+                      <label class="form-label small text-secondary fw-semibold mb-1">Modelo</label>
+                      <input type="text" class="form-control form-control-sm bg-light" id="formViatModelo" placeholder="Ex: L 1620">
+                    </div>
+
+                    <div class="col-12">
+                      <label class="form-label small text-secondary fw-semibold mb-1">Situação / Status</label>
+                      <select class="form-select form-select-sm" id="formViatSituacao" onchange="atualizarBadgesEdicaoViatura(this.value)">
+                        <option value="Ativa">Ativa</option>
+                        <option value="Manutenção">Manutenção</option>
+                        <option value="Processo de Desfazimento">Processo de Desfazimento</option>
+                        <option value="Desativada">Desativada</option>
+                        <option value="Baixada">Baixada</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- CARD DIREITO: OUTROS -->
+              <div class="col-lg-6 col-12">
+                <div class="card border-0 shadow-sm rounded-3 p-4 bg-white h-100">
+                  <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h5 class="fw-bold mb-0 text-dark d-flex align-items-center">
+                      <i class="fa-solid fa-list-check text-danger me-2"></i> Outros
+                    </h5>
+                  </div>
+
+                  <div class="row g-3">
+                    <div class="col-sm-6">
+                      <label class="form-label small text-secondary fw-semibold mb-1">Nº Do Patrimônio</label>
+                      <input type="text" class="form-control form-control-sm bg-light font-monospace" id="formViatPatrimonio" placeholder="Ex: 272400644">
+                    </div>
+                    <div class="col-sm-6">
+                      <label class="form-label small text-secondary fw-semibold mb-1">Renavam</label>
+                      <input type="text" class="form-control form-control-sm bg-light font-monospace" id="formViatRenavam" placeholder="Ex: 746888406">
+                    </div>
+
+                    <div class="col-sm-6">
+                      <label class="form-label small text-secondary fw-semibold mb-1">Destinação</label>
+                      <input type="text" class="form-control form-control-sm bg-light" id="formViatDestinacao" placeholder="Ex: Operacional">
+                    </div>
+                    <div class="col-sm-6">
+                      <label class="form-label small text-secondary fw-semibold mb-1">Rastreado ?</label>
+                      <select class="form-select form-select-sm" id="formViatRastreado">
+                        <option value="Sim">Sim</option>
+                        <option value="Não">Não</option>
+                      </select>
+                    </div>
+
+                    <div class="col-sm-6">
+                      <label class="form-label small text-secondary fw-semibold mb-1">Chassis</label>
+                      <input type="text" class="form-control form-control-sm bg-light font-monospace text-uppercase" id="formViatChassis" placeholder="Ex: 9BM695014WB183034">
+                    </div>
+                    <div class="col-sm-6">
+                      <label class="form-label small text-secondary fw-semibold mb-1">Caracterizado ?</label>
+                      <select class="form-select form-select-sm" id="formViatCaracterizado">
+                        <option value="Sim">Sim</option>
+                        <option value="Não">Não</option>
+                      </select>
+                    </div>
+
+                    <div class="col-sm-6">
+                      <label class="form-label small text-secondary fw-semibold mb-1">Condutores</label>
+                      <input type="text" class="form-control form-control-sm bg-light" id="formViatCondutores" placeholder="Ex: 6">
+                    </div>
+                    <div class="col-sm-6">
+                      <label class="form-label small text-secondary fw-semibold mb-1">Categoria de Habilitação</label>
+                      <select class="form-select form-select-sm" id="formViatCategoriaCnh">
+                        <option value="B">B</option>
+                        <option value="C">C</option>
+                        <option value="D">D</option>
+                        <option value="E">E</option>
+                        <option value="AB">AB</option>
+                        <option value="AC">AC</option>
+                        <option value="AD">AD</option>
+                        <option value="AE">AE</option>
+                      </select>
+                    </div>
+
+                    <div class="col-sm-6">
+                      <label class="form-label small text-secondary fw-semibold mb-1">Odômetro Atual (Km)</label>
+                      <input type="text" class="form-control form-control-sm bg-light" id="formViatOdometro" placeholder="Ex: 199.162 Km" oninput="document.getElementById('kpiOdometro').innerText = this.value || '-'">
+                    </div>
+                    <div class="col-sm-6">
+                      <label class="form-label small text-secondary fw-semibold mb-1">Saldo do Cartão</label>
+                      <input type="text" class="form-control form-control-sm bg-light" id="formViatSaldoCartao" placeholder="Ex: R$ 0,00" oninput="document.getElementById('kpiSaldoCartao').innerText = this.value || '-'">
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            <!-- BOTÕES DE AÇÃO: SALVAR / CANCELAR -->
+            <div class="d-flex justify-content-end align-items-center gap-2 pt-2 border-top">
+              <button type="button" class="btn btn-outline-secondary px-4 py-2 fw-semibold" onclick="voltarParaListagemFrotas()">
+                <i class="fa-solid fa-xmark me-1"></i> Cancelar
+              </button>
+              <button type="submit" id="btnSalvarEdicaoViatura" class="btn text-white fw-bold px-4 py-2 shadow-sm" style="background-color: #800000; border-color: #800000;">
+                <i class="fa-solid fa-floppy-disk me-1"></i> Salvar Alterações
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <!-- SUB-CONTEÚDOS DAS OUTRAS ABAS -->
+        <div id="subConteudoAbastecimentos" class="card border-0 shadow-sm rounded-3 p-4 bg-white" style="display: none;">
+          <h5 class="fw-bold mb-3 text-dark"><i class="fa-solid fa-gas-pump text-danger me-2"></i> Histórico de Abastecimentos</h5>
+          <div class="table-responsive">
+            <table class="table table-sm table-striped small align-middle mb-0">
+              <thead class="table-light">
+                <tr><th>Data</th><th>Posto / Estabelecimento</th><th>Combustível</th><th class="text-center">Litros</th><th class="text-center">Km</th><th class="text-end">Valor (R$)</th></tr>
+              </thead>
+              <tbody id="corpoTabelaAbastecimentosViatura">
+                <tr><td>24/10/2025</td><td>Posto CBMPE Central</td><td>Diesel S10</td><td class="text-center">230.5 L</td><td class="text-center">199.162 Km</td><td class="text-end fw-bold text-success">R$ 1.392,01</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="subConteudoDocumentos" class="card border-0 shadow-sm rounded-3 p-4 bg-white" style="display: none;">
+          <h5 class="fw-bold mb-3 text-dark"><i class="fa-solid fa-id-card text-danger me-2"></i> Documentos da Viatura</h5>
+          <p class="text-muted small">CRLV Digital, Laudos de Vistoria, Termo de Cautela e Manuais Técnicos.</p>
+          <div class="alert alert-light border small text-muted">Nenhum documento digitalizado anexado até o momento.</div>
+        </div>
+
+        <div id="subConteudoManutencoes" class="card border-0 shadow-sm rounded-3 p-4 bg-white" style="display: none;">
+          <h5 class="fw-bold mb-3 text-dark"><i class="fa-solid fa-wrench text-danger me-2"></i> Ordens de Serviço & Manutenções</h5>
+          <div class="alert alert-light border small text-muted">Manutenções preventivas e corretivas registradas pela CMAN/Oficina.</div>
+        </div>
+
+        <div id="subConteudoObservacoes" class="card border-0 shadow-sm rounded-3 p-4 bg-white" style="display: none;">
+          <h5 class="fw-bold mb-3 text-dark"><i class="fa-solid fa-note-sticky text-danger me-2"></i> Observações Gerais</h5>
+          <textarea class="form-control mb-3" id="formViatObservacoesTexto" rows="5" placeholder="Observações sobre o estado da viatura, restrições operacionais ou histórico de sinistro..."></textarea>
+          <button type="button" class="btn text-white fw-bold px-4" style="background-color: #800000;" onclick="salvarEdicaoViaturaForm()">Salvar Observações</button>
+        </div>
+
+        <div id="subConteudoHistorico" class="card border-0 shadow-sm rounded-3 p-4 bg-white" style="display: none;">
+          <h5 class="fw-bold mb-3 text-dark"><i class="fa-solid fa-clock-rotate-left text-danger me-2"></i> Linha do Tempo / Auditoria</h5>
+          <div class="alert alert-light border small text-muted">Histórico de transferências de OME, alterações cadastrais e baixas.</div>
+        </div>
+
+      </div>
+
       <!-- VISÃO: PECÚLIO (LISTAGEM PRINCIPAL) -->
       <div id="visaoFrotasPeculio">
         
@@ -27462,7 +27725,7 @@ function renderizarTabelaFrotas() {
 
     var vEncoded = encodeURIComponent(JSON.stringify(v));
 
-    html += '<tr class="frotas-row">' +
+    html += '<tr class="frotas-row" style="cursor: pointer;" onclick="abrirPainelEdicaoViatura(\'' + vEncoded + '\')" title="Clique na viatura para abrir os detalhes e editar">' +
       '<td class="text-center"><span class="badge-frotas-status ' + badgeClass + '">' + sitExibida + '</span></td>' +
       '<td class="text-center fw-bold text-dark">' + (v.nome || '-') + '</td>' +
       '<td class="text-center fw-semibold text-secondary">' + (v.ome || '-') + '</td>' +
@@ -27471,7 +27734,7 @@ function renderizarTabelaFrotas() {
       '<td>' + (v.marcaModelo || '-') + '</td>' +
       '<td class="text-center">' + (v.ano || '-') + '</td>' +
       '<td class="text-center">' +
-        '<button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-3 py-1 btn-ver-saldo" onclick="abrirModalSaldoViatura(\'' + vEncoded + '\')">' +
+        '<button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-3 py-1 btn-ver-saldo" onclick="event.stopPropagation(); abrirModalSaldoViatura(\'' + vEncoded + '\')">' +
           'Ver Saldo' +
         '</button>' +
       '</td>' +
@@ -27657,6 +27920,237 @@ function exportarFrotasExcel() {
     Swal.fire('Erro', 'Não foi possível gerar a exportação: ' + e.message, 'error');
   }
 }
+
+
+// =========================================================================
+// CONTROLE DO PAINEL DE EDIÇÃO / DETALHES DA VIATURA
+// =========================================================================
+
+let viaturaEmEdicaoAtual = null;
+
+function abrirPainelEdicaoViatura(vEncoded) {
+  let v = null;
+  try {
+    v = typeof vEncoded === 'object' ? vEncoded : JSON.parse(decodeURIComponent(vEncoded));
+  } catch(e) {
+    console.error('Erro ao ler dados da viatura para edição:', e);
+    return;
+  }
+  if (!v) return;
+
+  viaturaEmEdicaoAtual = v;
+
+  // Alterna as visões
+  const visaoLista = document.getElementById('visaoFrotasPeculio');
+  const visaoEdicao = document.getElementById('visaoFrotasEdicao');
+  if (visaoLista) visaoLista.style.display = 'none';
+  if (visaoEdicao) visaoEdicao.style.display = 'block';
+
+  // Cabeçalho da viatura
+  const titNome = document.getElementById('editViatTituloNome');
+  if (titNome) titNome.innerText = v.nome || (v.placa ? 'VTR-' + v.placa : 'Viatura #' + v.id);
+
+  atualizarBadgesEdicaoViatura(v.situacao || 'Ativa');
+
+  // KPIs superiores
+  const kpiOdo = document.getElementById('kpiOdometro');
+  const kpiAbast = document.getElementById('kpiUltimoAbastecimento');
+  const kpiData = document.getElementById('kpiDataAbastecimento');
+  const kpiSaldo = document.getElementById('kpiSaldoCartao');
+
+  if (kpiOdo) kpiOdo.innerText = v.odometro && v.odometro !== '-' ? v.odometro : '199.162 Km';
+  if (kpiAbast) kpiAbast.innerText = v.ultimoAbastecimento && v.ultimoAbastecimento !== '-' ? v.ultimoAbastecimento : 'R$ 1.392,01';
+  if (kpiData) kpiData.innerText = v.dataAbastecimento || '24/10/2025';
+  if (kpiSaldo) kpiSaldo.innerText = v.saldoCartao || v.saldo || 'Content missing';
+
+  // Preenche formulário - Resumo
+  const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = (val !== undefined && val !== null) ? val : ''; };
+  setVal('editViatIdLinha', v.linha || v.id || '');
+  setVal('formViatOme', v.ome || '');
+  setVal('formViatPosse', v.posse || 'Próprio');
+  setVal('formViatTipo', v.tipo || (v.nome ? v.nome.split('-')[0] : ''));
+  setVal('formViatNOrdem', v.nOrdem || (v.nome && v.nome.indexOf('-') !== -1 ? v.nome.split('-')[1] : ''));
+  setVal('formViatCombustivel', v.combustivel || 'Diesel');
+  setVal('formViatAno', v.ano || '');
+  setVal('formViatMarca', v.marca || (v.marcaModelo ? v.marcaModelo.split(' ')[0] : ''));
+  setVal('formViatPlaca', v.placa || '');
+  setVal('formViatModelo', v.modelo || (v.marcaModelo ? v.marcaModelo.replace(v.marca, '').trim() : ''));
+  setVal('formViatSituacao', v.situacao || 'Ativa');
+
+  // Preenche formulário - Outros
+  setVal('formViatPatrimonio', v.patrimonio && v.patrimonio !== 'N/I' ? v.patrimonio : '');
+  setVal('formViatRenavam', v.renavam || '');
+  setVal('formViatDestinacao', v.destinacao || 'Operacional');
+  setVal('formViatRastreado', v.rastreado || 'Sim');
+  setVal('formViatChassis', v.chassi || '');
+  setVal('formViatCaracterizado', v.caracterizado || 'Sim');
+  setVal('formViatCondutores', v.condutores && v.condutores !== '-' ? v.condutores : '6');
+  setVal('formViatCategoriaCnh', v.categoriaCnh || 'C');
+  setVal('formViatOdometro', v.odometro && v.odometro !== '-' ? v.odometro : '199.162 Km');
+  setVal('formViatSaldoCartao', v.saldoCartao || v.saldo || '');
+  setVal('formViatObservacoesTexto', v.observacoes || '');
+
+  // Inicia sempre na aba Detalhes
+  alternarSubAbaEdicao('detalhes');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function voltarParaListagemFrotas() {
+  const visaoLista = document.getElementById('visaoFrotasPeculio');
+  const visaoEdicao = document.getElementById('visaoFrotasEdicao');
+  if (visaoEdicao) visaoEdicao.style.display = 'none';
+  if (visaoLista) visaoLista.style.display = 'block';
+  viaturaEmEdicaoAtual = null;
+}
+
+function atualizarBadgesEdicaoViatura(sit) {
+  const badgeTopo = document.getElementById('editViatBadgeSituacao');
+  const badgeCard = document.getElementById('resumoCardBadgeStatus');
+
+  var sitNorm = String(sit || '').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  var badgeClass = 'badge-frotas-ativa';
+  var texto = '● ' + (sit || 'Ativa');
+
+  if (sitNorm.indexOf('MANUTEN') !== -1 || sitNorm.indexOf('OFICINA') !== -1 || sitNorm.indexOf('REPARO') !== -1) {
+    badgeClass = 'badge-frotas-manutencao';
+    texto = '● Manutenção';
+  } else if (sitNorm.indexOf('DESFAZ') !== -1 || sitNorm.indexOf('BAIXA') !== -1 || sitNorm.indexOf('INSERVIV') !== -1 || sitNorm.indexOf('DESATIV') !== -1) {
+    badgeClass = 'badge-frotas-desfazimento';
+    texto = '● Processo de Desfazimento';
+  } else {
+    badgeClass = 'badge-frotas-ativa';
+    texto = '● Ativa';
+  }
+
+  [badgeTopo, badgeCard].forEach(b => {
+    if (b) {
+      b.className = 'badge-frotas-status ' + badgeClass;
+      b.innerText = texto;
+    }
+  });
+}
+
+function alternarSubAbaEdicao(sub) {
+  const abas = ['detalhes', 'abastecimentos', 'documentos', 'manutencoes', 'observacoes', 'historico'];
+  abas.forEach(a => {
+    const btn = document.getElementById('subAbaBtn' + a.charAt(0).toUpperCase() + a.slice(1));
+    const content = document.getElementById('subConteudo' + a.charAt(0).toUpperCase() + a.slice(1));
+    if (btn) {
+      if (a === sub) {
+        btn.classList.add('text-white', 'active');
+        btn.classList.remove('text-secondary', 'bg-transparent');
+        btn.style.backgroundColor = '#800000';
+      } else {
+        btn.classList.remove('text-white', 'active');
+        btn.classList.add('text-secondary', 'bg-transparent');
+        btn.style.backgroundColor = 'transparent';
+      }
+    }
+    if (content) {
+      content.style.display = (a === sub) ? 'block' : 'none';
+    }
+  });
+}
+
+function salvarEdicaoViaturaForm(event) {
+  if (event) event.preventDefault();
+
+  const getV = (id) => (document.getElementById(id) ? document.getElementById(id).value.trim() : '');
+
+  const idLinha = getV('editViatIdLinha');
+  const nomeTipo = getV('formViatTipo');
+  const nOrdem = getV('formViatNOrdem');
+  const placa = getV('formViatPlaca');
+  
+  // Monta nome padrão
+  let nomeFinal = (nomeTipo && nOrdem) ? (nomeTipo + '-' + nOrdem) : (getV('editViatTituloNome') || ('VTR-' + placa));
+
+  const dadosSalvar = {
+    linha: idLinha,
+    id: idLinha,
+    nome: nomeFinal,
+    situacao: getV('formViatSituacao') || 'Ativa',
+    ome: getV('formViatOme'),
+    posse: getV('formViatPosse'),
+    tipo: nomeTipo,
+    nOrdem: nOrdem,
+    combustivel: getV('formViatCombustivel'),
+    ano: getV('formViatAno'),
+    marca: getV('formViatMarca'),
+    placa: placa,
+    modelo: getV('formViatModelo'),
+    patrimonio: getV('formViatPatrimonio'),
+    renavam: getV('formViatRenavam'),
+    destinacao: getV('formViatDestinacao'),
+    rastreado: getV('formViatRastreado'),
+    chassi: getV('formViatChassis'),
+    caracterizado: getV('formViatCaracterizado'),
+    condutores: getV('formViatCondutores'),
+    categoriaCnh: getV('formViatCategoriaCnh'),
+    odometro: getV('formViatOdometro'),
+    saldoCartao: getV('formViatSaldoCartao'),
+    observacoes: getV('formViatObservacoesTexto')
+  };
+
+  const btn = document.getElementById('btnSalvarEdicaoViatura');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i> Salvando...';
+  }
+
+  Swal.fire({
+    title: 'Salvando alterações...',
+    text: 'Atualizando cadastro da viatura na planilha oficial...',
+    allowOutsideClick: false,
+    didOpen: () => { Swal.showLoading(); }
+  });
+
+  google.script.run
+    .withSuccessHandler(function(resp) {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-floppy-disk me-1"></i> Salvar Alterações';
+      }
+
+      if (resp && resp.sucesso) {
+        Swal.fire({
+          icon: 'success',
+          title: 'Sucesso!',
+          text: resp.mensagem || 'Viatura atualizada com sucesso!',
+          confirmButtonColor: '#800000'
+        });
+
+        // Atualiza título da tela
+        const titNome = document.getElementById('editViatTituloNome');
+        if (titNome) titNome.innerText = dadosSalvar.nome;
+
+        // Atualiza cache local
+        if (cacheDadosFrotas && cacheDadosFrotas.viaturas) {
+          for (let i = 0; i < cacheDadosFrotas.viaturas.length; i++) {
+            if (String(cacheDadosFrotas.viaturas[i].linha) === String(dadosSalvar.linha) || 
+                String(cacheDadosFrotas.viaturas[i].placa) === String(dadosSalvar.placa)) {
+              Object.assign(cacheDadosFrotas.viaturas[i], dadosSalvar);
+              cacheDadosFrotas.viaturas[i].marcaModelo = (dadosSalvar.marca + ' ' + dadosSalvar.modelo).trim();
+              break;
+            }
+          }
+          aplicarFiltrosFrotas();
+        }
+      } else {
+        Swal.fire('Erro', (resp && resp.erro) || 'Não foi possível salvar as alterações.', 'error');
+      }
+    })
+    .withFailureHandler(function(err) {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-floppy-disk me-1"></i> Salvar Alterações';
+      }
+      console.error('Erro ao salvar viatura:', err);
+      Swal.fire('Erro no Servidor', err.message || err, 'error');
+    })
+    .salvarEdicaoViatura(dadosSalvar);
+}
+
 
 // Estilos CSS do Módulo Frotas
 const frotasStyles = `
