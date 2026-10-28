@@ -10182,7 +10182,8 @@ function executarEscritaBigQuerySegura(sqlQuery) {
 function getItensDisponiveisParaTransferenciaOme(omeUsuario, perfilUsuario) {
   try {
     var ehAdmin = (String(perfilUsuario || "").trim() === "Administrador");
-    var omeClean = obterOmePadronizada(omeUsuario).toUpperCase();
+    var omeStr = String(omeUsuario || "").trim().toUpperCase();
+    var omeClean = (omeStr && omeStr !== "TODAS") ? obterOmePadronizada(omeUsuario).toUpperCase() : "TODAS";
 
     // Se NÃO for Administrador, exige obrigatoriamente uma OME válida
     if (!ehAdmin && (!omeClean || omeClean === "TODAS")) {

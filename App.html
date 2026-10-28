@@ -24309,7 +24309,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     }
 
     const ehAdmin = (PERFIL_GLOBAL === "Administrador");
-    const omeInicial = OME_GLOBAL;
+    const omeInicial = ehAdmin ? "TODAS" : OME_GLOBAL;
 
     Swal.fire({
       title: 'Carregando dados...',
@@ -24344,47 +24344,105 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       if (!selOme) return;
       const omeEscolhida = selOme.value;
       const selectDestino = document.getElementById('swalDestinoInt');
-      if (selectDestino) {
-        selectDestino.disabled = true;
-        selectDestino.innerHTML = '<option value="" disabled selected>Carregando locais da árvore...</option>';
-      }
 
-      function aplicarLocais(locaisNovos) {
+      if (omeEscolhida && omeEscolhida !== 'TODAS') {
         if (selectDestino) {
-          selectDestino.innerHTML = gerarOptionsLocaisArvore(locaisNovos);
-          selectDestino.disabled = false;
+          selectDestino.disabled = true;
+          selectDestino.innerHTML = '<option value="" disabled selected>Carregando locais da árvore de ' + omeEscolhida + '...</option>';
         }
 
-        const omeAlvo = omeEscolhida.trim().toUpperCase();
-        const linhas = document.querySelectorAll('#tabelaItensRemanejamentoModal tbody tr');
-        linhas.forEach(linha => {
-          const omeLinha = (linha.getAttribute('data-ome') || '').trim().toUpperCase();
-          if (!omeAlvo || omeLinha === omeAlvo) {
-            linha.style.display = '';
-          } else {
-            linha.style.display = 'none';
-            const chk = linha.querySelector('.check-item-int');
-            if (chk) chk.checked = false;
+        function aplicarLocais(locaisNovos) {
+          if (selectDestino) {
+            selectDestino.innerHTML = gerarOptionsLocaisArvore(locaisNovos);
+            selectDestino.disabled = false;
           }
-        });
+        }
+
+        if (window.locaisRemanejamentoCache && window.locaisRemanejamentoCache[omeEscolhida]) {
+          aplicarLocais(window.locaisRemanejamentoCache[omeEscolhida]);
+        } else {
+          google.script.run
+            .withSuccessHandler(locaisNovos => {
+              if (!window.locaisRemanejamentoCache) window.locaisRemanejamentoCache = {};
+              window.locaisRemanejamentoCache[omeEscolhida] = locaisNovos || [];
+              aplicarLocais(locaisNovos);
+            })
+            .withFailureHandler(err => {
+              if (selectDestino) {
+                selectDestino.innerHTML = '<option value="" disabled selected>Erro ao carregar locais</option>';
+                selectDestino.disabled = false;
+              }
+            })
+            .getArvoreLocais(omeEscolhida);
+        }
+      } else {
+        if (selectDestino) {
+          selectDestino.innerHTML = '<option value="" disabled selected>Selecione a OME no filtro acima ou marque um material...</option>';
+          selectDestino.disabled = false;
+        }
       }
 
-      if (window.locaisRemanejamentoCache && window.locaisRemanejamentoCache[omeEscolhida]) {
-        aplicarLocais(window.locaisRemanejamentoCache[omeEscolhida]);
-      } else {
-        google.script.run
-          .withSuccessHandler(locaisNovos => {
-            if (!window.locaisRemanejamentoCache) window.locaisRemanejamentoCache = {};
-            window.locaisRemanejamentoCache[omeEscolhida] = locaisNovos || [];
-            aplicarLocais(locaisNovos);
-          })
-          .withFailureHandler(err => {
-            if (selectDestino) {
-              selectDestino.innerHTML = '<option value="" disabled selected>Erro ao carregar locais</option>';
-              selectDestino.disabled = false;
-            }
-          })
-          .getArvoreLocais(omeEscolhida);
+      if (typeof window.filtrarItensRemanejamentoModal === 'function') {
+        window.filtrarItensRemanejamentoModal();
+      }
+    };
+
+    window.filtrarItensRemanejamentoModal = function() {
+      const selOme = document.getElementById('swalFiltroOmeRemanejamento');
+      const omeAlvo = selOme ? selOme.value.trim().toUpperCase() : '';
+      const inputBusca = document.getElementById('buscaRapidaRemanejamento');
+      const termoBusca = inputBusca ? inputBusca.value.trim().toLowerCase() : '';
+
+      const linhas = document.querySelectorAll('#tabelaItensRemanejamentoModal tbody tr');
+      linhas.forEach(linha => {
+        const omeLinha = (linha.getAttribute('data-ome') || '').trim().toUpperCase();
+        const matLinha = (linha.getAttribute('data-material') || '').toLowerCase();
+        const itemLinha = (linha.getAttribute('data-item') || '').toLowerCase();
+        const patLinha = (linha.getAttribute('data-pat') || '').toLowerCase();
+
+        const bateuOme = (!omeAlvo || omeAlvo === 'TODAS' || omeLinha === omeAlvo);
+        const bateuTexto = (!termoBusca || matLinha.indexOf(termoBusca) !== -1 || itemLinha.indexOf(termoBusca) !== -1 || patLinha.indexOf(termoBusca) !== -1 || omeLinha.toLowerCase().indexOf(termoBusca) !== -1);
+
+        if (bateuOme && bateuTexto) {
+          linha.style.display = '';
+        } else {
+          linha.style.display = 'none';
+          const chk = linha.querySelector('.check-item-int');
+          if (chk && !chk.checked) chk.checked = false;
+        }
+      });
+    };
+
+    window.aoSelecionarItemRemanejamento = function(chk) {
+      if (!ehAdmin) return;
+      const selOme = document.getElementById('swalFiltroOmeRemanejamento');
+      if (selOme && selOme.value === 'TODAS') {
+        const checkboxes = document.querySelectorAll('.check-item-int:checked');
+        const omesSel = new Set();
+        checkboxes.forEach(c => {
+          const tr = c.closest('tr');
+          if (tr && tr.getAttribute('data-ome')) omesSel.add(tr.getAttribute('data-ome'));
+        });
+        if (omesSel.size === 1) {
+          const omeItem = Array.from(omesSel)[0];
+          const selectDestino = document.getElementById('swalDestinoInt');
+          if (selectDestino && (!window.locaisRemanejamentoCache || !window.locaisRemanejamentoCache[omeItem])) {
+            selectDestino.disabled = true;
+            selectDestino.innerHTML = '<option value="" disabled selected>Carregando locais da árvore de ' + omeItem + '...</option>';
+            google.script.run
+              .withSuccessHandler(locais => {
+                if (!window.locaisRemanejamentoCache) window.locaisRemanejamentoCache = {};
+                window.locaisRemanejamentoCache[omeItem] = locais || [];
+                selectDestino.innerHTML = gerarOptionsLocaisArvore(locais);
+                selectDestino.disabled = false;
+              })
+              .withFailureHandler(() => { selectDestino.disabled = false; })
+              .getArvoreLocais(omeItem);
+          } else if (selectDestino && window.locaisRemanejamentoCache && window.locaisRemanejamentoCache[omeItem]) {
+            selectDestino.innerHTML = gerarOptionsLocaisArvore(window.locaisRemanejamentoCache[omeItem]);
+            selectDestino.disabled = false;
+          }
+        }
       }
     };
 
@@ -24392,14 +24450,14 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       google.script.run
         .withSuccessHandler(resolve)
         .withFailureHandler(reject)
-        .getItensDisponiveisParaTransferenciaOme(omeInicial, PERFIL_GLOBAL);
+        .getItensDisponiveisParaTransferenciaOme(ehAdmin ? "TODAS" : omeInicial, PERFIL_GLOBAL);
     });
 
     const pLocais = new Promise((resolve, reject) => {
       google.script.run
         .withSuccessHandler(resolve)
         .withFailureHandler(reject)
-        .getArvoreLocais(omeInicial);
+        .getArvoreLocais(OME_GLOBAL || '1º GB');
     });
 
     Promise.all([pItens, pLocais])
@@ -24411,35 +24469,47 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
 
         window.itensRemanejamentoAtuais = itens;
         window.locaisRemanejamentoCache = {};
-        window.locaisRemanejamentoCache[omeInicial] = locaisIniciais || [];
+        if (OME_GLOBAL) {
+          window.locaisRemanejamentoCache[OME_GLOBAL] = locaisIniciais || [];
+        }
 
         let optionsLocais = gerarOptionsLocaisArvore(locaisIniciais);
 
         let blocoControlesHtml = '';
         if (ehAdmin) {
-          let optionsOmes = listaOficialOmes.map(u => `<option value="${u}"${u === omeInicial ? ' selected' : ''}>${u}</option>`).join('');
+          let omesNoInventario = [...new Set(itens.map(i => i.unidade).filter(Boolean))].sort();
+          let todasOmesUnicas = [...new Set([...listaOficialOmes, ...omesNoInventario])].sort();
+          let optionsOmes = `<option value="TODAS" selected>Todas as OMEs (Todos os Materiais)</option>` +
+            todasOmesUnicas.map(u => `<option value="${u}">${u}</option>`).join('');
+
           blocoControlesHtml = `
-            <div class="row g-2 mb-3">
+            <div class="row g-2 mb-2">
               <div class="col-md-6">
-                <label class="form-label small fw-bold mb-1"><i class="fa-solid fa-building me-1"></i> Filtrar por OME:</label>
+                <label class="form-label small fw-bold mb-1"><i class="fa-solid fa-building me-1 text-primary"></i> Filtrar por OME:</label>
                 <select class="form-select form-select-sm" id="swalFiltroOmeRemanejamento" onchange="aoMudarOmeRemanejamentoInterno()">
                   ${optionsOmes}
                 </select>
               </div>
               <div class="col-md-6">
-                <label class="form-label small fw-bold mb-1"><i class="fa-solid fa-sitemap me-1"></i> Local de Destino na Árvore:</label>
+                <label class="form-label small fw-bold mb-1"><i class="fa-solid fa-sitemap me-1 text-warning"></i> Local de Destino na Árvore:</label>
                 <select class="form-select form-select-sm" id="swalDestinoInt">
-                  ${optionsLocais}
+                  <option value="" disabled selected>Selecione a OME no filtro acima ou marque um material...</option>
                 </select>
               </div>
+            </div>
+            <div class="mb-2">
+              <input type="text" class="form-control form-control-sm" id="buscaRapidaRemanejamento" placeholder="🔍 Filtrar por material, código ITEM, patrimônio ou local..." oninput="filtrarItensRemanejamentoModal()">
             </div>`;
         } else {
           blocoControlesHtml = `
-            <div class="mb-3">
-              <label class="form-label small fw-bold mb-1"><i class="fa-solid fa-sitemap me-1"></i> Local de Destino na Árvore:</label>
+            <div class="mb-2">
+              <label class="form-label small fw-bold mb-1"><i class="fa-solid fa-sitemap me-1 text-warning"></i> Local de Destino na Árvore:</label>
               <select class="form-select form-select-sm" id="swalDestinoInt">
                 ${optionsLocais}
               </select>
+            </div>
+            <div class="mb-2">
+              <input type="text" class="form-control form-control-sm" id="buscaRapidaRemanejamento" placeholder="🔍 Filtrar por material, código ITEM, patrimônio..." oninput="filtrarItensRemanejamentoModal()">
             </div>`;
         }
 
@@ -24452,25 +24522,25 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
                   <tr>
                     <th class="text-center" style="width: 40px;"><input type="checkbox" onclick="toggleTodosInt(this)"></th>
                     <th>Material</th>
+                    ${ehAdmin ? '<th style="width: 140px;">OME</th>' : ''}
                     <th>Local Atual</th>
                   </tr>
                 </thead>
                 <tbody>`;
 
         itens.forEach(i => {
-          let localAtual = '';
-          if (ehAdmin) {
-            localAtual = [i.unidade, i.subunidade, i.setor, i.local].filter(Boolean).join(' > ') || i.unidade || 'Sede';
-          } else {
-            localAtual = [i.subunidade, i.setor, i.local].filter(Boolean).join(' > ') || 'Sede';
-          }
-          const omeItem = (i.unidade || omeInicial).trim().toUpperCase();
-          const displayEstilo = (!ehAdmin || omeItem === omeInicial.trim().toUpperCase()) ? '' : 'style="display: none;"';
+          let localAtual = [i.subunidade, i.setor, i.local].filter(Boolean).join(' > ') || 'Sede';
+          const omeItem = (i.unidade || '').trim().toUpperCase();
 
           htmlTabelaItens += `
-            <tr data-material="${i.objeto}" data-ome="${omeItem}" ${displayEstilo}>
-              <td class="text-center"><input type="checkbox" class="check-item-int" value="${i.item}"></td>
-              <td class="fw-bold">${i.objeto}</td>
+            <tr data-material="${escapeHtmlResumo(i.objeto)}" data-item="${escapeHtmlResumo(i.item)}" data-pat="${escapeHtmlResumo(i.nPatrimonio || '')}" data-ome="${omeItem}">
+              <td class="text-center"><input type="checkbox" class="check-item-int" value="${i.item}" onchange="aoSelecionarItemRemanejamento(this)"></td>
+              <td>
+                <span class="fw-bold">${i.objeto}</span>
+                ${i.nPatrimonio ? `<span class="badge bg-light text-dark border ms-1">Pat: ${i.nPatrimonio}</span>` : ''}
+                <div class="text-muted" style="font-size: 0.72rem;">Cód: ${i.item}</div>
+              </td>
+              ${ehAdmin ? `<td><span class="badge bg-secondary-subtle text-secondary border">${i.unidade || 'Sem OME'}</span></td>` : ''}
               <td><small>${localAtual}</small></td>
             </tr>`;
         });
@@ -24485,27 +24555,45 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
         Swal.fire({
           title: '<i class="fa-solid fa-arrows-split-up-and-left text-warning me-2"></i> Remanejamento Interno Direto',
           html: htmlTabelaItens,
-          width: ehAdmin ? '800px' : '750px',
+          width: ehAdmin ? '850px' : '750px',
           showCancelButton: true,
           confirmButtonText: 'Assinar e Mover',
           confirmButtonColor: '#ffc107',
           preConfirm: async () => {
+            const checkboxes = document.querySelectorAll('.check-item-int:checked');
+            let itensIds = [];
+            let omesSelecionadas = new Set();
+            checkboxes.forEach(cb => {
+              itensIds.push(cb.value);
+              const tr = cb.closest('tr');
+              if (tr && tr.getAttribute('data-ome')) omesSelecionadas.add(tr.getAttribute('data-ome'));
+            });
+
+            if (itensIds.length === 0) {
+              Swal.showValidationMessage('Selecione ao menos um item para remanejamento.');
+              return false;
+            }
+
+            if (omesSelecionadas.size > 1) {
+              Swal.showValidationMessage('Os materiais selecionados pertencem a OMEs distintas. Selecione itens de uma única OME por remanejamento.');
+              return false;
+            }
+
+            const selOme = document.getElementById('swalFiltroOmeRemanejamento');
+            let omeEfetiva = omesSelecionadas.size === 1 
+              ? Array.from(omesSelecionadas)[0] 
+              : ((selOme && selOme.value && selOme.value !== 'TODAS') ? selOme.value : OME_GLOBAL);
+
             const selectDestino = document.getElementById('swalDestinoInt');
             const destinoId = selectDestino ? selectDestino.value : "";
             const selectedOpt = selectDestino && selectDestino.selectedIndex >= 0 ? selectDestino.options[selectDestino.selectedIndex] : null;
             const caminhoTexto = selectedOpt ? (selectedOpt.getAttribute('data-caminho') || selectedOpt.text) : "";
 
-            const selOme = document.getElementById('swalFiltroOmeRemanejamento');
-            const omeEfetiva = selOme ? selOme.value : OME_GLOBAL;
-
             const cpf = document.getElementById('swalCpf').value.trim();
             const pin = document.getElementById('swalPin').value.trim();
-            const checkboxes = document.querySelectorAll('.check-item-int:checked');
-            let itensIds = [];
-            checkboxes.forEach(cb => itensIds.push(cb.value));
 
-            if (!destinoId || itensIds.length === 0 || !cpf || !pin) { 
-              Swal.showValidationMessage('Selecione o local de destino, ao menos um item, e preencha CPF e PIN.'); 
+            if (!destinoId || !cpf || !pin) { 
+              Swal.showValidationMessage('Selecione o local de destino e preencha CPF e PIN.'); 
               return false; 
             }
 
