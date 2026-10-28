@@ -18147,7 +18147,10 @@ function getDadosGestaoFrotas() {
     var idxNome = findCol(["NOME", "PREFIXO", "VIATURA", "DESIGNACAO", "IDENTIFICACAO", "CODIGO"]);
     var idxOme = findCol(["OME", "UNIDADE", "LOTACAO", "DESTINO"]);
     var idxPlaca = findCol(["PLACA", "PLACAS"]);
-    var idxPatrimonio = findCol(["PATRIMONIO", "TOMBO", "N_PATRIMONIO", "PATR", "N_DO_PATRIMONIO"]);
+    // Coluna J = índice 9 (Nº PAT.)
+    var idxPatrimonio = findCol(["N_PAT", "Nº_PAT", "N_PATRIMONIO", "PATRIMONIO", "TOMBO", "N_DO_PATRIMONIO"]);
+    if (idxPatrimonio === -1 && rawHeaders.length > 9) idxPatrimonio = 9;
+
     var idxMarcaModelo = findCol(["MARCA_MODELO", "MARCAMODELO", "MARCA_E_MODELO"]);
     var idxMarca = findCol(["MARCA", "FABRICANTE"]);
     var idxModelo = findCol(["MODELO"]);
@@ -18157,8 +18160,14 @@ function getDadosGestaoFrotas() {
     var idxRenavam = findCol(["RENAVAM"]);
     var idxCombustivel = findCol(["TIPO_DE_COMBUSTIVEL", "TIPO_COMBUSTIVEL", "COMBUSTIVEL"]);
     var idxPosse = findCol(["POSSE", "VINCULO", "TIPO_POSSE"]);
+
+    // Coluna C = índice 2 (TIPO)
     var idxTipo = findCol(["TIPO", "TIPO_VIATURA", "CLASSIFICACAO"]);
+    if (idxTipo === -1 && rawHeaders.length > 2) idxTipo = 2;
+
+    // Coluna B = índice 1 (N DE ORDEM)
     var idxNOrdem = findCol(["N_DE_ORDEM", "N_ORDEM", "NUMERO_ORDEM", "ORDEM"]);
+    if (idxNOrdem === -1 && rawHeaders.length > 1) idxNOrdem = 1;
     var idxDestinacao = findCol(["DESTINACAO", "DESTINACAO_"]);
     var idxRastreado = findCol(["RASTREADO", "RASTREADO_", "RASTREADOR"]);
     var idxCaracterizado = findCol(["CARACTERIZADO", "CARACTERIZADO_", "CARACTERIZADA"]);
@@ -18179,8 +18188,41 @@ function getDadosGestaoFrotas() {
     for (var r = 1; r < dados.length; r++) {
       var row = dados[r];
       var placa = idxPlaca !== -1 ? String(row[idxPlaca] || "").trim() : "";
-      var nome = idxNome !== -1 ? String(row[idxNome] || "").trim() : "";
-      var patrimonio = idxPatrimonio !== -1 ? String(row[idxPatrimonio] || "").trim() : "";
+
+      // Coluna C (TIPO - índice 2) e Coluna B (N DE ORDEM - índice 1)
+      var valTipo = (idxTipo !== -1 && row[idxTipo] !== undefined && String(row[idxTipo]).trim()) 
+                    ? String(row[idxTipo]).trim() 
+                    : (row[2] !== undefined ? String(row[2]).trim() : "");
+
+      var valNOrdem = (idxNOrdem !== -1 && row[idxNOrdem] !== undefined && String(row[idxNOrdem]).trim()) 
+                      ? String(row[idxNOrdem]).trim() 
+                      : (row[1] !== undefined ? String(row[1]).trim() : "");
+
+      // NOME: Coluna C (TIPO) + "-" + Coluna B (N DE ORDEM)
+      var nome = "";
+      if (valTipo && valNOrdem) {
+        nome = valTipo + "-" + valNOrdem;
+      } else if (valTipo) {
+        nome = valTipo;
+      } else if (valNOrdem) {
+        nome = valNOrdem;
+      } else if (idxNome !== -1 && row[idxNome] !== undefined && String(row[idxNome]).trim()) {
+        nome = String(row[idxNome]).trim();
+      } else if (placa) {
+        nome = "VTR-" + placa;
+      } else {
+        nome = "Viatura #" + r;
+      }
+
+      // PATRIMÔNIO: Coluna J (Nº PAT. - índice 9)
+      var patrimonio = "";
+      if (idxPatrimonio !== -1 && row[idxPatrimonio] !== undefined && String(row[idxPatrimonio]).trim()) {
+        patrimonio = String(row[idxPatrimonio]).trim();
+      } else if (row[9] !== undefined && String(row[9]).trim()) {
+        patrimonio = String(row[9]).trim();
+      } else {
+        patrimonio = "N/I";
+      }
 
       // Pula linhas totalmente vazias
       if (!placa && !nome && !patrimonio) {
@@ -18228,8 +18270,8 @@ function getDadosGestaoFrotas() {
       }
 
       var posse = idxPosse !== -1 ? String(row[idxPosse] || "").trim() : "Próprio";
-      var tipo = idxTipo !== -1 ? String(row[idxTipo] || "").trim() : (nome ? nome.split("-")[0] : "");
-      var nOrdem = idxNOrdem !== -1 ? String(row[idxNOrdem] || "").trim() : (nome && nome.indexOf("-") !== -1 ? nome.split("-")[1] : "");
+      var tipo = valTipo || (nome && nome.indexOf("-") !== -1 ? nome.split("-")[0] : "");
+      var nOrdem = valNOrdem || (nome && nome.indexOf("-") !== -1 ? nome.split("-")[1] : "");
       var mMarcaSolo = idxMarca !== -1 ? String(row[idxMarca] || "").trim() : "";
       var mModeloSolo = idxModelo !== -1 ? String(row[idxModelo] || "").trim() : "";
       var destinacao = idxDestinacao !== -1 ? String(row[idxDestinacao] || "").trim() : "Operacional";
