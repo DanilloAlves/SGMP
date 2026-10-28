@@ -5085,7 +5085,7 @@ function assinarEConfirmarRecebimento(dadosAssinatura) {
     var sqlBusca = "SELECT ITEM FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
                    "WHERE UPPER(TRIM(UNIDADE)) = 'CINT' " +
                    "AND UPPER(TRIM(SUBUNIDADE)) = 'SEDE' " +
-                   "AND (SETOR IS NULL OR TRIM(SETOR) = '' OR TRIM(SETOR) = '-' OR UPPER(TRIM(SETOR)) IN ('GERAL', 'SEDE')) " +
+                   "AND (SETOR IS NULL OR TRIM(SETOR) = '' OR TRIM(SETOR) = '-') " +
                    "AND UPPER(TRIM(OBJETO)) = UPPER(TRIM('" + materialClean + "')) ";
                    
     if (seiPuro && seiPuro !== "N/I" && !seiPuro.includes("TRANSFERENCIA")) {
@@ -5122,7 +5122,7 @@ function assinarEConfirmarRecebimento(dadosAssinatura) {
                          "LOCALIZACAO_ESPCIFICA_NA_OME_Se_Necessario = NULL " +
                          "WHERE UPPER(TRIM(UNIDADE)) = 'CINT' " +
                          "AND UPPER(TRIM(SUBUNIDADE)) = 'SEDE' " +
-                         "AND (SETOR IS NULL OR TRIM(SETOR) = '' OR TRIM(SETOR) = '-' OR UPPER(TRIM(SETOR)) IN ('GERAL', 'SEDE')) " +
+                         "AND (SETOR IS NULL OR TRIM(SETOR) = '' OR TRIM(SETOR) = '-') " +
                          "AND UPPER(TRIM(OBJETO)) = UPPER(TRIM('" + materialClean + "')) " +
                          "LIMIT " + totalNecessario;
       executarConsultaBigQuerySegura(sqlUpdateGen, true);
@@ -7754,7 +7754,7 @@ function getEstoqueDisponivelCintPorSei() {
 
               "WHERE UPPER(TRIM(UNIDADE)) = 'CINT' " +
               "AND UPPER(TRIM(SUBUNIDADE)) = 'SEDE' " +
-              "AND (SETOR IS NULL OR TRIM(SETOR) = '' OR TRIM(SETOR) = '-' OR UPPER(TRIM(SETOR)) IN ('GERAL', 'SEDE')) " +
+              "AND (SETOR IS NULL OR TRIM(SETOR) = '' OR TRIM(SETOR) = '-') " +
               "AND IFNULL(STATUS, '') != 'EXTRAVIADO' " +
               "GROUP BY SEI_COMPRA_RECEBIMENTO, OBJETO " +
 
@@ -7914,7 +7914,7 @@ function getItensDisponiveisCintParaDespacho(processoSei, material) {
               "FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
               "WHERE UPPER(TRIM(UNIDADE)) = 'CINT' " +
               "AND UPPER(TRIM(SUBUNIDADE)) = 'SEDE' " +
-              "AND (SETOR IS NULL OR TRIM(SETOR) = '' OR TRIM(SETOR) = '-' OR UPPER(TRIM(SETOR)) IN ('GERAL', 'SEDE')) " +
+              "AND (SETOR IS NULL OR TRIM(SETOR) = '' OR TRIM(SETOR) = '-') " +
               "AND " + condicaoObjeto + " " +
               "AND (STATUS IS NULL OR UPPER(TRIM(STATUS)) IN ('ECD', 'SCD', 'DISPONIVEL')) " +
               "AND UPPER(TRIM(STATUS)) != 'EXTRAVIADO' ";
@@ -7933,7 +7933,7 @@ function getItensDisponiveisCintParaDespacho(processoSei, material) {
                   "FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
                   "WHERE UPPER(TRIM(UNIDADE)) = 'CINT' " +
                   "AND UPPER(TRIM(SUBUNIDADE)) = 'SEDE' " +
-                  "AND (SETOR IS NULL OR TRIM(SETOR) = '' OR TRIM(SETOR) = '-' OR UPPER(TRIM(SETOR)) IN ('GERAL', 'SEDE')) " +
+                  "AND (SETOR IS NULL OR TRIM(SETOR) = '' OR TRIM(SETOR) = '-') " +
                   "AND " + condicaoObjeto + " " +
                   "AND (STATUS IS NULL OR UPPER(TRIM(STATUS)) IN ('ECD', 'SCD', 'DISPONIVEL')) " +
                   "AND UPPER(TRIM(STATUS)) != 'EXTRAVIADO' " +
@@ -8106,7 +8106,7 @@ function gerarTicketDistribuicaoDpl(dadosTicket) {
     var sqlBusca = "SELECT ITEM FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
                    "WHERE UPPER(TRIM(UNIDADE)) = 'CINT' " +
                    "AND UPPER(TRIM(SUBUNIDADE)) = 'SEDE' " +
-                   "AND (SETOR IS NULL OR TRIM(SETOR) = '' OR TRIM(SETOR) = '-' OR UPPER(TRIM(SETOR)) IN ('GERAL', 'SEDE')) " +
+                   "AND (SETOR IS NULL OR TRIM(SETOR) = '' OR TRIM(SETOR) = '-') " +
                    "AND UPPER(TRIM(OBJETO)) = UPPER(TRIM('" + materialClean + "')) " +
                    "AND (STATUS IS NULL OR UPPER(TRIM(STATUS)) IN ('ECD', 'SCD', 'DISPONIVEL')) " +
                    "AND UPPER(TRIM(STATUS)) != 'EXTRAVIADO' ";
@@ -8132,7 +8132,7 @@ function gerarTicketDistribuicaoDpl(dadosTicket) {
       var sqlBuscaFb = "SELECT ITEM FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
                        "WHERE UPPER(TRIM(UNIDADE)) = 'CINT' " +
                        "AND UPPER(TRIM(SUBUNIDADE)) = 'SEDE' " +
-                       "AND (SETOR IS NULL OR TRIM(SETOR) = '' OR TRIM(SETOR) = '-' OR UPPER(TRIM(SETOR)) IN ('GERAL', 'SEDE')) " +
+                       "AND (SETOR IS NULL OR TRIM(SETOR) = '' OR TRIM(SETOR) = '-') " +
                        "AND UPPER(TRIM(OBJETO)) = UPPER(TRIM('" + materialClean + "')) " +
                        "AND (STATUS IS NULL OR UPPER(TRIM(STATUS)) IN ('ECD', 'SCD', 'DISPONIVEL')) " +
                        "AND UPPER(TRIM(STATUS)) != 'EXTRAVIADO' " +
@@ -8369,7 +8369,7 @@ function getTicketsLiberacaoDpl() {
               "FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
               "WHERE UPPER(TRIM(UNIDADE)) = 'CINT' " +
               "AND UPPER(TRIM(SUBUNIDADE)) = 'SEDE' " +
-              "AND (SETOR IS NULL OR TRIM(SETOR) = '' OR TRIM(SETOR) = '-' OR UPPER(TRIM(SETOR)) IN ('GERAL', 'SEDE')) " +
+              "AND (SETOR IS NULL OR TRIM(SETOR) = '' OR TRIM(SETOR) = '-') " +
               "AND IFNULL(STATUS, '') != 'EXTRAVIADO' " +
               "AND SEI_COMPRA_RECEBIMENTO IS NOT NULL AND TRIM(SEI_COMPRA_RECEBIMENTO) != '' " +
               "GROUP BY SEI_COMPRA_RECEBIMENTO, OBJETO " +
@@ -8412,7 +8412,7 @@ function getTicketsLiberacaoDplFiltrados(filtroSei, filtroMaterial) {
                   "FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
                   "WHERE UPPER(TRIM(UNIDADE)) = 'CINT' " +
                   "AND UPPER(TRIM(SUBUNIDADE)) = 'SEDE' " +
-                  "AND (SETOR IS NULL OR TRIM(SETOR) = '' OR TRIM(SETOR) = '-' OR UPPER(TRIM(SETOR)) IN ('GERAL', 'SEDE')) " +
+                  "AND (SETOR IS NULL OR TRIM(SETOR) = '' OR TRIM(SETOR) = '-') " +
                   "AND IFNULL(STATUS, '') != 'EXTRAVIADO' " +
                   "AND SEI_COMPRA_RECEBIMENTO IS NOT NULL AND TRIM(SEI_COMPRA_RECEBIMENTO) != '' ";
 
@@ -10720,7 +10720,7 @@ function confirmarRecebimentoRemessa(idRemessa, cpfRecebedor, nomeRecebedor, dad
       var sqlBuscaCint = "SELECT ITEM FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
                          "WHERE UPPER(TRIM(UNIDADE)) = 'CINT' " +
                          "AND UPPER(TRIM(SUBUNIDADE)) = 'SEDE' " +
-                         "AND (SETOR IS NULL OR TRIM(SETOR) = '' OR TRIM(SETOR) = '-' OR UPPER(TRIM(SETOR)) IN ('GERAL', 'SEDE')) " +
+                         "AND (SETOR IS NULL OR TRIM(SETOR) = '' OR TRIM(SETOR) = '-') " +
                          "AND UPPER(TRIM(OBJETO)) = UPPER(TRIM('" + materialClean + "')) " +
                          "AND (STATUS IS NULL OR UPPER(TRIM(STATUS)) IN ('ECD', 'SCD', 'DISPONIVEL')) " +
                          "AND UPPER(TRIM(STATUS)) != 'EXTRAVIADO' " +
@@ -10746,7 +10746,7 @@ function confirmarRecebimentoRemessa(idRemessa, cpfRecebedor, nomeRecebedor, dad
         var sqlBuscaCintFallback = "SELECT ITEM FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
                                    "WHERE UPPER(TRIM(UNIDADE)) = 'CINT' " +
                                    "AND UPPER(TRIM(SUBUNIDADE)) = 'SEDE' " +
-                                   "AND (SETOR IS NULL OR TRIM(SETOR) = '' OR TRIM(SETOR) = '-' OR UPPER(TRIM(SETOR)) IN ('GERAL', 'SEDE')) " +
+                                   "AND (SETOR IS NULL OR TRIM(SETOR) = '' OR TRIM(SETOR) = '-') " +
                                    "AND UPPER(TRIM(OBJETO)) = UPPER(TRIM('" + materialClean + "')) " +
                                    "AND (STATUS IS NULL OR UPPER(TRIM(STATUS)) IN ('ECD', 'SCD', 'DISPONIVEL')) " +
                                    "AND UPPER(TRIM(STATUS)) != 'EXTRAVIADO' " +
