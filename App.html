@@ -131,6 +131,7 @@
     #aba-base,
     #aba-logs,
     #aba-cint,
+    #aba-frotas,
     .conteudo-aba {
       position: relative;
       z-index: 1;
@@ -3335,13 +3336,11 @@
       </div>
     </div>
 
-</div>
-
 <!-- ========================================================================= -->
 <!-- ABA: GESTÃO DE FROTAS (Peculio_Viatura) -->
 <!-- ========================================================================= -->
 <div id="aba-frotas" class="container-fluid p-0" style="display: none;">
-  <div class="frotas-wrapper d-flex rounded-3 overflow-hidden shadow-sm border bg-white mb-4" style="min-height: calc(100vh - 170px);">
+  <div class="frotas-wrapper d-flex rounded-3 overflow-hidden shadow-sm border bg-white mb-4 w-100" style="min-height: calc(100vh - 170px);">
     
     <!-- SIDEBAR FROTAS (Idêntica ao layout em anexo) -->
     <aside id="sidebarFrotas" class="frotas-sidebar d-flex flex-column justify-content-between p-2 text-white" style="background-color: #800000; width: 220px; transition: width 0.25s ease; flex-shrink: 0;">
@@ -3398,7 +3397,7 @@
     </aside>
 
     <!-- ÁREA PRINCIPAL DA GESTÃO DE FROTAS -->
-    <main class="frotas-main flex-grow-1 p-4 bg-light overflow-auto">
+    <main class="frotas-main flex-grow-1 p-4 bg-light overflow-auto" style="min-width: 0;">
       
       <!-- CABEÇALHO COM ÍCONE, TÍTULO E CONTADOR TOTAL -->
       <div class="d-flex justify-content-between align-items-center mb-4 pb-2 border-bottom">
@@ -3596,6 +3595,7 @@
     </main>
   </div>
 </div>
+</div> <!-- Fechamento correto de #content -->
 
 <!-- MODAL: VER SALDO / ESPECIFICAÇÕES DA VIATURA -->
 <div class="modal fade" id="modalSaldoViatura" tabindex="-1" aria-labelledby="modalSaldoViaturaLabel" aria-hidden="true">
@@ -27672,6 +27672,18 @@ const frotasStyles = `
     background-color: rgba(0, 0, 0, 0.28) !important;
     color: #ffffff !important;
     font-weight: 700 !important;
+  }
+  #aba-frotas {
+    width: 100% !important;
+  }
+  .frotas-wrapper {
+    width: 100% !important;
+    display: flex !important;
+  }
+  .frotas-main {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    width: 100% !important;
   }
   .frotas-sidebar.collapsed {
     width: 68px !important;
