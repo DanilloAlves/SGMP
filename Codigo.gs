@@ -9669,6 +9669,8 @@ function normalizarLinhaImportacaoExcel_(linhaBruta) {
     local: buscar(["LOCAL", "LOCALIZACAO", "LOCALIZAÇÃO", "LOCALIZACAOESPECIFICA"], ""),
     status: buscar(["STATUS", "ESTADO", "CONSERVACAO", "CONSERVAÇÃO", "SITUACAO"], "ECD"),
     patrimonio: buscar(["PATRIMONIO", "PATRIMÔNIO", "NPATRIMONIO", "N_PATRIMONIO", "PAT", "TOMBO"], ""),
+
+    numSerie: buscar(["N_ORDEM (N_SERIE)", "N_ORDEM(N_SERIE)", "N_ORDEM / N_SERIE", "N_ORDEM_N_SERIE", "N_ORDEM", "N_SERIE", "NSERIE", "NORDEM", "N DE ORDEM", "NUMERO DE ORDEM", "NUMERO DE SERIE", "NUMERO_SERIE", "NUMERO_ORDEM", "SERIE", "ORDEM", "NUMSERIE"], ""),
     sei: buscar(["SEI", "PROCESSEI", "NSEI", "SEICOMPRA"], ""),
     efisco: buscar(["EFISCO", "CODEFISCO"], ""),
     permanente: buscar(["PERMANENTE", "BEMPERMANENTE"], ""),
@@ -9765,6 +9767,8 @@ function importarLoteExcelBigQuery(registros, proximoNumeroFornecido, registrarL
       if (!material) {
         if (itemNorm.patrimonio) {
           material = "Item Tombado " + itemNorm.patrimonio;
+        } else if (itemNorm.numSerie) {
+          material = "Item " + itemNorm.numSerie;
         } else if (itemNorm.subunidade || itemNorm.unidade) {
           material = "Item " + (itemNorm.subunidade || itemNorm.unidade);
         } else {
@@ -9800,7 +9804,7 @@ function importarLoteExcelBigQuery(registros, proximoNumeroFornecido, registrarL
       var respCpf = (usuario && usuario.cpf) ? usuario.cpf : "-";
       var emailUsuario = (usuario && usuario.email && respNome.indexOf(usuario.email) === -1 && respNome !== usuario.email) ? usuario.email : "";
       var respComEmail = respNome + (emailUsuario ? " (" + emailUsuario + ")" : "");
-      var tagImport = "Carregamento em lote via Planilha por " + respComEmail;
+      var tagImport = "Carregamento em lote via Planilha por " + respComEmail + (numSerie ? " (Nº Ordem/Série: " + numSerie + ")" : "");
       var obsFinal = (obs && obs !== "Importação Lote") ? (obs + " | " + tagImport) : tagImport;
 
       // Pré-escape dos campos da linha uma única vez fora do loop multiplicador k
@@ -9808,6 +9812,9 @@ function importarLoteExcelBigQuery(registros, proximoNumeroFornecido, registrarL
       var escEfisco = escSql(efisco);
       var escSei = escSql(sei);
       var escPerm = permanente ? "'" + escSql(permanente) + "'" : "NULL";
+      var numSerie = (itemNorm.numSerie || itemNorm.nSerie || "").trim();
+      var escNumSerie = numSerie ? ("'" + escSql(numSerie) + "'") : "NULL";
+
       var escPat = escSql(patrimonio);
       var escUnd = escSql(unidade);
       var escSub = escSql(subunidade);
@@ -9829,7 +9836,7 @@ function importarLoteExcelBigQuery(registros, proximoNumeroFornecido, registrarL
         
         var valStr = "('" + itemId + "', '" + escMaterial + "', '" + escEfisco + "', '" + escSei + "', " + 
                      escPerm + ", '" + 
-                     escPat + "', '" + escUnd + "', '" + escSub + "', '" + escSet + "', '" + escLoc + "', '" + escStatus + "', '', '', '', '', '', '', '" + escObsFinal + "')";
+                     escPat + "', '" + escUnd + "', '" + escSub + "', '" + escSet + "', '" + escLoc + "', '" + escStatus + "', '', '', '', '', '', '', '" + escObsFinal + "', " + escNumSerie + ")";
         todosItensAInserir.push(valStr);
 
         var idHist = "HIST-" + baseTimestamp + "-" + proximoNumero + "-" + (k + 1);
@@ -9851,7 +9858,7 @@ function importarLoteExcelBigQuery(registros, proximoNumeroFornecido, registrarL
       var chunk = todosItensAInserir.slice(m, m + tamanhoLote);
       var chunkHist = todosEventosAInserir.slice(m, m + tamanhoLote);
 
-      var sqlInsert = "INSERT INTO `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` (ITEM, OBJETO, COD_EFISCO, SEI_COMPRA_RECEBIMENTO, BEM_PERMANENTE_PATRIMONIAVEL_SIM_NAO, N_PATRIMONIO, UNIDADE, SUBUNIDADE, SETOR, LOCALIZACAO_ESPCIFICA_NA_OME_Se_Necessario, STATUS, SE_ACAUTELADO_POSTO_GRAD, SE_ACAUTELADO_NOME_COMPLETO, SE_ACAUTELADO_CPF, SE_ACAUTELADO_N_DOC_SEI, SE_EXTRAVIADO_OU_SCD_N_DOC_SEI, LINK_DE_FOTO_GOOGLE_DRIVE_Somente_Leitura, OBSERVACAO_Mais_detalhes_sobre_a_situacao_do_material) VALUES " + chunk.join(", ");
+      var sqlInsert = "INSERT INTO `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` (ITEM, OBJETO, COD_EFISCO, SEI_COMPRA_RECEBIMENTO, BEM_PERMANENTE_PATRIMONIAVEL_SIM_NAO, N_PATRIMONIO, UNIDADE, SUBUNIDADE, SETOR, LOCALIZACAO_ESPCIFICA_NA_OME_Se_Necessario, STATUS, SE_ACAUTELADO_POSTO_GRAD, SE_ACAUTELADO_NOME_COMPLETO, SE_ACAUTELADO_CPF, SE_ACAUTELADO_N_DOC_SEI, SE_EXTRAVIADO_OU_SCD_N_DOC_SEI, LINK_DE_FOTO_GOOGLE_DRIVE_Somente_Leitura, OBSERVACAO_Mais_detalhes_sobre_a_situacao_do_material, N_SERIE) VALUES " + chunk.join(", ");
       
       var sqlInsertHist = "";
       if (chunkHist.length > 0) {

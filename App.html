@@ -4443,7 +4443,7 @@
         <!-- Bloco de instruções com o botão de DOWNLOAD DO ARQUIVO .XLSX -->
         <div class="alert alert-light border small text-muted mb-4">
           <p class="mb-1 fw-bold text-dark"><i class="fa-solid fa-circle-info text-primary me-1"></i> Padrão de Colunas Exigido na 1ª linha do Excel:</p>
-          <code class="text-dark bg-light d-block p-2 rounded border">MATERIAL | QUANTIDADE | UNIDADE | SUBUNIDADE | SETOR | LOCAL | STATUS | PATRIMONIO | SEI | EFISCO | PERMANENTE | OBSERVACAO</code>
+          <code class="text-dark bg-light d-block p-2 rounded border">MATERIAL | QUANTIDADE | UNIDADE | SUBUNIDADE | SETOR | LOCAL | STATUS | PATRIMONIO | N_ORDEM (N_SERIE) | SEI | EFISCO | PERMANENTE | OBSERVACAO</code>
           <p class="mb-3 mt-2 text-danger">* MATERIAL | QUANTIDADE | UNIDADE | STATUS são ítens obrigatórios de preenchimento.</p>
           
           <!-- NOVO BOTÃO DE DOWNLOAD DO EXCEL -->
@@ -4463,7 +4463,7 @@
             <table class="table table-sm table-striped small mb-0" id="tabelaPreviaExcel">
               <thead class="table-light sticky-top">
                 <!-- COLUNA 'Qtd' E 'Subunidade' ADICIONADAS AQUI -->
-                <tr><th>Material</th><th class="text-center">Qtd</th><th>Unidade</th><th>Subunidade</th><th>Status</th><th>Local</th></tr>
+                <tr><th>Material</th><th class="text-center">Qtd</th><th>Unidade</th><th>Subunidade</th><th>Nº Ordem / Série</th><th>Status</th><th>Local</th></tr>
               </thead>
               <tbody></tbody>
             </table>
@@ -17195,6 +17195,7 @@ function renderizarTimelineEmElemento(dados, ids) {
       local: buscar(["LOCAL", "LOCALIZACAO", "LOCALIZAÇÃO", "LOCALIZACAOESPECIFICA"], ""),
       status: buscar(["STATUS", "ESTADO", "CONSERVACAO", "CONSERVAÇÃO", "SITUACAO"], "ECD"),
       patrimonio: buscar(["PATRIMONIO", "PATRIMÔNIO", "NPATRIMONIO", "N_PATRIMONIO", "PAT", "TOMBO"], ""),
+      numSerie: buscar(["N_ORDEM (N_SERIE)", "N_ORDEM(N_SERIE)", "N_ORDEM / N_SERIE", "N_ORDEM_N_SERIE", "N_ORDEM", "N_SERIE", "NSERIE", "NORDEM", "N DE ORDEM", "NUMERO DE ORDEM", "NUMERO DE SERIE", "NUMERO_SERIE", "NUMERO_ORDEM", "SERIE", "ORDEM"], ""),
       sei: buscar(["SEI", "PROCESSEI", "NSEI", "SEICOMPRA"], ""),
       efisco: buscar(["EFISCO", "CODEFISCO"], ""),
       permanente: buscar(["PERMANENTE", "BEMPERMANENTE"], ""),
@@ -17225,7 +17226,7 @@ function renderizarTimelineEmElemento(dados, ids) {
       jsonDados.forEach(linha => {
         const norm = normalizarLinhaImportacaoExcelCliente(linha);
         // Aceita a linha se tiver material, unidade, subunidade, patrimônio ou documento
-        if (norm.material || norm.unidade || norm.subunidade || norm.patrimonio || norm.sei) {
+        if (norm.material || norm.unidade || norm.subunidade || norm.patrimonio || norm.numSerie || norm.sei) {
           linhasNormalizadas.push(norm);
         }
       });
@@ -17304,6 +17305,7 @@ function renderizarTimelineEmElemento(dados, ids) {
         const qtd = linha.quantidade || '1';
         const und = linha.unidade || (usuarioSessaoAtual && usuarioSessaoAtual.ome) || 'DLOG';
         const sub = (!linha.subunidade || linha.subunidade === '-' || linha.subunidade.toUpperCase() === 'SEDE') ? 'SEDE' : linha.subunidade;
+        const numSerie = linha.numSerie || '-';
         const sts = linha.status || 'ECD';
         const loc = linha.local || '-';
         
@@ -17312,6 +17314,7 @@ function renderizarTimelineEmElemento(dados, ids) {
                          <td class="text-center fw-bold text-primary">${qtd}</td>
                          <td>${und}</td>
                          <td><span class="badge ${sub === 'SEDE' ? 'bg-secondary' : 'bg-primary'}">${sub}</span></td>
+                         <td><span class="badge bg-light text-dark border">${numSerie}</span></td>
                          <td><span class="badge bg-secondary">${sts}</span></td>
                          <td>${loc}</td>
                        </tr>`;
@@ -17436,7 +17439,7 @@ function renderizarTimelineEmElemento(dados, ids) {
 
       wsDados.state = 'hidden';
 
-      // COLUNAS ATUALIZADAS (INCLUINDO QUANTIDADE E SUBUNIDADE)
+      // COLUNAS ATUALIZADAS (INCLUINDO QUANTIDADE, SUBUNIDADE E N_ORDEM (N_SERIE))
       ws.columns = [
         { header: 'MATERIAL', key: 'mat', width: 38 },
         { header: 'QUANTIDADE', key: 'qtd', width: 15 },
@@ -17446,6 +17449,7 @@ function renderizarTimelineEmElemento(dados, ids) {
         { header: 'LOCAL', key: 'loc', width: 20 },
         { header: 'STATUS', key: 'sts', width: 18 },
         { header: 'PATRIMONIO', key: 'pat', width: 18 },
+        { header: 'N_ORDEM (N_SERIE)', key: 'numSerie', width: 24 },
         { header: 'SEI', key: 'sei', width: 25 },
         { header: 'EFISCO', key: 'efi', width: 15 },
         { header: 'PERMANENTE', key: 'per', width: 18 },
@@ -17456,13 +17460,14 @@ function renderizarTimelineEmElemento(dados, ids) {
       ws.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF991B1B' } };
       ws.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' };
 
-      // LINHA DE EXEMPLO COM QTD, OME E SUBUNIDADE CORRESPONDENTE
+      // LINHA DE EXEMPLO COM QTD, OME, SUBUNIDADE E N_ORDEM (N_SERIE)
       const omeExemplo = omeAlvo || 'DLOG';
       const subsExemplo = (mapaSubunidades && mapaSubunidades[omeExemplo]) ? mapaSubunidades[omeExemplo] : ['SEDE'];
       const subExemplo = subsExemplo[0] || 'SEDE';
       ws.addRow({
         mat: 'BALACLAVA (COMBATE A INCÊNDIO)', qtd: 50, und: omeExemplo, sub: subExemplo,
         set: 'PRATELEIRA A', loc: 'GAVETA 1', sts: 'ECD', pat: '123456',
+        numSerie: '971',
         sei: '390000.0001/2026', efi: '112233', per: 'SIM', obs: 'Serão gerados 50 itens individuais deste no banco'
       });
 
@@ -17495,8 +17500,8 @@ function renderizarTimelineEmElemento(dados, ids) {
           formulae: ['"ECD,SCD,EXTRAVIADO,ACAUTELADO"']
         };
 
-        // Coluna K (PERMANENTE)
-        ws.getCell(`K${i}`).dataValidation = {
+        // Coluna L (PERMANENTE - ajustada após adição da coluna I N_ORDEM (N_SERIE))
+        ws.getCell(`L${i}`).dataValidation = {
           type: 'list', allowBlank: true, showErrorMessage: true,
           formulae: ['"SIM,NAO"']
         };
