@@ -10644,11 +10644,12 @@ window.carregarLocaisArvoreGeral = function() {
       const achou = window.cacheDadosFrotas.viaturas.some(v => {
         const vNome = (v.nome || "").toUpperCase().trim();
         const vPlaca = (v.placa || "").toUpperCase().trim();
-        return n === vNome || n.includes(vNome) || (vPlaca && n.includes(vPlaca));
+        const vTipo = (v.tipo || "").toUpperCase().trim();
+        return n === vNome || n === vTipo || n.startsWith(vTipo + " ") || n.startsWith(vTipo + "-") || n.includes(vNome) || (vPlaca && n.includes(vPlaca));
       });
       if (achou) return true;
     }
-    if (/^(?:VTR|ABTF|ABTS|ABT|ABSL|ABSM|ABSC|AR|AT\/1|AT|ASE|AE|AEM|BIS|MSA|MR|AP|ATM|AC|ACA|UR|UTI)\s*[-/ ]\s*\d+/i.test(n)) {
+    if (/^(?:VTR|ABTF|ABTS|ABT|ABSL|ABSM|ABSC|AR|AT\/1|AT|ASE|AE|AEM|BIS|MSA|MR|AP|ATM|AC|ACA|UR|UTI)(?:\b|[-_ ])/i.test(n)) {
       return true;
     }
     return (typeof CONFIG_VIATURAS_CBMPE !== 'undefined') && CONFIG_VIATURAS_CBMPE.some(cfg => cfg.regex.test(n));
@@ -12275,7 +12276,19 @@ window.carregarLocaisArvoreGeral = function() {
       }
     }).then(res => {
       if (res.isConfirmed) {
-        google.script.run.withSuccessHandler(r => Swal.fire('Sucesso!', r, 'success')).vistarEAtrelarMateriaisAoLocal(idLocal, nomeLocal, res.value);
+        Swal.fire({
+          title: 'Atrelando Materiais...',
+          html: '<div class="py-2 text-center"><i class="fa-solid fa-spinner fa-spin fa-2x text-primary mb-2"></i><br>Atualizando localização e vinculando materiais ao local...</div>',
+          allowOutsideClick: false,
+          showConfirmButton: false
+        });
+        google.script.run
+          .withSuccessHandler(r => {
+            Swal.fire('Sucesso!', r, 'success');
+            if (typeof carregarLocaisArvoreGeral === 'function') carregarLocaisArvoreGeral();
+          })
+          .withFailureHandler(err => Swal.fire('Erro', err.message, 'error'))
+          .vistarEAtrelarMateriaisAoLocal(idLocal, nomeLocal, res.value);
       }
     });
   }

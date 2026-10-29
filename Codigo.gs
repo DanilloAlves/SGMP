@@ -1519,6 +1519,88 @@ function excluirLotePorIds(itensIds, usuarioCliente) {
 
 // =========================================================================
 
+function garantirSetoresViaturasNaArvore_(omePadrao, idSedeOficial, sheet, locais) {
+  if (!omePadrao || !idSedeOficial || !sheet || !locais) return;
+
+  try {
+    var inSqlOme = (typeof obterVariacoesOmeParaSql_ === 'function') 
+      ? obterVariacoesOmeParaSql_(omePadrao) 
+      : ("'" + omePadrao.toUpperCase().replace(/'/g, "\\'") + "'");
+
+    var sql = "SELECT DISTINCT UPPER(TRIM(OBJETO)) as objeto, " +
+              "UPPER(TRIM(COALESCE(SUBUNIDADE, ''))) as subunidade, " +
+              "UPPER(TRIM(COALESCE(SETOR, ''))) as setor, " +
+              "UPPER(TRIM(COALESCE(N_SERIE, ''))) as n_serie " +
+              "FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
+              "WHERE UPPER(TRIM(UNIDADE)) IN (" + inSqlOme + ") " +
+              "ORDER BY objeto ASC";
+
+    var resultado = executarConsultaBigQuerySegura(sql);
+    var rows = resultado.rows || [];
+    if (rows.length === 0) return;
+
+    var siglasProcessadas = {};
+
+    rows.forEach(function(r) {
+      var objeto = String(r.f[0].v || "").trim();
+      var subRef = String(r.f[1].v || "").trim();
+      var setRef = String(r.f[2].v || "").trim();
+      var nSerie = String(r.f[3].v || "").trim();
+
+      var sigla = (typeof obterSiglaViaturaBackend_ === 'function') ? obterSiglaViaturaBackend_(objeto) : "";
+      if (!sigla) return;
+
+      // Determina a Subunidade Pai (default SEDE)
+      var idPaiAlvo = idSedeOficial;
+      var ehSubSede = (typeof ehSubunidadeEquivalenteOme_ === 'function') ? ehSubunidadeEquivalenteOme_(subRef, omePadrao) : (subRef.toUpperCase() === "SEDE");
+      if (subRef && !ehSubSede && subRef.toUpperCase() !== "SEDE") {
+        var noSub = locais.find(function(l) {
+          return (!l.idPai || String(l.idPai).trim() === "") && String(l.nome).toUpperCase() === subRef.toUpperCase();
+        });
+        if (noSub) idPaiAlvo = noSub.id;
+      }
+
+      var chave = idPaiAlvo + "___" + sigla;
+      if (siglasProcessadas[chave]) return;
+      siglasProcessadas[chave] = true;
+
+      // Verifica se já existe um setor correspondente na árvore sob esse pai
+      var setorExistente = locais.find(function(l) {
+        if (String(l.idPai || "").trim() !== String(idPaiAlvo).trim()) return false;
+        var nomeUpper = String(l.nome || "").toUpperCase().trim();
+        return nomeUpper === sigla || nomeUpper.indexOf(sigla + " ") === 0 || nomeUpper.indexOf(sigla + "-") === 0;
+      });
+
+      if (!setorExistente) {
+        var novoId = "loc_vtr_" + new Date().getTime() + "_" + Math.floor(Math.random() * 1000);
+        var nomeSetor = sigla;
+
+        sheet.appendRow([novoId, omePadrao, nomeSetor, idPaiAlvo]);
+        locais.push({
+          id: novoId,
+          ome: omePadrao,
+          nome: nomeSetor,
+          idPai: idPaiAlvo
+        });
+
+        try {
+          var sqlUp = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
+                      "SET SETOR = '" + nomeSetor.replace(/'/g, "\\'") + "' " +
+                      "WHERE UPPER(TRIM(UNIDADE)) IN (" + inSqlOme + ") " +
+                      "AND UPPER(TRIM(OBJETO)) = '" + objeto.replace(/'/g, "\\'") + "' " +
+                      "AND (SETOR IS NULL OR TRIM(SETOR) = '' OR UPPER(TRIM(SETOR)) = 'SEDE')";
+          executarConsultaBigQuerySegura(sqlUp, true);
+          registrarLogAuditoria("AUTO_CRIACAO_SETOR_VIATURA", "Setor da viatura '" + nomeSetor + "' (" + objeto + ") criado automaticamente na OME " + omePadrao);
+        } catch(eUp) {
+          console.warn("Aviso ao atualizar SETOR da viatura no BigQuery: " + eUp.message);
+        }
+      }
+    });
+  } catch(errGeral) {
+    console.warn("Erro em garantirSetoresViaturasNaArvore_: " + errGeral.message);
+  }
+}
+
 function getArvoreLocais(unidadeOmega) {
 
   try {
@@ -1598,7 +1680,12 @@ function getArvoreLocais(unidadeOmega) {
       }
     });
 
-
+    // 3ª passada: garante que as viaturas da OME estejam cadastradas como Setores sob a SEDE ou suas subunidades
+    try {
+      garantirSetoresViaturasNaArvore_(omePadraoFormatado, idSedeOficial, sheet, locais);
+    } catch(eVtrArvore) {
+      console.warn("Aviso ao garantir setores de viaturas na árvore: " + eVtrArvore.message);
+    }
 
     return locais;
 
@@ -1759,17 +1846,113 @@ function getAppUrl() {
 
 
 function vistarEAtrelarMateriaisAoLocal(idLocal, nomeLocal, itensDistribuicao) {
-
   try {
+    var usuarioSessao = null;
+    try { usuarioSessao = getDadosUsuarioLogado(); } catch(e) {}
+    if (usuarioSessao && usuarioSessao.perfil) {
+      var perfilStr = String(usuarioSessao.perfil).trim().toLowerCase();
+      if (perfilStr === "usuário" || perfilStr === "usuario") {
+        throw new Error("Acesso restrito: usuários com perfil 'Usuário' não possuem permissão para atrelar materiais.");
+      }
+    }
 
-    return "Materiais atrelados e distribuídos com sucesso ao local: " + nomeLocal;
+    if (!idLocal || !itensDistribuicao || itensDistribuicao.length === 0) {
+      throw new Error("Nenhum material informado para atrelar.");
+    }
 
+    var ss = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+    var sheet = ss.getSheetByName(ABA_LOCAIS_ARMAZENAMENTO);
+    if (!sheet) throw new Error("Aba de locais não encontrada.");
+
+    var dados = sheet.getDataRange().getValues();
+    var localInfo = null;
+    var mapaNos = {};
+
+    for (var i = 1; i < dados.length; i++) {
+      var rId = String(dados[i][0] || "").trim();
+      var rOme = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(dados[i][1]) : String(dados[i][1] || "").trim();
+      var rNome = String(dados[i][2] || "").trim();
+      var rPai = String(dados[i][3] || "").trim();
+      mapaNos[rId] = { id: rId, ome: rOme, nome: rNome, idPai: rPai };
+      if (rId === String(idLocal).trim()) {
+        localInfo = mapaNos[rId];
+      }
+    }
+
+    if (!localInfo) throw new Error("Local não encontrado na árvore.");
+
+    var omeAlvo = localInfo.ome;
+    var inSqlOme = (typeof obterVariacoesOmeParaSql_ === 'function') 
+      ? obterVariacoesOmeParaSql_(omeAlvo) 
+      : ("'" + omeAlvo.toUpperCase().replace(/'/g, "\\'") + "'");
+
+    // Determina o caminho hierárquico (Subunidade > Setor > Local)
+    var partes = [];
+    var curr = localInfo;
+    var vis = {};
+    while (curr && !vis[curr.id]) {
+      vis[curr.id] = true;
+      partes.unshift(curr);
+      curr = curr.idPai ? mapaNos[curr.idPai] : null;
+    }
+
+    var subNome = "";
+    var setNome = "";
+    var locNome = "";
+
+    if (partes.length === 1) {
+      subNome = partes[0].nome.toUpperCase() === "SEDE" ? "" : partes[0].nome;
+    } else if (partes.length === 2) {
+      var p0Nome = partes[0].nome.toUpperCase();
+      subNome = p0Nome === "SEDE" ? "" : partes[0].nome;
+      setNome = partes[1].nome;
+    } else if (partes.length >= 3) {
+      var p0Nome = partes[0].nome.toUpperCase();
+      subNome = p0Nome === "SEDE" ? "" : partes[0].nome;
+      setNome = partes[1].nome;
+      locNome = partes[2].nome;
+    }
+
+    var totalAtrelados = 0;
+
+    for (var m = 0; m < itensDistribuicao.length; m++) {
+      var itemDist = itensDistribuicao[m];
+      var matNome = String(itemDist.material || "").trim();
+      var qtd = parseInt(itemDist.quantidade) || 0;
+      if (!matNome || qtd <= 0) continue;
+
+      var sqlSelect = "SELECT ITEM FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
+                      "WHERE UPPER(TRIM(UNIDADE)) IN (" + inSqlOme + ") " +
+                      "AND UPPER(TRIM(OBJETO)) = UPPER(TRIM('" + matNome.replace(/'/g, "\\'") + "')) " +
+                      "LIMIT " + qtd;
+
+      var resSel = executarConsultaBigQuerySegura(sqlSelect);
+      var rowsSel = resSel.rows || [];
+      if (rowsSel.length === 0) continue;
+
+      var idsParaAtualizar = rowsSel.map(function(r) {
+        return "'" + String(r.f[0].v).replace(/'/g, "\\'") + "'";
+      });
+
+      var setsUpdate = [];
+      if (subNome) setsUpdate.push("SUBUNIDADE = '" + subNome.replace(/'/g, "\\'") + "'");
+      setsUpdate.push("SETOR = '" + setNome.replace(/'/g, "\\'") + "'");
+      setsUpdate.push("LOCALIZACAO_ESPCIFICA_NA_OME_Se_Necessario = '" + locNome.replace(/'/g, "\\'") + "'");
+
+      var sqlUp = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
+                  "SET " + setsUpdate.join(", ") + " " +
+                  "WHERE ITEM IN (" + idsParaAtualizar.join(",") + ")";
+
+      executarConsultaBigQuerySegura(sqlUp, true);
+      totalAtrelados += idsParaAtualizar.length;
+
+      registrarLogAuditoria("ATRELAR_MATERIAL_LOCAL", "Atrelou " + idsParaAtualizar.length + " un(s) de " + matNome + " ao local '" + localInfo.nome + "' (Setor: " + setNome + ", Local: " + locNome + ")");
+    }
+
+    return "Foram atrelados com sucesso " + totalAtrelados + " item(ns) a " + localInfo.nome + "!";
   } catch (err) {
-
     throw new Error("Erro ao atrelar materiais: " + err.message);
-
   }
-
 }
 
 
@@ -1986,6 +2169,13 @@ function getMateriaisAtreladosPorLocal(unidadeOmega) {
       if (objeto) {
         // Exclui materiais de consumo da árvore física de locais (mantém apenas permanentes)
         if (typeof ehMaterialConsumo_ === 'function' && ehMaterialConsumo_(objeto, mapaConsumo)) {
+          return;
+        }
+
+        // Exclui viaturas de serem tratadas como materiais atrelados a locais da árvore
+        if ((typeof identificarSeObjetoEhViatura_ === 'function' && identificarSeObjetoEhViatura_(objeto)) ||
+            (typeof ehViaturaMaterialBackend_ === 'function' && ehViaturaMaterialBackend_(objeto)) ||
+            (typeof obterSiglaViaturaBackend_ === 'function' && obterSiglaViaturaBackend_(objeto))) {
           return;
         }
 
@@ -7843,12 +8033,41 @@ var CONFIG_VIATURAS_CBMPE_BACKEND = [
   { regex: /^MOTORRESGATE(?:\s*\([^)]*\))?/i, sigla: 'MR', base: 'MOTORRESGATE', sufixo: '' }
 ];
 
+function obterSiglaViaturaBackend_(nome) {
+  if (!nome) return '';
+  var n = String(nome).trim().toUpperCase();
+  var mDireto = n.match(/^(ABT|ABTS|AR|AT|ABTF|ABSL|ABSM|ABSC|ASE|AE|AEM|BIS|MSA|MR|AP|ATM|AC|ACA|UR|UTI)(?:\b|[-_ ])/i);
+  if (mDireto) {
+    var siglaNorm = mDireto[1].toUpperCase();
+    if (siglaNorm === 'ABTS') siglaNorm = 'ABT';
+    return siglaNorm;
+  }
+  if (/AUTO\s+BOMBA\s+TANQUE\s+FLORESTAL/i.test(n)) return 'ABTF';
+  if (/AUTO\s+BOMBA\s+TANQUE/i.test(n)) return 'ABT';
+  if (/AUTO\s+BUSCA.*C[AÃ]ES/i.test(n)) return 'ABSC';
+  if (/AUTO\s+BUSCA.*M[EÉ]DIO/i.test(n)) return 'ABSM';
+  if (/AUTO\s+BUSCA.*LEVE/i.test(n)) return 'ABSL';
+  if (/AUTO\s+SALVAMENTO\s+PESADO/i.test(n)) return 'ASE';
+  if (/AUTO\s+ESCADA\s+MULTIMISS/i.test(n)) return 'AEM';
+  if (/AUTO\s+ESCADA/i.test(n)) return 'AE';
+  if (/AUTO\s+RESGATE/i.test(n)) return 'AR';
+  if (/AUTO\s+TANQUE/i.test(n)) return 'AT';
+  if (/BOTE\s+INFL[AÁ]VEL/i.test(n)) return 'BIS';
+  if (/MOTO\s+SALVAMENTO/i.test(n)) return 'MSA';
+  if (/MOTORRESGATE/i.test(n)) return 'MR';
+  if (/AUTO\s+PLATAFORMA/i.test(n)) return 'AP';
+  if (/AUTO\s+TRANSPORTE/i.test(n)) return 'ATM';
+  if (/AMBUL[AÂ]NCIA/i.test(n) || /UNIDADE\s+DE\s+RESGATE/i.test(n)) return 'UR';
+  return '';
+}
+
 function ehViaturaMaterialBackend_(nome) {
   if (!nome) return false;
   var n = String(nome).trim();
   for (var i = 0; i < CONFIG_VIATURAS_CBMPE_BACKEND.length; i++) {
     if (CONFIG_VIATURAS_CBMPE_BACKEND[i].regex.test(n)) return true;
   }
+  if (typeof obterSiglaViaturaBackend_ === 'function' && obterSiglaViaturaBackend_(n)) return true;
   return false;
 }
 
@@ -8624,6 +8843,13 @@ function getMateriaisDaOme(ome) {
         var nomeMat = String(r.f[0].v).trim();
         // Filtra materiais de consumo para a lista lateral da árvore (mantém apenas permanentes)
         if (typeof ehMaterialConsumo_ === 'function' && ehMaterialConsumo_(nomeMat, mapaConsumo)) {
+          return;
+        }
+
+        // Exclui viaturas da lista lateral de materiais a atrelar
+        if ((typeof identificarSeObjetoEhViatura_ === 'function' && identificarSeObjetoEhViatura_(nomeMat)) ||
+            (typeof ehViaturaMaterialBackend_ === 'function' && ehViaturaMaterialBackend_(nomeMat)) ||
+            (typeof obterSiglaViaturaBackend_ === 'function' && obterSiglaViaturaBackend_(nomeMat))) {
           return;
         }
         materiais.push({ 
@@ -18953,8 +19179,9 @@ function garantirSetorViaturaNaSubunidade_(unidadeOme, idSubunidadeOuNome, nomeV
       nomeSubunidadeAlvo = "SEDE";
     }
 
-    // 2. Monta o nome padronizado do setor da viatura: [NOME] - [N_SERIE / N_ORDEM]
-    var nomeSetor = String(nomeViatura || "").trim();
+    // 2. Monta o nome padronizado do setor da viatura: [SIGLA] (ou [SIGLA] - [N_SERIE / N_ORDEM])
+    var siglaVtr = (typeof obterSiglaViaturaBackend_ === 'function') ? obterSiglaViaturaBackend_(nomeViatura) : "";
+    var nomeSetor = siglaVtr || String(nomeViatura || "").trim();
     var serieTrim = String(nSerieOuOrdem || "").trim();
     if (serieTrim && serieTrim !== "-" && serieTrim !== "null" && serieTrim !== "undefined") {
       if (nomeSetor.indexOf(serieTrim) === -1) {
