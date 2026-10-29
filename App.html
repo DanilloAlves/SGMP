@@ -3357,7 +3357,7 @@
           <li>
             <a href="#" class="nav-link frotas-nav-link active d-flex align-items-center text-white py-2 px-3 rounded-2" id="navFrotasPeculio" onclick="alternarMenuFrotas('peculio'); return false;">
               <i class="fa-solid fa-car-side frotas-icon fs-5"></i>
-              <span class="frotas-nav-text ms-3 fw-semibold small">Pecúlio</span>
+              <span class="frotas-nav-text ms-3 fw-semibold small">Viaturas</span>
             </a>
           </li>
           <li>
@@ -3407,8 +3407,8 @@
           </div>
           <div class="ms-3 d-flex align-items-center gap-3 flex-wrap">
             <h2 class="fw-bold mb-0 text-dark" id="frotasTituloPrincipal" style="letter-spacing: -0.02em;">Viaturas</h2>
-            <button type="button" class="btn btn-outline-primary btn-sm fw-bold shadow-sm rounded-pill px-3 py-1" onclick="abrirModalEstudoCruzamentoSEI()" title="Visualizar estudo de cruzamento Pecúlio x BigQuery para identificar processos SEI de compra">
-              <i class="fa-solid fa-magnifying-glass-chart me-1"></i> Cruzamento SEI (Pecúlio x BigQuery)
+            <button type="button" class="btn btn-outline-primary btn-sm fw-bold shadow-sm rounded-pill px-3 py-1" onclick="abrirModalEstudoCruzamentoSEI()" title="Visualizar estudo de cruzamento para identificar processos SEI de compra">
+              <i class="fa-solid fa-magnifying-glass-chart me-1"></i> Cruzamento de Processos SEI
             </button>
           </div>
         </div>
@@ -3553,9 +3553,9 @@
                     </div>
 
                     <div class="col-12">
-                      <label class="form-label small text-secondary fw-semibold mb-1"><i class="fa-solid fa-file-contract text-primary me-1"></i> Processo SEI da Compra (BigQuery)</label>
+                      <label class="form-label small text-secondary fw-semibold mb-1"><i class="fa-solid fa-file-contract text-primary me-1"></i> Processo SEI da Aquisição</label>
                       <div class="input-group input-group-sm">
-                        <input type="text" class="form-control form-control-sm bg-light fw-bold text-primary font-monospace" id="formViatSeiCompra" readonly placeholder="Buscando no BigQuery...">
+                        <input type="text" class="form-control form-control-sm bg-light fw-bold text-primary font-monospace" id="formViatSeiCompra" readonly placeholder="Localizando processo SEI...">
                         <button class="btn btn-outline-secondary" type="button" onclick="navigator.clipboard && navigator.clipboard.writeText(document.getElementById('formViatSeiCompra').value); Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'SEI copiado!', showConfirmButton: false, timer: 1500 });" title="Copiar Processo SEI"><i class="fa-solid fa-copy"></i></button>
                       </div>
                     </div>
@@ -3854,7 +3854,7 @@
         <div class="card border-0 shadow-sm p-4 bg-white">
           <h5 class="fw-bold text-dark mb-3"><i class="fa-solid fa-shield-halved me-2 text-danger"></i> Permissões da Gestão de Frotas</h5>
           <p class="text-muted small">
-            O módulo de Gestão de Frotas do SGMP está integrado à base oficial de Viaturas (Pecúlio).
+            O módulo de Gestão de Frotas do SGMP está integrado ao cadastro oficial de Viaturas.
           </p>
           <div class="alert alert-light border small text-secondary">
             <ul class="mb-0 ps-3">
@@ -4251,7 +4251,7 @@
         <div id="loadingGerencCadItens" class="text-center py-5">
           <div class="spinner-border text-primary mb-3" role="status"></div>
           <h6 class="fw-bold text-dark">Carregando catálogo oficial de materiais...</h6>
-          <span class="text-muted small">Lendo estrutura de colunas e registros cadastrados no Google Sheets...</span>
+          <span class="text-muted small">Lendo estrutura de colunas e registros cadastrados no sistema...</span>
         </div>
 
         <!-- Formulário de Edição e Cadastro -->
@@ -4644,7 +4644,7 @@
     {
       id: "base_dados",
       nome: "Acesso à Base de Dados",
-      descricao: "Visualizar a aba Base de Dados para consulta consolidada no BigQuery e exportação",
+      descricao: "Visualizar a aba Base de Dados para consulta consolidada do inventário e exportação",
       icone: "fa-solid fa-database",
       badgeTexto: "Base de Dados",
       cor: "info",
@@ -9097,7 +9097,7 @@
               </div>
 
               ${modoPainelMacroAtual === 'material' ? `
-                <!-- LISTA SUSPENSA COM OS MATERIAIS DA BASE BIGQUERY -->
+                <!-- LISTA SUSPENSA COM OS MATERIAIS DO INVENTÁRIO -->
                 <div class="d-flex align-items-center gap-1 flex-wrap">
                   <div style="min-width: 280px; max-width: 440px;">
                     <select class="form-select form-select-sm fw-semibold border-primary shadow-sm" id="selectFiltroMaterialBigQueryMacro" onchange="selecionarMaterialBigQueryMacro(this.value)">
@@ -10667,7 +10667,7 @@ window.carregarLocaisArvoreGeral = function() {
       .withSuccessHandler(res => {
         Swal.close();
         if (!res || !res.sucesso || !res.viatura) {
-          Swal.fire('Viatura não localizada', (res && res.erro) || `Não foi possível localizar o cadastro no Pecúlio para o setor '${nomeLocal}'.`, 'warning');
+          Swal.fire('Viatura não localizada', (res && res.erro) || `Não foi possível localizar o cadastro para o setor '${nomeLocal}'.`, 'warning');
           return;
         }
         renderizarModalViaturaHibrida(res.viatura, res.historico || [], res.seiCompra, idLocal, nomeLocal, ome);
@@ -10690,7 +10690,7 @@ window.carregarLocaisArvoreGeral = function() {
       sitTexto = 'Processo de Desfazimento';
     }
 
-    const seiExibido = seiCompra || v.seiCompra || 'Não localizado no BigQuery';
+    const seiExibido = seiCompra || v.seiCompra || 'Não localizado';
 
     // Monta o histórico
     let histHtml = '';
@@ -10737,10 +10737,10 @@ window.carregarLocaisArvoreGeral = function() {
           </div>
         </div>
 
-        <!-- BANNER DE PROCESSO SEI IDENTIFICADO NO BIGQUERY -->
+        <!-- BANNER DE PROCESSO SEI IDENTIFICADO -->
         <div class="alert alert-primary d-flex justify-content-between align-items-center py-2 px-3 mb-3 border-0 shadow-sm" style="background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%); color: white;">
           <div>
-            <small class="opacity-75 d-block text-uppercase" style="font-size: 10px; letter-spacing: 0.05em;">Processo SEI da Compra (BigQuery)</small>
+            <small class="opacity-75 d-block text-uppercase" style="font-size: 10px; letter-spacing: 0.05em;">Processo SEI da Aquisição</small>
             <strong class="font-monospace fs-6"><i class="fa-solid fa-file-contract me-1"></i>${seiExibido}</strong>
           </div>
           ${seiCompra ? `<button type="button" class="btn btn-sm btn-light fw-bold py-1 px-3 shadow-sm" onclick="navigator.clipboard && navigator.clipboard.writeText('${seiCompra}'); Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'SEI copiado!', showConfirmButton: false, timer: 1500 });"><i class="fa-solid fa-copy me-1"></i>Copiar SEI</button>` : ''}
@@ -10813,7 +10813,7 @@ window.carregarLocaisArvoreGeral = function() {
         <div id="vtrPainelStatus" style="display: none;">
           <div class="p-3 border rounded bg-light mb-3">
             <h6 class="fw-bold text-dark mb-2"><i class="fa-solid fa-wrench text-danger me-2"></i>Registrar Nova Situação da Viatura</h6>
-            <p class="small text-muted mb-3">A alteração será sincronizada simultaneamente na base oficial do Pecúlio e no inventário BigQuery.</p>
+            <p class="small text-muted mb-3">A alteração será sincronizada simultaneamente na Gestão de Frotas e no Inventário.</p>
 
             <div class="row g-3">
               <div class="col-md-6">
@@ -10921,7 +10921,7 @@ window.carregarLocaisArvoreGeral = function() {
 
     Swal.fire({
       title: 'Atualizando Situação...',
-      text: 'Sincronizando Pecúlio e BigQuery...',
+      text: 'Sincronizando dados da viatura...',
       allowOutsideClick: false,
       didOpen: () => Swal.showLoading()
     });
@@ -10968,8 +10968,8 @@ window.carregarLocaisArvoreGeral = function() {
   function abrirModalEstudoCruzamentoSEI(forcar) {
     const ehForcar = forcar === true;
     Swal.fire({
-      title: ehForcar ? 'Atualizando Estudo do BigQuery...' : 'Carregando Estudo de Cruzamento...',
-      html: '<div class="py-3 text-center"><i class="fa-solid fa-circle-nodes fa-spin fa-2x text-primary mb-2"></i><br>Identificando chaves de cruzamento (N_ORDEM=N_SERIE, SEI e Subunidade)...</div>',
+      title: ehForcar ? 'Atualizando Processos SEI...' : 'Carregando Processos SEI...',
+      html: '<div class="py-3 text-center"><i class="fa-solid fa-circle-nodes fa-spin fa-2x text-primary mb-2"></i><br>Identificando processos SEI de aquisição e subunidades...</div>',
       allowOutsideClick: false,
       showConfirmButton: false
     });
@@ -11017,7 +11017,7 @@ window.carregarLocaisArvoreGeral = function() {
               <i class="fa-solid fa-magnifying-glass-chart fs-5"></i>
             </div>
             <div>
-              <h5 class="fw-bold mb-0 text-dark">Estudo de Cruzamento SEI: Pecúlio x BigQuery</h5>
+              <h5 class="fw-bold mb-0 text-dark">Estudo de Cruzamento de Processos SEI de Aquisição</h5>
               <small class="text-muted">Identificação dos Processos SEI de Aquisição de Viaturas através do cruzamento TIPO + OME</small>
             </div>
           </div>
@@ -11025,7 +11025,7 @@ window.carregarLocaisArvoreGeral = function() {
             <button class="btn btn-sm btn-outline-danger fw-bold px-3 shadow-sm" onclick="filtrarApenasAR()" title="Filtrar instantaneamente viaturas Auto Resgate (AR)">
               <i class="fa-solid fa-truck-medical me-1"></i> Focar Auto Resgate (AR)
             </button>
-            <button class="btn btn-sm btn-outline-primary fw-bold px-3 shadow-sm" onclick="abrirModalEstudoCruzamentoSEI(true)" title="Recarregar e sincronizar dados com o BigQuery">
+            <button class="btn btn-sm btn-outline-primary fw-bold px-3 shadow-sm" onclick="abrirModalEstudoCruzamentoSEI(true)" title="Recarregar e sincronizar dados com o inventário">
               <i class="fa-solid fa-arrows-rotate me-1"></i> Recarregar
             </button>
             <button class="btn btn-sm btn-outline-success fw-bold px-3 shadow-sm" onclick="exportarEstudoCruzamentoExcel()">
@@ -11038,7 +11038,7 @@ window.carregarLocaisArvoreGeral = function() {
         <div class="row g-2 mb-3 text-center">
           <div class="col-md-3 col-6">
             <div class="card p-2 border bg-light shadow-sm">
-              <span class="text-secondary small fw-bold">Total Viaturas Pecúlio</span>
+              <span class="text-secondary small fw-bold">Total de Viaturas</span>
               <h4 class="fw-bold text-dark mb-0 mt-1">${est.total || 0}</h4>
             </div>
           </div>
@@ -11091,13 +11091,13 @@ window.carregarLocaisArvoreGeral = function() {
           <table class="table table-sm table-hover table-striped align-middle mb-0 small">
             <thead class="table-dark sticky-top small text-uppercase">
               <tr>
-                <th class="text-center" style="width: 125px;">Viatura (Pecúlio)</th>
+                <th class="text-center" style="width: 125px;">Viatura</th>
                 <th class="text-center" style="width: 85px;">Nº Ordem</th>
                 <th class="text-center" style="width: 110px;">OME</th>
-                <th class="text-center" style="width: 110px;">Subunidade (BQ)</th>
+                <th class="text-center" style="width: 110px;">Subunidade</th>
                 <th class="text-center" style="width: 85px;">Placa</th>
                 <th class="text-center" style="width: 95px;">Patrimônio</th>
-                <th>Processo SEI Compra (BigQuery / Histórico)</th>
+                <th>Processo SEI da Aquisição</th>
                 <th class="text-center" style="width: 125px;">Método Chave</th>
                 <th class="text-center" style="width: 85px;">Confiança</th>
               </tr>
@@ -11221,14 +11221,14 @@ window.carregarLocaisArvoreGeral = function() {
         'Nº DE ORDEM': v.nOrdem,
         'OME': v.ome,
         'PLACA': v.placa,
-        'SUBUNIDADE (BIGQUERY)': v.subunidadeBigQuery || 'SEDE',
+        'SUBUNIDADE': v.subunidadeBigQuery || 'SEDE',
         'PATRIMÔNIO': v.patrimonio,
         'MARCA / MODELO': v.marcaModelo,
         'SITUAÇÃO': v.situacao,
         'PROCESSO SEI (COMPRA)': v.seiCompra || 'Não localizado',
         'TIPO DE CORRESPONDÊNCIA': v.tipoMatch || '',
         'GRAU DE CONFIANÇA': v.confianca || '',
-        'OBJETO NO BIGQUERY': v.objetoBigQuery || ''
+        'DESCRIÇÃO NO INVENTÁRIO': v.objetoBigQuery || ''
       }));
 
       if (typeof XLSX !== 'undefined') {
@@ -17536,7 +17536,7 @@ window.carregarLocaisArvoreGeral = function() {
 
     // Exibe modal SweetAlert com barra de progresso em tempo real
     Swal.fire({
-      title: 'Importando para o BigQuery...',
+      title: 'Importando para o Sistema...',
       html: `
         <div class="text-start mb-2">
           <div class="d-flex justify-content-between small fw-bold mb-1">
@@ -17612,7 +17612,7 @@ window.carregarLocaisArvoreGeral = function() {
         if (cancelarImportacaoExcel) {
           Swal.fire({
             title: 'Importação Interrompida',
-            html: `A importação foi pausada pelo usuário.<br>Total gravado com sucesso no BigQuery: <b>${itensInseridosTotal.toLocaleString('pt-BR')}</b> itens.`,
+            html: `A importação foi pausada pelo usuário.<br>Total gravado com sucesso no inventário: <b>${itensInseridosTotal.toLocaleString('pt-BR')}</b> itens.`,
             icon: 'warning'
           });
           break;
@@ -17695,7 +17695,7 @@ window.carregarLocaisArvoreGeral = function() {
 
         Swal.fire({
           title: 'Importação Concluída com Sucesso!',
-          html: `Todos os <b>${itensInseridosTotal.toLocaleString('pt-BR')}</b> registros foram gravados com sucesso no inventário do BigQuery!`,
+          html: `Todos os <b>${itensInseridosTotal.toLocaleString('pt-BR')}</b> registros foram gravados com sucesso no inventário do sistema!`,
           icon: 'success'
         });
 
@@ -18350,7 +18350,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     }
 
     selectMilitar.setAttribute('data-carregado', 'true');
-    selectMilitar.innerHTML = '<option value="" disabled selected>Carregando efetivo completo do Pecúlio...</option>';
+    selectMilitar.innerHTML = '<option value="" disabled selected>Carregando efetivo da corporação...</option>';
     if (window.jQuery && $.fn.select2 && $(selectMilitar).data('select2')) {
       $(selectMilitar).val('').trigger('change.select2');
     }
@@ -18360,7 +18360,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
         window.cacheMilitaresCautelaGlobal = militares || [];
         let htmlOpts = '<option value="" disabled selected>Selecione o militar na lista...</option>';
         if (!militares || militares.length === 0) {
-          htmlOpts = '<option value="" disabled selected>Nenhum militar encontrado no Pecúlio</option>';
+          htmlOpts = '<option value="" disabled selected>Nenhum militar encontrado no efetivo</option>';
         } else {
           militares.forEach(m => {
             htmlOpts += `<option value="${m.nome}" data-posto="${m.posto}" data-matricula="${m.matricula}" data-cpf="${m.cpf || ''}" data-ome="${m.ome || ''}">${m.identificacaoCompleta}</option>`;
@@ -28633,7 +28633,7 @@ function abrirPainelEdicaoViatura(vEncoded) {
   setVal('formViatPlaca', v.placa || '');
   setVal('formViatModelo', v.modelo || (v.marcaModelo ? v.marcaModelo.replace(v.marca, '').trim() : ''));
   setVal('formViatSituacao', v.situacao || 'Ativa');
-  setVal('formViatSeiCompra', v.seiCompra || 'Não localizado no BigQuery');
+  setVal('formViatSeiCompra', v.seiCompra || 'Não localizado');
 
   // Preenche formulário - Outros
   setVal('formViatPatrimonio', v.patrimonio && v.patrimonio !== 'N/I' ? v.patrimonio : '');

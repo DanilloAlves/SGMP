@@ -18436,7 +18436,7 @@ function getDadosGestaoFrotas() {
       console.warn("Aba Peculio_Viatura não encontrada na planilha " + ID_PLANILHA_AUXILIAR);
       return { 
         sucesso: false, 
-        erro: "Aba 'Peculio_Viatura' não encontrada na planilha auxiliar.", 
+        erro: "Base de Gestão de Frotas não encontrada no sistema.", 
         viaturas: [], 
         total: 0, 
         nomesColunas: [],
@@ -18754,7 +18754,7 @@ function salvarEdicaoViatura(dados) {
         }
       }
     }
-    if (!sheet) throw new Error("Aba Peculio_Viatura não encontrada.");
+    if (!sheet) throw new Error("Base de Gestão de Frotas não encontrada.");
 
     var lastRow = sheet.getLastRow();
     var lastCol = sheet.getLastColumn();
@@ -19050,7 +19050,7 @@ function associarViaturaAoSeiBigQuery_(v, mapa) {
         unidade: matchOrdem.unidade,
         subunidade: matchOrdem.subunidade || "SEDE",
         setor: matchOrdem.setor || "",
-        detalhes: "Nº de Ordem (" + nOrdem + ") coincide diretamente com N_SERIE no BigQuery"
+        detalhes: "Nº de Ordem (" + nOrdem + ") coincide com o registro no Inventário"
       };
     }
   }
@@ -19080,7 +19080,7 @@ function associarViaturaAoSeiBigQuery_(v, mapa) {
           unidade: matchSei.unidade,
           subunidade: matchSei.subunidade || "SEDE",
           setor: matchSei.setor || "",
-          detalhes: "Processo SEI (" + seiNum + ") localizado no histórico do Pecúlio e no BigQuery"
+          detalhes: "Processo SEI (" + seiNum + ") localizado e correspondido no Inventário"
         };
       }
     }
@@ -19114,7 +19114,7 @@ function associarViaturaAoSeiBigQuery_(v, mapa) {
       unidade: matchPlaca.unidade,
       subunidade: matchPlaca.subunidade || "SEDE",
       setor: matchPlaca.setor || "",
-      detalhes: "Placa localizada no BigQuery: " + placa
+      detalhes: "Placa correspondida no Inventário: " + placa
     };
   }
 
@@ -19155,7 +19155,7 @@ function associarViaturaAoSeiBigQuery_(v, mapa) {
       unidade: ome,
       subunidade: "SEDE",
       setor: "",
-      detalhes: "Processo SEI (" + seisEncontrados[0] + ") extraído do histórico do Pecúlio. Viatura alocada provisoriamente na SEDE."
+      detalhes: "Processo SEI (" + seisEncontrados[0] + ") extraído do histórico da viatura."
     };
   }
 
@@ -19169,7 +19169,7 @@ function associarViaturaAoSeiBigQuery_(v, mapa) {
     unidade: ome,
     subunidade: "SEDE",
     setor: "",
-    detalhes: "Nenhuma correspondência no BigQuery. Viatura alocada por padrão na SEDE."
+    detalhes: "Nenhuma correspondência no inventário. Viatura alocada por padrão na SEDE."
   };
 }
 
@@ -19407,7 +19407,7 @@ function getDadosViaturaPorSetor(nomeSetor, ome) {
     if (!viatEncontrada) {
       return {
         sucesso: false,
-        erro: "Nenhum cadastro de viatura no Pecúlio corresponde ao setor '" + nomeSetor + "'."
+        erro: "Nenhum cadastro de viatura corresponde ao setor '" + nomeSetor + "'."
       };
     }
 
@@ -19540,7 +19540,7 @@ function atualizarStatusViaturaHibrida(dados) {
       console.warn("Aviso ao registrar histórico de status da viatura: " + eHistReg.message);
     }
 
-    return { sucesso: true, mensagem: "Situação da viatura atualizada com sucesso no Pecúlio e no Inventário!" };
+    return { sucesso: true, mensagem: "Situação da viatura atualizada com sucesso no sistema!" };
   } catch (err) {
     console.error("Erro em atualizarStatusViaturaHibrida: " + err.message);
     return { sucesso: false, erro: err.message };
