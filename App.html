@@ -11020,9 +11020,12 @@ window.carregarLocaisArvoreGeral = function() {
               <small class="text-muted">Identificação dos Processos SEI de Aquisição de Viaturas através do cruzamento TIPO + OME</small>
             </div>
           </div>
-          <div>
+          <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-outline-danger fw-bold px-3 shadow-sm" onclick="filtrarApenasAR()" title="Filtrar instantaneamente viaturas Auto Resgate (AR)">
+              <i class="fa-solid fa-truck-medical me-1"></i> Focar Auto Resgate (AR)
+            </button>
             <button class="btn btn-sm btn-outline-success fw-bold px-3 shadow-sm" onclick="exportarEstudoCruzamentoExcel()">
-              <i class="fa-solid fa-file-excel me-1"></i> Exportar Relatório Excel
+              <i class="fa-solid fa-file-excel me-1"></i> Exportar Excel
             </button>
           </div>
         </div>
@@ -11084,12 +11087,15 @@ window.carregarLocaisArvoreGeral = function() {
           <table class="table table-sm table-hover table-striped align-middle mb-0 small">
             <thead class="table-dark sticky-top small text-uppercase">
               <tr>
-                <th class="text-center" style="width: 140px;">Viatura (Pecúlio)</th>
-                <th class="text-center" style="width: 120px;">OME</th>
-                <th class="text-center" style="width: 90px;">Placa</th>
-                <th class="text-center" style="width: 110px;">Patrimônio</th>
-                <th>Processo SEI da Compra (BigQuery)</th>
-                <th class="text-center" style="width: 130px;">Confiança</th>
+                <th class="text-center" style="width: 125px;">Viatura (Pecúlio)</th>
+                <th class="text-center" style="width: 85px;">Nº Ordem</th>
+                <th class="text-center" style="width: 110px;">OME</th>
+                <th class="text-center" style="width: 110px;">Subunidade (BQ)</th>
+                <th class="text-center" style="width: 85px;">Placa</th>
+                <th class="text-center" style="width: 95px;">Patrimônio</th>
+                <th>Processo SEI Compra (BigQuery / Histórico)</th>
+                <th class="text-center" style="width: 125px;">Método Chave</th>
+                <th class="text-center" style="width: 85px;">Confiança</th>
               </tr>
             </thead>
             <tbody id="corpoTabelaEstudoSEI">
@@ -11143,7 +11149,7 @@ window.carregarLocaisArvoreGeral = function() {
     if (infoCont) infoCont.innerText = `Exibindo ${filtrados.length} de ${lista.length} viaturas`;
 
     if (filtrados.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-muted">Nenhuma viatura corresponde aos filtros aplicados.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="9" class="text-center py-4 text-muted">Nenhuma viatura corresponde aos filtros aplicados.</td></tr>';
       return;
     }
 
@@ -11156,18 +11162,46 @@ window.carregarLocaisArvoreGeral = function() {
 
       const seiTexto = v.seiCompra ? `<strong class="font-monospace text-primary">${v.seiCompra}</strong>` : '<span class="text-muted fst-italic">Pendente / Não identificado</span>';
 
+      let badgeMetodo = '<span class="badge bg-warning text-dark">Sede (Padrão)</span>';
+      if (v.tipoMatch === 'SERIE_ORDEM') {
+        badgeMetodo = '<span class="badge bg-success" title="' + (v.detalhesMatch || '') + '"><i class="fa-solid fa-key me-1"></i>N_ORDEM=N_SERIE</span>';
+      } else if (v.tipoMatch === 'SEI_DIRETO' || v.tipoMatch === 'SEI_HISTORICO_PECULIO') {
+        badgeMetodo = '<span class="badge bg-info text-dark" title="' + (v.detalhesMatch || '') + '"><i class="fa-solid fa-file-lines me-1"></i>SEI Histórico</span>';
+      } else if (v.tipoMatch === 'PATRIMONIO_EXATO') {
+        badgeMetodo = '<span class="badge bg-primary" title="' + (v.detalhesMatch || '') + '"><i class="fa-solid fa-barcode me-1"></i>Patrimônio</span>';
+      } else if (v.tipoMatch === 'PLACA') {
+        badgeMetodo = '<span class="badge bg-primary" title="' + (v.detalhesMatch || '') + '"><i class="fa-solid fa-car me-1"></i>Placa</span>';
+      } else if (v.tipoMatch === 'TIPO_OME') {
+        badgeMetodo = '<span class="badge bg-dark" title="' + (v.detalhesMatch || '') + '">Tipo + OME</span>';
+      }
+
+      const subBadge = (v.subunidadeBigQuery && v.subunidadeBigQuery !== 'SEDE')
+        ? `<span class="badge bg-primary">${v.subunidadeBigQuery}</span>`
+        : `<span class="badge bg-secondary">SEDE</span>`;
+
       html += `
         <tr>
-          <td class="text-center fw-bold">${v.nome || '-'}</td>
-          <td class="text-center fw-semibold text-secondary">${v.ome || '-'}</td>
+          <td class="text-center fw-bold text-nowrap"><i class="fa-solid fa-truck-fire text-danger me-1"></i>${v.nome || '-'}</td>
+          <td class="text-center font-monospace fw-bold text-primary">${v.nOrdem || '-'}</td>
+          <td class="text-center fw-semibold text-secondary text-truncate" style="max-width: 110px;" title="${v.ome || ''}">${v.ome || '-'}</td>
+          <td class="text-center">${subBadge}</td>
           <td class="text-center font-monospace">${v.placa || '-'}</td>
-          <td class="text-center font-monospace">${v.patrimonio || '-'}</td>
+          <td class="text-center font-monospace text-truncate" style="max-width: 95px;" title="${v.patrimonio || ''}">${v.patrimonio || '-'}</td>
           <td>${seiTexto}</td>
+          <td class="text-center">${badgeMetodo}</td>
           <td class="text-center">${badgeConfianca}</td>
         </tr>`;
     });
 
     tbody.innerHTML = html;
+  }
+
+  function filtrarApenasAR() {
+    const selTipo = document.getElementById('filtroEstudoTipo');
+    if (selTipo) {
+      selTipo.value = 'AR';
+      filtrarTabelaEstudoSEI();
+    }
   }
 
   function exportarEstudoCruzamentoExcel() {
@@ -11183,6 +11217,7 @@ window.carregarLocaisArvoreGeral = function() {
         'Nº DE ORDEM': v.nOrdem,
         'OME': v.ome,
         'PLACA': v.placa,
+        'SUBUNIDADE (BIGQUERY)': v.subunidadeBigQuery || 'SEDE',
         'PATRIMÔNIO': v.patrimonio,
         'MARCA / MODELO': v.marcaModelo,
         'SITUAÇÃO': v.situacao,

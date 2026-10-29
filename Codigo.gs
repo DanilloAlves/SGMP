@@ -1596,6 +1596,55 @@ function garantirSetoresViaturasNaArvore_(omePadrao, idSedeOficial, sheet, locai
         }
       }
     });
+
+    // 2. Integra viaturas da base do Pecúlio para garantir criação de setor na Subunidade vinculada
+    try {
+      var frota = getDadosGestaoFrotas();
+      if (frota && frota.viaturas) {
+        var omeNorm = omePadrao.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+        frota.viaturas.forEach(function(v) {
+          var vOmeNorm = (v.ome || "").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+          if (vOmeNorm !== omeNorm && vOmeNorm.indexOf(omeNorm) === -1 && omeNorm.indexOf(vOmeNorm) === -1) return;
+
+          var siglaV = v.tipo || (v.nome ? v.nome.split("-")[0] : "");
+          if (!siglaV) return;
+
+          var subRefV = v.subunidade || "SEDE";
+          var idPaiAlvoV = idSedeOficial;
+          var ehSubSedeV = (typeof ehSubunidadeEquivalenteOme_ === 'function') ? ehSubunidadeEquivalenteOme_(subRefV, omePadrao) : (subRefV.toUpperCase() === "SEDE");
+          if (subRefV && !ehSubSedeV && subRefV.toUpperCase() !== "SEDE") {
+            var noSubV = locais.find(function(l) {
+              return (!l.idPai || String(l.idPai).trim() === "") && String(l.nome).toUpperCase() === subRefV.toUpperCase();
+            });
+            if (noSubV) idPaiAlvoV = noSubV.id;
+          }
+
+          var chaveV = idPaiAlvoV + "___" + siglaV;
+          if (siglasProcessadas[chaveV]) return;
+          siglasProcessadas[chaveV] = true;
+
+          var setorExistenteV = locais.find(function(l) {
+            if (String(l.idPai || "").trim() !== String(idPaiAlvoV).trim()) return false;
+            var nomeUpper = String(l.nome || "").toUpperCase().trim();
+            return nomeUpper === siglaV || nomeUpper.indexOf(siglaV + " ") === 0 || nomeUpper.indexOf(siglaV + "-") === 0;
+          });
+
+          if (!setorExistenteV) {
+            var novoIdV = "loc_vtr_" + new Date().getTime() + "_" + Math.floor(Math.random() * 1000);
+            sheet.appendRow([novoIdV, omePadrao, siglaV, idPaiAlvoV]);
+            locais.push({
+              id: novoIdV,
+              ome: omePadrao,
+              nome: siglaV,
+              idPai: idPaiAlvoV
+            });
+          }
+        });
+      }
+    } catch(eFrotaArvore) {
+      console.warn("Aviso ao integrar frota do Pecúlio na árvore: " + eFrotaArvore.message);
+    }
+
   } catch(errGeral) {
     console.warn("Erro em garantirSetoresViaturasNaArvore_: " + errGeral.message);
   }
@@ -18782,7 +18831,7 @@ function obterMapaCruzamentoViaturaBigQuery_(forcarAtualizacao) {
 
   var cache = CacheService.getScriptCache();
   if (!forcarAtualizacao) {
-    var cached = cache.get("MAPA_CRUZAMENTO_VIATURA_SEI_V2");
+    var cached = cache.get("MAPA_CRUZAMENTO_VIATURA_SEI_V3");
     if (cached) {
       try {
         _cacheMapaCruzamentoViaturaMem_ = JSON.parse(cached);
@@ -18794,12 +18843,13 @@ function obterMapaCruzamentoViaturaBigQuery_(forcarAtualizacao) {
   var mapaPatrimonio = {};
   var mapaTipoOme = {};
   var mapaPlaca = {};
+  var mapaSerieOrdem = {};
+  var mapaSei = {};
 
   try {
     var sql = "SELECT ITEM, OBJETO, UNIDADE, SUBUNIDADE, SETOR, N_PATRIMONIO, N_SERIE, SEI_COMPRA_RECEBIMENTO, STATUS " +
               "FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
-              "WHERE SEI_COMPRA_RECEBIMENTO IS NOT NULL " +
-              "  AND ( " +
+              "WHERE ( " +
               "    UPPER(OBJETO) LIKE '%AUTO%' " +
               "    OR UPPER(OBJETO) LIKE '%VIATURA%' " +
               "    OR UPPER(OBJETO) LIKE '%BOMBA%' " +
@@ -18807,6 +18857,8 @@ function obterMapaCruzamentoViaturaBigQuery_(forcarAtualizacao) {
               "    OR UPPER(OBJETO) LIKE '%MOTO%' " +
               "    OR UPPER(OBJETO) LIKE '%BOTE%' " +
               "    OR UPPER(OBJETO) LIKE '%ESCADA%' " +
+              "    OR UPPER(OBJETO) LIKE '%REBOQUE%' " +
+              "    OR UPPER(OBJETO) LIKE '%MOTOR%' " +
               "  )";
 
     var res = executarConsultaBigQuerySegura(sql);
@@ -18828,7 +18880,7 @@ function obterMapaCruzamentoViaturaBigQuery_(forcarAtualizacao) {
         item: itId,
         objeto: itObj,
         unidade: itUni,
-        subunidade: itSub,
+        subunidade: (itSub && itSub !== "null" && itSub !== "undefined") ? itSub : "SEDE",
         setor: itSet,
         patrimonio: itPat,
         nSerie: itSer,
@@ -18836,25 +18888,46 @@ function obterMapaCruzamentoViaturaBigQuery_(forcarAtualizacao) {
         status: itSt
       };
 
-      // 1. Indexação por patrimônio
+      var uniPadrao = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(itUni) : itUni;
+      var uniNorm = uniPadrao.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+      var objNorm = itObj.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+
+      // 1. Indexação por N_SERIE (que no BigQuery corresponde ao N DE ORDEM do Pecúlio)
+      var serLimpo = itSer.trim().toUpperCase();
+      if (serLimpo && serLimpo !== "NONE" && serLimpo !== "NI" && serLimpo !== "-" && serLimpo !== "0") {
+        if (!mapaSerieOrdem[serLimpo]) mapaSerieOrdem[serLimpo] = [];
+        mapaSerieOrdem[serLimpo].push(recordObj);
+
+        var chaveSerOme = serLimpo + "||" + uniNorm;
+        if (!mapaSerieOrdem[chaveSerOme]) mapaSerieOrdem[chaveSerOme] = [];
+        mapaSerieOrdem[chaveSerOme].push(recordObj);
+      }
+
+      // 2. Indexação por Processo SEI de Compra/Recebimento
+      var seiLimpo = itSei.trim().toUpperCase();
+      if (seiLimpo && seiLimpo !== "NONE" && seiLimpo !== "NI" && seiLimpo !== "-") {
+        if (!mapaSei[seiLimpo]) mapaSei[seiLimpo] = [];
+        mapaSei[seiLimpo].push(recordObj);
+
+        var chaveSeiOme = seiLimpo + "||" + uniNorm;
+        if (!mapaSei[chaveSeiOme]) mapaSei[chaveSeiOme] = [];
+        mapaSei[chaveSeiOme].push(recordObj);
+      }
+
+      // 3. Indexação por patrimônio
       var patLimpo = itPat.replace(/[^A-Z0-9]/gi, "").toUpperCase();
       if (patLimpo && patLimpo !== "0" && patLimpo !== "NI") {
         if (!mapaPatrimonio[patLimpo]) mapaPatrimonio[patLimpo] = [];
         mapaPatrimonio[patLimpo].push(recordObj);
       }
 
-      // 2. Indexação por placa (caso esteja no campo série ou no objeto)
-      var serLimpo = itSer.replace(/[^A-Z0-9]/gi, "").toUpperCase();
-      if (serLimpo && serLimpo.length >= 7) {
+      // 4. Indexação por placa
+      if (serLimpo && serLimpo.length >= 7 && /[A-Z]{3}[0-9][A-Z0-9][0-9]{2}/i.test(serLimpo)) {
         if (!mapaPlaca[serLimpo]) mapaPlaca[serLimpo] = [];
         mapaPlaca[serLimpo].push(recordObj);
       }
 
-      // 3. Indexação por TIPO e OME
-      var uniPadrao = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(itUni) : itUni;
-      var uniNorm = uniPadrao.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-      var objNorm = itObj.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-
+      // 5. Indexação por TIPO e OME
       var siglas = obterSiglasEquivalentesObjeto_(objNorm);
       for (var s = 0; s < siglas.length; s++) {
         var sigla = siglas[s];
@@ -18868,71 +18941,47 @@ function obterMapaCruzamentoViaturaBigQuery_(forcarAtualizacao) {
   }
 
   var resultadoFinal = {
+    serieOrdem: mapaSerieOrdem,
+    sei: mapaSei,
     patrimonio: mapaPatrimonio,
     placa: mapaPlaca,
     tipoOme: mapaTipoOme
   };
 
-  _cacheMapaCruzamentoViaturaMem_ = resultadoFinal;
-
   try {
-    var jsonStr = JSON.stringify(resultadoFinal);
-    if (jsonStr.length < 90000) {
-      cache.put("MAPA_CRUZAMENTO_VIATURA_SEI_V2", jsonStr, 7200); // 2 horas
-    }
-  } catch (eC) {}
+    cache.put("MAPA_CRUZAMENTO_VIATURA_SEI_V3", JSON.stringify(resultadoFinal), 1800);
+    _cacheMapaCruzamentoViaturaMem_ = resultadoFinal;
+  } catch (ePut) {}
 
   return resultadoFinal;
 }
 
-function obterSiglasEquivalentesObjeto_(objNorm) {
+function obterSiglasEquivalentesObjeto_(objUpper) {
   var siglas = [];
-  if (objNorm.indexOf("FLORESTAL") !== -1 || objNorm.indexOf("ABTF") !== -1) {
-    siglas.push("ABTF");
-  } else if (objNorm.indexOf("SALVAMENTO") !== -1 && objNorm.indexOf("BOMBA") !== -1) {
-    siglas.push("ABTS");
-    siglas.push("ABT");
-  } else if (objNorm.indexOf("BOMBA TANQUE") !== -1 || objNorm.indexOf("ABT") !== -1) {
-    siglas.push("ABT");
-    siglas.push("ABTS");
-  }
-  if (objNorm.indexOf("RESGATE") !== -1 && objNorm.indexOf("MOTOR") === -1 && objNorm.indexOf("SLING") === -1 && objNorm.indexOf("CORDA") === -1 && objNorm.indexOf("TRIPE") === -1) {
-    siglas.push("AR");
-  }
-  if (objNorm.indexOf("TANQUE") !== -1 && objNorm.indexOf("BOMBA") === -1 && objNorm.indexOf("CONJUNTO") === -1) {
-    siglas.push("AT");
-    siglas.push("AT/1");
-  }
-  if (objNorm.indexOf("CAES") !== -1 || objNorm.indexOf("ABSC") !== -1) {
-    siglas.push("ABSC");
-  }
-  if (objNorm.indexOf("MEDIO") !== -1 || objNorm.indexOf("ABSM") !== -1) {
-    siglas.push("ABSM");
-  }
-  if (objNorm.indexOf("LEVE") !== -1 || objNorm.indexOf("ABSL") !== -1) {
-    siglas.push("ABSL");
-  }
-  if (objNorm.indexOf("PESADO") !== -1 || objNorm.indexOf("ASE") !== -1) {
-    siglas.push("ASE");
-  }
-  if (objNorm.indexOf("ESCADA") !== -1 && objNorm.indexOf("AGILIDADE") === -1 && objNorm.indexOf("PROLONGAVEL") === -1) {
-    siglas.push("AE");
-    siglas.push("AEM");
-  }
-  if (objNorm.indexOf("BOTE") !== -1 || objNorm.indexOf("BIS") !== -1) {
-    siglas.push("BIS");
-  }
-  if (objNorm.indexOf("AQUATICA") !== -1 || objNorm.indexOf("MSA") !== -1) {
-    siglas.push("MSA");
-  }
-  if (objNorm.indexOf("MOTORRESGATE") !== -1 || objNorm.indexOf("MR") !== -1) {
-    siglas.push("MR");
-  }
+  if (/AUTO\s+RESGATE|\(AR\)/i.test(objUpper)) siglas.push("AR");
+  if (/AUTO\s+BOMBA\s+TANQUE\s+FLORESTAL|\(ABTF\)/i.test(objUpper)) siglas.push("ABTF");
+  if (/AUTO\s+BOMBA\s+TANQUE|\(ABTS?\)/i.test(objUpper)) { siglas.push("ABT"); siglas.push("ABTS"); siglas.push("ABT/S"); }
+  if (/AUTO\s+TANQUE|\(AT\)/i.test(objUpper)) { siglas.push("AT"); siglas.push("AT/1"); }
+  if (/AUTO\s+SALVAMENTO\s+PESADO|\(ASE\)/i.test(objUpper)) siglas.push("ASE");
+  if (/AUTO\s+BUSCA.*C[AÃ]ES|\(ABSC\)/i.test(objUpper)) siglas.push("ABSC");
+  if (/AUTO\s+BUSCA.*M[EÉ]DIO|\(ABSM\)/i.test(objUpper)) siglas.push("ABSM");
+  if (/AUTO\s+BUSCA.*LEVE|\(ABSL\)/i.test(objUpper)) siglas.push("ABSL");
+  if (/AUTO\s+ESCADA\s+MULTIMISS|\(AEM\)/i.test(objUpper)) siglas.push("AEM");
+  if (/AUTO\s+ESCADA|\(AE\)/i.test(objUpper)) siglas.push("AE");
+  if (/AUTO\s+COMANDO|\(ACO\)/i.test(objUpper)) siglas.push("ACO");
+  if (/AUTO\s+TRANSPORTE.*MAT|\(ATM\)/i.test(objUpper)) siglas.push("ATM");
+  if (/AUTO\s+TRANSPORTE.*PES|\(ATP\)/i.test(objUpper)) siglas.push("ATP/1");
+  if (/BOTE\s+INFL[AÁ]VEL|\(BIS\)/i.test(objUpper)) siglas.push("BIS");
+  if (/BARCO.*SALVAMENTO|\(BSA\)/i.test(objUpper)) siglas.push("BSA");
+  if (/MOTO\s+SALVAMENTO|\(MSA\)/i.test(objUpper)) siglas.push("MSA");
+  if (/MOTORRESGATE|\(MR\)/i.test(objUpper)) siglas.push("MR");
+  if (/MOTOR\s+DE\s+POPA|\(MTP\)/i.test(objUpper)) siglas.push("MTP");
+  if (/REBOQUE|\(RBQ\)/i.test(objUpper)) siglas.push("RBQ");
   return siglas;
 }
 
 function associarViaturaAoSeiBigQuery_(v, mapa) {
-  if (!mapa) return { sei: "", tipoMatch: "SEM_MAPA", confianca: "N/A" };
+  if (!mapa) return { sei: "", tipoMatch: "SEM_MAPA", confianca: "N/A", subunidade: "SEDE" };
 
   var patr = String(v.patrimonio || "").replace(/[^A-Z0-9]/gi, "").toUpperCase();
   var placa = String(v.placa || "").replace(/[^A-Z0-9]/gi, "").toUpperCase();
@@ -18941,106 +18990,167 @@ function associarViaturaAoSeiBigQuery_(v, mapa) {
   var ome = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(v.ome) : String(v.ome || "").trim();
   var omeNorm = ome.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
-  // 1. Match por Patrimônio Exato
-  if (patr && patr !== "0" && patr !== "NI" && mapa.patrimonio && mapa.patrimonio[patr]) {
-    var matchPat = mapa.patrimonio[patr][0];
-    return {
-      sei: matchPat.sei,
-      tipoMatch: "PATRIMONIO_EXATO",
-      confianca: "Alta",
-      item: matchPat.item,
-      objeto: matchPat.objeto,
-      unidade: matchPat.unidade,
-      detalhes: "Patrimônio exato: " + patr
-    };
+  // Extrai processos SEI citados no histórico/detalhes da viatura no Pecúlio
+  var seisEncontrados = [];
+  var textoHistorico = (v.observacoes || "") + " ";
+  if (v.detalhes) {
+    for (var kCol in v.detalhes) {
+      textoHistorico += " " + String(v.detalhes[kCol] || "");
+    }
+  }
+  var mSei = textoHistorico.match(/\b\d{10}\.\d{6}\/\d{4}-\d{2}\b/g);
+  if (mSei) {
+    for (var si = 0; si < mSei.length; si++) {
+      if (seisEncontrados.indexOf(mSei[si]) === -1) {
+        seisEncontrados.push(mSei[si]);
+      }
+    }
   }
 
-  // 2. Match por Placa
-  if (placa && placa !== "NI" && mapa.placa && mapa.placa[placa]) {
-    var matchPlaca = mapa.placa[placa][0];
-    return {
-      sei: matchPlaca.sei,
-      tipoMatch: "PLACA",
-      confianca: "Alta",
-      item: matchPlaca.item,
-      objeto: matchPlaca.objeto,
-      unidade: matchPlaca.unidade,
-      detalhes: "Placa localizada: " + placa
-    };
+  // 1. REGRA 1: Nº DE ORDEM (Pecúlio) <===> N_SERIE (BigQuery)
+  if (nOrdem && nOrdem !== "-" && nOrdem !== "0" && nOrdem !== "NI" && mapa.serieOrdem) {
+    var matchOrdem = null;
+    var chaveSerOme = nOrdem + "||" + omeNorm;
+    if (mapa.serieOrdem[chaveSerOme] && mapa.serieOrdem[chaveSerOme].length > 0) {
+      matchOrdem = mapa.serieOrdem[chaveSerOme][0];
+    } else if (mapa.serieOrdem[nOrdem] && mapa.serieOrdem[nOrdem].length > 0) {
+      // Se houver mais de um, tenta filtrar pelo tipo
+      var siglaV = tipo.replace(/[^A-Z0-9\/]/gi, "").toUpperCase();
+      matchOrdem = mapa.serieOrdem[nOrdem].find(function(it) {
+        return obterSiglasEquivalentesObjeto_(it.objeto.toUpperCase()).indexOf(siglaV) !== -1;
+      }) || mapa.serieOrdem[nOrdem][0];
+    }
+
+    if (matchOrdem) {
+      return {
+        sei: matchOrdem.sei || (seisEncontrados.length > 0 ? seisEncontrados[0] : ""),
+        tipoMatch: "SERIE_ORDEM",
+        confianca: "Alta",
+        item: matchOrdem.item,
+        objeto: matchOrdem.objeto,
+        unidade: matchOrdem.unidade,
+        subunidade: matchOrdem.subunidade || "SEDE",
+        setor: matchOrdem.setor || "",
+        detalhes: "Nº de Ordem (" + nOrdem + ") coincide diretamente com N_SERIE no BigQuery"
+      };
+    }
   }
 
-  // 3. Match por TIPO + OME
-  if (tipo && omeNorm && mapa.tipoOme) {
-    var siglaNorm = tipo.replace(/[^A-Z0-9\/]/gi, "").toUpperCase();
-    var chave = siglaNorm + "||" + omeNorm;
-    
-    var itens = mapa.tipoOme[chave];
-    
-    // Fallback: equivalências comuns
-    if (!itens && siglaNorm === "AT/1") itens = mapa.tipoOme["AT||" + omeNorm];
-    if (!itens && siglaNorm === "AT") itens = mapa.tipoOme["AT/1||" + omeNorm];
-    if (!itens && siglaNorm === "ABT") itens = mapa.tipoOme["ABTS||" + omeNorm];
-    if (!itens && siglaNorm === "ABTS") itens = mapa.tipoOme["ABT||" + omeNorm];
-
-    if (itens && itens.length > 0) {
-      // Se houver correspondência com Nº de Ordem / Série
-      if (nOrdem) {
-        for (var k = 0; k < itens.length; k++) {
-          var serItem = String(itens[k].nSerie || "").trim();
-          var objItem = String(itens[k].objeto || "").trim();
-          if (serItem === nOrdem || objItem.indexOf(nOrdem) !== -1) {
-            return {
-              sei: itens[k].sei,
-              tipoMatch: "SERIE_ORDEM",
-              confianca: "Alta",
-              item: itens[k].item,
-              objeto: itens[k].objeto,
-              unidade: itens[k].unidade,
-              detalhes: "Nº de Ordem / Série (" + nOrdem + ") + Tipo + OME"
-            };
-          }
-        }
+  // 2. REGRA 2: Processo SEI citado no histórico do Pecúlio <===> SEI_COMPRA_RECEBIMENTO no BigQuery
+  if (seisEncontrados.length > 0 && mapa.sei) {
+    for (var s = 0; s < seisEncontrados.length; s++) {
+      var seiNum = seisEncontrados[s];
+      var matchSei = null;
+      var chaveSeiOme = seiNum + "||" + omeNorm;
+      if (mapa.sei[chaveSeiOme] && mapa.sei[chaveSeiOme].length > 0) {
+        matchSei = mapa.sei[chaveSeiOme][0];
+      } else if (mapa.sei[seiNum] && mapa.sei[seiNum].length > 0) {
+        var siglaV2 = tipo.replace(/[^A-Z0-9\/]/gi, "").toUpperCase();
+        matchSei = mapa.sei[seiNum].find(function(it) {
+          return obterSiglasEquivalentesObjeto_(it.objeto.toUpperCase()).indexOf(siglaV2) !== -1;
+        }) || mapa.sei[seiNum][0];
       }
 
-      // Se todas as viaturas desse tipo na OME têm o mesmo SEI
-      var todosSeis = [];
-      var setSeis = {};
-      for (var s = 0; s < itens.length; s++) {
-        if (itens[s].sei && !setSeis[itens[s].sei]) {
-          setSeis[itens[s].sei] = true;
-          todosSeis.push(itens[s].sei);
-        }
-      }
-
-      if (todosSeis.length === 1) {
+      if (matchSei) {
         return {
-          sei: todosSeis[0],
-          tipoMatch: "TIPO_OME",
-          confianca: "Média",
-          item: itens[0].item,
-          objeto: itens[0].objeto,
-          unidade: itens[0].unidade,
-          detalhes: "Correspondência direta de lote TIPO + OME (" + siglaNorm + " @ " + ome + ")"
-        };
-      } else if (todosSeis.length > 1) {
-        return {
-          sei: todosSeis.join(" | "),
-          tipoMatch: "TIPO_OME",
-          confianca: "Múltiplos SEIs",
-          item: itens.map(function(x) { return x.item; }).join(", "),
-          objeto: itens[0].objeto,
-          unidade: itens[0].unidade,
-          detalhes: todosSeis.length + " processos SEI encontrados para este tipo na OME: " + todosSeis.join(", ")
+          sei: seiNum,
+          tipoMatch: "SEI_DIRETO",
+          confianca: "Alta",
+          item: matchSei.item,
+          objeto: matchSei.objeto,
+          unidade: matchSei.unidade,
+          subunidade: matchSei.subunidade || "SEDE",
+          setor: matchSei.setor || "",
+          detalhes: "Processo SEI (" + seiNum + ") localizado no histórico do Pecúlio e no BigQuery"
         };
       }
     }
   }
 
+  // 3. REGRA 3: Match por Patrimônio Exato
+  if (patr && patr !== "0" && patr !== "NI" && mapa.patrimonio && mapa.patrimonio[patr]) {
+    var matchPat = mapa.patrimonio[patr][0];
+    return {
+      sei: matchPat.sei || (seisEncontrados.length > 0 ? seisEncontrados[0] : ""),
+      tipoMatch: "PATRIMONIO_EXATO",
+      confianca: "Alta",
+      item: matchPat.item,
+      objeto: matchPat.objeto,
+      unidade: matchPat.unidade,
+      subunidade: matchPat.subunidade || "SEDE",
+      setor: matchPat.setor || "",
+      detalhes: "Patrimônio exato: " + patr
+    };
+  }
+
+  // 4. REGRA 4: Match por Placa
+  if (placa && placa !== "NI" && mapa.placa && mapa.placa[placa]) {
+    var matchPlaca = mapa.placa[placa][0];
+    return {
+      sei: matchPlaca.sei || (seisEncontrados.length > 0 ? seisEncontrados[0] : ""),
+      tipoMatch: "PLACA",
+      confianca: "Alta",
+      item: matchPlaca.item,
+      objeto: matchPlaca.objeto,
+      unidade: matchPlaca.unidade,
+      subunidade: matchPlaca.subunidade || "SEDE",
+      setor: matchPlaca.setor || "",
+      detalhes: "Placa localizada no BigQuery: " + placa
+    };
+  }
+
+  // 5. REGRA 5: Match por TIPO + OME
+  if (tipo && omeNorm && mapa.tipoOme) {
+    var siglaNorm = tipo.replace(/[^A-Z0-9\/]/gi, "").toUpperCase();
+    var chave = siglaNorm + "||" + omeNorm;
+    var itens = mapa.tipoOme[chave];
+    if (!itens && siglaNorm === "AT/1") itens = mapa.tipoOme["AT||" + omeNorm];
+    if (!itens && siglaNorm === "AT") itens = mapa.tipoOme["AT/1||" + omeNorm];
+    if (!itens && siglaNorm === "ABT") itens = mapa.tipoOme["ABTS||" + omeNorm] || mapa.tipoOme["ABT/S||" + omeNorm];
+    if (!itens && siglaNorm === "ABTS") itens = mapa.tipoOme["ABT||" + omeNorm] || mapa.tipoOme["ABT/S||" + omeNorm];
+    if (!itens && siglaNorm === "ABT/S") itens = mapa.tipoOme["ABT||" + omeNorm] || mapa.tipoOme["ABTS||" + omeNorm];
+
+    if (itens && itens.length > 0) {
+      return {
+        sei: itens[0].sei || (seisEncontrados.length > 0 ? seisEncontrados[0] : ""),
+        tipoMatch: "TIPO_OME",
+        confianca: itens.length === 1 ? "Média" : "Baixa",
+        item: itens[0].item,
+        objeto: itens[0].objeto,
+        unidade: itens[0].unidade,
+        subunidade: itens[0].subunidade || "SEDE",
+        setor: itens[0].setor || "",
+        detalhes: "Correspondência por Tipo (" + siglaNorm + ") e OME (" + ome + ")"
+      };
+    }
+  }
+
+  // 6. REGRA 6: SEI identificado no histórico do Pecúlio (mas ainda não no inventário BQ)
+  if (seisEncontrados.length > 0) {
+    return {
+      sei: seisEncontrados[0],
+      tipoMatch: "SEI_HISTORICO_PECULIO",
+      confianca: "Média",
+      item: "",
+      objeto: "",
+      unidade: ome,
+      subunidade: "SEDE",
+      setor: "",
+      detalhes: "Processo SEI (" + seisEncontrados[0] + ") extraído do histórico do Pecúlio. Viatura alocada provisoriamente na SEDE."
+    };
+  }
+
+  // 7. Fallback: SEM CORRESPONDÊNCIA (alocada por padrão na SEDE)
   return {
     sei: "",
     tipoMatch: "SEM_CORRESPONDENCIA",
     confianca: "Não Encontrado",
-    detalhes: "Nenhuma correspondência com SEI localizada no BigQuery para Tipo " + (tipo || "N/I") + " na OME " + (ome || "N/I")
+    item: "",
+    objeto: "",
+    unidade: ome,
+    subunidade: "SEDE",
+    setor: "",
+    detalhes: "Nenhuma correspondência no BigQuery. Viatura alocada por padrão na SEDE."
   };
 }
 
@@ -19076,6 +19186,7 @@ function realizarEstudoCruzamentoPeculioBigQuery(filtros) {
 
       if (matchInfo.tipoMatch === "PATRIMONIO_EXATO") porPatrimonio++;
       else if (matchInfo.tipoMatch === "SERIE_ORDEM") porSerieOrdem++;
+      else if (matchInfo.tipoMatch === "SEI_DIRETO" || matchInfo.tipoMatch === "SEI_HISTORICO_PECULIO") porSerieOrdem++;
       else if (matchInfo.tipoMatch === "PLACA") porPlaca++;
       else if (matchInfo.tipoMatch === "TIPO_OME") porTipoOme++;
 
@@ -19095,6 +19206,8 @@ function realizarEstudoCruzamentoPeculioBigQuery(filtros) {
         confianca: matchInfo.confianca,
         objetoBigQuery: matchInfo.objeto || "",
         unidadeBigQuery: matchInfo.unidade || "",
+        subunidadeBigQuery: matchInfo.subunidade || "SEDE",
+        setorBigQuery: matchInfo.setor || "",
         itemBigQuery: matchInfo.item || "",
         detalhesMatch: matchInfo.detalhes || ""
       });
