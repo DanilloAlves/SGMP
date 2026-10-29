@@ -10595,36 +10595,100 @@ window.carregarLocaisArvoreGeral = function() {
       Swal.fire('Acesso Restrito', 'Você não possui permissão para alterar a hierarquia de locais.', 'warning');
       return;
     }
-    let optionsPai = '<option value="">(Tornar Nível Raiz Principal)</option>';
-    if (cacheLocaisArvore && cacheLocaisArvore.length > 0) {
-      cacheLocaisArvore.forEach(loc => {
-        if (String(loc.id) !== String(idLocal)) {
-          optionsPai += `<option value="${loc.id}">${loc.nome}</option>`;
-        }
-      });
+
+    const ehVtr = (typeof ehViaturaLocal === 'function') && ehViaturaLocal(nomeLocal);
+    const locAtual = (cacheLocaisArvore || []).find(l => String(l.id) === String(idLocal));
+    const idPaiAtual = locAtual ? String(locAtual.idPai || '').trim() : '';
+
+    let optionsPai = '';
+
+    if (ehVtr) {
+      // Para VIATURAS: apenas as SUBUNIDADES (nós raiz) devem aparecer na lista suspensa
+      const subunidades = (cacheLocaisArvore || []).filter(l => (!l.idPai || String(l.idPai).trim() === '') && String(l.id) !== String(idLocal));
+      
+      if (subunidades.length === 0) {
+        optionsPai = '<option value="" disabled>Nenhuma Subunidade encontrada nesta OME</option>';
+      } else {
+        optionsPai = '<option value="" disabled ' + (!idPaiAtual ? 'selected' : '') + '>Selecione a Subunidade de destino...</option>';
+        subunidades.forEach(sub => {
+          const isSelected = (idPaiAtual && String(sub.id) === idPaiAtual) ? 'selected' : '';
+          optionsPai += `<option value="${sub.id}" ${isSelected}>🏢 ${sub.nome}</option>`;
+        });
+      }
+    } else {
+      // Para os DEMAIS MATERIAIS / LOCAIS: continuam aparecendo todos os níveis da árvore
+      optionsPai = `<option value="" ${!idPaiAtual ? 'selected' : ''}>(Tornar Nível Raiz Principal)</option>`;
+      if (cacheLocaisArvore && cacheLocaisArvore.length > 0) {
+        cacheLocaisArvore.forEach(loc => {
+          if (String(loc.id) !== String(idLocal)) {
+            const isSelected = (idPaiAtual && String(loc.id) === idPaiAtual) ? 'selected' : '';
+            const prefixoIcone = (!loc.idPai || String(loc.idPai).trim() === '') ? '🏢 ' : '📁 ';
+            optionsPai += `<option value="${loc.id}" ${isSelected}>${prefixoIcone}${loc.nome}</option>`;
+          }
+        });
+      }
     }
 
+    const labelTexto = ehVtr 
+      ? 'Selecione a Subunidade de destino da Viatura:' 
+      : 'Selecione o novo local pai (ou raiz):';
+
+    const tituloModal = ehVtr
+      ? `<i class="fa-solid fa-truck-fire text-danger me-2"></i>Transferir Viatura: <strong>${nomeLocal}</strong>`
+      : `Alterar Nível de: ${nomeLocal}`;
+
     Swal.fire({
-      title: `Alterar Nível de: ${nomeLocal}`,
+      title: tituloModal,
       html: `
         <div class="text-start">
-          <label class="form-label small fw-bold">Selecione o novo local pai (ou raiz):</label>
+          <label class="form-label small fw-bold mb-1">${labelTexto}</label>
           <select id="swalNovoPai" class="form-select form-select-sm">${optionsPai}</select>
+          ${ehVtr ? `<div class="form-text small text-muted mt-2"><i class="fa-solid fa-circle-info text-primary me-1"></i>A viatura e todos os materiais armazenados nela serão transferidos para a Subunidade selecionada.</div>` : ''}
         </div>
       `,
       showCancelButton: true,
-      confirmButtonText: 'Salvar Hierarquia',
+      confirmButtonText: '<i class="fa-solid fa-check me-1"></i> Salvar Hierarquia',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#0d6efd',
       preConfirm: () => {
-        return document.getElementById('swalNovoPai').value;
+        const val = document.getElementById('swalNovoPai').value;
+        if (ehVtr && (!val || val.trim() === '')) {
+          Swal.showValidationMessage('Selecione uma Subunidade de destino para a viatura!');
+          return false;
+        }
+        return val;
       }
     }).then(res => {
-      if (res.isConfirmed) {
+      if (res.isConfirmed && res.value !== undefined) {
+        // Indicador visual de carregamento imediato
+        Swal.fire({
+          title: 'Salvando Hierarquia...',
+          html: `
+            <div class="py-3 text-center">
+              <i class="fa-solid fa-spinner fa-spin fa-3x text-primary mb-3"></i>
+              <h6 class="fw-bold text-dark">Atualizando localização...</h6>
+              <p class="small text-muted mb-0">Transferindo <strong>${nomeLocal}</strong> e sincronizando o cadastro do estoque. Por favor, aguarde.</p>
+            </div>
+          `,
+          allowOutsideClick: false,
+          allowEscapeKey: false,
+          showConfirmButton: false
+        });
+
         google.script.run
           .withSuccessHandler(msg => {
-            Swal.fire('Sucesso!', msg, 'success');
+            Swal.fire({
+              icon: 'success',
+              title: 'Hierarquia Atualizada!',
+              text: msg || 'Movimentação realizada com sucesso!',
+              timer: 2000,
+              showConfirmButton: false
+            });
             carregarLocaisArvoreGeral();
           })
-          .withFailureHandler(err => Swal.fire('Erro', err.message, 'error'))
+          .withFailureHandler(err => {
+            Swal.fire('Erro ao Mover', err.message || 'Falha na comunicação com o servidor.', 'error');
+          })
           .atualizarPaiLocalArvore(idLocal, res.value);
       }
     });
