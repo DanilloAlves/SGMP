@@ -1564,7 +1564,10 @@ function garantirSetoresViaturasNaArvore_(omePadrao, idSedeOficial, sheet, locai
         : (subRef.toUpperCase() === "SEDE");
       if (subRef && !ehSubSede && subRef.toUpperCase() !== "SEDE") {
         var noSub = locais.find(function(l) {
-          return (!l.idPai || String(l.idPai).trim() === "") && String(l.nome).toUpperCase() === subRef.toUpperCase();
+          if (l.idPai && String(l.idPai).trim() !== "") return false;
+          var nUpper = String(l.nome || "").toUpperCase().trim();
+          var sUpper = subRef.toUpperCase().trim();
+          return nUpper === sUpper || nUpper.indexOf(sUpper) !== -1 || sUpper.indexOf(nUpper) !== -1;
         });
         if (noSub) idPaiAlvo = noSub.id;
       }
@@ -1582,6 +1585,20 @@ function garantirSetoresViaturasNaArvore_(omePadrao, idSedeOficial, sheet, locai
         });
       }
 
+      // Se na arvore o setor ja tem um idPai legitimo definido e subRef do banco for vazio/SEDE, preserva a hierarquia da arvore e sincroniza o banco!
+      if (setorExistente && setorExistente.idPai && setorExistente.idPai !== idSedeOficial && (ehSubSede || !subRef)) {
+        var noPaiAtual = locais.find(function(l) { return l.id === setorExistente.idPai; });
+        if (noPaiAtual && noPaiAtual.nome && noPaiAtual.nome.toUpperCase() !== "SEDE") {
+          idPaiAlvo = setorExistente.idPai;
+          if (itemBq) {
+            try {
+              var sqlSubSync = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` SET SUBUNIDADE = '" + noPaiAtual.nome.replace(/'/g, "\\'") + "' WHERE ITEM = '" + itemBq.replace(/'/g, "\\'") + "'";
+              executarConsultaBigQuerySegura(sqlSubSync, true);
+            } catch(eSubSync) {}
+          }
+        }
+      }
+
       if (setorExistente) {
         setoresViaturaValidos[setorExistente.id] = true;
         var mudouNome = String(setorExistente.nome || "").trim().toUpperCase() !== nomeSetorAlvo.toUpperCase();
@@ -2017,53 +2034,145 @@ function vistarEAtrelarMateriaisAoLocal(idLocal, nomeLocal, itensDistribuicao) {
 
 
 
-function atualizarPaiLocalArvore(idLocal, novoIdPai) {
-  try {
-    var usuarioSessao = null;
-    try {
-      usuarioSessao = getDadosUsuarioLogado();
-    } catch(e) {}
-    
-    if (usuarioSessao && usuarioSessao.perfil) {
-      var perfilStr = String(usuarioSessao.perfil).trim().toLowerCase();
-      if (perfilStr === "usuário" || perfilStr === "usuario") {
-        throw new Error("Acesso restrito: usuários com perfil 'Usuário' não possuem permissão para alterar a hierarquia de locais.");
-      }
-    }
-
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
-    var sheet = ss.getSheetByName(ABA_LOCAIS_ARMAZENAMENTO);
-
-    if (!sheet) return "Aba não encontrada.";
-
-
-
-    var dados = sheet.getDataRange().getValues();
-
-    for (var i = 1; i < dados.length; i++) {
-
-      if (String(dados[i][0]).trim() === String(idLocal).trim()) {
-
-        sheet.getRange(i + 1, 4).setValue(String(novoIdPai).trim());
-
-        try {
-          registrarLogAuditoria("ALTERACAO_PAI_LOCAL_ARVORE", "Alterou hierarquia do local " + idLocal + " para novo pai: " + novoIdPai);
-        } catch(eLogPai) {}
-
-        break;
-
-      }
-
-    }
-
-    return "Hierarquia atualizada com sucesso!";
-
-  } catch (err) {
-
-    throw new Error("Erro ao atualizar hierarquia: " + err.message);
-
-  }
-
+function atualizarPaiLocalArvore(idLocal, novoIdPai) {
+  try {
+    var usuarioSessao = null;
+    try {
+      usuarioSessao = getDadosUsuarioLogado();
+    } catch(e) {}
+    
+    if (usuarioSessao && usuarioSessao.perfil) {
+      var perfilStr = String(usuarioSessao.perfil).trim().toLowerCase();
+      if (perfilStr === "usuário" || perfilStr === "usuario") {
+        throw new Error("Acesso restrito: usuários com perfil 'Usuário' não possuem permissão para alterar a hierarquia de locais.");
+      }
+    }
+
+    var ss = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+    var sheet = ss.getSheetByName(ABA_LOCAIS_ARMAZENAMENTO);
+
+    if (!sheet) return "Aba não encontrada.";
+
+    var dados = sheet.getDataRange().getValues();
+    var idLocalStr = String(idLocal || "").trim();
+    var novoIdPaiStr = String(novoIdPai || "").trim();
+
+    var mapaNos = {};
+    var linhaAlvoIdx = -1;
+    var nomeLocalAlvo = "";
+    var omeLocalAlvo = "";
+
+    for (var k = 1; k < dados.length; k++) {
+      var rId = String(dados[k][0] || "").trim();
+      var rNome = String(dados[k][1] || "").trim();
+      var rOme = String(dados[k][2] || "").trim();
+      var rPai = String(dados[k][3] || "").trim();
+      if (rId) {
+        mapaNos[rId] = { id: rId, nome: rNome, ome: rOme, idPai: rPai, row: k + 1 };
+      }
+      if (rId === idLocalStr) {
+        nomeLocalAlvo = rNome;
+        omeLocalAlvo = rOme;
+        linhaAlvoIdx = k + 1;
+      }
+    }
+
+    if (linhaAlvoIdx === -1) {
+      throw new Error("Local não encontrado na árvore.");
+    }
+
+    // 1. Atualiza o ID_Pai na planilha Arvore
+    sheet.getRange(linhaAlvoIdx, 4).setValue(novoIdPaiStr);
+
+    // 2. Identifica a Subunidade Raiz resultante do novo local pai
+    var novaSubunidade = "SEDE";
+    if (novoIdPaiStr) {
+      var curId = novoIdPaiStr;
+      var visitados = {};
+      while (curId && mapaNos[curId] && !visitados[curId]) {
+        visitados[curId] = true;
+        var noPaiObj = mapaNos[curId];
+        if (!noPaiObj.idPai || String(noPaiObj.idPai).trim() === "") {
+          var nomeRaiz = String(noPaiObj.nome || "").trim();
+          var ehSede = (typeof ehSubunidadeEquivalenteOme_ === 'function') 
+            ? ehSubunidadeEquivalenteOme_(nomeRaiz, omeLocalAlvo) 
+            : (nomeRaiz.toUpperCase() === "SEDE");
+          novaSubunidade = ehSede ? "SEDE" : nomeRaiz;
+          break;
+        }
+        curId = noPaiObj.idPai;
+      }
+    }
+
+    // 3. Sincroniza a movimentação no inventário (BigQuery)
+    var siglaVtr = (typeof obterSiglaViaturaBackend_ === 'function') ? obterSiglaViaturaBackend_(nomeLocalAlvo) : "";
+    var ehVtr = !!siglaVtr || idLocalStr.indexOf("loc_vtr_") === 0 || /^(?:AR|ABT|ABTS|AT|ASE|BIS) /i.test(nomeLocalAlvo);
+
+    var omePadrao = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(omeLocalAlvo) : omeLocalAlvo;
+    var inSqlOme = (typeof obterVariacoesOmeParaSql_ === 'function') 
+      ? obterVariacoesOmeParaSql_(omePadrao) 
+      : ("'" + omePadrao.toUpperCase().replace(/'/g, "\\'") + "'");
+
+    function limparSql(t) { return String(t || '').replace(/'/g, "\\'"); }
+
+    if (ehVtr) {
+      var nOrdemOuSerie = "";
+      var partesNome = nomeLocalAlvo.split("-");
+      if (partesNome.length > 1) {
+        nOrdemOuSerie = partesNome[partesNome.length - 1].trim();
+      }
+
+      var whereVtr = "UPPER(TRIM(UNIDADE)) IN (" + inSqlOme + ") AND (";
+      whereVtr += "UPPER(TRIM(SETOR)) = '" + limparSql(nomeLocalAlvo.toUpperCase()) + "' ";
+      if (nOrdemOuSerie) {
+        whereVtr += "OR UPPER(TRIM(COALESCE(N_SERIE, ''))) = '" + limparSql(nOrdemOuSerie.toUpperCase()) + "' ";
+      }
+      if (siglaVtr && nOrdemOuSerie) {
+        whereVtr += "OR (UPPER(TRIM(OBJETO)) LIKE '%" + limparSql(siglaVtr) + "%' AND UPPER(TRIM(COALESCE(N_SERIE, ''))) = '" + limparSql(nOrdemOuSerie.toUpperCase()) + "') ";
+      }
+      whereVtr += ")";
+
+      try {
+        var sqlUpVtr = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
+                       "SET SUBUNIDADE = '" + limparSql(novaSubunidade) + "', " +
+                       "    SETOR = '" + limparSql(nomeLocalAlvo) + "' " +
+                       "WHERE " + whereVtr;
+        executarConsultaBigQuerySegura(sqlUpVtr, true);
+      } catch(eBqVtr) {
+        console.warn("Aviso ao atualizar viatura no inventário: " + eBqVtr.message);
+      }
+
+      try {
+        var sqlUpMats = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
+                        "SET SUBUNIDADE = '" + limparSql(novaSubunidade) + "' " +
+                        "WHERE UPPER(TRIM(UNIDADE)) IN (" + inSqlOme + ") " +
+                        "AND UPPER(TRIM(SETOR)) = '" + limparSql(nomeLocalAlvo.toUpperCase()) + "' " +
+                        (nOrdemOuSerie ? ("AND (N_SERIE IS NULL OR UPPER(TRIM(N_SERIE)) != '" + limparSql(nOrdemOuSerie.toUpperCase()) + "')") : "");
+        executarConsultaBigQuerySegura(sqlUpMats, true);
+      } catch(eBqMats) {
+        console.warn("Aviso ao atualizar materiais da viatura: " + eBqMats.message);
+      }
+    } else {
+      try {
+        var sqlUpGeral = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
+                         "SET SUBUNIDADE = '" + limparSql(novaSubunidade) + "' " +
+                         "WHERE UPPER(TRIM(UNIDADE)) IN (" + inSqlOme + ") " +
+                         "AND (UPPER(TRIM(SETOR)) = '" + limparSql(nomeLocalAlvo.toUpperCase()) + "' OR UPPER(TRIM(LOCALIZACAO_ESPCIFICA_NA_OME_Se_Necessario)) = '" + limparSql(nomeLocalAlvo.toUpperCase()) + "')";
+        executarConsultaBigQuerySegura(sqlUpGeral, true);
+      } catch(eBqGeral) {
+        console.warn("Aviso ao atualizar setor geral: " + eBqGeral.message);
+      }
+    }
+
+    try {
+      registrarLogAuditoria("ALTERACAO_PAI_LOCAL_ARVORE", "Alterou hierarquia do local '" + nomeLocalAlvo + "' (ID: " + idLocalStr + ") para novo pai: " + novoIdPaiStr + " (Subunidade: " + novaSubunidade + ")");
+    } catch(eLogPai) {}
+
+    return "Hierarquia atualizada com sucesso!";
+
+  } catch (err) {
+    throw new Error("Erro ao atualizar hierarquia: " + err.message);
+  }
 }
 
 
