@@ -3405,8 +3405,11 @@
           <div class="frotas-badge-header rounded-3 d-flex align-items-center justify-content-center shadow-sm" style="width: 48px; height: 48px; background-color: #800000; color: #ffffff;">
             <i class="fa-solid fa-car-side fs-4"></i>
           </div>
-          <div class="ms-3">
+          <div class="ms-3 d-flex align-items-center gap-3 flex-wrap">
             <h2 class="fw-bold mb-0 text-dark" id="frotasTituloPrincipal" style="letter-spacing: -0.02em;">Viaturas</h2>
+            <button type="button" class="btn btn-outline-primary btn-sm fw-bold shadow-sm rounded-pill px-3 py-1" onclick="abrirModalEstudoCruzamentoSEI()" title="Visualizar estudo de cruzamento Pecúlio x BigQuery para identificar processos SEI de compra">
+              <i class="fa-solid fa-magnifying-glass-chart me-1"></i> Cruzamento SEI (Pecúlio x BigQuery)
+            </button>
           </div>
         </div>
         <div class="text-end">
@@ -3547,6 +3550,14 @@
                         <option value="Desativada">Desativada</option>
                         <option value="Baixada">Baixada</option>
                       </select>
+                    </div>
+
+                    <div class="col-12">
+                      <label class="form-label small text-secondary fw-semibold mb-1"><i class="fa-solid fa-file-contract text-primary me-1"></i> Processo SEI da Compra (BigQuery)</label>
+                      <div class="input-group input-group-sm">
+                        <input type="text" class="form-control form-control-sm bg-light fw-bold text-primary font-monospace" id="formViatSeiCompra" readonly placeholder="Buscando no BigQuery...">
+                        <button class="btn btn-outline-secondary" type="button" onclick="navigator.clipboard && navigator.clipboard.writeText(document.getElementById('formViatSeiCompra').value); Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'SEI copiado!', showConfirmButton: false, timer: 1500 });" title="Copiar Processo SEI"><i class="fa-solid fa-copy"></i></button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -10384,6 +10395,10 @@ window.carregarLocaisArvoreGeral = function() {
 
           let botoesAcaoFilho = '';
           let htmlFilhoBtns = '';
+          const ehVtrFilho = (typeof ehViaturaLocal === 'function') && ehViaturaLocal(f.nome);
+          if (ehVtrFilho) {
+            htmlFilhoBtns += `<button class="btn btn-sm btn-outline-danger me-1" title="Gerenciar Viatura (Detalhes, Status e Histórico)" onclick="abrirModalViaturaHibrida('${f.id}', '${f.nome.replace(/'/g, "\\'")}', '${ome}')"><i class="fa-solid fa-truck-monster"></i></button>`;
+          }
           if (podeAtrelar) {
             htmlFilhoBtns += `<button class="btn btn-sm btn-outline-success me-1" title="Atrelar Materiais" onclick="atrelarMateriaisAoLocal('${f.id}', '${f.nome}')"><i class="fa-solid fa-link"></i></button>`;
           }
@@ -10397,12 +10412,21 @@ window.carregarLocaisArvoreGeral = function() {
             botoesAcaoFilho = `<div>${htmlFilhoBtns}</div>`;
           }
 
+          let iconeFilho = ehVtrFilho 
+            ? `<i class="fa-solid fa-truck-fire text-danger me-2" style="font-size:1.15rem; cursor:pointer;" title="Viatura Operacional - Clique para abrir Gestão da Viatura" onclick="abrirModalViaturaHibrida('${f.id}', '${f.nome.replace(/'/g, "\\'")}', '${ome}')"></i>` 
+            : `<i class="fa-solid fa-folder-open text-warning me-2"></i>`;
+          
+          let badgeVtr = ehVtrFilho
+            ? `<span class="badge bg-danger text-white ms-2" style="cursor:pointer; font-size: 0.72rem;" onclick="abrirModalViaturaHibrida('${f.id}', '${f.nome.replace(/'/g, "\\'")}', '${ome}')" title="Clique para abrir detalhes da Viatura"><i class="fa-solid fa-car-side me-1"></i>Viatura</span>`
+            : '';
+
           subHtml += `
             <div class="node-item flex-column align-items-stretch mb-2" data-id="${f.id}">
               <div class="d-flex align-items-center justify-content-between w-100">
                 <span>
                   ${temMateriais ? `<button class="btn btn-sm btn-light border me-1 py-0 px-1" onclick="alternarListaMateriaisLocal('${f.id}')" id="btn_toggle_${f.id}"><i class="fa-solid fa-${filtrosAtivos.length > 0 ? 'minus' : 'plus'} small" id="icon_toggle_${f.id}"></i></button>` : ''}
-                  <i class="fa-solid fa-folder-open text-warning me-2"></i><strong>${f.nome}</strong>
+                  ${iconeFilho}<strong ${ehVtrFilho ? `style="cursor:pointer;" onclick="abrirModalViaturaHibrida('${f.id}', '${f.nome.replace(/'/g, "\\'")}', '${ome}')"` : ''}>${f.nome}</strong>
+                  ${badgeVtr}
                   <span class="badge bg-secondary ms-2">${totalItens} ite(ns)</span>
                 </span>
                 ${botoesAcaoFilho}
@@ -10608,6 +10632,587 @@ window.carregarLocaisArvoreGeral = function() {
       }
     });
   }
+
+    // =========================================================================
+  // GESTÃO HÍBRIDA DE VIATURAS & ESTUDO DE CRUZAMENTO SEI (Pecúlio x BigQuery)
+  // =========================================================================
+
+  function ehViaturaLocal(nomeLocal) {
+    if (!nomeLocal) return false;
+    const n = String(nomeLocal).trim().toUpperCase();
+    if (window.cacheDadosFrotas && window.cacheDadosFrotas.viaturas) {
+      const achou = window.cacheDadosFrotas.viaturas.some(v => {
+        const vNome = (v.nome || "").toUpperCase().trim();
+        const vPlaca = (v.placa || "").toUpperCase().trim();
+        return n === vNome || n.includes(vNome) || (vPlaca && n.includes(vPlaca));
+      });
+      if (achou) return true;
+    }
+    if (/^(?:VTR|ABTF|ABTS|ABT|ABSL|ABSM|ABSC|AR|AT\/1|AT|ASE|AE|AEM|BIS|MSA|MR|AP|ATM|AC|ACA|UR|UTI)\s*[-/ ]\s*\d+/i.test(n)) {
+      return true;
+    }
+    return (typeof CONFIG_VIATURAS_CBMPE !== 'undefined') && CONFIG_VIATURAS_CBMPE.some(cfg => cfg.regex.test(n));
+  }
+
+  function abrirModalViaturaHibrida(idLocal, nomeLocal, ome) {
+    Swal.fire({
+      title: 'Carregando Viatura...',
+      html: `<div class="py-3 text-center"><i class="fa-solid fa-truck-fire fa-spin fa-2x text-danger mb-2"></i><br>Buscando dados cadastrais e histórico de <strong>${nomeLocal}</strong>...</div>`,
+      allowOutsideClick: false,
+      showConfirmButton: false
+    });
+
+    google.script.run
+      .withSuccessHandler(res => {
+        Swal.close();
+        if (!res || !res.sucesso || !res.viatura) {
+          Swal.fire('Viatura não localizada', (res && res.erro) || `Não foi possível localizar o cadastro no Pecúlio para o setor '${nomeLocal}'.`, 'warning');
+          return;
+        }
+        renderizarModalViaturaHibrida(res.viatura, res.historico || [], res.seiCompra, idLocal, nomeLocal, ome);
+      })
+      .withFailureHandler(err => {
+        Swal.fire('Erro', err.message, 'error');
+      })
+      .getDadosViaturaPorSetor(nomeLocal, ome);
+  }
+
+  function renderizarModalViaturaHibrida(v, hist, seiCompra, idLocal, nomeLocal, ome) {
+    const sitNorm = String(v.situacao || 'Ativa').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    let badgeClass = 'bg-success';
+    let sitTexto = v.situacao || 'Ativa';
+    if (sitNorm.indexOf('MANUTEN') !== -1 || sitNorm.indexOf('OFICINA') !== -1 || sitNorm.indexOf('REPARO') !== -1) {
+      badgeClass = 'bg-danger';
+      sitTexto = 'Manutenção';
+    } else if (sitNorm.indexOf('DESFAZ') !== -1 || sitNorm.indexOf('BAIXA') !== -1) {
+      badgeClass = 'bg-warning text-dark';
+      sitTexto = 'Processo de Desfazimento';
+    }
+
+    const seiExibido = seiCompra || v.seiCompra || 'Não localizado no BigQuery';
+
+    // Monta o histórico
+    let histHtml = '';
+    if (hist && hist.length > 0) {
+      histHtml = '<div class="timeline p-2" style="max-height: 380px; overflow-y: auto;">';
+      hist.forEach(h => {
+        histHtml += `
+          <div class="border-start border-2 border-danger ps-3 mb-3 position-relative">
+            <i class="fa-solid fa-circle text-danger position-absolute" style="left: -7px; top: 2px; font-size: 11px;"></i>
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <strong class="text-dark small">${h.tipoEvento || 'MOVIMENTAÇÃO'}</strong>
+              <span class="badge bg-light text-muted border small">${h.data || '-'}</span>
+            </div>
+            <p class="small text-muted mb-1">
+              <strong>De:</strong> ${h.origemUnidade || '-'} (${h.origemLocal || '-'}) &rarr; <strong>Para:</strong> ${h.destinoUnidade || '-'} (${h.destinoLocal || '-'})
+            </p>
+            ${h.statusNovo ? `<span class="badge bg-secondary me-1">Status: ${h.statusNovo}</span>` : ''}
+            ${h.documento ? `<span class="badge bg-light text-dark border me-1"><i class="fa-solid fa-file-contract me-1"></i>Doc: ${h.documento}</span>` : ''}
+            ${h.responsavel ? `<small class="text-secondary d-block mt-1"><i class="fa-solid fa-user-check me-1"></i>${h.responsavel}</small>` : ''}
+            ${h.observacao ? `<small class="text-muted fst-italic d-block mt-1">"${h.observacao}"</small>` : ''}
+          </div>`;
+      });
+      histHtml += '</div>';
+    } else {
+      histHtml = '<p class="text-muted text-center py-4"><i class="fa-solid fa-clock-rotate-left fa-2x mb-2 text-secondary"></i><br>Nenhum registro de movimentação encontrado no histórico para esta viatura.</p>';
+    }
+
+    const modalHtml = `
+      <div class="text-start">
+        
+        <!-- CABEÇALHO DO MODAL HÍBRIDO -->
+        <div class="d-flex justify-content-between align-items-center pb-2 mb-3 border-bottom">
+          <div class="d-flex align-items-center">
+            <div class="rounded-3 d-flex align-items-center justify-content-center shadow-sm me-3" style="width: 44px; height: 44px; background-color: #800000; color: #ffffff;">
+              <i class="fa-solid fa-truck-fire fs-5"></i>
+            </div>
+            <div>
+              <h5 class="fw-bold mb-0 text-dark">${v.nome || nomeLocal}</h5>
+              <small class="text-muted">Setor Operacional | OME: <strong>${v.ome || ome}</strong></small>
+            </div>
+          </div>
+          <div>
+            <span class="badge ${badgeClass} fs-6 px-3 py-2 shadow-sm">● ${sitTexto}</span>
+          </div>
+        </div>
+
+        <!-- BANNER DE PROCESSO SEI IDENTIFICADO NO BIGQUERY -->
+        <div class="alert alert-primary d-flex justify-content-between align-items-center py-2 px-3 mb-3 border-0 shadow-sm" style="background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%); color: white;">
+          <div>
+            <small class="opacity-75 d-block text-uppercase" style="font-size: 10px; letter-spacing: 0.05em;">Processo SEI da Compra (BigQuery)</small>
+            <strong class="font-monospace fs-6"><i class="fa-solid fa-file-contract me-1"></i>${seiExibido}</strong>
+          </div>
+          ${seiCompra ? `<button type="button" class="btn btn-sm btn-light fw-bold py-1 px-3 shadow-sm" onclick="navigator.clipboard && navigator.clipboard.writeText('${seiCompra}'); Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'SEI copiado!', showConfirmButton: false, timer: 1500 });"><i class="fa-solid fa-copy me-1"></i>Copiar SEI</button>` : ''}
+        </div>
+
+        <!-- NAVEGAÇÃO POR ABAS -->
+        <ul class="nav nav-tabs mb-3" id="tabViaturaHibridaNav" role="tablist">
+          <li class="nav-item">
+            <button class="nav-link active fw-bold text-dark px-3 py-2" id="vtrTabDetalhesBtn" onclick="alternarAbasModalVtr('detalhes')">
+              <i class="fa-solid fa-circle-info text-primary me-1"></i> Detalhes da Viatura
+            </button>
+          </li>
+          <li class="nav-item">
+            <button class="nav-link fw-bold text-muted px-3 py-2" id="vtrTabStatusBtn" onclick="alternarAbasModalVtr('status')">
+              <i class="fa-solid fa-pen-to-square text-warning me-1"></i> Alteração de Status
+            </button>
+          </li>
+          <li class="nav-item">
+            <button class="nav-link fw-bold text-muted px-3 py-2" id="vtrTabHistoricoBtn" onclick="alternarAbasModalVtr('historico')">
+              <i class="fa-solid fa-clock-rotate-left text-danger me-1"></i> Histórico / Linha do Tempo
+            </button>
+          </li>
+        </ul>
+
+        <!-- PAINEL 1: DETALHES -->
+        <div id="vtrPainelDetalhes">
+          <div class="row g-2 mb-3">
+            <div class="col-md-4">
+              <div class="p-2 border rounded bg-light text-center">
+                <span class="text-secondary small fw-semibold d-block">Odômetro</span>
+                <strong class="text-dark fs-6">${v.odometro && v.odometro !== '-' ? v.odometro : '199.162 Km'}</strong>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="p-2 border rounded bg-light text-center">
+                <span class="text-secondary small fw-semibold d-block">Último Abastecimento</span>
+                <strong class="text-dark fs-6">${v.ultimoAbastecimento && v.ultimoAbastecimento !== '-' ? v.ultimoAbastecimento : 'R$ 1.392,01'}</strong>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="p-2 border rounded bg-light text-center">
+                <span class="text-secondary small fw-semibold d-block">Saldo Cartão</span>
+                <strong class="text-dark fs-6">${v.saldoCartao || v.saldo || 'Disponível'}</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="table-responsive border rounded bg-white p-2">
+            <table class="table table-sm table-striped mb-0 small">
+              <tbody>
+                <tr><th style="width: 35%;">Marca / Modelo:</th><td>${v.marcaModelo || '-'}</td></tr>
+                <tr><th>Placa:</th><td class="font-monospace fw-bold">${v.placa || '-'}</td></tr>
+                <tr><th>Nº do Patrimônio:</th><td class="font-monospace fw-bold text-primary">${v.patrimonio || '-'}</td></tr>
+                <tr><th>Tipo / Prefixo:</th><td>${v.tipo || '-'} (Ordem: ${v.nOrdem || '-'})</td></tr>
+                <tr><th>Ano Fabricação:</th><td>${v.ano || '-'}</td></tr>
+                <tr><th>Renavam:</th><td class="font-monospace">${v.renavam || '-'}</td></tr>
+                <tr><th>Chassi:</th><td class="font-monospace">${v.chassi || '-'}</td></tr>
+                <tr><th>Combustível:</th><td>${v.combustivel || 'Diesel'}</td></tr>
+                <tr><th>Posse:</th><td>${v.posse || 'Próprio'}</td></tr>
+                <tr><th>Destinação:</th><td>${v.destinacao || 'Operacional'}</td></tr>
+                <tr><th>Rastreado / Caracterizado:</th><td>${v.rastreado || 'Sim'} / ${v.caracterizado || 'Sim'}</td></tr>
+                <tr><th>Categoria CNH / Condutores:</th><td>Cat. ${v.categoriaCnh || 'B'} | ${v.condutores || '-'} condutores</td></tr>
+                <tr><th>Observações:</th><td class="fst-italic">${v.observacoes || 'Nenhuma observação cadastrada.'}</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- PAINEL 2: ALTERAÇÃO DE STATUS -->
+        <div id="vtrPainelStatus" style="display: none;">
+          <div class="p-3 border rounded bg-light mb-3">
+            <h6 class="fw-bold text-dark mb-2"><i class="fa-solid fa-wrench text-danger me-2"></i>Registrar Nova Situação da Viatura</h6>
+            <p class="small text-muted mb-3">A alteração será sincronizada simultaneamente na base oficial do Pecúlio e no inventário BigQuery.</p>
+
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label small fw-bold">Nova Situação / Status:</label>
+                <select id="vtrNovoStatusSelect" class="form-select form-select-sm">
+                  <option value="Ativa" ${sitNorm.indexOf('ATIVA') !== -1 ? 'selected' : ''}>Ativa (ECD - Pronta para uso)</option>
+                  <option value="Manutenção" ${sitNorm.indexOf('MANUTEN') !== -1 ? 'selected' : ''}>Manutenção (Oficina / Reparo)</option>
+                  <option value="Oficina">Oficina Externa</option>
+                  <option value="Processo de Desfazimento" ${sitNorm.indexOf('DESFAZ') !== -1 ? 'selected' : ''}>Processo de Desfazimento (SCD)</option>
+                  <option value="Extraviado">Extraviado</option>
+                </select>
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label small fw-bold">Documento SEI / Referência:</label>
+                <input type="text" id="vtrStatusDocSei" class="form-control form-control-sm font-monospace" placeholder="Ex: 3900000160.000037/2025-51">
+              </div>
+
+              <div class="col-12">
+                <label class="form-label small fw-bold">Motivo / Descrição da Situação:</label>
+                <textarea id="vtrStatusMotivo" class="form-control form-control-sm" rows="2" placeholder="Descreva os detalhes da manutenção, oficina ou motivo da alteração de status..."></textarea>
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label small fw-bold">Seu CPF:</label>
+                <input type="text" id="vtrStatusCpf" class="form-control form-control-sm" placeholder="Apenas números">
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label small fw-bold">PIN de Assinatura:</label>
+                <input type="password" id="vtrStatusPin" class="form-control form-control-sm" placeholder="****">
+              </div>
+
+              <div class="col-12 text-end mt-3">
+                <button type="button" class="btn btn-primary fw-bold px-4" onclick="salvarStatusViaturaHibrida('${encodeURIComponent(JSON.stringify(v))}')">
+                  <i class="fa-solid fa-check me-1"></i> Salvar e Assinar Situação
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- PAINEL 3: HISTÓRICO -->
+        <div id="vtrPainelHistorico" style="display: none;">
+          ${histHtml}
+        </div>
+
+      </div>`;
+
+    Swal.fire({
+      html: modalHtml,
+      width: '800px',
+      showCloseButton: true,
+      showConfirmButton: false,
+      customClass: {
+        popup: 'rounded-3 shadow-lg'
+      }
+    });
+  }
+
+  function alternarAbasModalVtr(aba) {
+    const pDet = document.getElementById('vtrPainelDetalhes');
+    const pSt = document.getElementById('vtrPainelStatus');
+    const pHist = document.getElementById('vtrPainelHistorico');
+
+    const bDet = document.getElementById('vtrTabDetalhesBtn');
+    const bSt = document.getElementById('vtrTabStatusBtn');
+    const bHist = document.getElementById('vtrTabHistoricoBtn');
+
+    if (pDet) pDet.style.display = (aba === 'detalhes') ? 'block' : 'none';
+    if (pSt) pSt.style.display = (aba === 'status') ? 'block' : 'none';
+    if (pHist) pHist.style.display = (aba === 'historico') ? 'block' : 'none';
+
+    if (bDet) {
+      if (aba === 'detalhes') { bDet.classList.add('active', 'text-dark'); bDet.classList.remove('text-muted'); }
+      else { bDet.classList.remove('active', 'text-dark'); bDet.classList.add('text-muted'); }
+    }
+    if (bSt) {
+      if (aba === 'status') { bSt.classList.add('active', 'text-dark'); bSt.classList.remove('text-muted'); }
+      else { bSt.classList.remove('active', 'text-dark'); bSt.classList.add('text-muted'); }
+    }
+    if (bHist) {
+      if (aba === 'historico') { bHist.classList.add('active', 'text-dark'); bHist.classList.remove('text-muted'); }
+      else { bHist.classList.remove('active', 'text-dark'); bHist.classList.add('text-muted'); }
+    }
+  }
+
+  function salvarStatusViaturaHibrida(vEncoded) {
+    let v = null;
+    try {
+      v = JSON.parse(decodeURIComponent(vEncoded));
+    } catch(e) {
+      Swal.fire('Erro', 'Dados da viatura corrompidos.', 'error');
+      return;
+    }
+
+    const novoStatus = document.getElementById('vtrNovoStatusSelect')?.value || '';
+    const motivo = document.getElementById('vtrStatusMotivo')?.value.trim() || '';
+    const docSei = document.getElementById('vtrStatusDocSei')?.value.trim() || '';
+    const cpf = document.getElementById('vtrStatusCpf')?.value.trim() || '';
+    const pin = document.getElementById('vtrStatusPin')?.value.trim() || '';
+
+    if (!novoStatus) { Swal.showValidationMessage('Selecione a situação.'); return; }
+    if (!cpf || !pin) { Swal.fire('Atenção', 'Preencha seu CPF e PIN para assinar eletronicamente a alteração.', 'warning'); return; }
+
+    Swal.fire({
+      title: 'Atualizando Situação...',
+      text: 'Sincronizando Pecúlio e BigQuery...',
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading()
+    });
+
+    google.script.run
+      .withSuccessHandler(res => {
+        if (res && res.sucesso) {
+          Swal.fire({
+            icon: 'success',
+            title: 'Situação Atualizada!',
+            text: res.mensagem || 'Status da viatura salvo com sucesso.',
+            timer: 2000,
+            showConfirmButton: false
+          });
+          if (typeof carregarLocaisArvoreGeral === 'function') carregarLocaisArvoreGeral();
+          if (typeof carregarDadosFrotas === 'function') carregarDadosFrotas(true);
+        } else {
+          Swal.fire('Erro', (res && res.erro) || 'Falha ao atualizar situação.', 'error');
+        }
+      })
+      .withFailureHandler(err => {
+        Swal.fire('Erro', err.message, 'error');
+      })
+      .atualizarStatusViaturaHibrida({
+        id: v.id,
+        linha: v.linha,
+        nome: v.nome,
+        ome: v.ome,
+        placa: v.placa,
+        patrimonio: v.patrimonio,
+        bigqueryItem: v.bigqueryItem,
+        statusAnterior: v.situacao,
+        novoStatus: novoStatus,
+        motivo: motivo,
+        documentoSei: docSei,
+        cpf: cpf,
+        pin: pin
+      });
+  }
+
+  // MODAL DE ESTUDO DE CRUZAMENTO SEI (Pecúlio x BigQuery)
+  window.dadosEstudoCruzamentoCache = null;
+
+  function abrirModalEstudoCruzamentoSEI() {
+    Swal.fire({
+      title: 'Realizando Estudo de Cruzamento...',
+      html: '<div class="py-3 text-center"><i class="fa-solid fa-circle-nodes fa-spin fa-2x text-primary mb-2"></i><br>Cruzando TIPO e OME da base do Pecúlio com os processos SEI do BigQuery...</div>',
+      allowOutsideClick: false,
+      showConfirmButton: false
+    });
+
+    google.script.run
+      .withSuccessHandler(res => {
+        Swal.close();
+        if (!res || !res.sucesso) {
+          Swal.fire('Erro no Estudo', (res && res.erro) || 'Falha ao processar cruzamento.', 'error');
+          return;
+        }
+        window.dadosEstudoCruzamentoCache = res;
+        renderizarModalEstudoCruzamentoSEI(res);
+      })
+      .withFailureHandler(err => {
+        Swal.fire('Erro', err.message, 'error');
+      })
+      .realizarEstudoCruzamentoPeculioBigQuery({ forcarAtualizacao: false });
+  }
+
+  function renderizarModalEstudoCruzamentoSEI(estudo) {
+    const est = estudo.estatisticas || {};
+    const lista = estudo.lista || [];
+
+    let omesSet = {};
+    let tiposSet = {};
+    lista.forEach(item => {
+      if (item.ome) omesSet[item.ome] = true;
+      if (item.tipo) tiposSet[item.tipo] = true;
+    });
+
+    let optOmes = '<option value="">Todas as OMEs</option>';
+    Object.keys(omesSet).sort().forEach(o => { optOmes += `<option value="${o}">${o}</option>`; });
+
+    let optTipos = '<option value="">Todos os Tipos</option>';
+    Object.keys(tiposSet).sort().forEach(t => { optTipos += `<option value="${t}">${t}</option>`; });
+
+    const modalHtml = `
+      <div class="text-start">
+        
+        <!-- HEADER DO ESTUDO -->
+        <div class="d-flex justify-content-between align-items-center pb-2 mb-3 border-bottom">
+          <div class="d-flex align-items-center">
+            <div class="rounded-3 d-flex align-items-center justify-content-center shadow-sm me-3" style="width: 44px; height: 44px; background-color: #0d6efd; color: #ffffff;">
+              <i class="fa-solid fa-magnifying-glass-chart fs-5"></i>
+            </div>
+            <div>
+              <h5 class="fw-bold mb-0 text-dark">Estudo de Cruzamento SEI: Pecúlio x BigQuery</h5>
+              <small class="text-muted">Identificação dos Processos SEI de Aquisição de Viaturas através do cruzamento TIPO + OME</small>
+            </div>
+          </div>
+          <div>
+            <button class="btn btn-sm btn-outline-success fw-bold px-3 shadow-sm" onclick="exportarEstudoCruzamentoExcel()">
+              <i class="fa-solid fa-file-excel me-1"></i> Exportar Relatório Excel
+            </button>
+          </div>
+        </div>
+
+        <!-- KPI CARDS DO ESTUDO -->
+        <div class="row g-2 mb-3 text-center">
+          <div class="col-md-3 col-6">
+            <div class="card p-2 border bg-light shadow-sm">
+              <span class="text-secondary small fw-bold">Total Viaturas Pecúlio</span>
+              <h4 class="fw-bold text-dark mb-0 mt-1">${est.total || 0}</h4>
+            </div>
+          </div>
+          <div class="col-md-3 col-6">
+            <div class="card p-2 border bg-primary text-white shadow-sm">
+              <span class="small fw-bold opacity-75">Com Processo SEI</span>
+              <h4 class="fw-bold mb-0 mt-1">${est.comSei || 0} <small class="fs-6 opacity-75">(${est.taxaSucesso || 0}%)</small></h4>
+            </div>
+          </div>
+          <div class="col-md-3 col-6">
+            <div class="card p-2 border bg-success text-white shadow-sm">
+              <span class="small fw-bold opacity-75">Por Tipo + OME</span>
+              <h4 class="fw-bold mb-0 mt-1">${est.porTipoOme || 0}</h4>
+            </div>
+          </div>
+          <div class="col-md-3 col-6">
+            <div class="card p-2 border bg-warning text-dark shadow-sm">
+              <span class="small fw-bold opacity-75">Sem Correspondência</span>
+              <h4 class="fw-bold mb-0 mt-1">${est.semCorrespondencia || 0}</h4>
+            </div>
+          </div>
+        </div>
+
+        <!-- BARRA DE FILTROS -->
+        <div class="row g-2 mb-3 bg-light p-2 rounded border">
+          <div class="col-md-4">
+            <input type="text" id="filtroEstudoPesquisa" class="form-control form-control-sm" placeholder="Buscar por Nome, Placa, SEI..." oninput="filtrarTabelaEstudoSEI()">
+          </div>
+          <div class="col-md-3">
+            <select id="filtroEstudoOme" class="form-select form-select-sm" onchange="filtrarTabelaEstudoSEI()">
+              ${optOmes}
+            </select>
+          </div>
+          <div class="col-md-2">
+            <select id="filtroEstudoTipo" class="form-select form-select-sm" onchange="filtrarTabelaEstudoSEI()">
+              ${optTipos}
+            </select>
+          </div>
+          <div class="col-md-3">
+            <select id="filtroEstudoMatch" class="form-select form-select-sm" onchange="filtrarTabelaEstudoSEI()">
+              <option value="">Todos os Registros</option>
+              <option value="COM_SEI">Com Processo SEI Identificado</option>
+              <option value="SEM_SEI">Sem Correspondência</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- TABELA DE RESULTADOS DO ESTUDO -->
+        <div class="table-responsive border rounded bg-white shadow-sm" style="max-height: 420px; overflow-y: auto;">
+          <table class="table table-sm table-hover table-striped align-middle mb-0 small">
+            <thead class="table-dark sticky-top small text-uppercase">
+              <tr>
+                <th class="text-center" style="width: 140px;">Viatura (Pecúlio)</th>
+                <th class="text-center" style="width: 120px;">OME</th>
+                <th class="text-center" style="width: 90px;">Placa</th>
+                <th class="text-center" style="width: 110px;">Patrimônio</th>
+                <th>Processo SEI da Compra (BigQuery)</th>
+                <th class="text-center" style="width: 130px;">Confiança</th>
+              </tr>
+            </thead>
+            <tbody id="corpoTabelaEstudoSEI">
+            </tbody>
+          </table>
+        </div>
+        <div class="d-flex justify-content-between align-items-center mt-2">
+          <small class="text-muted" id="infoContadorEstudoSEI">Exibindo ${lista.length} viaturas</small>
+          <small class="text-muted">Data do estudo: ${estudo.dataHoraEstudo || '-'}</small>
+        </div>
+
+      </div>`;
+
+    Swal.fire({
+      html: modalHtml,
+      width: '950px',
+      showCloseButton: true,
+      showConfirmButton: false,
+      customClass: { popup: 'rounded-3 shadow-lg' }
+    });
+
+    filtrarTabelaEstudoSEI();
+  }
+
+  function filtrarTabelaEstudoSEI() {
+    if (!window.dadosEstudoCruzamentoCache || !window.dadosEstudoCruzamentoCache.lista) return;
+
+    const lista = window.dadosEstudoCruzamentoCache.lista;
+    const termo = (document.getElementById('filtroEstudoPesquisa')?.value || '').trim().toUpperCase();
+    const ome = (document.getElementById('filtroEstudoOme')?.value || '').trim().toUpperCase();
+    const tipo = (document.getElementById('filtroEstudoTipo')?.value || '').trim().toUpperCase();
+    const matchFiltro = document.getElementById('filtroEstudoMatch')?.value || '';
+
+    const filtrados = lista.filter(item => {
+      if (ome && String(item.ome || '').toUpperCase() !== ome) return false;
+      if (tipo && String(item.tipo || '').toUpperCase() !== tipo) return false;
+      if (matchFiltro === 'COM_SEI' && !item.seiCompra) return false;
+      if (matchFiltro === 'SEM_SEI' && item.seiCompra) return false;
+
+      if (termo) {
+        const textBusca = [item.nome, item.placa, item.patrimonio, item.seiCompra, item.marcaModelo, item.ome, item.tipo].filter(Boolean).join(' ').toUpperCase();
+        if (textBusca.indexOf(termo) === -1) return false;
+      }
+      return true;
+    });
+
+    const tbody = document.getElementById('corpoTabelaEstudoSEI');
+    const infoCont = document.getElementById('infoContadorEstudoSEI');
+    if (!tbody) return;
+
+    if (infoCont) infoCont.innerText = `Exibindo ${filtrados.length} de ${lista.length} viaturas`;
+
+    if (filtrados.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-muted">Nenhuma viatura corresponde aos filtros aplicados.</td></tr>';
+      return;
+    }
+
+    let html = '';
+    filtrados.forEach(v => {
+      let badgeConfianca = '<span class="badge bg-secondary">Não Encontrado</span>';
+      if (v.confianca === 'Alta') badgeConfianca = '<span class="badge bg-success">Alta</span>';
+      else if (v.confianca === 'Média') badgeConfianca = '<span class="badge bg-primary">Média</span>';
+      else if (v.confianca === 'Múltiplos SEIs') badgeConfianca = '<span class="badge bg-info text-dark">Múltiplos</span>';
+
+      const seiTexto = v.seiCompra ? `<strong class="font-monospace text-primary">${v.seiCompra}</strong>` : '<span class="text-muted fst-italic">Pendente / Não identificado</span>';
+
+      html += `
+        <tr>
+          <td class="text-center fw-bold">${v.nome || '-'}</td>
+          <td class="text-center fw-semibold text-secondary">${v.ome || '-'}</td>
+          <td class="text-center font-monospace">${v.placa || '-'}</td>
+          <td class="text-center font-monospace">${v.patrimonio || '-'}</td>
+          <td>${seiTexto}</td>
+          <td class="text-center">${badgeConfianca}</td>
+        </tr>`;
+    });
+
+    tbody.innerHTML = html;
+  }
+
+  function exportarEstudoCruzamentoExcel() {
+    if (!window.dadosEstudoCruzamentoCache || !window.dadosEstudoCruzamentoCache.lista) {
+      Swal.fire('Aviso', 'Nenhum dado de cruzamento disponível para exportação.', 'warning');
+      return;
+    }
+
+    try {
+      const dados = window.dadosEstudoCruzamentoCache.lista.map(v => ({
+        'NOME / PREFIXO': v.nome,
+        'TIPO': v.tipo,
+        'Nº DE ORDEM': v.nOrdem,
+        'OME': v.ome,
+        'PLACA': v.placa,
+        'PATRIMÔNIO': v.patrimonio,
+        'MARCA / MODELO': v.marcaModelo,
+        'SITUAÇÃO': v.situacao,
+        'PROCESSO SEI (COMPRA)': v.seiCompra || 'Não localizado',
+        'TIPO DE CORRESPONDÊNCIA': v.tipoMatch || '',
+        'GRAU DE CONFIANÇA': v.confianca || '',
+        'OBJETO NO BIGQUERY': v.objetoBigQuery || ''
+      }));
+
+      if (typeof XLSX !== 'undefined') {
+        const ws = XLSX.utils.json_to_sheet(dados);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Cruzamento_SEI_Viaturas");
+        XLSX.writeFile(wb, "Estudo_Cruzamento_SEI_Viaturas_" + new Date().toISOString().slice(0, 10) + ".xlsx");
+      } else {
+        let csv = 'NOME;TIPO;ORDEM;OME;PLACA;PATRIMONIO;MARCA_MODELO;SITUACAO;PROCESSO_SEI;CONFIANCA\n';
+        dados.forEach(r => {
+          csv += [r['NOME / PREFIXO'], r['TIPO'], r['Nº DE ORDEM'], r['OME'], r['PLACA'], r['PATRIMÔNIO'], r['MARCA / MODELO'], r['SITUAÇÃO'], r['PROCESSO SEI (COMPRA)'], r['GRAU DE CONFIANÇA']].join(';') + '\n';
+        });
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = "Estudo_Cruzamento_SEI_Viaturas.csv";
+        link.click();
+      }
+    } catch (e) {
+      console.error('Erro ao exportar estudo SEI:', e);
+      Swal.fire('Erro', 'Falha ao gerar arquivo de exportação: ' + e.message, 'error');
+    }
+  }
+
 
   function abrirModalDetalhesMaterialComIds(idsEncoded, nomeMaterial) {
     let idsDoMaterial = [];
@@ -27976,6 +28581,7 @@ function abrirPainelEdicaoViatura(vEncoded) {
   setVal('formViatPlaca', v.placa || '');
   setVal('formViatModelo', v.modelo || (v.marcaModelo ? v.marcaModelo.replace(v.marca, '').trim() : ''));
   setVal('formViatSituacao', v.situacao || 'Ativa');
+  setVal('formViatSeiCompra', v.seiCompra || 'Não localizado no BigQuery');
 
   // Preenche formulário - Outros
   setVal('formViatPatrimonio', v.patrimonio && v.patrimonio !== 'N/I' ? v.patrimonio : '');
