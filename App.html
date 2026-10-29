@@ -10692,30 +10692,32 @@ window.carregarLocaisArvoreGeral = function() {
 
     const seiExibido = seiCompra || v.seiCompra || 'Não localizado';
 
-    // Monta o histórico
+    // Monta o historico no padrao dos demais materiais
     let histHtml = '';
     if (hist && hist.length > 0) {
-      histHtml = '<div class="timeline p-2" style="max-height: 380px; overflow-y: auto;">';
-      hist.forEach(h => {
-        histHtml += `
-          <div class="border-start border-2 border-danger ps-3 mb-3 position-relative">
-            <i class="fa-solid fa-circle text-danger position-absolute" style="left: -7px; top: 2px; font-size: 11px;"></i>
-            <div class="d-flex justify-content-between align-items-center mb-1">
-              <strong class="text-dark small">${h.tipoEvento || 'MOVIMENTAÇÃO'}</strong>
-              <span class="badge bg-light text-muted border small">${h.data || '-'}</span>
-            </div>
-            <p class="small text-muted mb-1">
-              <strong>De:</strong> ${h.origemUnidade || '-'} (${h.origemLocal || '-'}) &rarr; <strong>Para:</strong> ${h.destinoUnidade || '-'} (${h.destinoLocal || '-'})
-            </p>
-            ${h.statusNovo ? `<span class="badge bg-secondary me-1">Status: ${h.statusNovo}</span>` : ''}
-            ${h.documento ? `<span class="badge bg-light text-dark border me-1"><i class="fa-solid fa-file-contract me-1"></i>Doc: ${h.documento}</span>` : ''}
-            ${h.responsavel ? `<small class="text-secondary d-block mt-1"><i class="fa-solid fa-user-check me-1"></i>${h.responsavel}</small>` : ''}
-            ${h.observacao ? `<small class="text-muted fst-italic d-block mt-1">"${h.observacao}"</small>` : ''}
-          </div>`;
-      });
-      histHtml += '</div>';
+      histHtml = `
+        <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+          <div>
+            <h6 class="fw-bold mb-0 text-dark"><i class="fa-solid fa-clock-rotate-left text-danger me-2"></i>Histórico e Movimentações da Viatura</h6>
+            <small class="text-muted">Eventos registrados no histórico do sistema.</small>
+          </div>
+          ${(v.bigqueryItem || v.patrimonio || v.placa) ? `
+            <button type="button" class="btn btn-sm btn-outline-primary fw-bold" onclick="abrirModalHistoricoItem('${v.bigqueryItem || v.patrimonio || v.placa}')">
+              <i class="fa-solid fa-expand me-1"></i> Linha do Tempo Geral
+            </button>` : ''}
+        </div>
+        <div class="timeline-modern-wrapper p-2" style="max-height: 420px; overflow-y: auto;">
+          <ul class="timeline-modern">
+            ${construirItensTimelineHtml(hist)}
+          </ul>
+        </div>`;
     } else {
-      histHtml = '<p class="text-muted text-center py-4"><i class="fa-solid fa-clock-rotate-left fa-2x mb-2 text-secondary"></i><br>Nenhum registro de movimentação encontrado no histórico para esta viatura.</p>';
+      histHtml = `
+        <div class="text-muted text-center py-5">
+          <i class="fa-solid fa-clock-rotate-left fa-3x mb-3 text-secondary opacity-50"></i>
+          <h6 class="fw-bold">Nenhum registro de movimentação encontrado</h6>
+          <p class="small text-muted mb-0">Esta viatura ainda não possui eventos registrados na linha do tempo.</p>
+        </div>`;
     }
 
     const modalHtml = `
@@ -13117,7 +13119,187 @@ window.carregarLocaisArvoreGeral = function() {
     });
   }
 
-  function renderizarTimelineEmElemento(dados, ids) {
+    function construirItensTimelineHtml(historico) {
+    if (!historico || !Array.isArray(historico) || historico.length === 0) {
+      return '<li class="text-muted text-center py-4">Nenhum evento registrado até o momento.</li>';
+    }
+
+    let html = '';
+    historico.forEach((ev) => {
+      let tipo = ev.tipoEvento || 'EVENTO';
+      let icon = 'fa-circle-info';
+      let tituloAmigavel = 'Movimentação';
+      let badgeCor = 'secondary';
+
+      switch (tipo) {
+        case 'CADASTRO':
+          icon = 'fa-plus-circle';
+          tituloAmigavel = 'Entrada no Estoque / Cadastro Inicial';
+          badgeCor = 'success';
+          break;
+        case 'DESPACHO_DISTRIBUICAO':
+          icon = 'fa-paper-plane';
+          tituloAmigavel = 'Despacho de Distribuição (Ticket DPL)';
+          badgeCor = 'primary';
+          break;
+        case 'RECEBIMENTO_REMESSA':
+          icon = 'fa-box-open';
+          tituloAmigavel = 'Recebimento Confirmado no Destino';
+          badgeCor = 'info';
+          break;
+        case 'EXTRAVIO':
+          icon = 'fa-triangle-exclamation';
+          tituloAmigavel = 'Material Sinalizado como Extraviado';
+          badgeCor = 'danger';
+          break;
+        case 'TRANSFERENCIA_INTERNA':
+          icon = 'fa-arrows-split-up-and-left';
+          tituloAmigavel = 'Remanejamento Interno de Local';
+          badgeCor = 'info';
+          break;
+        case 'TRANSFERENCIA_SETOR':
+          icon = 'fa-arrows-split-up-and-left';
+          tituloAmigavel = 'Alteração de Nível / Setor Hierárquico';
+          badgeCor = 'primary';
+          break;
+        case 'DESPACHO_TRANSFERENCIA':
+          icon = 'fa-truck-arrow-right';
+          tituloAmigavel = 'Despacho para Transferência Inter-OME';
+          badgeCor = 'warning';
+          break;
+        case 'CAUTELA':
+          icon = 'fa-hand-holding-hand';
+          tituloAmigavel = 'Cautela de Material (Individual)';
+          badgeCor = 'warning';
+          break;
+        case 'DESCAUTELA':
+          icon = 'fa-rotate-left';
+          tituloAmigavel = 'Devolução / Baixa de Cautela';
+          badgeCor = 'success';
+          break;
+        case 'EDICAO_CADASTRO':
+          icon = 'fa-pen-to-square';
+          tituloAmigavel = 'Atualização Cadastral dos Dados';
+          badgeCor = 'dark';
+          break;
+        case 'ALTERACAO_STATUS_VIATURA':
+          icon = 'fa-wrench';
+          tituloAmigavel = 'Alteração de Situação da Viatura';
+          badgeCor = 'danger';
+          break;
+        case 'ALTERACAO_STATUS':
+          icon = 'fa-pen-to-square';
+          tituloAmigavel = 'Alteração de Situação / Status';
+          badgeCor = 'secondary';
+          break;
+        default:
+          icon = 'fa-arrow-right-arrow-left';
+          tituloAmigavel = tipo.replace(/_/g, ' ');
+          badgeCor = 'secondary';
+      }
+
+      // Rota Origem -> Destino se aplicavel
+      let rotaHtml = '';
+      if ((ev.origemUnidade && ev.origemUnidade !== '-') || (ev.destinoUnidade && ev.destinoUnidade !== '-')) {
+        let orig = [ev.origemUnidade, ev.origemLocal].filter(p => p && p !== '-').join(' > ') || '-';
+        if (orig === '-' && (tipo === 'CADASTRO' || (ev.observacao && ev.observacao.indexOf('Planilha') !== -1))) {
+          const userLog = (typeof usuarioSessaoAtual !== 'undefined' && usuarioSessaoAtual && (usuarioSessaoAtual.nome || usuarioSessaoAtual.email))
+            ? (usuarioSessaoAtual.nome || usuarioSessaoAtual.email)
+            : '';
+          orig = 'Carregamento em lote via Planilha' + (userLog ? ' > ' + userLog : '');
+        }
+        let dest = [ev.destinoUnidade, ev.destinoLocal].filter(p => p && p !== '-').join(' > ') || '-';
+        rotaHtml = `
+          <div class="timeline-route mt-1">
+            <span class="text-muted"><i class="fa-solid fa-arrow-up-from-bracket me-1"></i>De:</span> <strong>${orig}</strong>
+            <span class="mx-1 text-primary"><i class="fa-solid fa-arrow-right"></i></span>
+            <span class="text-muted"><i class="fa-solid fa-location-dot me-1 text-danger"></i>Para:</span> <strong>${dest}</strong>
+          </div>`;
+      }
+
+      let statusMudancaHtml = '';
+      if (ev.statusNovo && ev.statusNovo !== '-') {
+        statusMudancaHtml = `
+          <div class="small mt-1">
+            <span class="badge bg-light text-dark border">Status: <strong>${ev.statusNovo}</strong></span>
+          </div>`;
+      }
+
+      let respHtml = '';
+      let respNomeExibir = ev.responsavelNome || ev.responsavel || '';
+      let respCpfExibir = ev.responsavelCpf || '';
+
+      if (respNomeExibir && respCpfExibir && respCpfExibir !== '-') {
+        if (typeof usuarioSessaoAtual !== 'undefined' && usuarioSessaoAtual && usuarioSessaoAtual.email) {
+          let emailSessao = String(usuarioSessaoAtual.email).toLowerCase().trim();
+          let cpfSessao = String(usuarioSessaoAtual.cpf || '').replace(/\D/g, '');
+          let cpfEv = String(respCpfExibir).replace(/\D/g, '');
+          if (cpfSessao && cpfEv && cpfSessao !== cpfEv && respNomeExibir.toLowerCase().includes(emailSessao)) {
+            respNomeExibir = respNomeExibir.replace(new RegExp('\\s*\\(' + emailSessao + '\\)', 'gi'), '').trim();
+          }
+        }
+      }
+
+      if (!respNomeExibir || respNomeExibir === 'Sistema CBMPE' || respNomeExibir === '-') {
+        if (!respCpfExibir || respCpfExibir === '-') {
+          if (typeof usuarioSessaoAtual !== 'undefined' && usuarioSessaoAtual && (usuarioSessaoAtual.nome || usuarioSessaoAtual.email)) {
+            respNomeExibir = usuarioSessaoAtual.nome || usuarioSessaoAtual.email;
+            if (usuarioSessaoAtual.email && respNomeExibir !== usuarioSessaoAtual.email) {
+              respNomeExibir += ' (' + usuarioSessaoAtual.email + ')';
+            }
+          }
+        }
+      }
+      if (respNomeExibir && respNomeExibir !== '-') {
+        respHtml = `<span><i class="fa-solid fa-user-shield me-1 text-secondary"></i><strong>Responsável:</strong> ${respNomeExibir}${respCpfExibir && respCpfExibir !== '-' ? ' (CPF: ' + respCpfExibir + ')' : ''}</span>`;
+      }
+
+      let docHtml = '';
+      let docRefVal = ev.documentoRef || ev.documento || '';
+      if (docRefVal && docRefVal !== '-') {
+        docHtml = `<span class="ms-3"><i class="fa-solid fa-file-lines me-1 text-secondary"></i><strong>Ref:</strong> ${docRefVal}</span>`;
+      }
+
+      let obsHtml = '';
+      if (ev.observacao && ev.observacao !== '-') {
+        obsHtml = `<div class="timeline-details small text-muted fst-italic mt-1">${ev.observacao}</div>`;
+      }
+
+      let dataHoraFormatada = ev.dataHora || ev.data || '';
+      if (!dataHoraFormatada || dataHoraFormatada === 'Registro em Sistema' || dataHoraFormatada === '-') {
+        const agora = new Date();
+        const dia = String(agora.getDate()).padStart(2, '0');
+        const mes = String(agora.getMonth() + 1).padStart(2, '0');
+        const ano = agora.getFullYear();
+        const hora = String(agora.getHours()).padStart(2, '0');
+        const min = String(agora.getMinutes()).padStart(2, '0');
+        const seg = String(agora.getSeconds()).padStart(2, '0');
+        dataHoraFormatada = `${dia}/${mes}/${ano} ${hora}:${min}:${seg}`;
+      }
+
+      html += `
+        <li class="timeline-item tipo-${tipo}">
+          <div class="timeline-badge"></div>
+          <div class="timeline-content-card">
+            <div class="timeline-header-info">
+              <div class="timeline-event-title text-dark">
+                <i class="fa-solid ${icon} text-${badgeCor}"></i> ${tituloAmigavel}
+              </div>
+              <div class="timeline-date">
+                <i class="fa-regular fa-clock me-1 text-primary"></i><strong>${dataHoraFormatada}</strong>
+              </div>
+            </div>
+            ${rotaHtml}
+            ${statusMudancaHtml}
+            ${obsHtml}
+            ${(respHtml || docHtml) ? `<div class="timeline-meta d-flex flex-wrap align-items-center">${respHtml}${docHtml}</div>` : ''}
+          </div>
+        </li>`;
+    });
+    return html;
+  }
+
+function renderizarTimelineEmElemento(dados, ids) {
     const item = dados.item || {};
     const historico = dados.historico || [];
 
@@ -13176,171 +13358,8 @@ window.carregarLocaisArvoreGeral = function() {
       }
     }
 
-    if (listaTimeline) {
-      if (historico.length === 0) {
-        listaTimeline.innerHTML = '<li class="text-muted text-center py-4">Nenhum evento registrado até o momento.</li>';
-        return;
-      }
-
-      let html = '';
-      historico.forEach((ev) => {
-        let tipo = ev.tipoEvento || 'EVENTO';
-        let icon = 'fa-circle-info';
-        let tituloAmigavel = 'Movimentação';
-        let badgeCor = 'secondary';
-
-        switch (tipo) {
-          case 'CADASTRO':
-            icon = 'fa-plus-circle';
-            tituloAmigavel = 'Entrada no Estoque / Cadastro Inicial';
-            badgeCor = 'success';
-            break;
-          case 'DESPACHO_DISTRIBUICAO':
-            icon = 'fa-paper-plane';
-            tituloAmigavel = 'Despacho de Distribuição (Ticket DPL)';
-            badgeCor = 'primary';
-            break;
-          case 'RECEBIMENTO_REMESSA':
-            icon = 'fa-box-open';
-            tituloAmigavel = 'Recebimento Confirmado no Destino';
-            badgeCor = 'info';
-            break;
-          case 'EXTRAVIO':
-            icon = 'fa-triangle-exclamation';
-            tituloAmigavel = 'Material Sinalizado como Extraviado';
-            badgeCor = 'danger';
-            break;
-          case 'TRANSFERENCIA_INTERNA':
-            icon = 'fa-arrows-split-up-and-left';
-            tituloAmigavel = 'Remanejamento Interno de Local';
-            badgeCor = 'info';
-            break;
-          case 'DESPACHO_TRANSFERENCIA':
-            icon = 'fa-truck-arrow-right';
-            tituloAmigavel = 'Despacho para Transferência Inter-OME';
-            badgeCor = 'warning';
-            break;
-          case 'CAUTELA':
-            icon = 'fa-hand-holding-hand';
-            tituloAmigavel = 'Cautela de Material (Individual)';
-            badgeCor = 'warning';
-            break;
-          case 'DESCAUTELA':
-            icon = 'fa-rotate-left';
-            tituloAmigavel = 'Devolução / Baixa de Cautela';
-            badgeCor = 'success';
-            break;
-          case 'EDICAO_CADASTRO':
-            icon = 'fa-pen-to-square';
-            tituloAmigavel = 'Atualização Cadastral dos Dados';
-            badgeCor = 'dark';
-            break;
-          default:
-            icon = 'fa-arrow-right-arrow-left';
-            tituloAmigavel = tipo.replace(/_/g, ' ');
-            badgeCor = 'secondary';
-        }
-
-        // Rota Origem -> Destino se aplicável
-        let rotaHtml = '';
-        if ((ev.origemUnidade && ev.origemUnidade !== '-') || (ev.destinoUnidade && ev.destinoUnidade !== '-')) {
-          let orig = [ev.origemUnidade, ev.origemLocal].filter(p => p && p !== '-').join(' > ') || '-';
-          if (orig === '-' && (tipo === 'CADASTRO' || (ev.observacao && ev.observacao.indexOf('Planilha') !== -1))) {
-            const userLog = (typeof usuarioSessaoAtual !== 'undefined' && usuarioSessaoAtual && (usuarioSessaoAtual.nome || usuarioSessaoAtual.email))
-              ? (usuarioSessaoAtual.nome || usuarioSessaoAtual.email)
-              : '';
-            orig = 'Carregamento em lote via Planilha' + (userLog ? ' > ' + userLog : '');
-          }
-          let dest = [ev.destinoUnidade, ev.destinoLocal].filter(p => p && p !== '-').join(' > ') || '-';
-          rotaHtml = `
-            <div class="timeline-route mt-1">
-              <span class="text-muted"><i class="fa-solid fa-arrow-up-from-bracket me-1"></i>De:</span> <strong>${orig}</strong>
-              <span class="mx-1 text-primary"><i class="fa-solid fa-arrow-right"></i></span>
-              <span class="text-muted"><i class="fa-solid fa-location-dot me-1 text-danger"></i>Para:</span> <strong>${dest}</strong>
-            </div>`;
-        }
-
-        let statusMudancaHtml = '';
-        if (ev.statusNovo && ev.statusNovo !== '-') {
-          statusMudancaHtml = `
-            <div class="small mt-1">
-              <span class="badge bg-light text-dark border">Status: <strong>${ev.statusNovo}</strong></span>
-            </div>`;
-        }
-
-        let respHtml = '';
-        let respNomeExibir = ev.responsavelNome || '';
-
-        // Higienização defensiva no frontend contra contaminação de e-mail de sessão
-        if (respNomeExibir && ev.responsavelCpf && ev.responsavelCpf !== '-') {
-          if (typeof usuarioSessaoAtual !== 'undefined' && usuarioSessaoAtual && usuarioSessaoAtual.email) {
-            let emailSessao = String(usuarioSessaoAtual.email).toLowerCase().trim();
-            let cpfSessao = String(usuarioSessaoAtual.cpf || '').replace(/\D/g, '');
-            let cpfEv = String(ev.responsavelCpf || '').replace(/\D/g, '');
-            // Se o CPF registrado no evento NÃO é o do usuário atualmente navegando, mas o nome contém o e-mail do usuário navegando
-            if (cpfSessao && cpfEv && cpfSessao !== cpfEv && respNomeExibir.toLowerCase().includes(emailSessao)) {
-              respNomeExibir = respNomeExibir.replace(new RegExp('\\s*\\(' + emailSessao + '\\)', 'gi'), '').trim();
-            }
-          }
-        }
-
-        if (!respNomeExibir || respNomeExibir === 'Sistema CBMPE' || respNomeExibir === '-') {
-          // Apenas preenche com a sessão se o evento não tiver responsável nem CPF próprio
-          if (!ev.responsavelCpf || ev.responsavelCpf === '-') {
-            if (typeof usuarioSessaoAtual !== 'undefined' && usuarioSessaoAtual && (usuarioSessaoAtual.nome || usuarioSessaoAtual.email)) {
-              respNomeExibir = usuarioSessaoAtual.nome || usuarioSessaoAtual.email;
-              if (usuarioSessaoAtual.email && respNomeExibir !== usuarioSessaoAtual.email) {
-                respNomeExibir += ' (' + usuarioSessaoAtual.email + ')';
-              }
-            }
-          }
-        }
-        if (respNomeExibir && respNomeExibir !== '-') {
-          respHtml = `<span><i class="fa-solid fa-user-shield me-1 text-secondary"></i><strong>Responsável:</strong> ${respNomeExibir}${ev.responsavelCpf && ev.responsavelCpf !== '-' ? ' (CPF: ' + ev.responsavelCpf + ')' : ''}</span>`;
-        }
-
-        let docHtml = '';
-        if (ev.documentoRef && ev.documentoRef !== '-') {
-          docHtml = `<span class="ms-3"><i class="fa-solid fa-file-lines me-1 text-secondary"></i><strong>Ref:</strong> ${ev.documentoRef}</span>`;
-        }
-
-        let obsHtml = '';
-        if (ev.observacao && ev.observacao !== '-') {
-          obsHtml = `<div class="timeline-details small text-muted fst-italic mt-1">${ev.observacao}</div>`;
-        }
-
-        let dataHoraFormatada = ev.dataHora || '';
-        if (!dataHoraFormatada || dataHoraFormatada === 'Registro em Sistema' || dataHoraFormatada === '-') {
-          const agora = new Date();
-          const dia = String(agora.getDate()).padStart(2, '0');
-          const mes = String(agora.getMonth() + 1).padStart(2, '0');
-          const ano = agora.getFullYear();
-          const hora = String(agora.getHours()).padStart(2, '0');
-          const min = String(agora.getMinutes()).padStart(2, '0');
-          const seg = String(agora.getSeconds()).padStart(2, '0');
-          dataHoraFormatada = `${dia}/${mes}/${ano} ${hora}:${min}:${seg}`;
-        }
-
-        html += `
-          <li class="timeline-item tipo-${tipo}">
-            <div class="timeline-badge"></div>
-            <div class="timeline-content-card">
-              <div class="timeline-header-info">
-                <div class="timeline-event-title text-dark">
-                  <i class="fa-solid ${icon} text-${badgeCor}"></i> ${tituloAmigavel}
-                </div>
-                <div class="timeline-date">
-                  <i class="fa-regular fa-clock me-1 text-primary"></i><strong>${dataHoraFormatada}</strong>
-                </div>
-              </div>
-              ${rotaHtml}
-              ${statusMudancaHtml}
-              ${obsHtml}
-              ${(respHtml || docHtml) ? `<div class="timeline-meta d-flex flex-wrap align-items-center">${respHtml}${docHtml}</div>` : ''}
-            </div>
-          </li>`;
-      });
-      listaTimeline.innerHTML = html;
+        if (listaTimeline) {
+      listaTimeline.innerHTML = construirItensTimelineHtml(historico);
     }
   }
 

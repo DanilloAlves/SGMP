@@ -2168,6 +2168,27 @@ function atualizarPaiLocalArvore(idLocal, novoIdPai) {
       registrarLogAuditoria("ALTERACAO_PAI_LOCAL_ARVORE", "Alterou hierarquia do local '" + nomeLocalAlvo + "' (ID: " + idLocalStr + ") para novo pai: " + novoIdPaiStr + " (Subunidade: " + novaSubunidade + ")");
     } catch(eLogPai) {}
 
+    try {
+      registrarHistoricoMovimentacao([{
+        item: (ehVtr ? (nOrdemOuSerie ? ("VTR-" + nOrdemOuSerie) : ("VTR-" + nomeLocalAlvo)) : ("LOC-" + idLocalStr)),
+        objeto: nomeLocalAlvo,
+        nPatrimonio: "-",
+        tipoEvento: "TRANSFERENCIA_SETOR",
+        origemUnidade: omeLocalAlvo || "-",
+        origemLocal: (mapaNos[idLocalStr] && mapaNos[idLocalStr].idPai && mapaNos[mapaNos[idLocalStr].idPai] ? mapaNos[mapaNos[idLocalStr].idPai].nome : "SEDE"),
+        destinoUnidade: omeLocalAlvo || "-",
+        destinoLocal: novaSubunidade,
+        statusAnterior: "-",
+        statusNovo: "ECD",
+        responsavelNome: (usuarioSessao && (usuarioSessao.nome || usuarioSessao.email)) || "Gestor de Frotas",
+        responsavelCpf: (usuarioSessao && usuarioSessao.cpf) || "-",
+        documentoRef: "-",
+        observacao: "Remanejamento de nível/hierarquia na Árvore de Locais para " + novaSubunidade
+      }]);
+    } catch(eHistMov) {
+      console.warn("Aviso ao registrar histórico de movimentação na árvore: " + eHistMov.message);
+    }
+
     return "Hierarquia atualizada com sucesso!";
 
   } catch (err) {
@@ -19520,50 +19541,148 @@ function getDadosViaturaPorSetor(nomeSetor, ome) {
       };
     }
 
-    // Busca histórico de movimentações no BigQuery
-    var historico = [];
-    try {
-      var itemRef = viatEncontrada.bigqueryItem || "";
-      var patRef = String(viatEncontrada.patrimonio || "").trim();
-      var placaRef = String(viatEncontrada.placa || "").trim();
-      var nomeRef = String(viatEncontrada.nome || "").trim();
-
-      var whereParts = [];
-      if (itemRef) whereParts.push("ITEM = '" + itemRef.replace(/'/g, "\\'") + "'");
-      if (patRef && patRef !== "N/I") whereParts.push("N_PATRIMONIO = '" + patRef.replace(/'/g, "\\'") + "'");
-      if (placaRef && placaRef !== "N/I") whereParts.push("OBSERVACAO LIKE '%" + placaRef.replace(/'/g, "\\'") + "%'");
-      if (nomeRef) whereParts.push("OBJETO LIKE '%" + nomeRef.replace(/'/g, "\\'") + "%' OR DESTINO_LOCAL LIKE '%" + nomeRef.replace(/'/g, "\\'") + "%'");
-
-      if (whereParts.length > 0) {
-        var sqlHist = "SELECT ITEM, FORMAT_TIMESTAMP('%d/%m/%Y %H:%M', DATA_HORA, 'America/Recife') as DATA_FORMATADA, " +
-                      "TIPO_EVENTO, ORIGEM_UNIDADE, ORIGEM_LOCAL, DESTINO_UNIDADE, DESTINO_LOCAL, STATUS_NOVO, " +
-                      "RESPONSAVEL_NOME, DOCUMENTO_REFERENCIA, OBSERVACAO " +
-                      "FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_HISTORICO + "` " +
-                      "WHERE " + whereParts.join(" OR ") + " " +
-                      "ORDER BY DATA_HORA DESC LIMIT 30";
-        var resHist = executarConsultaBigQuerySegura(sqlHist);
-        if (resHist && resHist.rows) {
-          historico = resHist.rows.map(function(hr) {
-            return {
-              item: hr.f[0].v,
-              data: hr.f[1].v,
-              tipoEvento: hr.f[2].v,
-              origemUnidade: hr.f[3].v,
-              origemLocal: hr.f[4].v,
-              destinoUnidade: hr.f[5].v,
-              destinoLocal: hr.f[6].v,
-              statusNovo: hr.f[7].v,
-              responsavel: hr.f[8].v,
-              documento: hr.f[9].v,
-              observacao: hr.f[10].v
-            };
-          });
-        }
-      }
-    } catch (eHist) {
-      console.warn("Aviso ao buscar histórico da viatura: " + eHist.message);
-    }
-
+    // Busca historico de movimentacoes no Inventario / Historico
+    var historico = [];
+    try {
+      garantirTabelaHistoricoMovimentacao_();
+
+      var itemRef = viatEncontrada.bigqueryItem || "";
+      var patRef = String(viatEncontrada.patrimonio || "").trim();
+      var placaRef = String(viatEncontrada.placa || "").trim();
+      var nomeRef = String(viatEncontrada.nome || "").trim();
+      var nOrdemRef = String(viatEncontrada.nOrdem || "").trim();
+      var setorRef = String(nomeSetor || "").trim();
+
+      // Se bigqueryItem nao estiver preenchido, tenta buscar no Inventario
+      if (!itemRef) {
+        try {
+          var inOmeSql = (typeof obterVariacoesOmeParaSql_ === 'function') ? obterVariacoesOmeParaSql_(omePadrao) : ("'" + omePadrao.toUpperCase().replace(/'/g, "\\'") + "'");
+          var sqlBuscaInv = "SELECT ITEM, SEI_COMPRA_RECEBIMENTO, OBJETO, N_PATRIMONIO, STATUS, SUBUNIDADE " +
+                            "FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
+                            "WHERE UPPER(TRIM(UNIDADE)) IN (" + inOmeSql + ") AND (";
+          var condsInv = [];
+          if (setorRef) condsInv.push("UPPER(TRIM(SETOR)) = '" + setorRef.toUpperCase().replace(/'/g, "\\'") + "'");
+          if (nOrdemRef && nOrdemRef !== "NI" && nOrdemRef !== "-") {
+            condsInv.push("UPPER(TRIM(COALESCE(N_SERIE, ''))) = '" + nOrdemRef.toUpperCase().replace(/'/g, "\\'") + "'");
+          }
+          if (patRef && patRef !== "N/I" && patRef !== "-") {
+            condsInv.push("UPPER(TRIM(N_PATRIMONIO)) = '" + patRef.toUpperCase().replace(/'/g, "\\'") + "'");
+          }
+          if (condsInv.length > 0) {
+            sqlBuscaInv += condsInv.join(" OR ") + ") LIMIT 1";
+            var resInv = executarConsultaBigQuerySegura(sqlBuscaInv);
+            if (resInv && resInv.rows && resInv.rows.length > 0) {
+              var fInv = resInv.rows[0].f;
+              itemRef = fInv[0].v || "";
+              viatEncontrada.bigqueryItem = itemRef;
+              if (!viatEncontrada.seiCompra && fInv[1].v) viatEncontrada.seiCompra = fInv[1].v;
+              if ((!patRef || patRef === "N/I") && fInv[3].v) {
+                patRef = fInv[3].v;
+                viatEncontrada.patrimonio = patRef;
+              }
+            }
+          }
+        } catch(eInvBusc) {
+          console.warn("Aviso ao buscar item da viatura no inventario: " + eInvBusc.message);
+        }
+      }
+
+      var whereParts = [];
+      if (itemRef) {
+        whereParts.push("UPPER(TRIM(ITEM)) = UPPER('" + itemRef.replace(/'/g, "\\'") + "')");
+      }
+      if (placaRef && placaRef !== "N/I" && placaRef !== "-") {
+        whereParts.push("UPPER(TRIM(ITEM)) = UPPER('VTR-" + placaRef.replace(/'/g, "\\'") + "')");
+        whereParts.push("OBSERVACAO LIKE '%" + placaRef.replace(/'/g, "\\'") + "%'");
+      }
+      if (nomeRef) {
+        whereParts.push("UPPER(TRIM(ITEM)) = UPPER('VTR-" + nomeRef.replace(/'/g, "\\'") + "')");
+        whereParts.push("UPPER(TRIM(OBJETO)) = UPPER('" + nomeRef.replace(/'/g, "\\'") + "')");
+        whereParts.push("UPPER(TRIM(ORIGEM_LOCAL)) = UPPER('" + nomeRef.replace(/'/g, "\\'") + "')");
+        whereParts.push("UPPER(TRIM(DESTINO_LOCAL)) = UPPER('" + nomeRef.replace(/'/g, "\\'") + "')");
+      }
+      if (setorRef && setorRef !== nomeRef) {
+        whereParts.push("UPPER(TRIM(ITEM)) = UPPER('VTR-" + setorRef.replace(/'/g, "\\'") + "')");
+        whereParts.push("UPPER(TRIM(ORIGEM_LOCAL)) = UPPER('" + setorRef.replace(/'/g, "\\'") + "')");
+        whereParts.push("UPPER(TRIM(DESTINO_LOCAL)) = UPPER('" + setorRef.replace(/'/g, "\\'") + "')");
+      }
+      if (patRef && patRef !== "N/I" && patRef !== "-") {
+        whereParts.push("UPPER(TRIM(N_PATRIMONIO)) = UPPER('" + patRef.replace(/'/g, "\\'") + "')");
+      }
+      if (nOrdemRef && nOrdemRef !== "NI" && nOrdemRef !== "-") {
+        whereParts.push("OBSERVACAO LIKE '%" + nOrdemRef.replace(/'/g, "\\'") + "%'");
+      }
+
+      if (whereParts.length > 0) {
+        var sqlHist = "SELECT ID_HISTORICO, FORMAT_TIMESTAMP('%d/%m/%Y %H:%M:%S', DATA_HORA, 'America/Recife') as DATA_FORMATADA, " +
+                      "ITEM, OBJETO, N_PATRIMONIO, TIPO_EVENTO, ORIGEM_UNIDADE, ORIGEM_LOCAL, " +
+                      "DESTINO_UNIDADE, DESTINO_LOCAL, STATUS_ANTERIOR, STATUS_NOVO, " +
+                      "RESPONSAVEL_NOME, RESPONSAVEL_CPF, DOCUMENTO_REF, OBSERVACAO " +
+                      "FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_HISTORICO + "` " +
+                      "WHERE " + whereParts.join(" OR ") + " " +
+                      "ORDER BY DATA_HORA DESC LIMIT 100";
+        var resHist = executarConsultaBigQuerySegura(sqlHist);
+        if (resHist && resHist.rows && resHist.rows.length > 0) {
+          historico = resHist.rows.map(function(hr) {
+            var h = hr.f;
+            return {
+              id: h[0].v || "",
+              dataHora: h[1].v || "",
+              data: h[1].v || "",
+              item: h[2].v || "",
+              objeto: h[3].v || "",
+              nPatrimonio: h[4].v || "",
+              tipoEvento: h[5].v || "MOVIMENTACAO",
+              origemUnidade: h[6].v || "-",
+              origemLocal: h[7].v || "-",
+              destinoUnidade: h[8].v || "-",
+              destinoLocal: h[9].v || "-",
+              statusAnterior: h[10].v || "-",
+              statusNovo: h[11].v || "-",
+              responsavelNome: h[12].v || "",
+              responsavel: h[12].v || "",
+              responsavelCpf: h[13].v || "",
+              documentoRef: h[14].v || "",
+              documento: h[14].v || "",
+              observacao: h[15].v || ""
+            };
+          });
+        }
+      }
+
+      // Se nao houver historico gravado na tabela para esta viatura, cria o evento de entrada inicial (padrao dos demais materiais)
+      if (historico.length === 0) {
+        var codItemVtr = itemRef || ("VTR-" + (placaRef && placaRef !== "N/I" ? placaRef : (nomeRef || setorRef)));
+        var eventoBaseline = {
+          id: "BASE-" + codItemVtr.replace(/[^A-Za-z0-9]/g, "-"),
+          dataHora: (viatEncontrada.ano ? ("01/01/" + viatEncontrada.ano + " 08:00:00") : "Cadastro Inicial"),
+          data: (viatEncontrada.ano ? ("01/01/" + viatEncontrada.ano + " 08:00:00") : "Cadastro Inicial"),
+          item: codItemVtr,
+          objeto: viatEncontrada.marcaModelo ? (nomeRef + " (" + viatEncontrada.marcaModelo + ")") : (nomeRef || setorRef),
+          nPatrimonio: (patRef && patRef !== "N/I") ? patRef : "-",
+          tipoEvento: "CADASTRO",
+          origemUnidade: "DLOG / Frotas",
+          origemLocal: "Aquisicao / Carga Inicial",
+          destinoUnidade: viatEncontrada.ome || omePadrao || "-",
+          destinoLocal: "SEDE",
+          statusAnterior: "-",
+          statusNovo: (viatEncontrada.situacao && viatEncontrada.situacao !== "N/I") ? viatEncontrada.situacao : "Ativa (ECD)",
+          responsavelNome: "Gestao de Frotas",
+          responsavel: "Gestao de Frotas",
+          responsavelCpf: "-",
+          documentoRef: viatEncontrada.seiCompra || "Processo de Aquisicao",
+          documento: viatEncontrada.seiCompra || "Processo de Aquisicao",
+          observacao: "Carga inicial da viatura no patrimonio" + (viatEncontrada.observacoes ? (" | " + viatEncontrada.observacoes) : "")
+        };
+        historico.push(eventoBaseline);
+        try {
+          registrarHistoricoMovimentacao([eventoBaseline]);
+        } catch(eAutoPersist) {}
+      }
+    } catch (eHist) {
+      console.warn("Aviso ao buscar historico da viatura: " + eHist.message);
+    }
+
     return {
       sucesso: true,
       viatura: viatEncontrada,
