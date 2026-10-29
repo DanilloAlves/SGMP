@@ -1537,10 +1537,8 @@ function garantirSetoresViaturasNaArvore_(omePadrao, idSedeOficial, sheet, locai
 
     var resultado = executarConsultaBigQuerySegura(sql);
     var rows = resultado.rows || [];
-    if (rows.length === 0) return;
 
-    var siglasProcessadas = {};
-
+    // 1. Processa viaturas existentes na tb_Inventario do BigQuery
     rows.forEach(function(r) {
       var objeto = String(r.f[0].v || "").trim();
       var subRef = String(r.f[1].v || "").trim();
@@ -1550,7 +1548,18 @@ function garantirSetoresViaturasNaArvore_(omePadrao, idSedeOficial, sheet, locai
       var sigla = (typeof obterSiglaViaturaBackend_ === 'function') ? obterSiglaViaturaBackend_(objeto) : "";
       if (!sigla) return;
 
-      // Determina a Subunidade Pai (default SEDE)
+      // REGRA ANTI-DUPLICAÇÃO ESTRITA: Se já existe um setor para esta sigla em QUALQUER local da OME (ex: sob a 1ª SB ou sob a SEDE), NUNCA duplica sob a SEDE!
+      var setorExistenteNaOme = locais.find(function(l) {
+        var nomeUpper = String(l.nome || "").toUpperCase().trim();
+        return nomeUpper === sigla || nomeUpper.indexOf(sigla + " ") === 0 || nomeUpper.indexOf(sigla + "-") === 0;
+      });
+
+      if (setorExistenteNaOme) {
+        // Se já existe na árvore, não cria nó duplicado
+        return;
+      }
+
+      // Determina a Subunidade Pai (específica ou SEDE)
       var idPaiAlvo = idSedeOficial;
       var ehSubSede = (typeof ehSubunidadeEquivalenteOme_ === 'function') ? ehSubunidadeEquivalenteOme_(subRef, omePadrao) : (subRef.toUpperCase() === "SEDE");
       if (subRef && !ehSubSede && subRef.toUpperCase() !== "SEDE") {
@@ -1560,90 +1569,29 @@ function garantirSetoresViaturasNaArvore_(omePadrao, idSedeOficial, sheet, locai
         if (noSub) idPaiAlvo = noSub.id;
       }
 
-      var chave = idPaiAlvo + "___" + sigla;
-      if (siglasProcessadas[chave]) return;
-      siglasProcessadas[chave] = true;
+      var novoId = "loc_vtr_" + new Date().getTime() + "_" + Math.floor(Math.random() * 1000);
+      var nomeSetor = sigla;
 
-      // Verifica se já existe um setor correspondente na árvore sob esse pai
-      var setorExistente = locais.find(function(l) {
-        if (String(l.idPai || "").trim() !== String(idPaiAlvo).trim()) return false;
-        var nomeUpper = String(l.nome || "").toUpperCase().trim();
-        return nomeUpper === sigla || nomeUpper.indexOf(sigla + " ") === 0 || nomeUpper.indexOf(sigla + "-") === 0;
+      sheet.appendRow([novoId, omePadrao, nomeSetor, idPaiAlvo]);
+      locais.push({
+        id: novoId,
+        ome: omePadrao,
+        nome: nomeSetor,
+        idPai: idPaiAlvo
       });
 
-      if (!setorExistente) {
-        var novoId = "loc_vtr_" + new Date().getTime() + "_" + Math.floor(Math.random() * 1000);
-        var nomeSetor = sigla;
-
-        sheet.appendRow([novoId, omePadrao, nomeSetor, idPaiAlvo]);
-        locais.push({
-          id: novoId,
-          ome: omePadrao,
-          nome: nomeSetor,
-          idPai: idPaiAlvo
-        });
-
-        try {
-          var sqlUp = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
-                      "SET SETOR = '" + nomeSetor.replace(/'/g, "\\'") + "' " +
-                      "WHERE UPPER(TRIM(UNIDADE)) IN (" + inSqlOme + ") " +
-                      "AND UPPER(TRIM(OBJETO)) = '" + objeto.replace(/'/g, "\\'") + "' " +
-                      "AND (SETOR IS NULL OR TRIM(SETOR) = '' OR UPPER(TRIM(SETOR)) = 'SEDE')";
-          executarConsultaBigQuerySegura(sqlUp, true);
-          registrarLogAuditoria("AUTO_CRIACAO_SETOR_VIATURA", "Setor da viatura '" + nomeSetor + "' (" + objeto + ") criado automaticamente na OME " + omePadrao);
-        } catch(eUp) {
-          console.warn("Aviso ao atualizar SETOR da viatura no BigQuery: " + eUp.message);
-        }
+      try {
+        var sqlUp = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
+                    "SET SETOR = '" + nomeSetor.replace(/'/g, "\\'") + "' " +
+                    "WHERE UPPER(TRIM(UNIDADE)) IN (" + inSqlOme + ") " +
+                    "AND UPPER(TRIM(OBJETO)) = '" + objeto.replace(/'/g, "\\'") + "' " +
+                    "AND (SETOR IS NULL OR TRIM(SETOR) = '' OR UPPER(TRIM(SETOR)) = 'SEDE')";
+        executarConsultaBigQuerySegura(sqlUp, true);
+        registrarLogAuditoria("AUTO_CRIACAO_SETOR_VIATURA", "Setor da viatura '" + nomeSetor + "' (" + objeto + ") criado na OME " + omePadrao);
+      } catch(eUp) {
+        console.warn("Aviso ao atualizar SETOR da viatura no BigQuery: " + eUp.message);
       }
     });
-
-    // 2. Integra viaturas da base do Pecúlio para garantir criação de setor na Subunidade vinculada
-    try {
-      var frota = getDadosGestaoFrotas();
-      if (frota && frota.viaturas) {
-        var omeNorm = omePadrao.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-        frota.viaturas.forEach(function(v) {
-          var vOmeNorm = (v.ome || "").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-          if (vOmeNorm !== omeNorm && vOmeNorm.indexOf(omeNorm) === -1 && omeNorm.indexOf(vOmeNorm) === -1) return;
-
-          var siglaV = v.tipo || (v.nome ? v.nome.split("-")[0] : "");
-          if (!siglaV) return;
-
-          var subRefV = v.subunidade || "SEDE";
-          var idPaiAlvoV = idSedeOficial;
-          var ehSubSedeV = (typeof ehSubunidadeEquivalenteOme_ === 'function') ? ehSubunidadeEquivalenteOme_(subRefV, omePadrao) : (subRefV.toUpperCase() === "SEDE");
-          if (subRefV && !ehSubSedeV && subRefV.toUpperCase() !== "SEDE") {
-            var noSubV = locais.find(function(l) {
-              return (!l.idPai || String(l.idPai).trim() === "") && String(l.nome).toUpperCase() === subRefV.toUpperCase();
-            });
-            if (noSubV) idPaiAlvoV = noSubV.id;
-          }
-
-          var chaveV = idPaiAlvoV + "___" + siglaV;
-          if (siglasProcessadas[chaveV]) return;
-          siglasProcessadas[chaveV] = true;
-
-          var setorExistenteV = locais.find(function(l) {
-            if (String(l.idPai || "").trim() !== String(idPaiAlvoV).trim()) return false;
-            var nomeUpper = String(l.nome || "").toUpperCase().trim();
-            return nomeUpper === siglaV || nomeUpper.indexOf(siglaV + " ") === 0 || nomeUpper.indexOf(siglaV + "-") === 0;
-          });
-
-          if (!setorExistenteV) {
-            var novoIdV = "loc_vtr_" + new Date().getTime() + "_" + Math.floor(Math.random() * 1000);
-            sheet.appendRow([novoIdV, omePadrao, siglaV, idPaiAlvoV]);
-            locais.push({
-              id: novoIdV,
-              ome: omePadrao,
-              nome: siglaV,
-              idPai: idPaiAlvoV
-            });
-          }
-        });
-      }
-    } catch(eFrotaArvore) {
-      console.warn("Aviso ao integrar frota do Pecúlio na árvore: " + eFrotaArvore.message);
-    }
 
   } catch(errGeral) {
     console.warn("Erro em garantirSetoresViaturasNaArvore_: " + errGeral.message);

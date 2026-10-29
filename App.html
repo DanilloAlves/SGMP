@@ -10965,10 +10965,11 @@ window.carregarLocaisArvoreGeral = function() {
   // MODAL DE ESTUDO DE CRUZAMENTO SEI (Pecúlio x BigQuery)
   window.dadosEstudoCruzamentoCache = null;
 
-  function abrirModalEstudoCruzamentoSEI() {
+  function abrirModalEstudoCruzamentoSEI(forcar) {
+    const ehForcar = forcar === true;
     Swal.fire({
-      title: 'Realizando Estudo de Cruzamento...',
-      html: '<div class="py-3 text-center"><i class="fa-solid fa-circle-nodes fa-spin fa-2x text-primary mb-2"></i><br>Cruzando TIPO e OME da base do Pecúlio com os processos SEI do BigQuery...</div>',
+      title: ehForcar ? 'Atualizando Estudo do BigQuery...' : 'Carregando Estudo de Cruzamento...',
+      html: '<div class="py-3 text-center"><i class="fa-solid fa-circle-nodes fa-spin fa-2x text-primary mb-2"></i><br>Identificando chaves de cruzamento (N_ORDEM=N_SERIE, SEI e Subunidade)...</div>',
       allowOutsideClick: false,
       showConfirmButton: false
     });
@@ -10986,7 +10987,7 @@ window.carregarLocaisArvoreGeral = function() {
       .withFailureHandler(err => {
         Swal.fire('Erro', err.message, 'error');
       })
-      .realizarEstudoCruzamentoPeculioBigQuery({ forcarAtualizacao: false });
+      .realizarEstudoCruzamentoPeculioBigQuery({ forcarAtualizacao: ehForcar });
   }
 
   function renderizarModalEstudoCruzamentoSEI(estudo) {
@@ -11020,9 +11021,12 @@ window.carregarLocaisArvoreGeral = function() {
               <small class="text-muted">Identificação dos Processos SEI de Aquisição de Viaturas através do cruzamento TIPO + OME</small>
             </div>
           </div>
-          <div class="d-flex gap-2">
+          <div class="d-flex gap-2 flex-wrap">
             <button class="btn btn-sm btn-outline-danger fw-bold px-3 shadow-sm" onclick="filtrarApenasAR()" title="Filtrar instantaneamente viaturas Auto Resgate (AR)">
               <i class="fa-solid fa-truck-medical me-1"></i> Focar Auto Resgate (AR)
+            </button>
+            <button class="btn btn-sm btn-outline-primary fw-bold px-3 shadow-sm" onclick="abrirModalEstudoCruzamentoSEI(true)" title="Recarregar e sincronizar dados com o BigQuery">
+              <i class="fa-solid fa-arrows-rotate me-1"></i> Recarregar
             </button>
             <button class="btn btn-sm btn-outline-success fw-bold px-3 shadow-sm" onclick="exportarEstudoCruzamentoExcel()">
               <i class="fa-solid fa-file-excel me-1"></i> Exportar Excel
@@ -11111,7 +11115,7 @@ window.carregarLocaisArvoreGeral = function() {
 
     Swal.fire({
       html: modalHtml,
-      width: '950px',
+      width: '1200px',
       showCloseButton: true,
       showConfirmButton: false,
       customClass: { popup: 'rounded-3 shadow-lg' }
@@ -11136,7 +11140,7 @@ window.carregarLocaisArvoreGeral = function() {
       if (matchFiltro === 'SEM_SEI' && item.seiCompra) return false;
 
       if (termo) {
-        const textBusca = [item.nome, item.placa, item.patrimonio, item.seiCompra, item.marcaModelo, item.ome, item.tipo].filter(Boolean).join(' ').toUpperCase();
+        const textBusca = [item.nome, item.nOrdem, item.placa, item.patrimonio, item.seiCompra, item.marcaModelo, item.ome, item.subunidadeBigQuery, item.tipo].filter(Boolean).join(' ').toUpperCase();
         if (textBusca.indexOf(termo) === -1) return false;
       }
       return true;
