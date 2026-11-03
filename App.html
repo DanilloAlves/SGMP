@@ -20662,7 +20662,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
             <span class="badge bg-danger ms-2 badge-avaria-loc" id="badge-avaria-loc-${unitIndex}" style="display: none; font-size: 0.72rem;"><i class="fa-solid fa-triangle-exclamation me-1"></i><span class="qtd-avaria-loc">0</span> avaria</span>
           </button>
           <div class="bg-light px-2 d-flex align-items-center justify-content-center border-start" style="border-top-right-radius: 6px; border-bottom-right-radius: 6px;">
-            <button type="button" class="btn btn-sm btn-outline-secondary px-2 py-1 shadow-xs d-flex align-items-center gap-1" title="Visualizar Plaqueta / QR Code Público deste Checklist" onclick="abrirModalQrCodeChecklist(event, '${(omeRaw || '').replace(/'/g, "\\'")}', '${(subRes || '').replace(/'/g, "\\'")}', '${(tituloFlag || '').replace(/'/g, "\\'")}')">
+            <button type="button" class="btn btn-sm btn-outline-secondary px-2 py-1 shadow-xs d-flex align-items-center gap-1 btn-abrir-qrcode-modal" title="Visualizar Plaqueta / QR Code Público deste Checklist" data-ome="${encodeURIComponent(omeRaw || '')}" data-sub="${encodeURIComponent(subRes || '')}" data-setor="${encodeURIComponent(tituloFlag || '')}" onclick="aoClicarQrCodeHeader(this, event)">
               <i class="fa-solid fa-qrcode text-danger"></i>
               <span class="d-none d-sm-inline small fw-semibold">QR Code</span>
             </button>
@@ -21655,6 +21655,17 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     return base + sep + params;
   }
 
+  function aoClicarQrCodeHeader(btn, event) {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    const ome = decodeURIComponent(btn.getAttribute('data-ome') || '');
+    const sub = decodeURIComponent(btn.getAttribute('data-sub') || '');
+    const setor = decodeURIComponent(btn.getAttribute('data-setor') || '');
+    abrirModalQrCodeChecklist(event, ome, sub, setor);
+  }
+
   function abrirModalQrCodeChecklist(event, omeRaw, subRes, tituloFlag) {
     if (event) {
       event.preventDefault();
@@ -21672,7 +21683,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     if (tituloEl) tituloEl.textContent = setor;
 
     const subEl = document.getElementById('subtituloHierarquiaQrModal');
-    if (subEl) subEl.textContent = `${sub} • ${ome}`;
+    if (subEl) subEl.textContent = (sub || '') + ' \u2022 ' + (ome || '');
 
     const inputUrl = document.getElementById('inputUrlQrModal');
     if (inputUrl) inputUrl.value = urlPublica;
@@ -21684,13 +21695,13 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       if (spinner) spinner.style.display = 'inline-block';
       imgQr.style.display = 'none';
 
-      const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&margin=8&data=${encodeURIComponent(urlPublica)}`;
+      const qrSrc = 'https://api.qrserver.com/v1/create-qr-code/?size=250x250&margin=8&data=' + encodeURIComponent(urlPublica);
       imgQr.onload = function() {
         if (spinner) spinner.style.display = 'none';
         imgQr.style.display = 'block';
       };
       imgQr.onerror = function() {
-        imgQr.src = `https://chart.googleapis.com/chart?chs=250x250&cht=qr&choe=UTF-8&chld=M|2&chl=${encodeURIComponent(urlPublica)}`;
+        imgQr.src = 'https://chart.googleapis.com/chart?chs=250x250&cht=qr&choe=UTF-8&chld=M|2&chl=' + encodeURIComponent(urlPublica);
       };
       imgQr.src = qrSrc;
     }
@@ -21771,10 +21782,10 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
   function imprimirPlaquetaQrCode() {
     if (!QR_CODE_INFO_ATUAL || !QR_CODE_INFO_ATUAL.url) return;
 
-    const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=10&data=${encodeURIComponent(QR_CODE_INFO_ATUAL.url)}`;
-    const setorNome = QR_CODE_INFO_ATUAL.setor || 'Checklist';
-    const subNome = QR_CODE_INFO_ATUAL.sub || 'Subunidade';
-    const omeNome = QR_CODE_INFO_ATUAL.ome || 'CBMPE';
+    const qrSrc = 'https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=10&data=' + encodeURIComponent(QR_CODE_INFO_ATUAL.url);
+    const setorNome = String(QR_CODE_INFO_ATUAL.setor || 'Checklist');
+    const subNome = String(QR_CODE_INFO_ATUAL.sub || 'Subunidade');
+    const omeNome = String(QR_CODE_INFO_ATUAL.ome || 'CBMPE');
 
     const winPrint = window.open('', '_blank', 'width=700,height=800');
     if (!winPrint) {
@@ -21782,134 +21793,123 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       return;
     }
 
-    const htmlPlaqueta = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>Plaqueta QR Code - ${setorNome}</title>
-  <style>
-    @page { size: auto; margin: 10mm; }
-    body {
-      font-family: 'Segoe UI', Arial, sans-serif;
-      background: #fff;
-      color: #111;
-      margin: 0;
-      padding: 20px;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-    }
-    .plaqueta-box {
-      border: 3px solid #991b1b;
-      border-radius: 16px;
-      padding: 24px;
-      width: 360px;
-      text-align: center;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    }
-    .cabecalho-plaqueta {
-      border-bottom: 2px solid #fecaca;
-      padding-bottom: 12px;
-      margin-bottom: 16px;
-    }
-    .brasao-cbmpe {
-      width: 55px;
-      height: 55px;
-      object-fit: contain;
-      margin-bottom: 6px;
-    }
-    .titulo-orgao {
-      font-size: 14px;
-      font-weight: 800;
-      color: #991b1b;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-    .subtitulo-orgao {
-      font-size: 11px;
-      color: #64748b;
-      font-weight: 600;
-    }
-    .nome-setor {
-      font-size: 22px;
-      font-weight: 900;
-      color: #0f172a;
-      margin: 12px 0 4px 0;
-      text-transform: uppercase;
-    }
-    .hierarquia-locais {
-      font-size: 13px;
-      color: #475569;
-      font-weight: 600;
-      margin-bottom: 16px;
-    }
-    .qr-wrapper {
-      background: #ffffff;
-      border: 2px dashed #cbd5e1;
-      border-radius: 12px;
-      padding: 12px;
-      display: inline-block;
-      margin-bottom: 14px;
-    }
-    .qr-wrapper img {
-      width: 220px;
-      height: 220px;
-      display: block;
-    }
-    .instrucao {
-      font-size: 12px;
-      font-weight: 700;
-      color: #991b1b;
-      margin-bottom: 6px;
-    }
-    .rodape-info {
-      font-size: 10px;
-      color: #94a3b8;
-      border-top: 1px solid #f1f5f9;
-      padding-top: 10px;
-      margin-top: 12px;
-    }
-  </style>
-</head>
-<body>
-  <div class="plaqueta-box">
-    <div class="cabecalho-plaqueta">
-      <img class="brasao-cbmpe" src="https://upload.wikimedia.org/wikipedia/commons/thumb/7/7c/NOVO_BRAS%C3%83O_2024_CBMPE.png/500px-NOVO_BRAS%C3%83O_2024_CBMPE.png" alt="CBMPE">
-      <div class="titulo-orgao">CORPO DE BOMBEIROS MILITAR DE PE</div>
-      <div class="subtitulo-orgao">Sistema de Gestão de Materiais e Patrimônio (SGMP)</div>
-    </div>
-    
-    <div class="nome-setor">${setorNome}</div>
-    <div class="hierarquia-locais">${subNome} &bull; ${omeNome}</div>
-
-    <div class="qr-wrapper">
-      <img src="${qrSrc}" alt="QR Code">
-    </div>
-
-    <div class="instrucao">
-      ESCANEIE COM A CÂMERA DO CELULAR
-    </div>
-    <div style="font-size: 11px; color: #64748b;">
-      Acesso público e instantâneo ao inventário de carga
-    </div>
-
-    <div class="rodape-info">
-      Documento de identificação oficial gerado pelo SGMP &bull; CBMPE
-    </div>
-  </div>
-  <scr` + `ipt>
-    window.onload = function() {
-      setTimeout(function() {
-        window.print();
-      }, 500);
-    };
-  </scr` + `ipt>
-</body>
-</html>`;
+    const htmlParts = [
+      '<!DOCTYPE html>',
+      '<html>',
+      '<head>',
+      '  <meta charset="utf-8">',
+      '  <title>Plaqueta QR Code - ' + setorNome + '</title>',
+      '  <style>',
+      '    @page { size: auto; margin: 10mm; }',
+      '    body {',
+      '      font-family: \'Segoe UI\', Arial, sans-serif;',
+      '      background: #fff;',
+      '      color: #111;',
+      '      margin: 0;',
+      '      padding: 20px;',
+      '      display: flex;',
+      '      justify-content: center;',
+      '      align-items: center;',
+      '    }',
+      '    .plaqueta-box {',
+      '      border: 3px solid #991b1b;',
+      '      border-radius: 16px;',
+      '      padding: 24px;',
+      '      width: 360px;',
+      '      text-align: center;',
+      '      box-shadow: 0 4px 12px rgba(0,0,0,0.1);',
+      '    }',
+      '    .cabecalho-plaqueta {',
+      '      border-bottom: 2px solid #fecaca;',
+      '      padding-bottom: 12px;',
+      '      margin-bottom: 16px;',
+      '    }',
+      '    .brasao-cbmpe {',
+      '      width: 55px;',
+      '      height: 55px;',
+      '      object-fit: contain;',
+      '      margin-bottom: 6px;',
+      '    }',
+      '    .titulo-orgao {',
+      '      font-size: 14px;',
+      '      font-weight: 800;',
+      '      color: #991b1b;',
+      '      text-transform: uppercase;',
+      '      letter-spacing: 0.5px;',
+      '    }',
+      '    .subtitulo-orgao {',
+      '      font-size: 11px;',
+      '      color: #64748b;',
+      '      font-weight: 600;',
+      '    }',
+      '    .nome-setor {',
+      '      font-size: 22px;',
+      '      font-weight: 900;',
+      '      color: #0f172a;',
+      '      margin: 12px 0 4px 0;',
+      '      text-transform: uppercase;',
+      '    }',
+      '    .hierarquia-locais {',
+      '      font-size: 13px;',
+      '      color: #475569;',
+      '      font-weight: 600;',
+      '      margin-bottom: 16px;',
+      '    }',
+      '    .qr-wrapper {',
+      '      background: #ffffff;',
+      '      border: 2px dashed #cbd5e1;',
+      '      border-radius: 12px;',
+      '      padding: 12px;',
+      '      display: inline-block;',
+      '      margin-bottom: 14px;',
+      '    }',
+      '    .qr-wrapper img {',
+      '      width: 220px;',
+      '      height: 220px;',
+      '      display: block;',
+      '    }',
+      '    .instrucao {',
+      '      font-size: 12px;',
+      '      font-weight: 700;',
+      '      color: #991b1b;',
+      '      margin-bottom: 6px;',
+      '    }',
+      '    .rodape-info {',
+      '      font-size: 10px;',
+      '      color: #94a3b8;',
+      '      border-top: 1px solid #f1f5f9;',
+      '      padding-top: 10px;',
+      '      margin-top: 12px;',
+      '    }',
+      '  </style>',
+      '</head>',
+      '<body>',
+      '  <div class="plaqueta-box">',
+      '    <div class="cabecalho-plaqueta">',
+      '      <img class="brasao-cbmpe" src="https://upload.wikimedia.org/wikipedia/commons/thumb/7/7c/NOVO_BRAS%C3%83O_2024_CBMPE.png/500px-NOVO_BRAS%C3%83O_2024_CBMPE.png" alt="CBMPE">',
+      '      <div class="titulo-orgao">CORPO DE BOMBEIROS MILITAR DE PE</div>',
+      '      <div class="subtitulo-orgao">Sistema de Gestão de Materiais e Patrimônio (SGMP)</div>',
+      '    </div>',
+      '    <div class="nome-setor">' + setorNome + '</div>',
+      '    <div class="hierarquia-locais">' + subNome + ' &bull; ' + omeNome + '</div>',
+      '    <div class="qr-wrapper">',
+      '      <img src="' + qrSrc + '" alt="QR Code">',
+      '    </div>',
+      '    <div class="instrucao">ESCANEIE COM A CÂMERA DO CELULAR</div>',
+      '    <div style="font-size: 11px; color: #64748b;">Acesso público e instantâneo ao inventário de carga</div>',
+      '    <div class="rodape-info">Documento de identificação oficial gerado pelo SGMP &bull; CBMPE</div>',
+      '  </div>',
+      '</body>',
+      '</html>'
+    ];
 
     winPrint.document.open();
-    winPrint.document.write(htmlPlaqueta);
+    winPrint.document.write(htmlParts.join('\n'));
     winPrint.document.close();
+    winPrint.focus();
+    setTimeout(function() {
+      try { winPrint.print(); } catch(e) {}
+    }, 500);
   }
 
   function expandirRecolherTodosLocais(expandir) {
