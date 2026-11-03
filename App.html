@@ -4554,6 +4554,22 @@
   }
   const DEFINICAO_PERMISSOES = [
     {
+      id: "alterar_status",
+      nome: "Alteração de Situação / Status de Material",
+      descricao: "Permite alterar o status dos materiais entre ECD, SCD, Extraviado e Acautelado",
+      icone: "fa-solid fa-tags",
+      badgeTexto: "Status Material",
+      cor: "warning"
+    },
+    {
+      id: "descarregar_material",
+      nome: "Descarregamento Definitivo de Material (Processo SEI)",
+      descricao: "Permite realizar a baixa patrimonial e descarregamento definitivo com Processo SEI",
+      icone: "fa-solid fa-box-archive",
+      badgeTexto: "Descarregamento",
+      cor: "danger"
+    },
+    {
       id: "movimentar_arvore",
       nome: "Movimentação de Material na Árvore",
       descricao: "Mover materiais entre nós/locais e atrelar itens",
@@ -10220,11 +10236,26 @@ window.carregarLocaisArvoreGeral = function() {
         carregarMateriaisConsumoOme();
         return;
       }
+
+      window._cacheArmazenamentoOme = window._cacheArmazenamentoOme || {};
+      if (!forcarAtualizacao && window._cacheArmazenamentoOme[omeEfetiva]) {
+        const cached = window._cacheArmazenamentoOme[omeEfetiva];
+        window.estoqueDetalhadoOME = cached.materiais || [];
+        materiaisUnidadeLocais = window.estoqueDetalhadoOME.map(m => typeof m === 'object' ? (m.nome || m) : m);
+        cacheMateriaisAtrelados = cached.vinculos || {};
+        cacheLocaisArvore = cached.locais || [];
+        renderizarListaMateriaisLateral();
+        if (typeof renderizarArvoreLocais === "function") {
+          renderizarArvoreLocais();
+        }
+        return;
+      }
+
       if (arvoreContainer) {
         arvoreContainer.innerHTML = `<div class="text-center py-5">
-                                       <i class="fa-solid fa-database fa-flip fa-2x text-primary mb-3"></i>
-                                       <h6 class="text-muted fw-bold">Sincronizando com o Banco de Dados...</h6>
-                                       <p class="small text-muted">Buscando as atualizações mais recentes de materiais da unidade ${omeEfetiva}.</p>
+                                       <i class="fa-solid fa-boxes-stacked fa-bounce fa-2x text-danger mb-3"></i>
+                                       <h6 class="text-dark fw-bold">Carregando Estrutura e Materiais...</h6>
+                                       <p class="small text-muted">Sincronizando prateleiras e materiais da unidade ${omeEfetiva}.</p>
                                      </div>`;
       }
       
@@ -10233,42 +10264,27 @@ window.carregarLocaisArvoreGeral = function() {
       cacheMateriaisAtrelados = {};
       cacheLocaisArvore = [];
 
-      // FILA DE EXECUÇÃO: 1º Arruma as prateleiras, DEPOIS busca os materiais
       google.script.run
-        .withSuccessHandler(locais => {
-          cacheLocaisArvore = locais || [];
+        .withSuccessHandler(res => {
+          if (!res) res = { locais: [], materiais: [], vinculos: {} };
+          window._cacheArmazenamentoOme[omeEfetiva] = res;
 
-          const pMateriais = new Promise((resolve, reject) => {
-            google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).getMateriaisDaOme(omeEfetiva);
-          });
-          const pVinculos = new Promise((resolve, reject) => {
-            google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).getMateriaisAtreladosPorLocal(omeEfetiva);
-          });
+          window.estoqueDetalhadoOME = res.materiais || [];
+          materiaisUnidadeLocais = window.estoqueDetalhadoOME.map(m => typeof m === 'object' ? (m.nome || m) : m);
+          cacheMateriaisAtrelados = res.vinculos || {};
+          cacheLocaisArvore = res.locais || [];
 
-          Promise.all([pMateriais, pVinculos, Promise.resolve(cacheLocaisArvore)])
-            .then(([materiais, vinculos, locaisRes]) => {
-              window.estoqueDetalhadoOME = materiais || [];
-              materiaisUnidadeLocais = window.estoqueDetalhadoOME.map(m => typeof m === 'object' ? (m.nome || m) : m);
-              
-              cacheMateriaisAtrelados = vinculos || {};
-              cacheLocaisArvore = locaisRes || [];
-
-              // ATUALIZA A LISTA LATERAL COM OS MATERIAIS DA OME SELECIONADA
-              renderizarListaMateriaisLateral();
-              
-              if (typeof renderizarArvoreLocais === "function") {
-                renderizarArvoreLocais();
-              }
-            })
-            .catch(err => {
-              console.error("Erro no Promise.all da OME:", err);
-              if (containerMaterial) containerMaterial.innerHTML = '<span class="text-danger small">Falha ao buscar estoque.</span>';
-              if (arvoreContainer) arvoreContainer.innerHTML = '<div class="alert alert-danger mt-3">Erro ao sincronizar com o banco de dados.</div>';
-            });
-
+          renderizarListaMateriaisLateral();
+          if (typeof renderizarArvoreLocais === "function") {
+            renderizarArvoreLocais();
+          }
         })
-        .withFailureHandler(err => console.error(err))
-        .getArvoreLocais(omeEfetiva);
+        .withFailureHandler(err => {
+          console.error("Erro ao carregar dados consolidados da OME:", err);
+          if (containerMaterial) containerMaterial.innerHTML = '<span class="text-danger small">Falha ao buscar estoque.</span>';
+          if (arvoreContainer) arvoreContainer.innerHTML = '<div class="alert alert-danger mt-3">Erro ao sincronizar com o banco de dados: ' + (err.message || err) + '</div>';
+        })
+        .carregarDadosArmazenamentoCompleto(omeEfetiva, !!forcarAtualizacao);
     }
   };
 
@@ -15555,7 +15571,8 @@ function renderizarTimelineEmElemento(dados, ids) {
 
     const perfilUser = ((typeof PERFIL_GLOBAL !== 'undefined' ? PERFIL_GLOBAL : (typeof usuarioSessaoAtual !== 'undefined' && usuarioSessaoAtual ? usuarioSessaoAtual.perfil : "")) || "").trim();
     const isAdmin = perfilUser.toLowerCase().includes("administrador") || perfilUser.toLowerCase().includes("admin");
-    const ehAdminOuChefe = isAdmin || perfilUser.toLowerCase().includes("chefe");
+    const podeAlterarStatus = (typeof verificarPermissaoAlterarStatus === 'function') ? verificarPermissaoAlterarStatus() : (isAdmin || perfilUser.toLowerCase().includes("chefe"));
+    const podeDescarregar = (typeof verificarPermissaoDescarregamento === 'function') ? verificarPermissaoDescarregamento() : (isAdmin || perfilUser.toLowerCase().includes("chefe"));
 
     const temSerie = (itens || []).some(it => {
       const s = extrairSerieItem(it) || it.nSerie;
@@ -15577,12 +15594,12 @@ function renderizarTimelineEmElemento(dados, ids) {
     itensAtivos.forEach(item => {
       const numSerieItem = extrairSerieItem(item) || (item.nSerie && item.nSerie !== '-' && item.nSerie !== 'null' ? item.nSerie : '');
       const botaoExcluir = isAdmin ? `<button class="btn btn-sm btn-danger py-0 px-2 ms-1" title="Excluir Item" onclick="excluirItemUnitario('${item.item}')"><i class="fa-solid fa-trash"></i></button>` : '';
-      const botaoDescarregar = ehAdminOuChefe ? `<button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 ms-1" title="Descarregar Material (Definitivo)" onclick="iniciarDescarregamentoUnitario('${item.item}', '${String(nomeMaterial).replace(/'/g, "\\'")}', '${String(item.patrimonio || '').replace(/'/g, "\\'")}')"><i class="fa-solid fa-box-archive"></i></button>` : '';
+      const botaoDescarregar = podeDescarregar ? `<button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 ms-1" title="Descarregar Material (Definitivo)" onclick="iniciarDescarregamentoUnitario('${item.item}', '${String(nomeMaterial).replace(/'/g, "\\'")}', '${String(item.patrimonio || '').replace(/'/g, "\\'")}')"><i class="fa-solid fa-box-archive"></i></button>` : '';
 
       let colunaStatus = '';
       let botaoSalvar = '';
 
-      if (ehAdminOuChefe) {
+      if (podeAlterarStatus) {
         colunaStatus = `
           <select class="form-select form-select-sm status-item-unitario" data-item="${item.item}">
             <option value="ECD" ${item.status === 'ECD' ? 'selected' : ''}>ECD (Em uso)</option>
@@ -15636,7 +15653,8 @@ function renderizarTimelineEmElemento(dados, ids) {
     });
 
     const botaoLoteExcluir = isAdmin ? `<button class="btn btn-sm btn-danger fw-bold py-0 px-2" onclick="excluirLoteDetalhes()">Excluir Marcados</button>` : '';
-    const botaoLoteEditar = ehAdminOuChefe ? `<button class="btn btn-sm btn-warning fw-bold text-dark py-0 px-2" onclick="aplicarEdicaoLoteDetalhes()">Editar Lote</button>` : '';
+    const botaoLoteEditar = podeAlterarStatus ? `<button class="btn btn-sm btn-warning fw-bold text-dark py-0 px-2" onclick="aplicarEdicaoLoteDetalhes()"><i class="fa-solid fa-pen-to-square me-1"></i> Editar Lote</button>` : '';
+    const botaoLoteDescarregar = podeDescarregar ? `<button class="btn btn-sm btn-outline-danger fw-bold py-0 px-2" onclick="iniciarDescarregamentoLoteModal()"><i class="fa-solid fa-box-archive me-1"></i> Descarregar Marcados</button>` : '';
 
     const conteudoModalHtml = `
       <div class="text-start">
@@ -15672,8 +15690,8 @@ function renderizarTimelineEmElemento(dados, ids) {
               <div class="d-flex gap-2 flex-wrap">
                 <button class="btn btn-sm btn-outline-primary py-0" onclick="marcarTodosDetalhes(true)">Marcar Todos</button>
                 <button class="btn btn-sm btn-outline-secondary py-0" onclick="marcarTodosDetalhes(false)">Desmarcar</button>
-                <button class="btn btn-sm btn-warning fw-bold text-dark py-0 px-2" onclick="aplicarEdicaoLoteDetalhes()">Editar Lote</button>
-                <button class="btn btn-sm btn-outline-danger fw-bold py-0 px-2" onclick="iniciarDescarregamentoLoteModal()"><i class="fa-solid fa-box-archive me-1"></i> Descarregar Marcados</button>
+                ${botaoLoteEditar}
+                ${botaoLoteDescarregar}
                 ${botaoLoteExcluir}
               </div>
             </div>
@@ -15830,6 +15848,10 @@ function renderizarTimelineEmElemento(dados, ids) {
   });
 
   function salvarItemUnitario(itemId) {
+    if (typeof verificarPermissaoAlterarStatus === 'function' && !verificarPermissaoAlterarStatus()) {
+      Swal.fire('Acesso Restrito', 'Você não possui permissão para alterar a situação / status de materiais.', 'error');
+      return;
+    }
     const select = document.querySelector(`.status-item-unitario[data-item="${itemId}"]`);
     if (!select) return;
     const novoStatus = select.value;
@@ -15838,7 +15860,8 @@ function renderizarTimelineEmElemento(dados, ids) {
     google.script.run
       .withSuccessHandler(res => {
         Swal.fire({ icon: 'success', title: 'Atualizado!', text: res, timer: 1200, showConfirmButton: false });
-        carregarLocaisArvoreGeral();
+        if (window._cacheArmazenamentoOme) window._cacheArmazenamentoOme = {};
+        carregarLocaisArvoreGeral(true);
       })
       .withFailureHandler(err => Swal.fire('Erro', err.message, 'error'))
       .atualizarRegistro({ item: itemId, statusConservacao: novoStatus });
@@ -15868,6 +15891,10 @@ function renderizarTimelineEmElemento(dados, ids) {
   }
 
   function aplicarEdicaoLoteDetalhes() {
+    if (typeof verificarPermissaoAlterarStatus === 'function' && !verificarPermissaoAlterarStatus()) {
+      Swal.fire('Acesso Restrito', 'Você não possui permissão para alterar a situação / status de materiais.', 'error');
+      return;
+    }
     const marcados = Array.from(document.querySelectorAll('.check-item-detalhe:checked')).map(cb => cb.value);
     if (marcados.length === 0) {
       Swal.fire('Atenção', 'Selecione ao menos um item na tabela.', 'warning');
@@ -15893,7 +15920,8 @@ function renderizarTimelineEmElemento(dados, ids) {
           .withSuccessHandler(res => {
             Swal.fire({ icon: 'success', title: 'Sucesso!', text: res, timer: 1500, showConfirmButton: false });
             Swal.close();
-            carregarLocaisArvoreGeral();
+            if (window._cacheArmazenamentoOme) window._cacheArmazenamentoOme = {};
+            carregarLocaisArvoreGeral(true);
           })
           .withFailureHandler(err => Swal.fire('Erro', err.message, 'error'))
           .atualizarLotePorIds(marcados, { statusConservacao: result.value });
@@ -17987,6 +18015,11 @@ function renderizarTimelineEmElemento(dados, ids) {
 
   if (!itemId) return;
 
+  if (typeof verificarPermissaoAlterarStatus === 'function' && !verificarPermissaoAlterarStatus()) {
+    Swal.fire('Acesso Restrito', 'Você não possui permissão para alterar a situação / status de materiais.', 'error');
+    return;
+  }
+
   const icone = btn.innerHTML;
   btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
   btn.disabled = true;
@@ -18001,7 +18034,8 @@ function renderizarTimelineEmElemento(dados, ids) {
         btn.classList.remove('btn-success');
         btn.classList.add('btn-primary');
       }, 1200);
-      carregarLocaisArvoreGeral();
+      if (window._cacheArmazenamentoOme) window._cacheArmazenamentoOme = {};
+      carregarLocaisArvoreGeral(true);
     })
     .withFailureHandler(err => {
       btn.innerHTML = icone;
@@ -24629,11 +24663,16 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
   // MÓDULO DE DESCARREGAMENTO DEFINITIVO DE MATERIAIS (PROCESSO SEI)
   // =========================================================================
 
+  function verificarPermissaoAlterarStatus() {
+    if (typeof ehAdminGlobal === 'function' && ehAdminGlobal()) return true;
+    if (typeof ehComandanteGlobal === 'function' && ehComandanteGlobal()) return true;
+    return (typeof temPermissao === 'function' && temPermissao('alterar_status'));
+  }
+
   function verificarPermissaoDescarregamento() {
-    const perfilUser = ((typeof PERFIL_GLOBAL !== 'undefined' ? PERFIL_GLOBAL : (typeof usuarioSessaoAtual !== 'undefined' && usuarioSessaoAtual ? usuarioSessaoAtual.perfil : "")) || "").trim().toLowerCase();
-    const isAdmin = perfilUser.includes("administrador") || perfilUser.includes("admin");
-    const isChefe = perfilUser.includes("chefe") || perfilUser.includes("respons") || perfilUser.includes("comand");
-    return isAdmin || isChefe;
+    if (typeof ehAdminGlobal === 'function' && ehAdminGlobal()) return true;
+    if (typeof ehComandanteGlobal === 'function' && ehComandanteGlobal()) return true;
+    return (typeof temPermissao === 'function' && temPermissao('descarregar_material'));
   }
 
   function iniciarDescarregamentoUnitario(itemId, nomeMaterial, patrimonio) {
@@ -25064,8 +25103,9 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
             confirmButtonColor: '#800000'
           });
 
+          if (window._cacheArmazenamentoOme) window._cacheArmazenamentoOme = {};
           if (typeof carregarLocaisArvoreGeral === 'function') {
-            carregarLocaisArvoreGeral();
+            carregarLocaisArvoreGeral(true);
           }
           if (typeof carregarDadosDashboardVisaoGeral === 'function') {
             carregarDadosDashboardVisaoGeral(true);

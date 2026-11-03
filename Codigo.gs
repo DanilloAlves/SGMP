@@ -139,6 +139,8 @@ function padronizarPerfilUsuario_(pRaw) {
 var LISTA_CHAVES_PERMISSOES = [
   "movimentar_arvore",
   "gerenciar_locais",
+  "alterar_status",
+  "descarregar_material",
   "acautelamento",
   "transferir_ome",
   "recebimento_cint",
@@ -159,6 +161,8 @@ var LISTA_CHAVES_PERMISSOES = [
 var LISTA_PERMISSOES_COMANDANTE = [
   "movimentar_arvore",
   "gerenciar_locais",
+  "alterar_status",
+  "descarregar_material",
   "acautelamento",
   "transferir_ome",
   "recebimento_cint",
@@ -1139,7 +1143,23 @@ function atualizarRegistro(dados, usuarioCliente) {
 
     var sets = [];
     if (dados.objeto !== undefined) sets.push("OBJETO = '" + limpar(dados.objeto) + "'");
-    if (dados.statusConservacao !== undefined) sets.push("STATUS = '" + limpar(dados.statusConservacao) + "'");
+    if (dados.statusConservacao !== undefined) {
+      var perfilNormReg = padronizarPerfilUsuario_(usuario.perfil || "");
+      var ehAdminReg = (perfilNormReg === "Administrador");
+      var ehChefeReg = (perfilNormReg === "Comandante de Unidade" || perfilNormReg.toLowerCase().indexOf("chefe") !== -1 || perfilNormReg.toLowerCase().indexOf("comand") !== -1);
+      var temPermissaoStatusReg = false;
+      if (usuario.permissoes) {
+        if (Array.isArray(usuario.permissoes)) {
+          temPermissaoStatusReg = usuario.permissoes.some(function(p) { return String(p).trim().toLowerCase() === "alterar_status"; });
+        } else if (typeof usuario.permissoes === "string") {
+          temPermissaoStatusReg = usuario.permissoes.toLowerCase().indexOf("alterar_status") !== -1;
+        }
+      }
+      if (!ehAdminReg && !ehChefeReg && !temPermissaoStatusReg) {
+        throw new Error("Acesso negado: Você não possui permissão para alterar o status / situação do material.");
+      }
+      sets.push("STATUS = '" + limpar(dados.statusConservacao) + "'");
+    }
     if (dados.unidade !== undefined && ehAdmin) sets.push("UNIDADE = '" + limpar(obterOmePadronizada(dados.unidade)) + "'");
     
     if (dados.subunidade !== undefined) {
@@ -1170,6 +1190,10 @@ function atualizarRegistro(dados, usuarioCliente) {
               " WHERE ITEM = '" + limpar(itemId) + "'";
 
     executarConsultaBigQuerySegura(sql, true);
+    if (typeof invalidarCacheArmazenamentoOme_ === 'function') {
+      if (typeof omeItem !== 'undefined' && omeItem) invalidarCacheArmazenamentoOme_(omeItem);
+      if (usuario && usuario.ome) invalidarCacheArmazenamentoOme_(usuario.ome);
+    }
     var descMatFinal = dados.objeto || nomeMaterialAtual || "Material";
     registrarLogAuditoria(
       "EDICAO_INDIVIDUAL", 
@@ -1252,7 +1276,20 @@ function atualizarLotePorIds(itensIds, novosDados, usuarioCliente) {
   }
 
   if (!verificarPermissaoBaseDados(usuario)) {
-    throw new Error("Acesso negado: Você não possui autorização para editar a Base de Dados.");
+    var perfilUserCheck = usuario ? padronizarPerfilUsuario_(usuario.perfil) : "";
+    var ehChefeCheck = (perfilUserCheck === "Comandante de Unidade" || perfilUserCheck.toLowerCase().indexOf("chefe") !== -1 || perfilUserCheck.toLowerCase().indexOf("comand") !== -1);
+    var temPermissaoStatusCheck = false;
+    if (usuario && usuario.permissoes) {
+      if (Array.isArray(usuario.permissoes)) {
+        temPermissaoStatusCheck = usuario.permissoes.some(function(p) { return String(p).trim().toLowerCase() === "alterar_status"; });
+      } else if (typeof usuario.permissoes === "string") {
+        temPermissaoStatusCheck = usuario.permissoes.toLowerCase().indexOf("alterar_status") !== -1;
+      }
+    }
+    var soStatus = Object.keys(novosDados || {}).filter(function(k){ return k !== "usuario"; }).every(function(k){ return k === "statusConservacao"; });
+    if (!soStatus || (!ehChefeCheck && !temPermissaoStatusCheck)) {
+      throw new Error("Acesso negado: Você não possui autorização para editar a Base de Dados.");
+    }
   }
 
   var perfilUser = usuario ? padronizarPerfilUsuario_(usuario.perfil) : "";
@@ -1345,7 +1382,21 @@ function atualizarLotePorIds(itensIds, novosDados, usuarioCliente) {
 
 
 
-  if (novosDados.statusConservacao) sets.push("STATUS = '" + limpar(novosDados.statusConservacao) + "'");
+  if (novosDados.statusConservacao) {
+    var ehChefeLote = (perfilUser === "Comandante de Unidade" || perfilUser.toLowerCase().indexOf("chefe") !== -1 || perfilUser.toLowerCase().indexOf("comand") !== -1);
+    var temPermissaoStatusLote = false;
+    if (usuario && usuario.permissoes) {
+      if (Array.isArray(usuario.permissoes)) {
+        temPermissaoStatusLote = usuario.permissoes.some(function(p) { return String(p).trim().toLowerCase() === "alterar_status"; });
+      } else if (typeof usuario.permissoes === "string") {
+        temPermissaoStatusLote = usuario.permissoes.toLowerCase().indexOf("alterar_status") !== -1;
+      }
+    }
+    if (!ehAdmin && !ehChefeLote && !temPermissaoStatusLote) {
+      throw new Error("Acesso negado: Você não possui permissão para alterar o status / situação do material.");
+    }
+    sets.push("STATUS = '" + limpar(novosDados.statusConservacao) + "'");
+  }
 
   if (novosDados.postoGrad) sets.push("SE_ACAUTELADO_POSTO_GRAD = '" + limpar(novosDados.postoGrad) + "'");
 
@@ -1428,6 +1479,9 @@ function atualizarLotePorIds(itensIds, novosDados, usuarioCliente) {
   var descMatTxtLote = descMatsLote.length > 0 ? " (" + descMatsLote.join(", ") + ")" : "";
   var itensTxtLote = itensIds.length <= 10 ? itensIds.join(", ") : (itensIds.slice(0, 10).join(", ") + " e mais " + (itensIds.length - 10) + " itens");
   registrarLogAuditoria("EDICAO_EM_MASSA", "Atualizou " + itensIds.length + " item(ns) em lote" + descMatTxtLote + ". Código(s) ITEM: [" + itensTxtLote + "]", userLogadoLote);
+  if (typeof invalidarCacheArmazenamentoOme_ === 'function' && usuario && usuario.ome) {
+    invalidarCacheArmazenamentoOme_(usuario.ome);
+  }
 
   return "Atualização aplicada com sucesso em " + itensIds.length + " item(ns)!";
 
@@ -1728,6 +1782,61 @@ function garantirSetoresViaturasNaArvore_(omePadrao, idSedeOficial, sheet, locai
   }
 }
 
+function invalidarCacheArmazenamentoOme_(ome) {
+  try {
+    var omePadrao = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(ome) : (ome || "");
+    if (!omePadrao) return;
+    var chaveBase = "CACHE_ARM_COMPLETO_" + omePadrao.toUpperCase().replace(/[^A-Z0-9]/g, "_");
+    var cache = CacheService.getScriptCache();
+    var countStr = cache.get(chaveBase + "_count");
+    if (countStr) {
+      var numChunks = parseInt(countStr, 10);
+      var chaves = [chaveBase + "_count"];
+      for (var i = 0; i < numChunks; i++) {
+        chaves.push(chaveBase + "_" + i);
+      }
+      cache.removeAll(chaves);
+    }
+    cache.remove(chaveBase);
+  } catch(e) {
+    console.warn("Aviso ao invalidar cache armazenamento: " + e.message);
+  }
+}
+
+function carregarDadosArmazenamentoCompleto(unidadeOmega, forcarAtualizacao) {
+  try {
+    var omePadrao = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(unidadeOmega) : (unidadeOmega || "");
+    if (!omePadrao) return { locais: [], materiais: [], vinculos: {} };
+
+    var chaveBase = "CACHE_ARM_COMPLETO_" + omePadrao.toUpperCase().replace(/[^A-Z0-9]/g, "_");
+    if (!forcarAtualizacao) {
+      var cached = (typeof lerDeCacheChunked_ === 'function') ? lerDeCacheChunked_(chaveBase) : null;
+      if (cached && cached.locais && cached.vinculos) {
+        return cached;
+      }
+    }
+
+    var locais = getArvoreLocais(omePadrao);
+    var materiais = getMateriaisDaOme(omePadrao);
+    var vinculos = getMateriaisAtreladosPorLocal(omePadrao);
+
+    var resultado = {
+      locais: locais || [],
+      materiais: materiais || [],
+      vinculos: vinculos || {}
+    };
+
+    if (typeof salvarEmCacheChunked_ === 'function') {
+      salvarEmCacheChunked_(chaveBase, resultado, 900);
+    }
+
+    return resultado;
+  } catch (e) {
+    console.error("Erro em carregarDadosArmazenamentoCompleto: " + e.message);
+    throw new Error("Falha ao sincronizar árvore de materiais: " + e.message);
+  }
+}
+
 function getArvoreLocais(unidadeOmega) {
 
   try {
@@ -1901,6 +2010,7 @@ function adicionarLocalNaArvore(dadosLocal) {
     ]);
 
     registrarLogAuditoria("NOVO_LOCAL_ARVORE", "Adicionou '" + nomeAlvo + "' na OME " + omeAlvo);
+    if (typeof invalidarCacheArmazenamentoOme_ === 'function') invalidarCacheArmazenamentoOme_(omeAlvo);
 
     return { sucesso: true, id: novoId, mensagem: "Local adicionado com sucesso!" };
 
@@ -1939,11 +2049,10 @@ function excluirLocalDaArvore(idLocal) {
     for (var i = dados.length - 1; i >= 1; i--) {
 
       if (String(dados[i][0]).trim() === String(idLocal).trim()) {
-
+        var omeRemovida = String(dados[i][1] || '').trim();
         sheet.deleteRow(i + 1);
-
+        if (typeof invalidarCacheArmazenamentoOme_ === 'function' && omeRemovida) invalidarCacheArmazenamentoOme_(omeRemovida);
         break;
-
       }
 
     }
@@ -2075,6 +2184,7 @@ function vistarEAtrelarMateriaisAoLocal(idLocal, nomeLocal, itensDistribuicao) {
 
       registrarLogAuditoria("ATRELAR_MATERIAL_LOCAL", "Atrelou " + idsParaAtualizar.length + " un(s) de " + matNome + " ao local '" + localInfo.nome + "' (Setor: " + setNome + ", Local: " + locNome + ")");
     }
+    if (typeof invalidarCacheArmazenamentoOme_ === 'function' && localInfo.ome) invalidarCacheArmazenamentoOme_(localInfo.ome);
 
     return "Foram atrelados com sucesso " + totalAtrelados + " item(ns) a " + localInfo.nome + "!";
   } catch (err) {
@@ -2261,6 +2371,8 @@ function atualizarPaiLocalArvore(idLocal, novoIdPai) {
     } catch(eHistMov) {
       console.warn("Aviso ao registrar histórico de movimentação na árvore: " + eHistMov.message);
     }
+
+    if (typeof invalidarCacheArmazenamentoOme_ === 'function' && omeLocalAlvo) invalidarCacheArmazenamentoOme_(omeLocalAlvo);
 
     return "Hierarquia atualizada com sucesso!";
 
@@ -16751,8 +16863,16 @@ function descarregarMaterial(payload) {
     var ehAdmin = (perfilNorm === "Administrador" || perfilNorm.toLowerCase().indexOf("admin") !== -1);
     var ehChefe = (perfilNorm.toLowerCase().indexOf("chefe") !== -1 || perfilNorm.toLowerCase().indexOf("respons") !== -1 || perfilNorm.toLowerCase().indexOf("comand") !== -1);
 
-    if (!ehAdmin && !ehChefe) {
-      throw new Error("Acesso negado: Apenas Administradores e Chefes de Unidade / Responsáveis pela carga podem realizar o descarregamento definitivo de materiais.");
+    var temPermissaoDesc = false;
+    if (usuario.permissoes) {
+      if (Array.isArray(usuario.permissoes)) {
+        temPermissaoDesc = usuario.permissoes.some(function(p) { return String(p).trim().toLowerCase() === "descarregar_material"; });
+      } else if (typeof usuario.permissoes === "string") {
+        temPermissaoDesc = usuario.permissoes.toLowerCase().indexOf("descarregar_material") !== -1;
+      }
+    }
+    if (!ehAdmin && !ehChefe && !temPermissaoDesc) {
+      throw new Error("Acesso negado: Você não possui permissão para realizar o descarregamento definitivo de materiais.");
     }
 
     var omeUser = (usuario.ome ? (typeof obterOmePadronizada === 'function' ? obterOmePadronizada(usuario.ome) : usuario.ome) : "").toUpperCase();
@@ -16847,6 +16967,11 @@ function descarregarMaterial(payload) {
       if (omeUser) {
         cache.remove("ARVORE_ESTRUTURA_" + omeUser.replace(/[^A-Z0-9]/g, "_"));
         cache.remove("DASH_VISAO_GERAL_V5_" + omeUser.replace(/[^A-Z0-9]/g, "_"));
+        if (typeof invalidarCacheArmazenamentoOme_ === 'function') invalidarCacheArmazenamentoOme_(omeUser);
+      }
+      for (var r = 0; r < rows.length; r++) {
+        var rOme = String(rows[r].f[3].v || "").trim();
+        if (rOme && typeof invalidarCacheArmazenamentoOme_ === 'function') invalidarCacheArmazenamentoOme_(rOme);
       }
       cache.remove("DASH_VISAO_GERAL_V5_ADMIN");
     } catch(eCache) {}
