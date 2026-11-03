@@ -1561,6 +1561,10 @@
               <i class="fa-solid fa-arrows-split-up-and-left"></i>
               <span>Remanejamento Interno</span>
             </button>
+            <button class="btn btn-danger fw-bold px-3 py-2 shadow-sm d-flex align-items-center gap-2" onclick="abrirModalDescarregamentoDireto()" title="Descarregar materiais definitivamente da carga (Processo SEI)">
+              <i class="fa-solid fa-box-archive"></i>
+              <span>Descarregamento</span>
+            </button>
           </div>
 
           <!-- CANTO DIREITO: FILTRO ADMIN E BOTÃO ATUALIZAR -->
@@ -13193,6 +13197,11 @@ window.carregarLocaisArvoreGeral = function() {
       let badgeCor = 'secondary';
 
       switch (tipo) {
+        case 'DESCARREGAMENTO':
+          icon = 'fa-box-archive';
+          tituloAmigavel = 'Descarregamento Definitivo (Baixa Patrimonial)';
+          badgeCor = 'danger';
+          break;
         case 'CADASTRO':
           icon = 'fa-plus-circle';
           tituloAmigavel = 'Entrada no Estoque / Cadastro Inicial';
@@ -13396,11 +13405,42 @@ function renderizarTimelineEmElemento(dados, ids) {
       
       let stAtual = (item.status || 'ECD').toUpperCase();
       let classeStatus = 'bg-success';
-      if (stAtual === 'SCD' || stAtual === 'EXTRAVIADO') classeStatus = 'bg-danger';
-      else if (stAtual === 'ACAUTELADO') classeStatus = 'bg-warning text-dark';
+      if (stAtual === 'DESCARREGADO') {
+        classeStatus = 'bg-danger';
+      } else if (stAtual === 'SCD' || stAtual === 'EXTRAVIADO') {
+        classeStatus = 'bg-danger';
+      } else if (stAtual === 'ACAUTELADO') {
+        classeStatus = 'bg-warning text-dark';
+      }
+
       if (badgeStatus) {
         badgeStatus.className = 'badge ' + classeStatus;
-        badgeStatus.innerText = stAtual;
+        if (stAtual === 'DESCARREGADO') {
+          badgeStatus.innerHTML = '<i class="fa-solid fa-box-archive me-1"></i> Descarregado';
+        } else {
+          badgeStatus.innerText = stAtual;
+        }
+      }
+
+      // Alerta destacado caso o material esteja descarregado
+      const idAlertaDesc = ids.resumoCard + '_alerta_descarregado';
+      const elAlertaDesc = document.getElementById(idAlertaDesc);
+      if (stAtual === 'DESCARREGADO') {
+        const seiDesc = item.processoSeiDescarregamento || item.sei || item.docSeiAcautelado || '-';
+        const dataDesc = item.dataDescarregamento || '-';
+        const motDesc = item.motivoDescarregamento || '';
+        const alertaHtml = '<div class="alert alert-danger py-2 px-3 small mt-3 mb-0 d-flex align-items-center" id="' + idAlertaDesc + '">' +
+          '<i class="fa-solid fa-box-archive me-2 fs-5"></i>' +
+          '<div><strong>Material Descarregado Definitivamente:</strong> Processo SEI: <strong>' + seiDesc + '</strong>' + (dataDesc !== '-' ? ' | Data: <strong>' + dataDesc + '</strong>' : '') +
+          (motDesc ? '<div class="small mt-0.5 text-dark opacity-75">' + motDesc + '</div>' : '') +
+          '</div></div>';
+        if (!elAlertaDesc) {
+          resumoCard.insertAdjacentHTML('beforeend', alertaHtml);
+        } else {
+          elAlertaDesc.outerHTML = alertaHtml;
+        }
+      } else if (elAlertaDesc) {
+        elAlertaDesc.remove();
       }
 
       if (nomeObj) nomeObj.innerText = formatarDescricaoViaturaVisual(item.objeto, numSerieItem) || 'Material CBMPE';
@@ -15510,6 +15550,7 @@ function renderizarTimelineEmElemento(dados, ids) {
       opcoesSelectItens += `<option value="${item.item}" ${idx === 0 ? 'selected' : ''}>${item.item} - ${patTexto}${serieTexto} (${item.status})${seiTexto}</option>`;
 
       const botaoExcluir = isAdmin ? `<button class="btn btn-sm btn-danger py-0 px-2 ms-1" title="Excluir Item" onclick="excluirItemUnitario('${item.item}')"><i class="fa-solid fa-trash"></i></button>` : '';
+      const botaoDescarregar = ehAdminOuChefe ? `<button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 ms-1" title="Descarregar Material (Definitivo)" onclick="iniciarDescarregamentoUnitario('${item.item}', '${String(nomeMaterial).replace(/'/g, "\\'")}', '${String(item.patrimonio || '').replace(/'/g, "\\'")}')"><i class="fa-solid fa-box-archive"></i></button>` : '';
 
       let colunaStatus = '';
       let botaoSalvar = '';
@@ -15540,6 +15581,7 @@ function renderizarTimelineEmElemento(dados, ids) {
           <td class="text-center text-nowrap">
             <button type="button" class="btn btn-sm btn-outline-info py-0 px-2 me-1" title="Ver Linha do Tempo / Histórico" onclick="alternarAbaModalGerenciamento('historico', '${item.item}')"><i class="fa-solid fa-clock-rotate-left"></i></button>
             ${botaoSalvar}
+            ${botaoDescarregar}
             ${botaoExcluir}
           </td>
         </tr>`;
@@ -15572,6 +15614,7 @@ function renderizarTimelineEmElemento(dados, ids) {
               <button class="btn btn-sm btn-outline-primary py-0" onclick="marcarTodosDetalhes(true)">Marcar Todos</button>
               <button class="btn btn-sm btn-outline-secondary py-0" onclick="marcarTodosDetalhes(false)">Desmarcar</button>
               <button class="btn btn-sm btn-warning fw-bold text-dark py-0 px-2" onclick="aplicarEdicaoLoteDetalhes()">Editar Lote</button>
+              <button class="btn btn-sm btn-outline-danger fw-bold py-0 px-2" onclick="iniciarDescarregamentoLoteModal()"><i class="fa-solid fa-box-archive me-1"></i> Descarregar Marcados</button>
               ${botaoLoteExcluir}
             </div>
           </div>
@@ -24480,6 +24523,468 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
   };
 
   window.abrirModalDistribuicaoTicket = abrirModalDistribuicaoTicket;
+
+  
+  // =========================================================================
+  // MÓDULO DE DESCARREGAMENTO DEFINITIVO DE MATERIAIS (PROCESSO SEI)
+  // =========================================================================
+
+  function verificarPermissaoDescarregamento() {
+    const perfilUser = ((typeof PERFIL_GLOBAL !== 'undefined' ? PERFIL_GLOBAL : (typeof usuarioSessaoAtual !== 'undefined' && usuarioSessaoAtual ? usuarioSessaoAtual.perfil : "")) || "").trim().toLowerCase();
+    const isAdmin = perfilUser.includes("administrador") || perfilUser.includes("admin");
+    const isChefe = perfilUser.includes("chefe") || perfilUser.includes("respons") || perfilUser.includes("comand");
+    return isAdmin || isChefe;
+  }
+
+  function iniciarDescarregamentoUnitario(itemId, nomeMaterial, patrimonio) {
+    if (!verificarPermissaoDescarregamento()) {
+      Swal.fire('Acesso Restrito', 'Apenas Administradores e Chefes de Unidade / Responsáveis pela carga podem descarregar materiais.', 'error');
+      return;
+    }
+
+    const hoje = new Date().toISOString().split('T')[0];
+
+    const htmlForm = `
+      <div class="text-start">
+        <div class="card p-2.5 bg-light border mb-3">
+          <div class="fw-bold text-primary mb-1">${nomeMaterial || 'Material Selecionado'}</div>
+          <div class="d-flex gap-2 flex-wrap small text-muted">
+            <span><strong>ID Sistema:</strong> ${itemId}</span>
+            <span><strong>Patrimônio:</strong> ${patrimonio || 'S/N'}</span>
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-bold small text-dark mb-1">
+            <i class="fa-solid fa-file-signature text-danger me-1"></i>Nº do Processo SEI de Descarregamento: <span class="text-danger">*</span>
+          </label>
+          <input type="text" class="form-control form-control-sm" id="swalProcSeiDesc" placeholder="Ex: 00000.000000/2026-00" autocomplete="off">
+        </div>
+
+        <div class="row g-2 mb-3">
+          <div class="col-sm-7">
+            <label class="form-label fw-bold small text-dark mb-1">Motivo do Descarregamento:</label>
+            <select class="form-select form-select-sm" id="swalMotivoDesc">
+              <option value="Inservível / Antieconômico">Inservível / Antieconômico</option>
+              <option value="Alienação / Leilão Oficial">Alienação / Leilão Oficial</option>
+              <option value="Sinistro / Perda Definitiva com Sindicância Concluída">Sinistro / Perda Definitiva</option>
+              <option value="Doação Definitiva">Doação Definitiva</option>
+              <option value="Desfazimento Administrativo">Desfazimento Administrativo</option>
+              <option value="Outros">Outros</option>
+            </select>
+          </div>
+          <div class="col-sm-5">
+            <label class="form-label fw-bold small text-dark mb-1">Data de Descarregamento:</label>
+            <input type="date" class="form-control form-control-sm" id="swalDataDesc" value="${hoje}">
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-semibold small text-muted mb-1">Observações / Detalhes Complementares:</label>
+          <textarea class="form-control form-control-sm" id="swalObsDesc" rows="2" placeholder="Detalhes da portaria, boletim ou parecer técnico..."></textarea>
+        </div>
+
+        <div class="alert alert-danger py-2 px-3 small mb-0 d-flex align-items-center">
+          <i class="fa-solid fa-triangle-exclamation text-danger me-2 fs-5 flex-shrink-0"></i>
+          <div>
+            <strong>Ação Definitiva:</strong> O material deixará de constar nas contagens, árvores ativas e checklists, servindo a partir de então apenas para consulta histórica.
+          </div>
+        </div>
+      </div>
+    `;
+
+    Swal.fire({
+      title: '<i class="fa-solid fa-box-archive text-danger me-2"></i>Descarregamento de Material',
+      html: htmlForm,
+      showCancelButton: true,
+      confirmButtonText: '<i class="fa-solid fa-check me-1"></i> Confirmar Descarregamento',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#dc3545',
+      focusConfirm: false,
+      preConfirm: () => {
+        const sei = (document.getElementById('swalProcSeiDesc')?.value || '').trim();
+        const motivo = document.getElementById('swalMotivoDesc')?.value || 'Inservível / Antieconômico';
+        const dataVal = document.getElementById('swalDataDesc')?.value || '';
+        const obs = (document.getElementById('swalObsDesc')?.value || '').trim();
+
+        if (!sei) {
+          Swal.showValidationMessage('Informe o número do Processo SEI de descarregamento.');
+          return false;
+        }
+
+        let dataFormatada = '';
+        if (dataVal) {
+          const parts = dataVal.split('-');
+          if (parts.length === 3) dataFormatada = parts[2] + '/' + parts[1] + '/' + parts[0];
+        }
+
+        return { sei, motivo, dataFormatada, obs };
+      }
+    }).then(res => {
+      if (res.isConfirmed && res.value) {
+        confirmarDescarregamentoExecucao([itemId], res.value.sei, res.value.motivo, res.value.obs, res.value.dataFormatada);
+      }
+    });
+  }
+
+  function iniciarDescarregamentoLoteModal() {
+    if (!verificarPermissaoDescarregamento()) {
+      Swal.fire('Acesso Restrito', 'Apenas Administradores e Chefes de Unidade / Responsáveis pela carga podem descarregar materiais.', 'error');
+      return;
+    }
+
+    const marcados = Array.from(document.querySelectorAll('.check-item-detalhe:checked')).map(cb => cb.value);
+    if (marcados.length === 0) {
+      Swal.fire('Atenção', 'Selecione ao menos um item na tabela para realizar o descarregamento.', 'warning');
+      return;
+    }
+
+    const hoje = new Date().toISOString().split('T')[0];
+
+    const htmlForm = `
+      <div class="text-start">
+        <div class="alert alert-warning py-2 px-3 small mb-3 d-flex align-items-center">
+          <i class="fa-solid fa-boxes-packing text-warning me-2 fs-5 flex-shrink-0"></i>
+          <div>
+            Você selecionou <strong>${marcados.length} material(is)</strong> para descarregamento em lote.
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-bold small text-dark mb-1">
+            <i class="fa-solid fa-file-signature text-danger me-1"></i>Nº do Processo SEI de Descarregamento: <span class="text-danger">*</span>
+          </label>
+          <input type="text" class="form-control form-control-sm" id="swalProcSeiLote" placeholder="Ex: 00000.000000/2026-00" autocomplete="off">
+        </div>
+
+        <div class="row g-2 mb-3">
+          <div class="col-sm-7">
+            <label class="form-label fw-bold small text-dark mb-1">Motivo do Descarregamento:</label>
+            <select class="form-select form-select-sm" id="swalMotivoLote">
+              <option value="Inservível / Antieconômico">Inservível / Antieconômico</option>
+              <option value="Alienação / Leilão Oficial">Alienação / Leilão Oficial</option>
+              <option value="Sinistro / Perda Definitiva com Sindicância Concluída">Sinistro / Perda Definitiva</option>
+              <option value="Doação Definitiva">Doação Definitiva</option>
+              <option value="Desfazimento Administrativo">Desfazimento Administrativo</option>
+              <option value="Outros">Outros</option>
+            </select>
+          </div>
+          <div class="col-sm-5">
+            <label class="form-label fw-bold small text-dark mb-1">Data de Descarregamento:</label>
+            <input type="date" class="form-control form-control-sm" id="swalDataLote" value="${hoje}">
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-semibold small text-muted mb-1">Observações / Detalhes:</label>
+          <textarea class="form-control form-control-sm" id="swalObsLote" rows="2" placeholder="Observações aplicadas aos ${marcados.length} itens..."></textarea>
+        </div>
+
+        <div class="alert alert-danger py-2 px-3 small mb-0 d-flex align-items-center">
+          <i class="fa-solid fa-triangle-exclamation text-danger me-2 fs-5 flex-shrink-0"></i>
+          <div>
+            <strong>Ação Definitiva:</strong> Todos os ${marcados.length} materiais serão descarregados definitivamente e removidos das contagens ativas.
+          </div>
+        </div>
+      </div>
+    `;
+
+    Swal.fire({
+      title: '<i class="fa-solid fa-box-archive text-danger me-2"></i>Descarregamento em Lote',
+      html: htmlForm,
+      showCancelButton: true,
+      confirmButtonText: '<i class="fa-solid fa-check me-1"></i> Descarregar ' + marcados.length + ' Itens',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#dc3545',
+      focusConfirm: false,
+      preConfirm: () => {
+        const sei = (document.getElementById('swalProcSeiLote')?.value || '').trim();
+        const motivo = document.getElementById('swalMotivoLote')?.value || 'Inservível / Antieconômico';
+        const dataVal = document.getElementById('swalDataLote')?.value || '';
+        const obs = (document.getElementById('swalObsLote')?.value || '').trim();
+
+        if (!sei) {
+          Swal.showValidationMessage('Informe o número do Processo SEI de descarregamento.');
+          return false;
+        }
+
+        let dataFormatada = '';
+        if (dataVal) {
+          const parts = dataVal.split('-');
+          if (parts.length === 3) dataFormatada = parts[2] + '/' + parts[1] + '/' + parts[0];
+        }
+
+        return { sei, motivo, dataFormatada, obs };
+      }
+    }).then(res => {
+      if (res.isConfirmed && res.value) {
+        confirmarDescarregamentoExecucao(marcados, res.value.sei, res.value.motivo, res.value.obs, res.value.dataFormatada);
+      }
+    });
+  }
+
+  function abrirModalDescarregamentoDireto(itemPredefinido) {
+    if (!verificarPermissaoDescarregamento()) {
+      Swal.fire('Acesso Restrito', 'Apenas Administradores e Chefes de Unidade / Responsáveis pela carga podem descarregar materiais.', 'error');
+      return;
+    }
+
+    const hoje = new Date().toISOString().split('T')[0];
+
+    const htmlModal = `
+      <div class="text-start">
+        <p class="text-muted small mb-3">
+          Localize o material pelo Código CBMPE, Nº de Tombamento (Patrimônio) ou Nº de Série para registrar o descarregamento definitivo da carga.
+        </p>
+
+        <div class="input-group mb-3">
+          <input type="text" class="form-control" id="inputBuscaMaterialDesc" placeholder="Digite o Código, Patrimônio ou Série..." value="${itemPredefinido || ''}">
+          <button class="btn btn-primary fw-bold" type="button" id="btnBuscarMaterialDesc" onclick="executarBuscaMaterialDescarregamento()">
+            <i class="fa-solid fa-search me-1"></i> Localizar
+          </button>
+        </div>
+
+        <div id="containerResultadoBuscaDesc" class="mb-3" style="display: none; max-height: 200px; overflow-y: auto;">
+          <!-- Tabela de materiais encontrados -->
+        </div>
+
+        <div id="blocoFormularioDesc" style="display: ${itemPredefinido ? 'block' : 'none'};">
+          <div class="mb-3">
+            <label class="form-label fw-bold small text-dark mb-1">
+              <i class="fa-solid fa-file-signature text-danger me-1"></i>Nº do Processo SEI de Descarregamento: <span class="text-danger">*</span>
+            </label>
+            <input type="text" class="form-control form-control-sm" id="swalProcSeiDireto" placeholder="Ex: 00000.000000/2026-00" autocomplete="off">
+          </div>
+
+          <div class="row g-2 mb-3">
+            <div class="col-sm-7">
+              <label class="form-label fw-bold small text-dark mb-1">Motivo do Descarregamento:</label>
+              <select class="form-select form-select-sm" id="swalMotivoDireto">
+                <option value="Inservível / Antieconômico">Inservível / Antieconômico</option>
+                <option value="Alienação / Leilão Oficial">Alienação / Leilão Oficial</option>
+                <option value="Sinistro / Perda Definitiva com Sindicância Concluída">Sinistro / Perda Definitiva</option>
+                <option value="Doação Definitiva">Doação Definitiva</option>
+                <option value="Desfazimento Administrativo">Desfazimento Administrativo</option>
+                <option value="Outros">Outros</option>
+              </select>
+            </div>
+            <div class="col-sm-5">
+              <label class="form-label fw-bold small text-dark mb-1">Data de Descarregamento:</label>
+              <input type="date" class="form-control form-control-sm" id="swalDataDireto" value="${hoje}">
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold small text-muted mb-1">Observações / Detalhes Complementares:</label>
+            <textarea class="form-control form-control-sm" id="swalObsDireto" rows="2" placeholder="Detalhes da publicação ou portaria..."></textarea>
+          </div>
+
+          <div class="alert alert-danger py-2 px-3 small mb-0 d-flex align-items-center">
+            <i class="fa-solid fa-triangle-exclamation text-danger me-2 fs-5 flex-shrink-0"></i>
+            <div>
+              <strong>Atenção:</strong> O descarregamento é definitivo. O material deixará de contabilizar em estoques ativos e checklists.
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    Swal.fire({
+      title: '<i class="fa-solid fa-box-archive text-danger me-2"></i>Descarregamento de Material',
+      html: htmlModal,
+      width: '650px',
+      showCancelButton: true,
+      confirmButtonText: '<i class="fa-solid fa-check me-1"></i> Confirmar Descarregamento',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#dc3545',
+      focusConfirm: false,
+      didOpen: () => {
+        if (itemPredefinido) {
+          executarBuscaMaterialDescarregamento();
+        }
+        const inp = document.getElementById('inputBuscaMaterialDesc');
+        if (inp) {
+          inp.addEventListener('keyup', (e) => {
+            if (e.key === 'Enter') executarBuscaMaterialDescarregamento();
+          });
+        }
+      },
+      preConfirm: () => {
+        const marcados = Array.from(document.querySelectorAll('.check-item-desc-direto:checked')).map(cb => cb.value);
+        if (marcados.length === 0) {
+          Swal.showValidationMessage('Localize e selecione ao menos um material para descarregar.');
+          return false;
+        }
+
+        const sei = (document.getElementById('swalProcSeiDireto')?.value || '').trim();
+        const motivo = document.getElementById('swalMotivoDireto')?.value || 'Inservível / Antieconômico';
+        const dataVal = document.getElementById('swalDataDireto')?.value || '';
+        const obs = (document.getElementById('swalObsDireto')?.value || '').trim();
+
+        if (!sei) {
+          Swal.showValidationMessage('Informe o número do Processo SEI de descarregamento.');
+          return false;
+        }
+
+        let dataFormatada = '';
+        if (dataVal) {
+          const parts = dataVal.split('-');
+          if (parts.length === 3) dataFormatada = parts[2] + '/' + parts[1] + '/' + parts[0];
+        }
+
+        return { itens: marcados, sei, motivo, dataFormatada, obs };
+      }
+    }).then(res => {
+      if (res.isConfirmed && res.value) {
+        confirmarDescarregamentoExecucao(res.value.itens, res.value.sei, res.value.motivo, res.value.obs, res.value.dataFormatada);
+      }
+    });
+  }
+
+  function executarBuscaMaterialDescarregamento() {
+    const input = document.getElementById('inputBuscaMaterialDesc');
+    const container = document.getElementById('containerResultadoBuscaDesc');
+    const blocoForm = document.getElementById('blocoFormularioDesc');
+    const termo = (input ? input.value : '').trim();
+
+    if (!termo) {
+      if (container) {
+        container.style.display = 'block';
+        container.innerHTML = '<div class="alert alert-warning py-1.5 px-3 small mb-0">Digite um código, patrimônio ou série para pesquisar.</div>';
+      }
+      return;
+    }
+
+    if (container) {
+      container.style.display = 'block';
+      container.innerHTML = '<div class="text-center py-3 text-muted small"><i class="fa-solid fa-spinner fa-spin me-2"></i>Buscando material no inventário...</div>';
+    }
+
+    const omeUser = (typeof OME_GLOBAL !== 'undefined' ? OME_GLOBAL : '');
+
+    google.script.run
+      .withSuccessHandler(res => {
+        if (!container) return;
+        if (!res || !res.sucesso || !res.itens || res.itens.length === 0) {
+          container.innerHTML = '<div class="alert alert-warning py-2 px-3 small mb-0">Nenhum material encontrado com o termo informado.</div>';
+          if (blocoForm) blocoForm.style.display = 'none';
+          return;
+        }
+
+        let tabelaHtml = `
+          <table class="table table-sm table-bordered align-middle small mb-0">
+            <thead class="table-light">
+              <tr>
+                <th style="width: 35px;" class="text-center"><input type="checkbox" id="chkTodosDescDireto" onchange="toggleTodosDescDireto(this.checked)" checked></th>
+                <th>Material</th>
+                <th>Patrimônio</th>
+                <th>Local Atual</th>
+                <th>Situação</th>
+              </tr>
+            </thead>
+            <tbody>
+        `;
+
+        let temItemValido = false;
+        res.itens.forEach(it => {
+          const jaDesc = it.jaDescarregado || (String(it.status || '').toUpperCase() === 'DESCARREGADO');
+          const localStr = [it.unidade, it.subunidade, it.setor].filter(Boolean).join(' > ');
+          const disabled = jaDesc || !it.pertenceOme ? 'disabled' : '';
+          const checked = !jaDesc && it.pertenceOme ? 'checked' : '';
+          if (!jaDesc && it.pertenceOme) temItemValido = true;
+
+          let badgeStatus = '<span class="badge bg-success">' + (it.status || 'ECD') + '</span>';
+          if (jaDesc) {
+            badgeStatus = '<span class="badge bg-danger">Já Descarregado</span>';
+          } else if (!it.pertenceOme) {
+            badgeStatus = '<span class="badge bg-secondary">Outra OME</span>';
+          } else if (it.status === 'SCD') {
+            badgeStatus = '<span class="badge bg-danger">SCD</span>';
+          } else if (it.status === 'ACAUTELADO') {
+            badgeStatus = '<span class="badge bg-warning text-dark">Acautelado</span>';
+          }
+
+          tabelaHtml += `
+            <tr class="${jaDesc ? 'table-secondary opacity-75' : ''}">
+              <td class="text-center"><input type="checkbox" class="check-item-desc-direto" value="${it.item}" ${checked} ${disabled}></td>
+              <td><strong>${it.objeto}</strong><div class="text-muted" style="font-size: 0.75rem;">${it.item}</div></td>
+              <td>${it.nPatrimonio || 'S/N'}${it.nSerie ? ' | Série: ' + it.nSerie : ''}</td>
+              <td class="text-truncate" style="max-width: 140px;" title="${localStr}">${localStr || '-'}</td>
+              <td>${badgeStatus}</td>
+            </tr>
+          `;
+        });
+
+        tabelaHtml += '</tbody></table>';
+        container.innerHTML = tabelaHtml;
+
+        if (blocoForm) {
+          blocoForm.style.display = temItemValido ? 'block' : 'none';
+        }
+      })
+      .withFailureHandler(err => {
+        if (container) {
+          container.innerHTML = '<div class="alert alert-danger py-2 px-3 small mb-0">Erro ao buscar material: ' + (err.message || err) + '</div>';
+        }
+      })
+      .buscarItensParaDescarregamento(termo, omeUser);
+  }
+
+  function toggleTodosDescDireto(marcado) {
+    document.querySelectorAll('.check-item-desc-direto:not([disabled])').forEach(cb => {
+      cb.checked = marcado;
+    });
+  }
+
+  function confirmarDescarregamentoExecucao(itens, processoSei, motivo, observacao, dataDescarregamento) {
+    Swal.fire({
+      title: 'Descarregando Material...',
+      html: '<p class="text-muted small">Registrando baixa definitiva e atualizando histórico...</p>',
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading()
+    });
+
+    const payload = {
+      itens: itens,
+      processoSei: processoSei,
+      motivo: motivo,
+      observacao: observacao,
+      dataDescarregamento: dataDescarregamento,
+      usuario: (typeof usuarioSessaoAtual !== 'undefined') ? usuarioSessaoAtual : null
+    };
+
+    google.script.run
+      .withSuccessHandler(res => {
+        if (res && res.sucesso) {
+          Swal.fire({
+            icon: 'success',
+            title: 'Descarregamento Concluído!',
+            html: '<p class="mb-2">' + res.mensagem + '</p>' +
+                  '<div class="badge bg-secondary p-2 small">Processo SEI: <strong>' + res.processoSei + '</strong></div>',
+            confirmButtonColor: '#800000'
+          });
+
+          if (typeof carregarLocaisArvoreGeral === 'function') {
+            carregarLocaisArvoreGeral();
+          }
+          if (typeof carregarDadosDashboardVisaoGeral === 'function') {
+            carregarDadosDashboardVisaoGeral(true);
+          }
+
+          const elModalItens = document.getElementById('modalGerenciamentoCadastroCadItens');
+          if (elModalItens) {
+            const bsModal = bootstrap.Modal.getInstance(elModalItens);
+            if (bsModal) bsModal.hide();
+          }
+        } else {
+          Swal.fire('Erro no Descarregamento', (res && res.erro) || 'Não foi possível concluir o descarregamento.', 'error');
+        }
+      })
+      .withFailureHandler(err => {
+        Swal.fire('Erro no Servidor', err.message || String(err), 'error');
+      })
+      .descarregarMaterial(payload);
+  }
 
   function abrirModalTransferenciaEntreOmes() {
     if (typeof temPermissao === 'function' && !temPermissao('transferir_ome')) {

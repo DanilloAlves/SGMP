@@ -4084,7 +4084,7 @@ function getResumoArvoreArmazenamento(unidadeOme) {
               "SUM(CASE WHEN UPPER(TRIM(STATUS)) = 'EXTRAVIADO' THEN 1 ELSE 0 END) as qtd_extraviado " +
               "FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
               "WHERE UPPER(TRIM(UNIDADE)) IN (" + inSqlOme + ") " +
-              "AND (STATUS IS NULL OR UPPER(TRIM(STATUS)) != 'BAIXADO') " +
+              "AND (STATUS IS NULL OR UPPER(TRIM(STATUS)) NOT IN ('BAIXADO', 'DESCARREGADO')) " +
               "GROUP BY sub_raw, set_raw, loc_raw, objeto_raw " +
               "ORDER BY objeto_raw ASC";
 
@@ -4462,11 +4462,11 @@ function getResumoMaterialSubunidade(unidadeOme) {
               "SUM(CASE WHEN UPPER(TRIM(STATUS)) = 'SCD' THEN 1 ELSE 0 END) as qtd_scd, " +
               "SUM(CASE WHEN UPPER(TRIM(STATUS)) = 'ACAUTELADO' THEN 1 ELSE 0 END) as qtd_acautelado, " +
               "SUM(CASE WHEN UPPER(TRIM(STATUS)) = 'EXTRAVIADO' THEN 1 ELSE 0 END) as qtd_extraviado, " +
-              "SUM(CASE WHEN UPPER(TRIM(COALESCE(STATUS, 'ECD'))) = 'ECD' OR UPPER(TRIM(STATUS)) = '' OR UPPER(TRIM(STATUS)) NOT IN ('SCD', 'ACAUTELADO', 'EXTRAVIADO', 'BAIXADO') THEN 1 ELSE 0 END) as qtd_ecd, " +
+              "SUM(CASE WHEN UPPER(TRIM(COALESCE(STATUS, 'ECD'))) = 'ECD' OR UPPER(TRIM(STATUS)) = '' OR UPPER(TRIM(STATUS)) NOT IN ('SCD', 'ACAUTELADO', 'EXTRAVIADO', 'BAIXADO', 'DESCARREGADO') THEN 1 ELSE 0 END) as qtd_ecd, " +
               "COUNT(*) as qtd_total " +
               "FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
               "WHERE UPPER(TRIM(UNIDADE)) IN (" + inSqlOme + ") " +
-              "AND (STATUS IS NULL OR UPPER(TRIM(STATUS)) != 'BAIXADO') " +
+              "AND (STATUS IS NULL OR UPPER(TRIM(STATUS)) NOT IN ('BAIXADO', 'DESCARREGADO')) " +
               "GROUP BY objeto_raw, sub_raw, set_raw, loc_raw " +
               "ORDER BY objeto_raw ASC";
 
@@ -4845,7 +4845,7 @@ function getResumoMateriaisExtraviadosGeral(unidadeOme) {
               "FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
               "WHERE UPPER(TRIM(UNIDADE)) IN (" + inOmesSql + ") " +
               "AND UPPER(TRIM(OBJETO)) IN (" + inMatsSql + ") " +
-              "AND (STATUS IS NULL OR UPPER(TRIM(STATUS)) != 'BAIXADO') " +
+              "AND (STATUS IS NULL OR UPPER(TRIM(STATUS)) NOT IN ('BAIXADO', 'DESCARREGADO')) " +
               "GROUP BY ome_raw, sub_raw, set_raw, loc_raw, objeto_raw";
 
     var queryResults = executarConsultaBigQuerySegura(sql);
@@ -13794,7 +13794,7 @@ function getItensParaChecklist(omeUsuario, perfilUsuario, omeFiltroAdmin, subuni
     // 2. Consulta BigQuery para obter materiais da OME
     var sql = "SELECT ITEM, OBJETO, UNIDADE, SUBUNIDADE, SETOR, LOCALIZACAO_ESPCIFICA_NA_OME_Se_Necessario, N_PATRIMONIO, STATUS, OBSERVACAO_Mais_detalhes_sobre_a_situacao_do_material " +
               "FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
-              "WHERE (STATUS IS NULL OR (UPPER(TRIM(STATUS)) != 'EXTRAVIADO' AND UPPER(TRIM(STATUS)) != 'ACAUTELADO')) ";
+              "WHERE (STATUS IS NULL OR UPPER(TRIM(STATUS)) NOT IN ('EXTRAVIADO', 'ACAUTELADO', 'BAIXADO', 'DESCARREGADO')) ";
 
     var inOme = (typeof obterVariacoesOmeParaSql_ === 'function') ? obterVariacoesOmeParaSql_(omePadrao) : ("'" + omePadrao.replace(/'/g, "\\'") + "'");
     sql += "AND (UPPER(TRIM(UNIDADE)) IN (" + inOme + ") ";
@@ -16609,6 +16609,258 @@ function registrarHistoricoMovimentacao(eventos) {
   }
 }
 
+// =========================================================================
+// PROCESSO DE DESCARREGAMENTO DEFINITIVO DE MATERIAIS (BAIXA PATRIMONIAL)
+// =========================================================================
+
+function buscarItensParaDescarregamento(termo, omeCliente) {
+  try {
+    var termoLimpo = String(termo || "").trim();
+    if (!termoLimpo) {
+      return { sucesso: false, erro: "Informe um termo de busca (ID do Sistema, Nº Patrimônio ou Nº de Série)." };
+    }
+
+    function limpa(t) { return String(t || '').replace(/'/g, "\\'").trim(); }
+    var termoSql = limpa(termoLimpo);
+
+    var usuario = null;
+    try {
+      var email = Session.getActiveUser().getEmail();
+      if (email) usuario = verificarPermissaoUsuario(email);
+    } catch(e) {}
+    var perfilUser = usuario ? padronizarPerfilUsuario_(usuario.perfil) : "";
+    var ehAdmin = (perfilUser === "Administrador" || perfilUser.toLowerCase().indexOf("admin") !== -1);
+    var omeUser = (usuario && usuario.ome) ? (typeof obterOmePadronizada === 'function' ? obterOmePadronizada(usuario.ome) : usuario.ome).toUpperCase() : (omeCliente || "").toUpperCase();
+
+    var colSerie = (typeof obterColunaSerieInventario_ === 'function') ? obterColunaSerieInventario_() : "N_SERIE";
+    var condSerie = colSerie ? (" OR UPPER(TRIM(`" + colSerie + "`)) = UPPER('" + termoSql + "') ") : "";
+
+    var termos = termoLimpo.split(/[\\s,;]+/).filter(function(t) { return t.length > 0; });
+    var condicoes = [];
+    if (termos.length > 1) {
+      var inTermos = termos.map(function(t) { return "'" + limpa(t.toUpperCase()) + "'"; }).join(",");
+      condicoes.push("UPPER(TRIM(ITEM)) IN (" + inTermos + ")");
+      condicoes.push("UPPER(TRIM(N_PATRIMONIO)) IN (" + inTermos + ")");
+      if (colSerie) condicoes.push("UPPER(TRIM(`" + colSerie + "`)) IN (" + inTermos + ")");
+    } else {
+      condicoes.push("UPPER(TRIM(ITEM)) = UPPER('" + termoSql + "')");
+      condicoes.push("UPPER(TRIM(N_PATRIMONIO)) = UPPER('" + termoSql + "')");
+      if (condSerie) condicoes.push("UPPER(TRIM(`" + colSerie + "`)) = UPPER('" + termoSql + "')");
+    }
+
+    var clausulaFiltro = "(" + condicoes.join(" OR ") + ")";
+
+    var sql = "SELECT ITEM, OBJETO, N_PATRIMONIO, UNIDADE, SUBUNIDADE, SETOR, LOCALIZACAO_ESPCIFICA_NA_OME_Se_Necessario, STATUS, " +
+              (colSerie ? ("`" + colSerie + "`, ") : "CAST(NULL AS STRING), ") +
+              "OBSERVACAO_Mais_detalhes_sobre_a_situacao_do_material " +
+              "FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
+              "WHERE " + clausulaFiltro + " " +
+              "LIMIT 50";
+
+    var res = executarConsultaBigQuerySegura(sql);
+    var rows = res.rows || [];
+    var itens = [];
+
+    for (var i = 0; i < rows.length; i++) {
+      var f = rows[i].f;
+      var unItem = String(f[3].v || "").trim();
+      var unItemPadrao = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(unItem).toUpperCase() : unItem.toUpperCase();
+      var pertenceOme = ehAdmin || (unItemPadrao === omeUser);
+
+      itens.push({
+        item: f[0].v || "",
+        objeto: f[1].v || "",
+        nPatrimonio: f[2].v || "",
+        unidade: unItem,
+        subunidade: f[4].v || "",
+        setor: f[5].v || "",
+        local: f[6].v || "",
+        status: f[7].v || "ECD",
+        nSerie: f[8].v || "",
+        pertenceOme: pertenceOme,
+        jaDescarregado: (String(f[7].v || "").trim().toUpperCase() === "DESCARREGADO")
+      });
+    }
+
+    return {
+      sucesso: true,
+      itens: itens
+    };
+  } catch (err) {
+    return {
+      sucesso: false,
+      erro: err.message || String(err)
+    };
+  }
+}
+
+function descarregarMaterial(payload) {
+  try {
+    if (!payload) throw new Error("Parâmetros do descarregamento não informados.");
+    
+    var itens = payload.itens;
+    if (typeof itens === "string") itens = [itens];
+    if (!itens || !Array.isArray(itens) || itens.length === 0) {
+      throw new Error("Nenhum material selecionado para descarregamento.");
+    }
+    
+    var processoSei = String(payload.processoSei || "").trim();
+    if (!processoSei) {
+      throw new Error("O número do Processo SEI de descarregamento é obrigatório.");
+    }
+
+    var motivo = String(payload.motivo || "Inservível / Antieconômico").trim();
+    var observacao = String(payload.observacao || "").trim();
+    var dataInformada = String(payload.dataDescarregamento || "").trim();
+
+    // 1. Identificação e validação de permissões do usuário
+    var usuario = null;
+    var userPayload = payload.usuario;
+    if (userPayload && (userPayload.cpf || userPayload.email)) {
+      usuario = verificarPermissaoUsuario(userPayload.cpf || userPayload.email);
+    }
+    if (!usuario && userPayload && userPayload.nome) {
+      usuario = userPayload;
+    }
+    if (!usuario) {
+      var email = "";
+      try { email = Session.getActiveUser().getEmail(); } catch (e) {}
+      if (email) usuario = verificarPermissaoUsuario(email);
+    }
+
+    if (!usuario) {
+      throw new Error("Sessão não identificada. Por favor, recarregue a página e efetue login novamente.");
+    }
+
+    var perfilNorm = padronizarPerfilUsuario_(usuario.perfil || "");
+    var ehAdmin = (perfilNorm === "Administrador" || perfilNorm.toLowerCase().indexOf("admin") !== -1);
+    var ehChefe = (perfilNorm.toLowerCase().indexOf("chefe") !== -1 || perfilNorm.toLowerCase().indexOf("respons") !== -1 || perfilNorm.toLowerCase().indexOf("comand") !== -1);
+
+    if (!ehAdmin && !ehChefe) {
+      throw new Error("Acesso negado: Apenas Administradores e Chefes de Unidade / Responsáveis pela carga podem realizar o descarregamento definitivo de materiais.");
+    }
+
+    var omeUser = (usuario.ome ? (typeof obterOmePadronizada === 'function' ? obterOmePadronizada(usuario.ome) : usuario.ome) : "").toUpperCase();
+
+    function limpaSql(t) { return String(t || '').replace(/'/g, "\\'").trim(); }
+    var listaIdsSql = itens.map(function(id) { return "'" + limpaSql(id) + "'"; }).join(",");
+
+    // 2. Busca dados atuais dos itens no inventário para validação de OME e registro
+    var sqlBusca = "SELECT ITEM, OBJETO, N_PATRIMONIO, UNIDADE, SUBUNIDADE, SETOR, LOCALIZACAO_ESPCIFICA_NA_OME_Se_Necessario, STATUS, OBSERVACAO_Mais_detalhes_sobre_a_situacao_do_material " +
+                   "FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
+                   "WHERE ITEM IN (" + listaIdsSql + ")";
+    var resBusca = executarConsultaBigQuerySegura(sqlBusca);
+    var rows = resBusca.rows || [];
+
+    if (rows.length === 0) {
+      throw new Error("Nenhum registro encontrado no inventário para os itens informados.");
+    }
+
+    // Se não for admin, garante que todos os itens pertencem à OME do usuário
+    if (!ehAdmin && omeUser) {
+      for (var r = 0; r < rows.length; r++) {
+        var omeItem = String(rows[r].f[3].v || "").trim().toUpperCase();
+        var omeItemPadrao = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(omeItem).toUpperCase() : omeItem;
+        if (omeItemPadrao !== omeUser) {
+          throw new Error("Acesso negado: O item " + rows[r].f[0].v + " pertence à unidade " + omeItem + " e não à sua OME (" + (usuario.ome || "") + ").");
+        }
+      }
+    }
+
+    // 3. Monta eventos para o histórico de movimentação
+    var agora = new Date();
+    var dataHoraStr = Utilities.formatDate(agora, "America/Recife", "dd/MM/yyyy HH:mm:ss");
+    var dataEvento = dataInformada ? (dataInformada + " " + Utilities.formatDate(agora, "America/Recife", "HH:mm:ss")) : dataHoraStr;
+    var carimboTexto = "[DESCARREGADO em " + (dataInformada || dataHoraStr) + " por " + (usuario.nome || "Usuário") + " (CPF: " + (usuario.cpf || "-") + ") - Proc. SEI: " + processoSei + " - Motivo: " + motivo + (observacao ? " - Obs: " + observacao : "") + "]";
+
+    var eventosHistorico = [];
+    var itensProcessados = [];
+
+    for (var i = 0; i < rows.length; i++) {
+      var f = rows[i].f;
+      var codItem = String(f[0].v || "").trim();
+      var objNome = String(f[1].v || "").trim();
+      var patNum = String(f[2].v || "").trim();
+      var unItem = String(f[3].v || "").trim();
+      var subItem = String(f[4].v || "").trim();
+      var setItem = String(f[5].v || "").trim();
+      var locItem = String(f[6].v || "").trim();
+      var stAtual = String(f[7].v || "ECD").trim().toUpperCase();
+
+      itensProcessados.push(codItem);
+
+      var localOrigemFormatado = [unItem, subItem, setItem, locItem].filter(Boolean).join(" > ");
+      var obsCompletaHist = "Processo SEI: " + processoSei + " | Motivo: " + motivo + (observacao ? " | Detalhes: " + observacao : "");
+
+      eventosHistorico.push({
+        item: codItem,
+        objeto: objNome,
+        nPatrimonio: patNum,
+        tipoEvento: "DESCARREGAMENTO",
+        origemUnidade: unItem,
+        origemLocal: localOrigemFormatado,
+        destinoUnidade: "DESCARREGADO",
+        destinoLocal: "DESCARREGADO",
+        statusAnterior: stAtual,
+        statusNovo: "DESCARREGADO",
+        responsavelNome: (usuario.nome || "") + (usuario.email ? " (" + usuario.email + ")" : ""),
+        responsavelCpf: usuario.cpf || "-",
+        documentoRef: processoSei,
+        observacao: obsCompletaHist,
+        dataHora: dataEvento
+      });
+    }
+
+    // 4. Executa UPDATE no inventário: STATUS = 'DESCARREGADO', carimbo e documento SEI
+    var escCarimbo = limpaSql(carimboTexto);
+    var escSei = limpaSql(processoSei);
+
+    var sqlUpdate = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` SET " +
+                    "  STATUS = 'DESCARREGADO', " +
+                    "  SE_EXTRAVIADO_OU_SCD_N_DOC_SEI = '" + escSei + "', " +
+                    "  OBSERVACAO_Mais_detalhes_sobre_a_situacao_do_material = CONCAT(COALESCE(OBSERVACAO_Mais_detalhes_sobre_a_situacao_do_material, ''), ' \\n" + escCarimbo + "') " +
+                    "WHERE ITEM IN (" + listaIdsSql + ")";
+    executarConsultaBigQuerySegura(sqlUpdate, true);
+
+    // 5. Registra os eventos na tabela de histórico de movimentação
+    registrarHistoricoMovimentacao(eventosHistorico);
+
+    // 6. Invalida caches do sistema
+    try {
+      var cache = CacheService.getScriptCache();
+      cache.remove("BQ_TABELA_HISTORICO_OK");
+      if (omeUser) {
+        cache.remove("ARVORE_ESTRUTURA_" + omeUser.replace(/[^A-Z0-9]/g, "_"));
+        cache.remove("DASH_VISAO_GERAL_V5_" + omeUser.replace(/[^A-Z0-9]/g, "_"));
+      }
+      cache.remove("DASH_VISAO_GERAL_V5_ADMIN");
+    } catch(eCache) {}
+
+    // 7. Registra auditoria do sistema
+    try {
+      registrarLogAuditoria(
+        "DESCARREGAMENTO_MATERIAL",
+        "Descarregamento definitivo de " + itensProcessados.length + " material(is) [" + itensProcessados.slice(0, 5).join(", ") + (itensProcessados.length > 5 ? "..." : "") + "] através do Processo SEI: " + processoSei + " (Motivo: " + motivo + ")",
+        usuario
+      );
+    } catch(eLog) {}
+
+    return {
+      sucesso: true,
+      mensagem: itensProcessados.length + " material(is) descarregado(s) definitivamente com sucesso.",
+      total: itensProcessados.length,
+      itens: itensProcessados,
+      processoSei: processoSei
+    };
+  } catch (err) {
+    console.error("Erro em descarregarMaterial: " + (err.message || String(err)));
+    return {
+      sucesso: false,
+      erro: err.message || String(err)
+    };
+  }
+}
+
 function getHistoricoMovimentacaoItem(codigoOuPatrimonio) {
   try {
     var termo = String(codigoOuPatrimonio || "").trim();
@@ -16894,6 +17146,34 @@ function getHistoricoMovimentacaoItem(codigoOuPatrimonio) {
 
     if (!itemAtual && listaEventos.length === 0) {
       return { sucesso: false, erro: "Material com identificador '" + termo + "' não foi encontrado no inventário nem no histórico." };
+    }
+
+    // Identifica e formata dados de descarregamento definitivo se houver
+    if (itemAtual) {
+      var eventoDesc = null;
+      for (var ed = 0; ed < listaEventos.length; ed++) {
+        if (String(listaEventos[ed].tipoEvento || "").toUpperCase() === "DESCARREGAMENTO") {
+          eventoDesc = listaEventos[ed];
+          break;
+        }
+      }
+      if (eventoDesc) {
+        itemAtual.status = "DESCARREGADO";
+        itemAtual.dataDescarregamento = eventoDesc.dataHora;
+        itemAtual.processoSeiDescarregamento = eventoDesc.documentoRef;
+        itemAtual.motivoDescarregamento = eventoDesc.observacao;
+        itemAtual.responsavelDescarregamento = eventoDesc.responsavelNome;
+      } else if (String(itemAtual.status || "").toUpperCase() === "DESCARREGADO") {
+        if (itemAtual.observacao) {
+          var mDataD = itemAtual.observacao.match(/DESCARREGADO em\s+([^|;\n\r\-]+)/i);
+          if (mDataD && mDataD[1]) itemAtual.dataDescarregamento = mDataD[1].trim();
+          var mSeiD = itemAtual.observacao.match(/Proc\.?\s*SEI:\s*([^|;\n\r\-]+)/i);
+          if (mSeiD && mSeiD[1]) itemAtual.processoSeiDescarregamento = mSeiD[1].trim();
+        }
+        if (!itemAtual.processoSeiDescarregamento && itemAtual.docSeiAcautelado) {
+          itemAtual.processoSeiDescarregamento = itemAtual.docSeiAcautelado;
+        }
+      }
     }
 
     return {
@@ -18179,6 +18459,7 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao, omeCliente, perfilClie
               "  COUNT(1) as QTD " +
               "FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
               "WHERE OBJETO IS NOT NULL AND TRIM(OBJETO) != '' " +
+              "  AND (STATUS IS NULL OR UPPER(TRIM(STATUS)) NOT IN ('BAIXADO', 'DESCARREGADO')) " +
               filtroOmeSql +
               "GROUP BY 1, 2, 3 " +
               "ORDER BY OME ASC, OBJETO ASC";
