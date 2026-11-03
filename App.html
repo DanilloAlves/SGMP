@@ -10188,7 +10188,8 @@
   // ============================================================================
   // B. RECARREGAMENTO DAS PRATELEIRAS E MATERIAIS DA OME (PARALELISMO)
   // ============================================================================
-window.carregarLocaisArvoreGeral = function() {
+window.carregarLocaisArvoreGeral = function(forcarAtualizacao) {
+    const forcar = Boolean(forcarAtualizacao);
     const selOme = document.getElementById('selectOmeArvore');
     const containerMaterial = document.getElementById('listaMateriaisCheckboxes');
     const arvoreContainer = document.getElementById('arvoreContainer'); 
@@ -10238,7 +10239,7 @@ window.carregarLocaisArvoreGeral = function() {
       }
 
       window._cacheArmazenamentoOme = window._cacheArmazenamentoOme || {};
-      if (!forcarAtualizacao && window._cacheArmazenamentoOme[omeEfetiva]) {
+      if (!forcar && window._cacheArmazenamentoOme[omeEfetiva]) {
         const cached = window._cacheArmazenamentoOme[omeEfetiva];
         window.estoqueDetalhadoOME = cached.materiais || [];
         materiaisUnidadeLocais = window.estoqueDetalhadoOME.map(m => typeof m === 'object' ? (m.nome || m) : m);
@@ -10284,7 +10285,7 @@ window.carregarLocaisArvoreGeral = function() {
           if (containerMaterial) containerMaterial.innerHTML = '<span class="text-danger small">Falha ao buscar estoque.</span>';
           if (arvoreContainer) arvoreContainer.innerHTML = '<div class="alert alert-danger mt-3">Erro ao sincronizar com o banco de dados: ' + (err.message || err) + '</div>';
         })
-        .carregarDadosArmazenamentoCompleto(omeEfetiva, !!forcarAtualizacao);
+        .carregarDadosArmazenamentoCompleto(omeEfetiva, forcar);
     }
   };
 

@@ -16092,12 +16092,7 @@ function sincronizarTicketsAprovadosPendentesDePlanDist_() {
 
 function getTicketsDoacaoPendentes(omeFiltro, exibirHistorico) {
   try {
-    // Sincroniza retroativamente doações aprovadas pendentes de integração
-    try {
-      sincronizarTicketsAprovadosPendentesDePlanDist_();
-    } catch (eSync) {
-      console.warn("Aviso ao rodar auto-sync de doações aprovadas: " + eSync.message);
-    }
+    // Sincronização em segundo plano/sob demanda para prevenir DEADLINE_EXCEEDED
 
     var aba = getAbaTicketsDoacao_();
     if (!aba || aba.getLastRow() <= 1) return [];
