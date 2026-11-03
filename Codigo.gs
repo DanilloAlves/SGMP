@@ -533,18 +533,21 @@ function getDadosIniciais(identificadorCliente) {
 
 
 
+    var catDadosIniciais = null;
+    try {
+      catDadosIniciais = (typeof obterMapaCatalogoClasses_ === 'function') ? obterMapaCatalogoClasses_() : null;
+    } catch(eCatInit) {}
+
     return { 
-
       setores: limparLista(locais),
-
       materiais: materiais,
-
       unidades: limparLista(unidades),
-
       subunidades: limparLista(secoes),
-
-      postos: limparLista(postos)
-
+      postos: limparLista(postos),
+      listaClasses1: (catDadosIniciais && catDadosIniciais.listaClasses1) ? catDadosIniciais.listaClasses1 : [],
+      listaClasses2: (catDadosIniciais && catDadosIniciais.listaClasses2) ? catDadosIniciais.listaClasses2 : [],
+      listaClasses3: (catDadosIniciais && catDadosIniciais.listaClasses3) ? catDadosIniciais.listaClasses3 : [],
+      mapaCatalogo: (catDadosIniciais && catDadosIniciais.mapa) ? catDadosIniciais.mapa : {}
     };
 
   } catch (err) {
@@ -1042,6 +1045,34 @@ function pesquisarNoBigQuery(filtros) {
       if (filtros.postoGrad && filtros.postoGrad !== "") baseSqlWhere += " AND SE_ACAUTELADO_POSTO_GRAD = '" + limpaSQL(filtros.postoGrad) + "'";
       if (filtros.nomeAcautelado && filtros.nomeAcautelado.trim() !== "") baseSqlWhere += " AND LOWER(SE_ACAUTELADO_NOME_COMPLETO) LIKE LOWER('%" + limpaSQL(filtros.nomeAcautelado) + "%')";
       if (filtros.cpfAcautelado && filtros.cpfAcautelado.trim() !== "") baseSqlWhere += " AND SE_ACAUTELADO_CPF = '" + limpaSQL(filtros.cpfAcautelado) + "'";
+
+      var cl1 = (filtros.classe1 && filtros.classe1 !== "TODAS") ? String(filtros.classe1).trim() : "";
+      var cl2 = (filtros.classe2 && filtros.classe2 !== "TODAS") ? String(filtros.classe2).trim() : "";
+      var cl3 = (filtros.classe3 && filtros.classe3 !== "TODAS") ? String(filtros.classe3).trim() : "";
+
+      if (cl1 || cl2 || cl3) {
+        var catDadosPesq = (typeof obterMapaCatalogoClasses_ === 'function') ? obterMapaCatalogoClasses_() : null;
+        var mapaClassesPesq = catDadosPesq ? (catDadosPesq.mapa || {}) : {};
+        var objetosDaClasse = [];
+
+        for (var matNome in mapaClassesPesq) {
+          if (matNome.indexOf("_CLEAN_") === 0) continue;
+          var itemInfo = mapaClassesPesq[matNome];
+          if (!itemInfo) continue;
+          var matchC1 = !cl1 || String(itemInfo.classe1 || "").trim().toUpperCase() === cl1.toUpperCase();
+          var matchC2 = !cl2 || String(itemInfo.classe2 || "").trim().toUpperCase() === cl2.toUpperCase();
+          var matchC3 = !cl3 || String(itemInfo.classe3 || "").trim().toUpperCase() === cl3.toUpperCase();
+          if (matchC1 && matchC2 && matchC3) {
+            objetosDaClasse.push("'" + limpaSQL(matNome) + "'");
+          }
+        }
+
+        if (objetosDaClasse.length > 0) {
+          baseSqlWhere += " AND UPPER(TRIM(OBJETO)) IN (" + objetosDaClasse.join(",") + ")";
+        } else {
+          baseSqlWhere += " AND 1=0";
+        }
+      }
     }
 
     // 1. Descobre o total geral de registros correspondentes ao filtro
@@ -1064,6 +1095,8 @@ function pesquisarNoBigQuery(filtros) {
     var queryResults = executarConsultaBigQuerySegura(sqlData);
     var rows = queryResults.rows || [];
     var resultados = [];
+    var catDadosRow = (typeof obterMapaCatalogoClasses_ === 'function') ? obterMapaCatalogoClasses_() : null;
+    var mapaCatRow = catDadosRow ? (catDadosRow.mapa || {}) : {};
 
     rows.forEach(function(r) {
       var nSerieVal = (r.f[18] && r.f[18].v) ? String(r.f[18].v) : "";
@@ -1078,7 +1111,10 @@ function pesquisarNoBigQuery(filtros) {
         subunidade: r.f[8].v || "", setor: r.f[9].v || "", postoGrad: r.f[10].v || "", nomeAcautelado: r.f[11].v || "",
         cpfAcautelado: r.f[12].v || "", docSeiAcautelado: r.f[13].v || "", docSeiExtraviado: r.f[14].v || "",
         linkFoto: r.f[15].v || "", observacao: obsVal, seiCompra: r.f[17].v || "",
-        nSerie: nSerieVal
+        nSerie: nSerieVal,
+        classe1: (mapaCatRow[String(r.f[1].v || '').trim().toUpperCase()] || {}).classe1 || "",
+        classe2: (mapaCatRow[String(r.f[1].v || '').trim().toUpperCase()] || {}).classe2 || "",
+        classe3: (mapaCatRow[String(r.f[1].v || '').trim().toUpperCase()] || {}).classe3 || ""
       });
     });
 

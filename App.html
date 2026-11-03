@@ -2638,6 +2638,18 @@
             </select>
           </div>
           <div class="col-md-3">
+            <label class="form-label small fw-bold mb-1"><i class="fa-solid fa-layer-group text-primary me-1"></i>Filtrar por Classe 1:</label>
+            <select class="form-select form-select-sm" id="filtroBaseClasse1" onchange="aoMudarClasse1FiltrosBase()">
+              <option value="">Todas as Classes 1</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small fw-bold mb-1"><i class="fa-solid fa-tags text-primary me-1"></i>Filtrar por Classe 2:</label>
+            <select class="form-select form-select-sm" id="filtroBaseClasse2" onchange="carregarDadosTabelaBaseAdmin()">
+              <option value="">Todas as Classes 2</option>
+            </select>
+          </div>
+          <div class="col-md-3">
             <label class="form-label small fw-bold mb-1">Filtrar por Material:</label>
             <select class="form-select form-select-sm" id="filtroBaseMaterial" onchange="carregarDadosTabelaBaseAdmin()">
               <option value="">Todos os Materiais</option>
@@ -2653,12 +2665,15 @@
               <option value="ACAUTELADO">Acautelado</option>
             </select>
           </div>
-          <div class="col-md-4">
+          <div class="col-md-8">
             <label class="form-label small fw-bold mb-1">Busca Geral (ID, Patrimônio, SEI, etc):</label>
             <input type="text" class="form-control form-control-sm" id="filtroBaseTermo" placeholder="Digite para buscar..." onkeyup="if(event.key === 'Enter') carregarDadosTabelaBaseAdmin()">
           </div>
           <div class="col-md-2 d-flex align-items-end">
-            <button class="btn btn-dark btn-sm w-100 fw-bold" onclick="carregarDadosTabelaBaseAdmin()">Filtrar</button>
+            <button class="btn btn-outline-secondary btn-sm w-100 fw-bold" onclick="limparFiltrosBase()"><i class="fa-solid fa-filter-circle-xmark me-1"></i> Limpar</button>
+          </div>
+          <div class="col-md-2 d-flex align-items-end">
+            <button class="btn btn-dark btn-sm w-100 fw-bold" onclick="carregarDadosTabelaBaseAdmin()"><i class="fa-solid fa-magnifying-glass me-1"></i> Filtrar</button>
           </div>
         </div>
 
@@ -12693,8 +12708,23 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao) {
     }
 
     google.script.run.withSuccessHandler(dados => {
-      if (dados && dados.materiais) {
-        selMat.innerHTML = '<option value="">Todos os Materiais</option>' + dados.materiais.map(m => `<option value="${m.nome || m}">${m.nome || m}</option>`).join('');
+      if (dados) {
+        if (dados.materiais) {
+          window._todosMateriaisBase = dados.materiais || [];
+          selMat.innerHTML = '<option value="">Todos os Materiais</option>' + dados.materiais.map(m => `<option value="${m.nome || m}">${m.nome || m}</option>`).join('');
+        }
+        window._listaClasses1Base = dados.listaClasses1 || [];
+        window._listaClasses2Base = dados.listaClasses2 || [];
+        window._mapaCatalogoClassesBase = dados.mapaCatalogo || {};
+
+        const selC1 = document.getElementById('filtroBaseClasse1');
+        if (selC1) {
+          selC1.innerHTML = '<option value="">Todas as Classes 1</option>' + (dados.listaClasses1 || []).map(c => `<option value="${c}">${c}</option>`).join('');
+        }
+        const selC2 = document.getElementById('filtroBaseClasse2');
+        if (selC2) {
+          selC2.innerHTML = '<option value="">Todas as Classes 2</option>' + (dados.listaClasses2 || []).map(c => `<option value="${c}">${c}</option>`).join('');
+        }
       }
       aoMudarOmeFiltrosBase();
     }).getDadosIniciais(usuarioSessaoAtual);
@@ -12844,6 +12874,49 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao) {
     return `<span class="badge bg-secondary">${status || '-'}</span>`;
   }
 
+  function aoMudarClasse1FiltrosBase() {
+    const c1Val = document.getElementById('filtroBaseClasse1')?.value || '';
+    const selC2 = document.getElementById('filtroBaseClasse2');
+    if (selC2 && window._listaClasses2Base) {
+      if (!c1Val) {
+        selC2.innerHTML = '<option value="">Todas as Classes 2</option>' + window._listaClasses2Base.map(c => `<option value="${c}">${c}</option>`).join('');
+      } else {
+        const setC2 = new Set();
+        if (window._mapaCatalogoClassesBase) {
+          for (let m in window._mapaCatalogoClassesBase) {
+            const info = window._mapaCatalogoClassesBase[m];
+            if (info && info.classe1 === c1Val && info.classe2 && info.classe2 !== 'OUTROS') {
+              setC2.add(info.classe2);
+            }
+          }
+        }
+        const arrC2 = Array.from(setC2).sort();
+        selC2.innerHTML = '<option value="">Todas as Classes 2</option>' + (arrC2.length > 0 ? arrC2 : window._listaClasses2Base).map(c => `<option value="${c}">${c}</option>`).join('');
+      }
+    }
+    carregarDadosTabelaBaseAdmin();
+  }
+
+  function limparFiltrosBase() {
+    const elCl1 = document.getElementById('filtroBaseClasse1');
+    const elCl2 = document.getElementById('filtroBaseClasse2');
+    const elMat = document.getElementById('filtroBaseMaterial');
+    const elStatus = document.getElementById('filtroBaseStatus');
+    const elSub = document.getElementById('filtroBaseSubunidade');
+    const elSet = document.getElementById('filtroBaseSetor');
+    const elLoc = document.getElementById('filtroBaseLocal');
+    const elTermo = document.getElementById('filtroBaseTermo');
+    if (elCl1) elCl1.value = "";
+    if (elCl2) elCl2.value = "";
+    if (elMat) elMat.value = "";
+    if (elStatus) elStatus.value = "";
+    if (elSub) elSub.value = "";
+    if (elSet) elSet.value = "";
+    if (elLoc) elLoc.value = "";
+    if (elTermo) elTermo.value = "";
+    carregarDadosTabelaBaseAdmin();
+  }
+
   function carregarDadosTabelaBaseAdmin(resetarPagina = true) {
     if (resetarPagina) paginaAtualBase = 1;
 
@@ -12861,6 +12934,8 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao) {
       subunidade: document.getElementById('filtroBaseSubunidade').value,
       setor: document.getElementById('filtroBaseSetor').value,
       localArmazenamento: document.getElementById('filtroBaseLocal').value,
+      classe1: document.getElementById('filtroBaseClasse1')?.value || '',
+      classe2: document.getElementById('filtroBaseClasse2')?.value || '',
       selectMaterial: document.getElementById('filtroBaseMaterial').value,
       statusConservacao: valorStatus,
       status: valorStatus,
@@ -12899,12 +12974,13 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao) {
           const serieItem = extrairSerieItem(r);
           const objetoVisual = formatarDescricaoViaturaVisual(r.objeto, serieItem);
           const badgeSerie = serieItem ? `<br><span class="badge bg-light text-dark border">SÉRIE: ${serieItem}</span>` : '';
+          const badgeClasse = r.classe2 ? `<br><span class="badge bg-light text-primary border border-primary-subtle" style="font-size: 0.68rem;" title="Classe 1: ${r.classe1 || '-'}\\nClasse 2: ${r.classe2}"><i class="fa-solid fa-layer-group me-1"></i>${r.classe2}</span>` : (r.classe1 ? `<br><span class="badge bg-light text-secondary border" style="font-size: 0.68rem;">${r.classe1}</span>` : '');
 
           html += `
             <tr>
               <td class="text-center"><input type="checkbox" class="check-item-base" value="${r.item}" onchange="atualizarContadorSelecaoBase()"></td>
               <td><span class="badge bg-secondary" style="cursor:pointer;" onclick="abrirModalHistoricoItem('${r.item}')" title="Clique para ver o histórico de movimentações">${r.item}</span></td>
-              <td class="fw-bold">${objetoVisual}</td>
+              <td class="fw-bold">${objetoVisual}${badgeClasse}</td>
               <td>${unidadeOficial || '-'}</td>
               <td><small>${localFormatado}</small></td> <!-- EXIBE O CAMINHO COMPLETO AQUI -->
               <td>${formatarBadgeStatusBase(r.status)}</td>
@@ -18068,6 +18144,8 @@ function exportarDadosBaseExcel() {
     subunidade: document.getElementById('filtroBaseSubunidade').value,
     setor: document.getElementById('filtroBaseSetor').value,
     localArmazenamento: document.getElementById('filtroBaseLocal').value,
+    classe1: document.getElementById('filtroBaseClasse1')?.value || '',
+    classe2: document.getElementById('filtroBaseClasse2')?.value || '',
     selectMaterial: document.getElementById('filtroBaseMaterial').value,
     statusConservacao: valorStatus,
     status: valorStatus,
