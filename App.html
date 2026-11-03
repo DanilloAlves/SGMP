@@ -5745,11 +5745,12 @@
     document.querySelectorAll('.nomeOmeVisaoAdmin').forEach(el => el.innerText = (nomeOme && nomeOme !== 'DLOG' && nomeOme !== 'CINT' ? nomeOme : 'CBMPE'));
 
     carregarPainelVisaoGeralAdmin();
-    carregarAlertaConsumoCriticoVisaoGeral();
-    carregarAlertaExtraviadosVisaoGeral();
-    if (typeof carregarListaTicketsMateriaisPendentes === 'function') carregarListaTicketsMateriaisPendentes();
-    if (typeof carregarListaTicketsAcessosPendentes === 'function') carregarListaTicketsAcessosPendentes();
-    if (typeof carregarListaTicketsDoacoesPendentes === 'function') carregarListaTicketsDoacoesPendentes();
+    // Escalonamento sequencial inteligente para prevenir concorrência e erro DEADLINE_EXCEEDED
+    setTimeout(() => { if (typeof carregarAlertaConsumoCriticoVisaoGeral === 'function') carregarAlertaConsumoCriticoVisaoGeral(); }, 100);
+    setTimeout(() => { if (typeof carregarAlertaExtraviadosVisaoGeral === 'function') carregarAlertaExtraviadosVisaoGeral(); }, 350);
+    setTimeout(() => { if (typeof carregarListaTicketsMateriaisPendentes === 'function') carregarListaTicketsMateriaisPendentes(); }, 600);
+    setTimeout(() => { if (typeof carregarListaTicketsAcessosPendentes === 'function') carregarListaTicketsAcessosPendentes(); }, 850);
+    setTimeout(() => { if (typeof carregarListaTicketsDoacoesPendentes === 'function') carregarListaTicketsDoacoesPendentes(); }, 1100);
   }
   window.carregarVisaoGeralAdmin = carregarVisaoGeralAdmin;
 
@@ -5840,7 +5841,7 @@
   // =========================================================================
   // ALERTA DE MATERIAIS DE CONSUMO EM NÍVEL CRÍTICO NA VISÃO GERAL
   // =========================================================================
-  function carregarAlertaConsumoCriticoVisaoGeral() {
+  function carregarAlertaConsumoCriticoVisaoGeral(tentativa = 1) {
     const perfilNorm = (PERFIL_GLOBAL || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
     const omeNorm = (OME_GLOBAL || "").trim().toUpperCase();
     const ehCorporativo = perfilNorm.includes("admin") || omeNorm === "DLOG" || omeNorm === "CINT";
@@ -6082,7 +6083,7 @@
 
   let dadosExtraviadosVisaoCache = [];
 
-  function carregarAlertaExtraviadosVisaoGeral(forcar) {
+  function carregarAlertaExtraviadosVisaoGeral(forcar, tentativa = 1) {
     const perfilNorm = (PERFIL_GLOBAL || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
     const omeNorm = (OME_GLOBAL || "").trim().toUpperCase();
     const ehCorporativo = perfilNorm.includes("admin") || omeNorm === "DLOG" || omeNorm === "CINT";
@@ -15145,7 +15146,7 @@ function renderizarTimelineEmElemento(dados, ids) {
     }
   }
 
-  function carregarListaTicketsDoacoesPendentes() {
+  function carregarListaTicketsDoacoesPendentes(tentativa = 1) {
     const bloco = document.getElementById('blocoTicketsDoacoesPendentes');
     const corpo = document.getElementById('corpoTabelaTicketsDoacoes');
     const contador = document.getElementById('contadorTicketsDoacoes');
@@ -15226,7 +15227,15 @@ function renderizarTimelineEmElemento(dados, ids) {
         html += `</tbody></table></div>`;
         corpo.innerHTML = html;
       })
-      .withFailureHandler(err => console.error("Erro ao carregar tickets de doação: ", err))
+      .withFailureHandler(err => {
+        const msg = String(err && (err.message || err));
+        if ((msg.includes("DEADLINE_EXCEEDED") || msg.includes("armazenamento")) && tentativa <= 2) {
+          console.warn("Aviso: Instabilidade temporária ao carregar tickets de doação. Retentando em " + (tentativa * 1200) + "ms...");
+          setTimeout(() => carregarListaTicketsDoacoesPendentes(tentativa + 1), tentativa * 1200);
+          return;
+        }
+        console.error("Erro ao carregar tickets de doação: ", err);
+      })
       .getTicketsDoacaoPendentes();
   }
 
@@ -15448,7 +15457,7 @@ function renderizarTimelineEmElemento(dados, ids) {
     tbody.innerHTML = html;
   }
 
-  function carregarDoacoesPendentesRecebimento(forcarAtualizacao = false) {
+  function carregarDoacoesPendentesRecebimento(forcarAtualizacao = false, tentativa = 1) {
     const bloco = document.getElementById('blocoDoacoesChefeRecebimento');
     const tbody = document.getElementById('tabelaDoacoesRecebimentoChefe');
     if (!bloco || !tbody) return;
@@ -15466,6 +15475,12 @@ function renderizarTimelineEmElemento(dados, ids) {
         renderizarTabelaDoacoesRecebimento(cacheDoacoesRecebimento);
       })
       .withFailureHandler(err => {
+        const msg = String(err && (err.message || err));
+        if ((msg.includes("DEADLINE_EXCEEDED") || msg.includes("armazenamento")) && tentativa <= 2) {
+          console.warn("Aviso: Instabilidade temporária ao carregar doações em Recebimento. Retentando em " + (tentativa * 1200) + "ms...");
+          setTimeout(() => carregarDoacoesPendentesRecebimento(forcarAtualizacao, tentativa + 1), tentativa * 1200);
+          return;
+        }
         console.error("Erro ao carregar doações na aba Recebimento: ", err);
         if (bloco && !exibirHistoricoDoacoesRecebimento && (!cacheDoacoesRecebimento || cacheDoacoesRecebimento.length === 0)) {
           bloco.style.display = 'none';
@@ -17039,7 +17054,7 @@ function renderizarTimelineEmElemento(dados, ids) {
     });
   }
 
-  function carregarListaTicketsMateriaisPendentes() {
+  function carregarListaTicketsMateriaisPendentes(tentativa = 1) {
     const bloco = document.getElementById('blocoTicketsMateriaisProvisorios');
     const corpo = document.getElementById('corpoTabelaTicketsMateriais');
     const contador = document.getElementById('contadorTicketsProvisorios');
@@ -17087,6 +17102,15 @@ function renderizarTimelineEmElemento(dados, ids) {
 
         html += `</tbody></table></div>`;
         corpo.innerHTML = html;
+      })
+      .withFailureHandler(err => {
+        const msg = String(err && (err.message || err));
+        if ((msg.includes("DEADLINE_EXCEEDED") || msg.includes("armazenamento")) && tentativa <= 2) {
+          console.warn("Aviso: Instabilidade temporária ao carregar materiais provisórios. Retentando...");
+          setTimeout(() => carregarListaTicketsMateriaisPendentes(tentativa + 1), tentativa * 1200);
+          return;
+        }
+        console.error("Erro ao carregar tickets de materiais provisórios:", err);
       })
       .getTicketsMateriaisPendentes();
   }
@@ -23170,7 +23194,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     return html;
   }
 
-  function carregarListaTicketsAcessosPendentes() {
+  function carregarListaTicketsAcessosPendentes(tentativa = 1) {
     const perfil = (typeof PERFIL_GLOBAL !== 'undefined' ? PERFIL_GLOBAL : (usuarioSessaoAtual ? usuarioSessaoAtual.perfil : "")).trim();
     const ome = (typeof OME_GLOBAL !== 'undefined' ? OME_GLOBAL : (usuarioSessaoAtual ? usuarioSessaoAtual.ome : "")).trim().toUpperCase();
     const ehAdmin = typeof ehAdminGlobal === 'function' ? ehAdminGlobal() : perfil.toLowerCase().includes("admin");
@@ -23212,6 +23236,11 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
         }
       })
       .withFailureHandler(err => {
+        const msg = String(err && (err.message || err));
+        if ((msg.includes("DEADLINE_EXCEEDED") || msg.includes("armazenamento")) && tentativa <= 2) {
+          setTimeout(() => carregarListaTicketsAcessosPendentes(tentativa + 1), tentativa * 1200);
+          return;
+        }
         console.error("Erro ao carregar tickets de acessos pendentes:", err);
       })
       .getTicketsAcessoPendentes(filtroOmeSol, perfilSol);

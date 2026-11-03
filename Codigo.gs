@@ -35,6 +35,68 @@ var ABA_LOCAIS_ARMAZENAMENTO = "Arvore"; // Aba exclusiva para a árvore hierár
 
 
 // =========================================================================
+// OTIMIZAÇÃO DE LEITURA E RESILIÊNCIA CONTRA DEADLINE_EXCEEDED
+// =========================================================================
+
+var _cachePlanilhasAbertas_ = {};
+
+function abrirPlanilhaSegura_(idPlanilha) {
+  if (!idPlanilha) throw new Error("ID da planilha não informado.");
+  if (_cachePlanilhasAbertas_[idPlanilha]) {
+    return _cachePlanilhasAbertas_[idPlanilha];
+  }
+  var maxTentativas = 4;
+  for (var tentativa = 1; tentativa <= maxTentativas; tentativa++) {
+    try {
+      var ss = SpreadsheetApp.openById(idPlanilha);
+      _cachePlanilhasAbertas_[idPlanilha] = ss;
+      return ss;
+    } catch (e) {
+      var msg = String(e && e.message ? e.message : e);
+      var ehDeadline = msg.indexOf("DEADLINE_EXCEEDED") !== -1 || 
+                       msg.indexOf("armazenamento") !== -1 || 
+                       msg.indexOf("storage") !== -1 || 
+                       msg.indexOf("timed out") !== -1 ||
+                       msg.indexOf("Service invoked too many times") !== -1;
+      if (ehDeadline && tentativa < maxTentativas) {
+        console.warn("Aviso: Falha temporária ao abrir planilha (" + idPlanilha + ") na tentativa " + tentativa + " de " + maxTentativas + ": " + msg + ". Retentando em breve...");
+        Utilities.sleep(1000 * tentativa);
+        continue;
+      }
+      throw e;
+    }
+  }
+}
+
+function obterValoresAbaSegura_(sheet, startRow, startCol, numRows, numCols) {
+  if (!sheet) return [];
+  var maxTentativas = 3;
+  for (var tentativa = 1; tentativa <= maxTentativas; tentativa++) {
+    try {
+      if (startRow && numRows) {
+        return sheet.getRange(startRow, startCol || 1, numRows, numCols || sheet.getLastColumn()).getValues();
+      }
+      return sheet.getDataRange().getValues();
+    } catch (e) {
+      var msg = String(e && e.message ? e.message : e);
+      var ehDeadline = msg.indexOf("DEADLINE_EXCEEDED") !== -1 || 
+                       msg.indexOf("armazenamento") !== -1 || 
+                       msg.indexOf("storage") !== -1 || 
+                       msg.indexOf("timed out") !== -1;
+      if (ehDeadline && tentativa < maxTentativas) {
+        console.warn("Aviso: DEADLINE_EXCEEDED ao ler aba " + sheet.getName() + " na tentativa " + tentativa + ". Retentando...");
+        Utilities.sleep(800 * tentativa);
+        continue;
+      }
+      throw e;
+    }
+  }
+  return [];
+}
+
+
+
+// =========================================================================
 
 // CONTROLE DE SESSÃO E LOGIN (DOGET)
 
@@ -278,7 +340,7 @@ function verificarPermissaoUsuario(emailOuCpfInformado) {
 
     // SEMPRE consulta diretamente a tabela de Logins (sem CacheService persistente),
     // garantindo que alterações de perfil/OME/status/permissões na planilha sejam reconhecidas em tempo real.
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_USUARIOS);
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_USUARIOS);
     var sheet = ss.getSheetByName(ABA_USUARIOS); 
     if (!sheet) return null;
 
@@ -454,7 +516,7 @@ function getDadosIniciais(identificadorCliente) {
 
 
 
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
 
     var sheet = ss.getSheetByName(ABA_LOCAIS);
 
@@ -858,7 +920,7 @@ function obterColunaSerieInventario_() {
 
 function registrarEntradaEstoque(dados) {
   if (dados.isNovoMaterial && dados.material) {
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
     var sheet = ss.getSheetByName(ABA_LOCAIS) || ss.getSheets()[0];
     var colunaB = sheet.getRange("B:B").getValues();
     var proximaLinhaVaziaB = 1;
@@ -967,7 +1029,7 @@ function registrarEntradaEstoque(dados) {
 
   } catch (errIns) {
     try {
-      var ssAux = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+      var ssAux = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
       var sheetContingencia = ssAux.getSheetByName("Contingencia_Inserts") || ssAux.insertSheet("Contingencia_Inserts");
       sheetContingencia.appendRow([new Date(), JSON.stringify(dados)]);
     } catch (ex) {}
@@ -1879,7 +1941,7 @@ function getArvoreLocais(unidadeOmega) {
 
     var omePadrao = obterOmePadronizada(unidadeOmega); // APLICA O TRADUTOR
 
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
 
     var sheet = ss.getSheetByName(ABA_LOCAIS_ARMAZENAMENTO);
 
@@ -1987,7 +2049,7 @@ function adicionarLocalNaArvore(dadosLocal) {
       }
     }
 
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
     var sheet = ss.getSheetByName(ABA_LOCAIS_ARMAZENAMENTO);
 
     if (!sheet) {
@@ -2073,7 +2135,7 @@ function excluirLocalDaArvore(idLocal) {
       }
     }
 
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
     var sheet = ss.getSheetByName(ABA_LOCAIS_ARMAZENAMENTO);
 
     if (!sheet) return "Aba não encontrada.";
@@ -2132,7 +2194,7 @@ function vistarEAtrelarMateriaisAoLocal(idLocal, nomeLocal, itensDistribuicao) {
       throw new Error("Nenhum material informado para atrelar.");
     }
 
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
     var sheet = ss.getSheetByName(ABA_LOCAIS_ARMAZENAMENTO);
     if (!sheet) throw new Error("Aba de locais não encontrada.");
 
@@ -2244,7 +2306,7 @@ function atualizarPaiLocalArvore(idLocal, novoIdPai) {
       }
     }
 
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
     var sheet = ss.getSheetByName(ABA_LOCAIS_ARMAZENAMENTO);
 
     if (!sheet) return "Aba não encontrada.";
@@ -2422,7 +2484,7 @@ function atualizarPaiLocalArvore(idLocal, novoIdPai) {
 function garantirSedePadraoOme(ome) {
   try {
     var omePadrao = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(ome) : String(ome || "").trim();
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
     var sheet = ss.getSheetByName(ABA_LOCAIS_ARMAZENAMENTO);
     if (!sheet) return null;
 
@@ -2475,7 +2537,7 @@ function getMateriaisAtreladosPorLocal(unidadeOmega) {
 
     var idSedeOficial = garantirSedePadraoOme(omePadrao);
 
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
     var sheetArvore = ss.getSheetByName(ABA_LOCAIS_ARMAZENAMENTO);
     var mapaNomesLocais = {}; 
     var mapaNos = {};
@@ -2743,7 +2805,7 @@ function transferirMaterialEntreLocais(dadosTransferencia) {
 
 
 
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
 
     var sheetArvore = ss.getSheetByName(ABA_LOCAIS_ARMAZENAMENTO);
 
@@ -3165,10 +3227,15 @@ function getResumoOmesComTotais() {
 
 
 function getMateriaisPlanilhaCompras() {
-
   try {
+    var cacheKey = "CACHE_MATERIAIS_COMPRAS_LISTA";
+    var cache = CacheService.getScriptCache();
+    if (cache) {
+      var cached = cache.get(cacheKey);
+      if (cached) { try { return JSON.parse(cached); } catch(e){} }
+    }
 
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_COMPRAS);
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_COMPRAS);
 
     var sheet = ss.getSheets()[0]; 
 
@@ -3237,7 +3304,7 @@ function verificarClasse2MaterialCatalogo(nomeMaterial) {
     if (!nomeMaterial) return { ehViatura: false, classe2: "" };
     var matAlvo = String(nomeMaterial).trim().toUpperCase();
 
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_COMPRAS);
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_COMPRAS);
     var abaCad = ss.getSheetByName(ABA_CATALOGO_ITENS) || obterAbaPorNomeAproximado(ss, ABA_CATALOGO_ITENS);
     if (!abaCad) {
       console.warn("Aba " + ABA_CATALOGO_ITENS + " não encontrada na planilha de compras " + ID_PLANILHA_COMPRAS);
@@ -3263,7 +3330,7 @@ function verificarClasse2MaterialCatalogo(nomeMaterial) {
  */
 function obterMapaDetalhesMateriaisCatalogo() {
   try {
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_COMPRAS);
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_COMPRAS);
     var abaCad = ss.getSheetByName(ABA_CATALOGO_ITENS) || obterAbaPorNomeAproximado(ss, ABA_CATALOGO_ITENS);
     if (!abaCad || abaCad.getLastRow() < 6) return {};
 
@@ -3434,7 +3501,7 @@ function obterMapaDetalhesMateriaisCatalogo() {
  */
 function getListaNomesViaturasCatalogo() {
   try {
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_COMPRAS);
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_COMPRAS);
     var abaCad = ss.getSheetByName(ABA_CATALOGO_ITENS) || obterAbaPorNomeAproximado(ss, ABA_CATALOGO_ITENS);
     if (!abaCad) return [];
 
@@ -3498,7 +3565,7 @@ function obterMapaClassificacaoConsumo_() {
 
   var mapaConsumo = {};
   try {
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_COMPRAS);
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_COMPRAS);
     var abaCad = ss.getSheetByName(ABA_CATALOGO_ITENS) || obterAbaPorNomeAproximado(ss, ABA_CATALOGO_ITENS);
     if (!abaCad || abaCad.getLastRow() < 6) {
       _cacheMapaClassificacaoConsumo = mapaConsumo;
@@ -3657,7 +3724,7 @@ function formatarNomeDeEmailConsumo_(email) {
 function obterMapaUsuariosParaNome_() {
   var mapa = {};
   try {
-    var ssUser = SpreadsheetApp.openById(ID_PLANILHA_USUARIOS);
+    var ssUser = abrirPlanilhaSegura_(ID_PLANILHA_USUARIOS);
     var sheetLogins = ssUser.getSheetByName(ABA_USUARIOS);
     if (sheetLogins && sheetLogins.getLastRow() > 1) {
       var dados = sheetLogins.getDataRange().getValues();
@@ -3723,7 +3790,7 @@ function resolverNomeCompletoResponsavel_(respRaw, mapaUsuarios) {
 function obterMapaStatusCriticoConsumo_(omePadrao) {
   var mapa = {};
   try {
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
     var sheet = ss.getSheetByName("Status_Consumo_OME");
     if (!sheet || sheet.getLastRow() <= 1) return mapa;
 
@@ -3938,7 +4005,7 @@ function alternarStatusCriticoConsumo(ome, material, novoStatus, observacao, nom
     var lock = LockService.getScriptLock();
     lock.waitLock(15000);
 
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
     var sheet = ss.getSheetByName("Status_Consumo_OME");
     if (!sheet) {
       sheet = ss.insertSheet("Status_Consumo_OME");
@@ -4032,7 +4099,14 @@ function alternarStatusCriticoConsumo(ome, material, novoStatus, observacao, nom
  */
 function getResumoMateriaisConsumoCriticos(omeFiltro) {
   try {
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+    var omeKey = String(omeFiltro || "TODAS").trim().toUpperCase();
+    var cacheKey = "CACHE_CONSUMO_CRITICO_" + omeKey;
+    var cache = CacheService.getScriptCache();
+    if (cache) {
+      var cached = cache.get(cacheKey);
+      if (cached) { try { return JSON.parse(cached); } catch(e){} }
+    }
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
     var sheet = ss.getSheetByName("Status_Consumo_OME");
     if (!sheet || sheet.getLastRow() <= 1) {
       return { sucesso: true, itens: [], totalCriticos: 0, totalOmesAfetadas: 0 };
@@ -4137,13 +4211,16 @@ function getResumoMateriaisConsumoCriticos(omeFiltro) {
       if (cmp !== 0) return cmp;
       return a.material.localeCompare(b.material);
     });
-
-    return {
+    var respCriticos = {
       sucesso: true,
       itens: itensCriticos,
       totalCriticos: itensCriticos.length,
       totalOmesAfetadas: Object.keys(setOmesUnicas).length
     };
+    if (typeof cache !== 'undefined' && cache && typeof cacheKey !== 'undefined') {
+      try { cache.put(cacheKey, JSON.stringify(respCriticos), 45); } catch(e){}
+    }
+    return respCriticos;
   } catch(err) {
     console.error("Erro em getResumoMateriaisConsumoCriticos: " + err.message);
     return { sucesso: false, erro: err.message, itens: [], totalCriticos: 0, totalOmesAfetadas: 0 };
@@ -4200,7 +4277,7 @@ function getResumoArvoreArmazenamento(unidadeOme) {
     var mapaCargas = {};
     var listaCargasPorSetor = {};
     try {
-      var ssAux = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+      var ssAux = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
       var sheetCargas = ssAux.getSheetByName("Carga_Padrao_Setores");
       if (!sheetCargas) {
         sheetCargas = ssAux.insertSheet("Carga_Padrao_Setores");
@@ -4852,7 +4929,7 @@ function salvarCargaPadraoSetor(unidadeOme, subunidade, setor, material, novaCar
 
     if (!matPadrao) throw new Error("Material não especificado.");
 
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
     var sheet = ss.getSheetByName("Carga_Padrao_Setores");
     if (!sheet) {
       sheet = ss.insertSheet("Carga_Padrao_Setores");
@@ -4915,6 +4992,13 @@ function salvarCargaPadraoSetor(unidadeOme, subunidade, setor, material, novaCar
 
 function getResumoMateriaisExtraviadosGeral(unidadeOme) {
   try {
+    var omeCacheKey = String(unidadeOme || "TODAS").trim().toUpperCase();
+    var cacheKey = "CACHE_EXTRAVIADOS_GERAL_" + omeCacheKey;
+    var cache = CacheService.getScriptCache();
+    if (cache) {
+      var cached = cache.get(cacheKey);
+      if (cached) { try { return JSON.parse(cached); } catch(e){} }
+    }
     var emailSessao = "";
     try { emailSessao = Session.getActiveUser().getEmail().trim().toLowerCase(); } catch (e) {}
     var dadosUser = emailSessao ? verificarPermissaoUsuario(emailSessao) : null;
@@ -4941,7 +5025,7 @@ function getResumoMateriaisExtraviadosGeral(unidadeOme) {
     };
 
     // 1. Lê Cargas Padrão da planilha auxiliar (Aba Carga_Padrao_Setores)
-    var ssAux = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+    var ssAux = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
     var sheetCargas = ssAux.getSheetByName("Carga_Padrao_Setores");
     if (!sheetCargas || sheetCargas.getLastRow() <= 1) {
       return { sucesso: true, itens: [], totalExtraviados: 0, totalItensAfetados: 0, totalOmesAfetadas: 0 };
@@ -5266,8 +5350,7 @@ function getResumoMateriaisExtraviadosGeral(unidadeOme) {
       }
     }
     listaPorOme.sort(function(a, b) { return b.totalDesvio - a.totalDesvio; });
-
-    return {
+    var respExtrav = {
       sucesso: true,
       itens: itensExtraviados,
       porMaterial: listaPorMaterial,
@@ -5283,6 +5366,10 @@ function getResumoMateriaisExtraviadosGeral(unidadeOme) {
       totalItensAfetados: itensExtraviados.length,
       totalOmesAfetadas: Object.keys(omesAfetadasSet).length
     };
+    if (typeof cache !== 'undefined' && cache && typeof cacheKey !== 'undefined') {
+      try { cache.put(cacheKey, JSON.stringify(respExtrav), 45); } catch(e){}
+    }
+    return respExtrav;
   } catch (err) {
     console.error("Erro em getResumoMateriaisExtraviadosGeral: " + err.message);
     return { sucesso: false, erro: err.message, itens: [], porMaterial: [], porOme: [], kpis: {}, totalExtraviados: 0, totalItensAfetados: 0, totalOmesAfetadas: 0 };
@@ -5444,7 +5531,7 @@ function registrarRemessaPendente(dados) {
       throw new Error("Informe o seu CPF para autorizar o despacho da remessa.");
     }
 
-    var ssUser = SpreadsheetApp.openById(ID_PLANILHA_USUARIOS);
+    var ssUser = abrirPlanilhaSegura_(ID_PLANILHA_USUARIOS);
     var sheetLogins = ssUser.getSheetByName(ABA_USUARIOS);
     if (!sheetLogins) throw new Error("Base de usuários não encontrada.");
 
@@ -5462,7 +5549,7 @@ function registrarRemessaPendente(dados) {
       }
     }
 
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
     var sheetRemessa = ss.getSheetByName("RemessasPendentes");
     
     var idRemessa = "REM-" + new Date().getTime();
@@ -5529,7 +5616,7 @@ function getRemessasPendentesPorOme(omeUsuario) {
       corrigirUnidadeItensExtraviadosRemessas_();
     } catch (eCorr) {}
 
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
     var sheetRemessa = ss.getSheetByName("RemessasPendentes");
     if (!sheetRemessa || sheetRemessa.getLastRow() <= 1) {
       return [];
@@ -5650,7 +5737,7 @@ function assinarEConfirmarRecebimento(dadosAssinatura) {
       throw new Error("Informe o seu CPF para realizar a assinatura digital de recebimento.");
     }
 
-    var ssUser = SpreadsheetApp.openById(ID_PLANILHA_USUARIOS);
+    var ssUser = abrirPlanilhaSegura_(ID_PLANILHA_USUARIOS);
     var sheetLogins = ssUser.getSheetByName(ABA_USUARIOS);
     if (!sheetLogins) throw new Error("Base de usuários não encontrada.");
 
@@ -5675,7 +5762,7 @@ function assinarEConfirmarRecebimento(dadosAssinatura) {
 
     if (!usuarioValido) throw new Error("CPF não encontrado na base de dados do sistema.");
 
-    var sheetRemessa = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR).getSheetByName("RemessasPendentes");
+    var sheetRemessa = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR).getSheetByName("RemessasPendentes");
     var dadosRem = sheetRemessa.getDataRange().getValues();
     var linhaRemessa = -1;
     var remessaObj = null;
@@ -5814,7 +5901,7 @@ function recusarRemessaPendente(dadosRecusa) {
 
 
 
-    var ssUser = SpreadsheetApp.openById(ID_PLANILHA_USUARIOS);
+    var ssUser = abrirPlanilhaSegura_(ID_PLANILHA_USUARIOS);
 
     var sheetLogins = ssUser.getSheetByName(ABA_USUARIOS);
 
@@ -5860,7 +5947,7 @@ function recusarRemessaPendente(dadosRecusa) {
 
 
 
-    var sheetRemessa = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR).getSheetByName("RemessasPendentes");
+    var sheetRemessa = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR).getSheetByName("RemessasPendentes");
 
     var dadosRem = sheetRemessa.getDataRange().getValues();
 
@@ -5930,7 +6017,7 @@ function recusarRemessaPendente(dadosRecusa) {
 
 function garantirAbaTbMateriais() {
 
-  var ss = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+  var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
 
   var sheet = ss.getSheetByName("tb_Materiais");
 
@@ -6172,7 +6259,7 @@ function getProcessosAbertosPlan() {
       }
     }
 
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_COMPRAS);
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_COMPRAS);
     var sheet = obterAbaPorNomeAproximado(ss, "#PLAN");
     if (!sheet || sheet.getLastRow() <= 5) return [];
 
@@ -6818,7 +6905,7 @@ function obterAbaPorNomeAproximado(ss, nomeAlvo) {
 function testarConexaoAbaDist() {
   try {
     console.log("=== INICIANDO TESTE DE CONEXÃO COM #PLAN E #DIST ===");
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_COMPRAS);
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_COMPRAS);
     console.log("1. Planilha Compras aberta: " + ss.getName() + " (ID: " + ID_PLANILHA_COMPRAS + ")");
 
     var sheetPlan = obterAbaPorNomeAproximado(ss, "#PLAN");
@@ -6918,7 +7005,7 @@ function normalizarNomeObjetoParaComparacao(str) {
 
 function obterNumeroControlePlan(processoSei, material) {
   try {
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_COMPRAS);
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_COMPRAS);
     var sheetPlan = obterAbaPorNomeAproximado(ss, "#PLAN");
     if (!sheetPlan || sheetPlan.getLastRow() <= 6) return null;
 
@@ -7108,7 +7195,7 @@ function localizarLinhaDist(sheetDist, estrutura, numeroControle, processoSei, m
 // Verifica antecipadamente se o processo/material já possui recebimento em #DIST
 function verificarExistenciaRecebimentoDist(processoSei, material, numeroControle) {
   try {
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_COMPRAS);
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_COMPRAS);
     var sheetDist = obterAbaPorNomeAproximado(ss, "#DIST");
     if (!sheetDist) {
       return { existe: false, erro: "Aba #DIST não encontrada." };
@@ -7297,7 +7384,7 @@ function repararFormulasDoacaoPlan(sheetPlan) {
 
     var mapTicketsUnd = {};
     try {
-      var ssAux = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+      var ssAux = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
       var shTickets = ssAux.getSheetByName("Tickets_Doacao");
       if (shTickets && shTickets.getLastRow() > 1) {
         var dadosTk = shTickets.getRange(2, 7, shTickets.getLastRow() - 1, 4).getValues();
@@ -7367,7 +7454,7 @@ function processarItemDoacaoPlan(dadosRecebimento, dataAprovacao, ssCompras) {
   try {
     lock.waitLock(15000);
 
-    var ss = ssCompras || SpreadsheetApp.openById(ID_PLANILHA_COMPRAS);
+    var ss = ssCompras || abrirPlanilhaSegura_(ID_PLANILHA_COMPRAS);
     var sheetPlan = obterAbaPorNomeAproximado(ss, ABA_PLANEJAMENTO);
     if (!sheetPlan) {
       throw new Error("Base de Planejamento de Compras não encontrada na planilha de compras (" + ID_PLANILHA_COMPRAS + ").");
@@ -7571,7 +7658,7 @@ function sincronizarRecebimentoDist(dadosRecebimento, numeroControle, modoParcel
   try {
     lock.waitLock(15000);
 
-    var ss = ssCompras || SpreadsheetApp.openById(ID_PLANILHA_COMPRAS);
+    var ss = ssCompras || abrirPlanilhaSegura_(ID_PLANILHA_COMPRAS);
     var sheetDist = obterAbaPorNomeAproximado(ss, "#DIST");
     if (!sheetDist) {
       console.warn("Aba #DIST não encontrada na planilha de compras.");
@@ -7713,7 +7800,7 @@ function sincronizarDistribuicaoOmeDist(dadosTicket, numeroControle) {
   try {
     lock.waitLock(30000);
 
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_COMPRAS);
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_COMPRAS);
     var sheetDist = obterAbaPorNomeAproximado(ss, "#DIST");
     if (!sheetDist) {
       console.warn("Aba #DIST não encontrada na planilha de compras.");
@@ -7890,7 +7977,7 @@ function sincronizarConfirmacaoRecebimentoDist(dadosConfirmacao) {
       return { sucesso: true, mensagem: "Remessa interna ignorada para #DIST." };
     }
 
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_COMPRAS);
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_COMPRAS);
     var sheetDist = obterAbaPorNomeAproximado(ss, "#DIST");
     if (!sheetDist) {
       console.warn("Aba #DIST não encontrada na planilha de compras.");
@@ -8002,7 +8089,7 @@ function sincronizarConfirmacaoRecebimentoDist(dadosConfirmacao) {
 
     // REGRA DE NEGÓCIO SOLICITADA:
     // Na coluna Y (DATA FINAL DE DISTRIBUIÇÃO) você deve colocar a data que a última remessa pendente foi assinada.
-    var ssAux = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+    var ssAux = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
     var sheetRemessa = ssAux.getSheetByName("RemessasPendentes");
     var temOutrasPendentes = verificarSeHaRemessasPendentesParaMaterial_(sheetRemessa, idRemessa, material, processoSei);
 
@@ -8266,7 +8353,7 @@ function salvarNovaOrdemLocais(idsOrdenados) {
 
   try {
 
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
 
     var sheet = ss.getSheetByName(ABA_LOCAIS_ARMAZENAMENTO);
 
@@ -8541,7 +8628,7 @@ function getItensDisponiveisCintParaDespacho(processoSei, material) {
     }
 
     // 1. Mapeia itens já comprometidos em outras remessas pendentes
-    var ssAux = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+    var ssAux = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
     var sheetRemessa = ssAux.getSheetByName("RemessasPendentes");
     var idsComprometidos = {};
     if (sheetRemessa && sheetRemessa.getLastRow() > 1) {
@@ -8690,7 +8777,7 @@ function gerarTicketDistribuicaoDpl(dadosTicket) {
       qtdTotalGeral += listaEnvios[q].quantidade;
     }
 
-    var ssUser = SpreadsheetApp.openById(ID_PLANILHA_USUARIOS);
+    var ssUser = abrirPlanilhaSegura_(ID_PLANILHA_USUARIOS);
     var sheetLogins = ssUser.getSheetByName(ABA_USUARIOS);
     var dadosUsers = sheetLogins.getDataRange().getValues();
     var cabecalho = dadosUsers[0];
@@ -8717,7 +8804,7 @@ function gerarTicketDistribuicaoDpl(dadosTicket) {
 
     if (!despachanteValido) throw new Error("CPF do despachante não encontrado na base de dados.");
 
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
     var sheetRemessa = ss.getSheetByName("RemessasPendentes");
     
     if (!sheetRemessa) {
@@ -8958,7 +9045,7 @@ function registrarTicketLiberacaoDpl(dadosRecebimento) {
 
   try {
 
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
 
     var sheetTickets = ss.getSheetByName("TicketsLiberacaoDpl");
 
@@ -9025,8 +9112,13 @@ function registrarTicketLiberacaoDpl(dadosRecebimento) {
 // Retorna os lotes cadastrados na Subunidade SEDE da OME CINT agrupados por SEI e lote para a Visão Geral
 
 function getTicketsLiberacaoDpl() {
-
   try {
+    var cacheKey = "CACHE_TKTS_LIBERACAO_DPL";
+    var cache = CacheService.getScriptCache();
+    if (cache) {
+      var cached = cache.get(cacheKey);
+      if (cached) { try { return JSON.parse(cached); } catch(e){} }
+    }
 
     // Agrupa os itens do CINT que estão na SEDE por Processo SEI, Material e Timestamp/Data de cadastro
 
@@ -9062,6 +9154,10 @@ function getTicketsLiberacaoDpl() {
       }
     });
 
+    if (cache) {
+      try { cache.put(cacheKey, JSON.stringify(tickets), 40); } catch (ePut) {}
+    }
+
     return tickets;
   } catch (err) {
     console.error("Erro em getTicketsLiberacaoDpl: " + err.message);
@@ -9094,7 +9190,7 @@ function getTicketsLiberacaoDplFiltrados(filtroSei, filtroMaterial) {
     var rowsCint = resCint.rows || [];
 
     // Busca na planilha auxiliar de RemessasPendentes o que já foi despachado e ainda não foi confirmado/recusado
-    var ssAux = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+    var ssAux = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
     var sheetRemessa = ssAux.getSheetByName("RemessasPendentes");
     var dadosRemessas = (sheetRemessa && sheetRemessa.getLastRow() > 1) ? sheetRemessa.getDataRange().getValues() : [];
     
@@ -9235,6 +9331,10 @@ function getTicketsLiberacaoDplFiltrados(filtroSei, filtroMaterial) {
         }
       }
     });
+    if (cache) {
+      try { cache.put(cacheKey, JSON.stringify(tickets), 40); } catch (ePut) {}
+    }
+
     return tickets;
   } catch (err) {
     console.error("Erro em getTicketsLiberacaoDplFiltrados: " + err.message);
@@ -9324,7 +9424,7 @@ function cadastrarMaterialProvisorio(dadosNovoMaterial) {
 
   try {
 
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_TICKETS_PROVISORIOS);
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_TICKETS_PROVISORIOS);
 
     var abaProvisoria = ss.getSheetByName("Materiais_Provisorios") || ss.getSheetByName("Materiais Provisorios");
 
@@ -9397,10 +9497,15 @@ function cadastrarMaterialProvisorio(dadosNovoMaterial) {
 
 
 function getTicketsMateriaisPendentes() {
-
   try {
+    var cacheKey = "CACHE_TKTS_MATERIAIS_PEND";
+    var cache = CacheService.getScriptCache();
+    if (cache) {
+      var cached = cache.get(cacheKey);
+      if (cached) { try { return JSON.parse(cached); } catch(e){} }
+    }
 
-    var ss = SpreadsheetApp.openById("1VJ6dEc2K1bKt9qUTpBnqf2n6qE_bVHpgW3Ojn7_bvjY");
+    var ss = abrirPlanilhaSegura_("1VJ6dEc2K1bKt9qUTpBnqf2n6qE_bVHpgW3Ojn7_bvjY");
 
     var abaProvisoria = ss.getSheetByName("Materiais_Provisorios") || ss.getSheetByName("Materiais Provisorios");
 
@@ -9472,6 +9577,10 @@ function getTicketsMateriaisPendentes() {
 
     
 
+    if (cache) {
+      try { cache.put(cacheKey, JSON.stringify(tickets), 40); } catch (ePut) {}
+    }
+
     return tickets;
 
   } catch (err) {
@@ -9522,7 +9631,7 @@ function avaliarTicketMaterialProvisorio(dadosAvaliacao) {
 
     // 1. Atualiza o status na aba provisória para APROVADO
 
-    var ssProvisoria = SpreadsheetApp.openById(ID_PLANILHA_TICKETS_PROVISORIOS);
+    var ssProvisoria = abrirPlanilhaSegura_(ID_PLANILHA_TICKETS_PROVISORIOS);
 
     var abaProvisoria = ssProvisoria.getSheetByName("Materiais_Provisorios") || ssProvisoria.getSheetByName("Materiais Provisorios");
 
@@ -9556,7 +9665,7 @@ function avaliarTicketMaterialProvisorio(dadosAvaliacao) {
 
     // 2. Verifica se o material já existe na aba #CAD_ITENS do Catálogo
 
-    var ssCatalogo = SpreadsheetApp.openById("1wVvcbuSW4k5o4BmZoj7EYfazBVvyk5z6n1Pdj8qgmXo");
+    var ssCatalogo = abrirPlanilhaSegura_("1wVvcbuSW4k5o4BmZoj7EYfazBVvyk5z6n1Pdj8qgmXo");
 
     var abaCatalogo = ssCatalogo.getSheetByName("#CAD_ITENS");
 
@@ -9694,7 +9803,7 @@ function getContagemETicketsPendentes() {
 
   try {
 
-    var ss = SpreadsheetApp.openById("1VJ6dEc2K1bKt9qUTpBnqf2n6qE_bVHpgW3Ojn7_bvjY");
+    var ss = abrirPlanilhaSegura_("1VJ6dEc2K1bKt9qUTpBnqf2n6qE_bVHpgW3Ojn7_bvjY");
 
     var abaProvisoria = ss.getSheetByName("Materiais_Provisorios");
 
@@ -10150,7 +10259,7 @@ function garantirLocaisArvoreInterno_(locaisUnicos, usuario) {
     porOme[ome].push({ subunidade: sub, setor: set, local: loc });
   }
 
-  var ss = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+  var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
   var sheet = ss.getSheetByName(ABA_LOCAIS_ARMAZENAMENTO);
   if (!sheet) {
     sheet = ss.insertSheet(ABA_LOCAIS_ARMAZENAMENTO);
@@ -10284,7 +10393,7 @@ function garantirLocaisArvoreInterno_(locaisUnicos, usuario) {
 // Higieniza toda a árvore de armazenamento, eliminando nós inválidos onde o nome da subunidade repete a OME
 function sanitizarTodasSubunidadesArvore() {
   try {
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
     var sheet = ss.getSheetByName(ABA_LOCAIS_ARMAZENAMENTO);
     if (!sheet) return { sucesso: false, erro: "Aba não encontrada" };
 
@@ -10558,7 +10667,7 @@ function corrigirEUniformizarOmesNoBigQuery() {
 
   // Uniformiza também a coluna B (Unidade_OME) da planilha de locais de armazenamento
   try {
-    var ssAux = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+    var ssAux = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
     var sheetLoc = ssAux.getSheetByName(ABA_LOCAIS_ARMAZENAMENTO);
     if (sheetLoc && sheetLoc.getLastRow() > 1) {
       var dadosLoc = sheetLoc.getRange(2, 2, sheetLoc.getLastRow() - 1, 1).getValues();
@@ -10581,7 +10690,7 @@ function corrigirEUniformizarOmesNoBigQuery() {
 
   // Uniformiza também a coluna D (OME) da planilha de usuários/logins
   try {
-    var ssUser = SpreadsheetApp.openById(ID_PLANILHA_USUARIOS);
+    var ssUser = abrirPlanilhaSegura_(ID_PLANILHA_USUARIOS);
     var sheetUser = ssUser.getSheetByName(ABA_USUARIOS);
     if (sheetUser && sheetUser.getLastRow() > 1) {
       var dadosUser = sheetUser.getRange(2, 4, sheetUser.getLastRow() - 1, 1).getValues();
@@ -11011,7 +11120,7 @@ function registrarTransferenciaEntreOmes(dados) {
     }
 
     // Valida o CPF do remetente na base de usuários
-    var ssUser = SpreadsheetApp.openById(ID_PLANILHA_USUARIOS);
+    var ssUser = abrirPlanilhaSegura_(ID_PLANILHA_USUARIOS);
     var sheetLogins = ssUser.getSheetByName(ABA_USUARIOS);
     var dadosUsers = sheetLogins.getDataRange().getValues();
     var cabecalho = dadosUsers[0];
@@ -11029,7 +11138,7 @@ function registrarTransferenciaEntreOmes(dados) {
     if (!remetenteValido) throw new Error("CPF do remetente não encontrado na base de dados de logins.");
 
     // Grava na planilha RemessasPendentes
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
     var sheetRemessa = ss.getSheetByName("RemessasPendentes");
     if (!sheetRemessa) {
       sheetRemessa = ss.insertSheet("RemessasPendentes");
@@ -11125,7 +11234,7 @@ function registrarRemessaMovimentacaoInterna(dados) {
     }
 
     // Valida o CPF do remetente
-    var ssUser = SpreadsheetApp.openById(ID_PLANILHA_USUARIOS);
+    var ssUser = abrirPlanilhaSegura_(ID_PLANILHA_USUARIOS);
     var sheetLogins = ssUser.getSheetByName(ABA_USUARIOS);
     var dadosUsers = sheetLogins.getDataRange().getValues();
     var cabecalho = dadosUsers[0];
@@ -11153,7 +11262,7 @@ function registrarRemessaMovimentacaoInterna(dados) {
     }
 
     // Grava na planilha RemessasPendentes com uma marcação especial de destino interno contendo a árvore
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
     var sheetRemessa = ss.getSheetByName("RemessasPendentes");
     if (!sheetRemessa) {
       sheetRemessa = ss.insertSheet("RemessasPendentes");
@@ -11202,7 +11311,7 @@ function registrarRemessaMovimentacaoInterna(dados) {
 
 function confirmarRecebimentoRemessa(idRemessa, cpfRecebedor, nomeRecebedor, dadosQuantidades) {
   try {
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
     var sheetRemessa = ss.getSheetByName("RemessasPendentes");
     var dados = sheetRemessa.getDataRange().getValues();
     
@@ -11652,7 +11761,7 @@ function corrigirUnidadeItensExtraviadosRemessas_() {
       console.warn("Aviso ao corrigir itens extraviados DLOG: " + eDlog.message);
     }
 
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
     var sheetRemessa = ss.getSheetByName("RemessasPendentes");
     if (!sheetRemessa || sheetRemessa.getLastRow() <= 1) return;
 
@@ -12062,7 +12171,7 @@ function transferirItensDiretoPorIds(dados) {
 // Busca Posto/Grad (Col B), Matrícula (Col E) e Nome (Col F) da tabela Peculio, cruzando com Logins e BigQuery para obter CPF
 function getListaMilitarPeculio() {
   try {
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
     var sheet = ss.getSheetByName("Peculio");
     if (!sheet || sheet.getLastRow() <= 1) return [];
 
@@ -12071,7 +12180,7 @@ function getListaMilitarPeculio() {
 
     // 1. Mapeia CPFs da base de Logins (Planilha de Usuários)
     try {
-      var ssUser = SpreadsheetApp.openById(ID_PLANILHA_USUARIOS);
+      var ssUser = abrirPlanilhaSegura_(ID_PLANILHA_USUARIOS);
       var sheetLogins = ssUser.getSheetByName(ABA_USUARIOS);
       if (sheetLogins && sheetLogins.getLastRow() > 1) {
         var dadosLogins = sheetLogins.getDataRange().getValues();
@@ -12241,7 +12350,7 @@ function cadastrarPessoaCivil(dados) {
     var matTxt = (isMilitar && matricula) ? " | Mat: " + matricula : "";
     var descCompleta = tagTipo + " " + nome + " (CPF: " + cpfFormat + matTxt + (telefone ? " | Tel: " + telefone : "") + ")";
 
-    var ssAux = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+    var ssAux = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
     var sheet = ssAux.getSheetByName("Civis");
     if (!sheet) {
       sheet = ssAux.insertSheet("Civis");
@@ -12325,7 +12434,7 @@ function buscarCpfMilitar(nome, matricula) {
 
     // 1. Busca na planilha de Logins
     try {
-      var ssUser = SpreadsheetApp.openById(ID_PLANILHA_USUARIOS);
+      var ssUser = abrirPlanilhaSegura_(ID_PLANILHA_USUARIOS);
       var sheetLogins = ssUser.getSheetByName(ABA_USUARIOS);
       if (sheetLogins && sheetLogins.getLastRow() > 1) {
         var dadosLogins = sheetLogins.getDataRange().getValues();
@@ -12370,7 +12479,7 @@ function buscarCpfMilitar(nome, matricula) {
 
     // 3. Busca na aba Pecúlio
     try {
-      var ssAux = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+      var ssAux = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
       var sheetPeculio = ssAux.getSheetByName("Peculio");
       if (sheetPeculio && sheetPeculio.getLastRow() > 1) {
         var dadosPec = sheetPeculio.getDataRange().getValues();
@@ -12487,7 +12596,7 @@ function registrarAcautelamentoItens(dados) {
 
     var responsavelValido = null;
     try {
-      var ssUser = SpreadsheetApp.openById(ID_PLANILHA_USUARIOS);
+      var ssUser = abrirPlanilhaSegura_(ID_PLANILHA_USUARIOS);
       var sheetLogins = ssUser.getSheetByName(ABA_USUARIOS);
       var dadosUsers = sheetLogins.getDataRange().getValues();
       var cabecalho = dadosUsers[0] || [];
@@ -13127,7 +13236,7 @@ function getItensAcauteladosAtuais(omeUsuario, perfilUsuario, omeFiltroAdmin) {
     var rows = res.rows || [];
 
     // 2. Abre a aba Peculio da planilha auxiliar para cruzar a Matrícula (Coluna E) pelo Nome (Coluna F)
-    var ssAux = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+    var ssAux = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
     var sheetPeculio = ssAux.getSheetByName("Peculio");
     var dadosPeculio = (sheetPeculio && sheetPeculio.getLastRow() > 1) ? sheetPeculio.getDataRange().getValues() : [];
     
@@ -13350,7 +13459,7 @@ function verificarENotificarCautelasVencidas(forcarEnvio) {
     }
 
     // 4. Carrega usuários da base de Logins
-    var ssUser = SpreadsheetApp.openById(ID_PLANILHA_USUARIOS);
+    var ssUser = abrirPlanilhaSegura_(ID_PLANILHA_USUARIOS);
     var sheetLogins = ssUser.getSheetByName(ABA_USUARIOS);
     var dadosUsers = (sheetLogins && sheetLogins.getLastRow() > 1) ? sheetLogins.getDataRange().getValues() : [];
 
@@ -13556,7 +13665,7 @@ function processarBaixaAcautelamento(dados) {
     }
 
     // Valida o operador na base de logins
-    var ssUser = SpreadsheetApp.openById(ID_PLANILHA_USUARIOS);
+    var ssUser = abrirPlanilhaSegura_(ID_PLANILHA_USUARIOS);
     var sheetLogins = ssUser.getSheetByName(ABA_USUARIOS);
     var dadosUsers = sheetLogins.getDataRange().getValues();
     var cabecalho = dadosUsers[0];
@@ -13700,7 +13809,7 @@ function obterEstruturaArvoreOme_(omePadrao) {
     if (cachedArvore && cachedArvore.estrutura && cachedArvore.mapaNomes) {
       return cachedArvore;
     }
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
     var sheetArvore = ss.getSheetByName(ABA_LOCAIS_ARMAZENAMENTO);
     if (!sheetArvore || sheetArvore.getLastRow() <= 1) {
       return {
@@ -14237,7 +14346,7 @@ function enviarChecklistInconsistencias(dados) {
   var subunidadeMilitar = "GERAL";
   
   try {
-    var ssUser = SpreadsheetApp.openById(ID_PLANILHA_USUARIOS);
+    var ssUser = abrirPlanilhaSegura_(ID_PLANILHA_USUARIOS);
     var sheetLogins = ssUser.getSheetByName(ABA_USUARIOS);
     if (sheetLogins && sheetLogins.getLastRow() > 1) {
       var dadosUsers = sheetLogins.getRange(2, 1, sheetLogins.getLastRow() - 1, 6).getValues();
@@ -14378,7 +14487,7 @@ function validarTicketChecklistChefe(dados) {
     }
 
     // Valida o chefe na base de logins
-    var ssUser = SpreadsheetApp.openById(ID_PLANILHA_USUARIOS);
+    var ssUser = abrirPlanilhaSegura_(ID_PLANILHA_USUARIOS);
     var sheetLogins = ssUser.getSheetByName(ABA_USUARIOS);
     var dadosUsers = sheetLogins.getDataRange().getValues();
     var cabecalho = dadosUsers[0];
@@ -14474,7 +14583,7 @@ function invalidarTicketChecklistChefe(dados) {
     var cpfChefeLimpo = cpfChefe.replace(/\D/g, "");
 
     // Valida o chefe na base de logins
-    var ssUser = SpreadsheetApp.openById(ID_PLANILHA_USUARIOS);
+    var ssUser = abrirPlanilhaSegura_(ID_PLANILHA_USUARIOS);
     var sheetLogins = ssUser.getSheetByName(ABA_USUARIOS);
     var dadosUsers = sheetLogins.getDataRange().getValues();
     var cabecalho = dadosUsers[0];
@@ -14661,7 +14770,7 @@ function getTicketsChecklistPendentes(omeUsuario, perfilUsuario, cpfUsuario) {
     // Mapa auxiliar para obter o nome do militar a partir do CPF
     var mapaNomes = {};
     try {
-      var ssUser = SpreadsheetApp.openById(ID_PLANILHA_USUARIOS);
+      var ssUser = abrirPlanilhaSegura_(ID_PLANILHA_USUARIOS);
       var sheetLogins = ssUser.getSheetByName(ABA_USUARIOS);
       if (sheetLogins && sheetLogins.getLastRow() > 1) {
         var dadosUsers = sheetLogins.getDataRange().getValues();
@@ -14844,7 +14953,7 @@ function consultarBaseChecklistBigQuery(filtros) {
     // Mapeamento de nomes de militares por CPF a partir da base de logins
     var mapaNomes = {};
     try {
-      var ssUser = SpreadsheetApp.openById(ID_PLANILHA_USUARIOS);
+      var ssUser = abrirPlanilhaSegura_(ID_PLANILHA_USUARIOS);
       var sheetLogins = ssUser.getSheetByName(ABA_USUARIOS);
       if (sheetLogins && sheetLogins.getLastRow() > 1) {
         var dadosUsers = sheetLogins.getDataRange().getValues();
@@ -14907,7 +15016,7 @@ function diagnosticarSubunidadeLogins(cpfDigitado) {
   try {
     var cpfAlvo = String(cpfDigitado || "").trim();
     
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_USUARIOS);
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_USUARIOS);
     var sheet = ss.getSheetByName(ABA_USUARIOS);
     if (!sheet) return { sucesso: false, mensagem: "Aba 'Logins' não encontrada." };
 
@@ -15199,7 +15308,7 @@ function confirmarCodigoESolicitarAcesso(dados, codigoDigitado) {
     // Gera o PIN Temporário de Primeiro Acesso (6 dígitos numéricos)
     var pinTemporario = String(Math.floor(100000 + Math.random() * 900000));
 
-    var ssUser = SpreadsheetApp.openById(ID_PLANILHA_USUARIOS);
+    var ssUser = abrirPlanilhaSegura_(ID_PLANILHA_USUARIOS);
     var sheetLogins = ssUser.getSheetByName(ABA_USUARIOS);
     if (!sheetLogins) throw new Error("Aba de Logins não encontrada.");
 
@@ -15332,7 +15441,7 @@ function confirmarCodigoESolicitarAcesso(dados, codigoDigitado) {
 // Solicitar novo acesso
 function solicitarAcessoUsuario(dados) {
   try {
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_USUARIOS);
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_USUARIOS);
     var sheet = ss.getSheetByName("CadastrosPendentes") || ss.insertSheet("CadastrosPendentes");
     if (sheet.getLastRow() === 0) {
       sheet.appendRow(["ID_Solicitacao", "Data", "Nome", "Email", "CPF", "OME", "Subunidade", "Perfil", "PIN", "Status", "Email_Institucional", "Email_Verificado"]);
@@ -15368,7 +15477,7 @@ function solicitarAcessoUsuario(dados) {
 // Aprovar ou Recusar pelo Admin
 function avaliarCadastroPendentes(idSolicitacao, acao, perfilSolicitante, omeSolicitante) {
   try {
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_USUARIOS);
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_USUARIOS);
     var sheetPend = ss.getSheetByName("CadastrosPendentes");
     if (!sheetPend) throw new Error("Aba pendentes não encontrada.");
     
@@ -15552,7 +15661,7 @@ function validarPinTransacao(cpfOrEmail, pinInformado) {
   if (!usuario) throw new Error("Usuário não identificado.");
   
   // Lê PIN armazenado na base de Logins (coluna G / índice corresp.)
-  var ss = SpreadsheetApp.openById(ID_PLANILHA_USUARIOS);
+  var ss = abrirPlanilhaSegura_(ID_PLANILHA_USUARIOS);
   var sheet = ss.getSheetByName(ABA_USUARIOS);
   var dados = sheet.getDataRange().getValues();
   
@@ -15571,7 +15680,7 @@ function validarPinTransacao(cpfOrEmail, pinInformado) {
 // Busca usuários da base para o painel de Gerenciamento de Usuários
 function getTodosUsuarios(filtroOmeSolicitante, perfilSolicitante) {
   try {
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_USUARIOS);
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_USUARIOS);
     var sheet = ss.getSheetByName(ABA_USUARIOS); // Aba "Logins"
     if (!sheet) return [];
     
@@ -15670,7 +15779,7 @@ function getTodosUsuarios(filtroOmeSolicitante, perfilSolicitante) {
 // Atualiza o OME, Perfil, Status, Subunidade e Permissões do usuário, sincronizando TODAS as linhas do militar
 function atualizarUsuario(linha, novaOme, novoPerfil, novoStatus, novaSubunidade, novasPermissoes, omeSolicitante, perfilSolicitante) {
   try {
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_USUARIOS);
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_USUARIOS);
     var sheet = ss.getSheetByName(ABA_USUARIOS);
     if (!sheet) throw new Error("Aba 'Logins' não encontrada.");
 
@@ -15828,7 +15937,13 @@ function atualizarUsuario(linha, novaOme, novoPerfil, novoStatus, novaSubunidade
 
 function getTicketsAcessoPendentes(filtroOmeSolicitante, perfilSolicitante) {
   try {
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_USUARIOS);
+    var cacheKey = "CACHE_TKTS_ACESSOS_PEND_" + String(filtroOmeSolicitante || "TODAS").trim().toUpperCase();
+    var cache = CacheService.getScriptCache();
+    if (cache) {
+      var cached = cache.get(cacheKey);
+      if (cached) { try { return JSON.parse(cached); } catch(e){} }
+    }
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_USUARIOS);
     var sheet = ss.getSheetByName("CadastrosPendentes");
     if (!sheet || sheet.getLastRow() <= 1) return [];
 
@@ -15894,6 +16009,10 @@ function getTicketsAcessoPendentes(filtroOmeSolicitante, perfilSolicitante) {
       }
     }
     
+    if (cache) {
+      try { cache.put(cacheKey, JSON.stringify(tickets), 40); } catch (ePut) {}
+    }
+
     return tickets;
   } catch (err) {
     console.error("Erro em getTicketsAcessoPendentes: " + err.message);
@@ -16002,7 +16121,7 @@ function parseLinhaTicketDoacao_(r) {
 }
 
 function getAbaTicketsDoacao_() {
-  var ss = SpreadsheetApp.openById(ID_PLANILHA_TICKETS_PROVISORIOS);
+  var ss = abrirPlanilhaSegura_(ID_PLANILHA_TICKETS_PROVISORIOS);
   var aba = ss.getSheetByName("Tickets_Doacao") || ss.getSheetByName("Tickets Doacao");
   if (!aba) {
     aba = ss.insertSheet("Tickets_Doacao");
@@ -16032,7 +16151,7 @@ function sincronizarTicketsAprovadosPendentesDePlanDist_() {
   try {
     var aba = getAbaTicketsDoacao_();
     if (!aba || aba.getLastRow() <= 1) return;
-    var dados = aba.getDataRange().getValues();
+    var dados = obterValoresAbaSegura_(aba);
 
     // Verificação rápida prévia em memória: existe algum ticket aprovado sem integração?
     var pendentesSync = [];
@@ -16050,7 +16169,7 @@ function sincronizarTicketsAprovadosPendentesDePlanDist_() {
 
     if (pendentesSync.length === 0) return; // Retorno instantâneo (zero overhead se nada pendente!)
 
-    var ssCompras = SpreadsheetApp.openById(ID_PLANILHA_COMPRAS);
+    var ssCompras = abrirPlanilhaSegura_(ID_PLANILHA_COMPRAS);
     var houveAlteracao = false;
 
     for (var p = 0; p < pendentesSync.length; p++) {
@@ -16126,14 +16245,33 @@ function sincronizarTicketsAprovadosPendentesDePlanDist_() {
   }
 }
 
+function invalidarCacheTicketsDoacao_() {
+  try {
+    var cache = CacheService.getScriptCache();
+    if (cache) {
+      cache.remove("CACHE_TKTS_DOA_PEND_TODAS");
+      cache.remove("CACHE_TKTS_DOA_HIST_TODAS");
+    }
+  } catch (e) {}
+}
+
 function getTicketsDoacaoPendentes(omeFiltro, exibirHistorico) {
   try {
-    // Sincronização em segundo plano/sob demanda para prevenir DEADLINE_EXCEEDED
+    var omeFiltroNorm = String(omeFiltro || "").trim().toUpperCase();
+    var cacheKey = "CACHE_TKTS_DOA_" + (exibirHistorico ? "HIST_" : "PEND_") + (omeFiltroNorm || "TODAS");
+    var cache = CacheService.getScriptCache();
+    if (cache) {
+      var cached = cache.get(cacheKey);
+      if (cached) {
+        try { return JSON.parse(cached); } catch (eC) {}
+      }
+    }
+    // Sincronização em segundo plano/sob demanda para prevenir DEADLINE_EXCEEDED/sob demanda para prevenir DEADLINE_EXCEEDED
 
     var aba = getAbaTicketsDoacao_();
     if (!aba || aba.getLastRow() <= 1) return [];
 
-    var dados = aba.getDataRange().getValues();
+    var dados = obterValoresAbaSegura_(aba);
     var tickets = [];
     var omeFiltroNorm = String(omeFiltro || "").trim().toUpperCase();
 
@@ -16151,6 +16289,10 @@ function getTicketsDoacaoPendentes(omeFiltro, exibirHistorico) {
       }
 
       tickets.push(itemD);
+    }
+
+    if (cache) {
+      try { cache.put(cacheKey, JSON.stringify(tickets), 40); } catch (ePut) {}
     }
 
     return tickets;
@@ -16181,7 +16323,7 @@ function aprovarTicketDoacao(idTicket, cpfAprovador, pin) {
     var nomeAprovador = (usuarioSessao && usuarioSessao.nome) ? usuarioSessao.nome : "";
 
     var aba = getAbaTicketsDoacao_();
-    var dados = aba.getDataRange().getValues();
+    var dados = obterValoresAbaSegura_(aba);
     var linhaEncontrada = -1;
     var ticketDados = null;
 
@@ -16218,7 +16360,7 @@ function aprovarTicketDoacao(idTicket, cpfAprovador, pin) {
     };
 
     // Abre a planilha de compras UMA ÚNICA VEZ para reutilização nas integrações
-    var ssCompras = SpreadsheetApp.openById(ID_PLANILHA_COMPRAS);
+    var ssCompras = abrirPlanilhaSegura_(ID_PLANILHA_COMPRAS);
 
     // 1. Processa e inclui o item na base de planejamento (#PLAN)
     var infoSincPlan = "";
@@ -16286,7 +16428,7 @@ function aprovarTicketDoacao(idTicket, cpfAprovador, pin) {
 function rejeitarTicketDoacao(idTicket, cpfRejeitador, motivo) {
   try {
     var aba = getAbaTicketsDoacao_();
-    var dados = aba.getDataRange().getValues();
+    var dados = obterValoresAbaSegura_(aba);
     var linhaEncontrada = -1;
     var ticketDados = null;
 
@@ -16326,7 +16468,7 @@ function rejeitarTicketDoacao(idTicket, cpfRejeitador, motivo) {
 function excluirTicketDoacao(idTicket) {
   try {
     var aba = getAbaTicketsDoacao_();
-    var dados = aba.getDataRange().getValues();
+    var dados = obterValoresAbaSegura_(aba);
     var linhaEncontrada = -1;
 
     for (var i = 1; i < dados.length; i++) {
@@ -16358,11 +16500,11 @@ function excluirTicketDoacao(idTicket) {
 // =========================================================================
 function rejeitarTicketMaterialProvisorio(idTicket, motivo) {
   try {
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_TICKETS_PROVISORIOS);
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_TICKETS_PROVISORIOS);
     var aba = ss.getSheetByName("Materiais_Provisorios") || ss.getSheetByName("Materiais Provisorios");
     if (!aba) throw new Error("Aba 'Materiais_Provisorios' não encontrada.");
 
-    var dados = aba.getDataRange().getValues();
+    var dados = obterValoresAbaSegura_(aba);
     var linhaEncontrada = -1;
     var nomeSugerido = "";
 
@@ -16435,7 +16577,7 @@ function getMapaTodasSubunidadesPorOme() {
     });
 
     try {
-      var ss = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+      var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
       var sheetLocais = ss.getSheetByName(ABA_LOCAIS_ARMAZENAMENTO);
       if (sheetLocais && sheetLocais.getLastRow() > 1) {
         var dados = sheetLocais.getDataRange().getValues();
@@ -16602,7 +16744,7 @@ function getAvisosTicketsChefeSetor(omeChefe) {
 
     // 2. Avisos de Cadastro de Material Provisório
     try {
-      var ssProv = SpreadsheetApp.openById(ID_PLANILHA_TICKETS_PROVISORIOS);
+      var ssProv = abrirPlanilhaSegura_(ID_PLANILHA_TICKETS_PROVISORIOS);
       var abaProv = ssProv.getSheetByName("Materiais_Provisorios") || ssProv.getSheetByName("Materiais Provisorios");
       if (abaProv && abaProv.getLastRow() > 1) {
         var dadosProv = abaProv.getDataRange().getValues();
@@ -17390,7 +17532,7 @@ function redefinirPinPrimeiroAcesso(pinTemporario, novoPin, confirmaPin, identif
     if (idBuscaLimpo.length === 10) idBuscaLimpo = "0" + idBuscaLimpo;
     var idBuscaEmail = idBusca.toLowerCase();
 
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_USUARIOS);
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_USUARIOS);
     var sheetLogins = ss.getSheetByName(ABA_USUARIOS);
     if (!sheetLogins) throw new Error("Aba de Logins não encontrada.");
     
@@ -17449,7 +17591,7 @@ function redefinirPinPrimeiroAcesso(pinTemporario, novoPin, confirmaPin, identif
 // Verifica se o usuário já possui cadastro ativo na base de dados de Logins
 function verificarUsuarioExistente(emailGoogle, cpf, emailInst) {
   try {
-    var ssUser = SpreadsheetApp.openById(ID_PLANILHA_USUARIOS);
+    var ssUser = abrirPlanilhaSegura_(ID_PLANILHA_USUARIOS);
     var sheetLogins = ssUser.getSheetByName(ABA_USUARIOS);
     if (!sheetLogins || sheetLogins.getLastRow() <= 1) {
       return { existe: false };
@@ -17548,7 +17690,7 @@ function executarResetPinMilitar(identificador, emailInstInformado) {
       throw new Error("O processo de validação recusou o acesso.");
     }
 
-    var ssUser = SpreadsheetApp.openById(ID_PLANILHA_USUARIOS);
+    var ssUser = abrirPlanilhaSegura_(ID_PLANILHA_USUARIOS);
     var sheetLogins = ssUser.getSheetByName(ABA_USUARIOS);
     if (!sheetLogins || sheetLogins.getLastRow() <= 1) {
       throw new Error("O processo de validação recusou o acesso.");
@@ -17723,7 +17865,7 @@ var ABA_CHAMADOS = "Chamados";
 
 // Garante que a aba de Chamados exista com os cabeçalhos apropriados
 function garantirAbaChamados_() {
-  var ss = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+  var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
   var sheet = ss.getSheetByName(ABA_CHAMADOS);
   if (!sheet) {
     sheet = ss.insertSheet(ABA_CHAMADOS);
@@ -17930,7 +18072,7 @@ function listarChamados(filtroStatus) {
     if (cpfUser.length === 10) cpfUser = "0" + cpfUser;
     var emailUser = String(usuario.email || "").trim().toLowerCase();
     
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
     var sheet = ss.getSheetByName(ABA_CHAMADOS);
     if (!sheet || sheet.getLastRow() <= 1) {
       return { ehAdmin: ehAdmin, ehComandante: ehComandante, chamados: [] };
@@ -18062,7 +18204,7 @@ function responderChamadoAdmin(protocolo, respostaTexto, novoStatus) {
       throw new Error("Informe o protocolo e o parecer técnico do suporte.");
     }
     
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
     var sheet = ss.getSheetByName(ABA_CHAMADOS);
     if (!sheet) throw new Error("Aba de Chamados não encontrada.");
     
@@ -18211,7 +18353,7 @@ function adicionarRespostaUsuarioChamado(protocolo, mensagemTexto, anexoBase64) 
       throw new Error("Digite a mensagem complementar para enviar ao suporte.");
     }
     
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
     var sheet = ss.getSheetByName(ABA_CHAMADOS);
     if (!sheet) throw new Error("Aba de Chamados não encontrada.");
     
@@ -18323,7 +18465,7 @@ function reabrirChamadoUsuario(protocolo, motivo) {
       throw new Error("Informe o protocolo e o motivo da reabertura.");
     }
     
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
     var sheet = ss.getSheetByName(ABA_CHAMADOS);
     if (!sheet) throw new Error("Aba de Chamados não encontrada.");
     
@@ -18463,7 +18605,7 @@ function obterMapaCatalogoClasses_(forcar) {
     }
   }
 
-  var ss = SpreadsheetApp.openById(ID_PLANILHA_COMPRAS);
+  var ss = abrirPlanilhaSegura_(ID_PLANILHA_COMPRAS);
   var abaCad = ss.getSheetByName(ABA_CATALOGO_ITENS) || obterAbaPorNomeAproximado(ss, ABA_CATALOGO_ITENS);
   if (!abaCad || abaCad.getLastRow() < 6) {
     var resVazio = { mapa: {}, listaClasses1: [], listaClasses2: [], listaClasses3: [] };
@@ -18595,7 +18737,7 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao, omeCliente, perfilClie
     // 2. Lê Cargas Padrão (Quantidade Ideal) da planilha auxiliar (Aba Carga_Padrao_Setores)
     var mapaCargas = {}; // chave: "OME___MATERIAIS_NORM" -> soma das cotas
     try {
-      var ssAux = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+      var ssAux = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
       var sheetCargas = ssAux.getSheetByName("Carga_Padrao_Setores");
       if (sheetCargas && sheetCargas.getLastRow() > 1) {
         var dadosCargas = sheetCargas.getRange(2, 1, sheetCargas.getLastRow() - 1, 5).getValues();
@@ -18884,7 +19026,7 @@ function obterDadosGerenciamentoCadItens(usuarioCliente) {
       throw new Error("Acesso restrito: apenas Administradores possuem permissão para gerenciar o cadastro oficial de materiais.");
     }
 
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_COMPRAS);
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_COMPRAS);
     var abaCad = ss.getSheetByName(ABA_CATALOGO_ITENS) || obterAbaPorNomeAproximado(ss, ABA_CATALOGO_ITENS);
     if (!abaCad) {
       throw new Error("Aba " + ABA_CATALOGO_ITENS + " não encontrada na planilha de compras.");
@@ -19039,7 +19181,7 @@ function salvarCadastroMaterialCadItens(dados, usuarioCliente) {
     var rowNum = parseInt(dados.rowNumber, 10) || 0;
     var campos = dados.campos || {};
 
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_COMPRAS);
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_COMPRAS);
     var abaCad = ss.getSheetByName(ABA_CATALOGO_ITENS) || obterAbaPorNomeAproximado(ss, ABA_CATALOGO_ITENS);
     if (!abaCad) throw new Error("Aba " + ABA_CATALOGO_ITENS + " não encontrada.");
 
@@ -19161,7 +19303,7 @@ function salvarCadastroMaterialCadItens(dados, usuarioCliente) {
 
 function getDadosGestaoFrotas() {
   try {
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR); // 1VJ6dEc2K1bKt9qUTpBnqf2n6qE_bVHpgW3Ojn7_bvjY
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR); // 1VJ6dEc2K1bKt9qUTpBnqf2n6qE_bVHpgW3Ojn7_bvjY
     var sheet = ss.getSheetByName("Peculio_Viatura");
     
     // Busca flexível caso o nome da aba tenha acento ou pequena variação
@@ -19486,7 +19628,7 @@ function getSaldoViatura(placaOuPatrimonio) {
 function salvarEdicaoViatura(dados) {
   try {
     if (!dados) throw new Error("Dados não fornecidos.");
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
     var sheet = ss.getSheetByName("Peculio_Viatura");
     if (!sheet) {
       var sheets = ss.getSheets();
@@ -20019,7 +20161,7 @@ function garantirSetorViaturaNaSubunidade_(unidadeOme, idSubunidadeOuNome, nomeV
     var omePadrao = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(unidadeOme) : String(unidadeOme || "").trim();
     if (!omePadrao) return null;
 
-    var ss = SpreadsheetApp.openById(ID_PLANILHA_AUXILIAR);
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
     var sheet = ss.getSheetByName(ABA_LOCAIS_ARMAZENAMENTO);
     if (!sheet) return null;
 
