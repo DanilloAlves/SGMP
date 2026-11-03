@@ -10441,6 +10441,7 @@ window.carregarLocaisArvoreGeral = function() {
             
             matsDoLocal.forEach((m) => {
               const idsJson = encodeURIComponent(JSON.stringify(m.ids || []));
+              const idsDescJson = encodeURIComponent(JSON.stringify(m.idsDescarregados || []));
               
               // DIVISÃO DE TAGS (ECD, SCD, ACAUTELADO e EXTRAVIADO) alinhadas na árvore
               let badgesHtml = `<span class="badge bg-info text-dark ms-1">${m.qtd} un(s)</span>`;
@@ -10448,12 +10449,13 @@ window.carregarLocaisArvoreGeral = function() {
               if (m.scd > 0) badgesHtml += `<span class="badge bg-danger ms-1">SCD: ${m.scd}</span>`;
               if (m.acautelado > 0) badgesHtml += `<span class="badge bg-warning text-dark ms-1">ACAUTELADO: ${m.acautelado}</span>`;
               if (m.extraviado > 0) badgesHtml += `<span class="badge bg-secondary ms-1">EXTRAVIADO: ${m.extraviado}</span>`;
+              if (m.descarregado > 0) badgesHtml += `<span class="badge bg-danger ms-1" title="${m.descarregado} material(is) descarregado(s)"><i class="fa-solid fa-box-archive me-1"></i>DESC: ${m.descarregado}</span>`;
 
               const botaoMover = podeMoverArvore ? `<button class="btn btn-sm btn-outline-primary py-0 px-2 me-1" onclick="abrirModalMoverMaterial('${f.id}', '${f.nome}', ${m.qtd}, '${m.nome}', '${idsJson}')"><i class="fa-solid fa-arrows-split-up-and-left"></i> Mover Qtd</button>` : '';
 
               subHtml += `
                 <li class="list-group-item d-flex justify-content-between align-items-center p-2 bg-light rounded mb-1 border">
-                  <a href="javascript:void(0);" class="fw-bold text-primary text-decoration-none text-truncate" style="max-width: 45%;" onclick="abrirModalDetalhesMaterialComIds('${idsJson}', '${m.nome}')" title="Clique para abrir lista individual de itens">
+                  <a href="javascript:void(0);" class="fw-bold text-primary text-decoration-none text-truncate" style="max-width: 45%;" onclick="abrirModalDetalhesMaterialComIds('${idsJson}', '${m.nome}', '${idsDescJson}')" title="Clique para abrir lista individual de itens">
                     <i class="fa-solid fa-list-ul me-1"></i> ${m.nome}
                   </a>
                   <div class="d-flex align-items-center justify-content-end flex-wrap gap-2" style="max-width: 55%;">
@@ -10531,12 +10533,13 @@ window.carregarLocaisArvoreGeral = function() {
             if (m.scd > 0) badgesHtml += `<span class="badge bg-danger ms-1">SCD: ${m.scd}</span>`;
             if (m.acautelado > 0) badgesHtml += `<span class="badge bg-warning text-dark ms-1">ACAUTELADO: ${m.acautelado}</span>`;
             if (m.extraviado > 0) badgesHtml += `<span class="badge bg-secondary ms-1">EXTRAVIADO: ${m.extraviado}</span>`;
+              if (m.descarregado > 0) badgesHtml += `<span class="badge bg-danger ms-1" title="${m.descarregado} material(is) descarregado(s)"><i class="fa-solid fa-box-archive me-1"></i>DESC: ${m.descarregado}</span>`;
 
             const botaoMover = podeMoverArvore ? `<button class="btn btn-sm btn-outline-primary py-0 px-2 me-1" onclick="abrirModalMoverMaterial('${l.id}', '${l.nome}', ${m.qtd}, '${m.nome}', '${idsJson}')"><i class="fa-solid fa-arrows-split-up-and-left"></i> Mover Qtd</button>` : '';
 
             html += `
               <li class="list-group-item d-flex justify-content-between align-items-center p-2 bg-light rounded mb-1 border">
-                <a href="javascript:void(0);" class="fw-bold text-primary text-decoration-none text-truncate" style="max-width: 45%;" onclick="abrirModalDetalhesMaterialComIds('${idsJson}', '${m.nome}')" title="Clique para abrir lista individual de itens">
+                <a href="javascript:void(0);" class="fw-bold text-primary text-decoration-none text-truncate" style="max-width: 45%;" onclick="abrirModalDetalhesMaterialComIds('${idsJson}', '${m.nome}', '${idsDescJson}')" title="Clique para abrir lista individual de itens">
                   <i class="fa-solid fa-list-ul me-1"></i> ${m.nome}
                 </a>
                 <div class="d-flex align-items-center justify-content-end flex-wrap gap-2" style="max-width: 55%;">
@@ -11321,16 +11324,25 @@ window.carregarLocaisArvoreGeral = function() {
   }
 
 
-  function abrirModalDetalhesMaterialComIds(idsEncoded, nomeMaterial) {
-    let idsDoMaterial = [];
+  function abrirModalDetalhesMaterialComIds(idsEncoded, nomeMaterial, idsDescEncoded) {
+    let idsAtivos = [];
     try {
-      idsDoMaterial = JSON.parse(decodeURIComponent(idsEncoded));
+      idsAtivos = JSON.parse(decodeURIComponent(idsEncoded || ''));
     } catch(e) {
-      idsDoMaterial = [];
+      idsAtivos = [];
     }
 
-    if (!idsDoMaterial || idsDoMaterial.length === 0) {
-      Swal.fire('Atenção', 'Nenhum ID unitário encontrado para este material neste local.', 'warning');
+    let idsDesc = [];
+    try {
+      if (idsDescEncoded) idsDesc = JSON.parse(decodeURIComponent(idsDescEncoded));
+    } catch(e) {
+      idsDesc = [];
+    }
+
+    const todosIds = [...new Set(idsAtivos.concat(idsDesc))];
+
+    if (!todosIds || todosIds.length === 0) {
+      Swal.fire('Atenção', 'Nenhum registro encontrado para este material neste local.', 'warning');
       return;
     }
 
@@ -11349,7 +11361,7 @@ window.carregarLocaisArvoreGeral = function() {
       .withFailureHandler(err => {
         Swal.fire('Erro', err.message, 'error');
       })
-      .getDetalhesItensPorIds(idsDoMaterial);
+      .getDetalhesItensPorIds(todosIds);
   }
 
   function alternarListaMateriaisLocal(idLocal) {
@@ -13466,21 +13478,28 @@ function renderizarTimelineEmElemento(dados, ids) {
 
   function alternarAbaModalGerenciamento(aba, itemAlvo) {
     const pItens = document.getElementById('painelAbaItensLocal');
+    const pDesc = document.getElementById('painelAbaDescarregadosLocal');
     const pHistorico = document.getElementById('painelAbaHistoricoLocal');
     const bItens = document.getElementById('abaBtnItensLocal');
+    const bDesc = document.getElementById('abaBtnDescarregadosLocal');
     const bHistorico = document.getElementById('abaBtnHistoricoLocal');
 
-    if (!pItens || !pHistorico || !bItens || !bHistorico) return;
+    if (aba === 'descarregados') {
+      if (pItens) pItens.style.display = 'none';
+      if (pDesc) pDesc.style.display = 'block';
+      if (pHistorico) pHistorico.style.display = 'none';
 
-    if (aba === 'historico') {
-      pItens.style.display = 'none';
-      pHistorico.style.display = 'block';
+      if (bItens) { bItens.classList.remove('active'); bItens.classList.add('text-muted'); }
+      if (bDesc) { bDesc.classList.add('active'); bDesc.classList.remove('text-muted'); }
+      if (bHistorico) { bHistorico.classList.remove('active'); bHistorico.classList.add('text-muted'); }
+    } else if (aba === 'historico') {
+      if (pItens) pItens.style.display = 'none';
+      if (pDesc) pDesc.style.display = 'none';
+      if (pHistorico) pHistorico.style.display = 'block';
 
-      bItens.classList.remove('active', 'text-dark', 'border-bottom-0');
-      bItens.classList.add('text-muted');
-
-      bHistorico.classList.add('active', 'text-dark');
-      bHistorico.classList.remove('text-muted');
+      if (bItens) { bItens.classList.remove('active'); bItens.classList.add('text-muted'); }
+      if (bDesc) { bDesc.classList.remove('active'); bDesc.classList.add('text-muted'); }
+      if (bHistorico) { bHistorico.classList.add('active'); bHistorico.classList.remove('text-muted'); }
 
       let itemParaCarregar = itemAlvo;
       if (!itemParaCarregar) {
@@ -13492,14 +13511,13 @@ function renderizarTimelineEmElemento(dados, ids) {
         carregarHistoricoItemNaAba(itemParaCarregar);
       }
     } else {
-      pHistorico.style.display = 'none';
-      pItens.style.display = 'block';
+      if (pItens) pItens.style.display = 'block';
+      if (pDesc) pDesc.style.display = 'none';
+      if (pHistorico) pHistorico.style.display = 'none';
 
-      bHistorico.classList.remove('active', 'text-dark');
-      bHistorico.classList.add('text-muted');
-
-      bItens.classList.add('active', 'text-dark');
-      bItens.classList.remove('text-muted');
+      if (bItens) { bItens.classList.add('active'); bItens.classList.remove('text-muted'); }
+      if (bDesc) { bDesc.classList.remove('active'); bDesc.classList.add('text-muted'); }
+      if (bHistorico) { bHistorico.classList.remove('active'); bHistorico.classList.add('text-muted'); }
     }
   }
 
@@ -15531,24 +15549,32 @@ function renderizarTimelineEmElemento(dados, ids) {
   }
 
   function renderizarModalGerenciamentoItens(nomeMaterial, itens) {
-    let linhasHtml = '';
+    const itensAtivos = (itens || []).filter(it => (it.status || '').toUpperCase() !== 'DESCARREGADO');
+    const itensDescarregados = (itens || []).filter(it => (it.status || '').toUpperCase() === 'DESCARREGADO');
+
     const perfilUser = ((typeof PERFIL_GLOBAL !== 'undefined' ? PERFIL_GLOBAL : (typeof usuarioSessaoAtual !== 'undefined' && usuarioSessaoAtual ? usuarioSessaoAtual.perfil : "")) || "").trim();
     const isAdmin = perfilUser.toLowerCase().includes("administrador") || perfilUser.toLowerCase().includes("admin");
     const ehAdminOuChefe = isAdmin || perfilUser.toLowerCase().includes("chefe");
 
-    const temSerie = itens.some(it => {
+    const temSerie = (itens || []).some(it => {
       const s = extrairSerieItem(it) || it.nSerie;
       return s && s !== '-' && s !== 'null' && String(s).trim() !== '';
     }) || ehViaturaMaterial(nomeMaterial);
 
     let opcoesSelectItens = '';
-    itens.forEach((item, idx) => {
+    (itens || []).forEach((item, idx) => {
       const numSerieItem = extrairSerieItem(item) || (item.nSerie && item.nSerie !== '-' && item.nSerie !== 'null' ? item.nSerie : '');
       let patTexto = item.patrimonio ? `Pat: ${item.patrimonio}` : 'S/Pat';
       let serieTexto = numSerieItem ? ` | Série: ${numSerieItem}` : '';
       let seiTexto = item.sei ? ` | SEI: ${item.sei}` : '';
-      opcoesSelectItens += `<option value="${item.item}" ${idx === 0 ? 'selected' : ''}>${item.item} - ${patTexto}${serieTexto} (${item.status})${seiTexto}</option>`;
+      let stTexto = (item.status === 'DESCARREGADO') ? ' [DESCARREGADO]' : ` (${item.status})`;
+      opcoesSelectItens += `<option value="${item.item}" ${idx === 0 ? 'selected' : ''}>${item.item} - ${patTexto}${serieTexto}${stTexto}${seiTexto}</option>`;
+    });
 
+    // 1. Linhas dos itens ativos
+    let linhasAtivosHtml = '';
+    itensAtivos.forEach(item => {
+      const numSerieItem = extrairSerieItem(item) || (item.nSerie && item.nSerie !== '-' && item.nSerie !== 'null' ? item.nSerie : '');
       const botaoExcluir = isAdmin ? `<button class="btn btn-sm btn-danger py-0 px-2 ms-1" title="Excluir Item" onclick="excluirItemUnitario('${item.item}')"><i class="fa-solid fa-trash"></i></button>` : '';
       const botaoDescarregar = ehAdminOuChefe ? `<button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 ms-1" title="Descarregar Material (Definitivo)" onclick="iniciarDescarregamentoUnitario('${item.item}', '${String(nomeMaterial).replace(/'/g, "\\'")}', '${String(item.patrimonio || '').replace(/'/g, "\\'")}')"><i class="fa-solid fa-box-archive"></i></button>` : '';
 
@@ -15570,19 +15596,40 @@ function renderizarTimelineEmElemento(dados, ids) {
         colunaStatus = `<span class="badge bg-${corBadge} w-100 py-2">${item.status}</span>`;
       }
 
-      linhasHtml += `
+      linhasAtivosHtml += `
         <tr>
           <td class="text-center"><input type="checkbox" class="check-item-detalhe" value="${item.item}"></td>
           <td><span class="badge bg-secondary" style="cursor:pointer;" onclick="alternarAbaModalGerenciamento('historico', '${item.item}')" title="Clique para ver o histórico deste item">${item.item}</span></td>
           ${temSerie ? `<td class="fw-bold text-primary">${numSerieItem || '-'}</td>` : ''}
-          <td class="fw-bold">${item.patrimonio}</td>
-          <td>${item.sei}</td>
+          <td class="fw-bold">${item.patrimonio || '-'}</td>
+          <td>${item.sei || '-'}</td>
           <td>${colunaStatus}</td>
           <td class="text-center text-nowrap">
             <button type="button" class="btn btn-sm btn-outline-info py-0 px-2 me-1" title="Ver Linha do Tempo / Histórico" onclick="alternarAbaModalGerenciamento('historico', '${item.item}')"><i class="fa-solid fa-clock-rotate-left"></i></button>
             ${botaoSalvar}
             ${botaoDescarregar}
             ${botaoExcluir}
+          </td>
+        </tr>`;
+    });
+
+    // 2. Linhas dos itens descarregados
+    let linhasDescarregadosHtml = '';
+    itensDescarregados.forEach(item => {
+      const numSerieItem = extrairSerieItem(item) || (item.nSerie && item.nSerie !== '-' && item.nSerie !== 'null' ? item.nSerie : '');
+      const seiDesc = item.processoSeiDescarregamento || item.sei || '-';
+      const dataDesc = item.dataDescarregamento || '-';
+
+      linhasDescarregadosHtml += `
+        <tr class="table-danger bg-opacity-10">
+          <td><span class="badge bg-secondary" style="cursor:pointer;" onclick="alternarAbaModalGerenciamento('historico', '${item.item}')" title="Clique para ver o histórico deste item">${item.item}</span></td>
+          ${temSerie ? `<td class="fw-bold text-primary">${numSerieItem || '-'}</td>` : ''}
+          <td class="fw-bold">${item.patrimonio || 'S/N'}</td>
+          <td><span class="badge bg-light text-dark border font-monospace">${seiDesc}</span></td>
+          <td><span class="small text-muted">${dataDesc}</span></td>
+          <td><span class="badge bg-danger py-1 px-2.5 w-100"><i class="fa-solid fa-box-archive me-1"></i> Descarregado</span></td>
+          <td class="text-center text-nowrap">
+            <button type="button" class="btn btn-sm btn-outline-info py-0 px-2" title="Ver Linha do Tempo / Histórico" onclick="alternarAbaModalGerenciamento('historico', '${item.item}')"><i class="fa-solid fa-clock-rotate-left"></i></button>
           </td>
         </tr>`;
     });
@@ -15596,7 +15643,12 @@ function renderizarTimelineEmElemento(dados, ids) {
         <ul class="nav nav-tabs mb-3 border-bottom" id="tabModalGerenciamento" role="tablist">
           <li class="nav-item" role="presentation">
             <button class="nav-link active fw-bold text-dark px-3 py-2" id="abaBtnItensLocal" type="button" onclick="alternarAbaModalGerenciamento('itens')">
-              <i class="fa-solid fa-boxes-stacked me-1 text-primary"></i> Itens do Local (${itens.length})
+              <i class="fa-solid fa-boxes-stacked me-1 text-primary"></i> Itens do Local (${itensAtivos.length})
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link fw-bold text-muted px-3 py-2" id="abaBtnDescarregadosLocal" type="button" onclick="alternarAbaModalGerenciamento('descarregados')">
+              <i class="fa-solid fa-box-archive me-1 text-danger"></i> Descarregados (${itensDescarregados.length})
             </button>
           </li>
           <li class="nav-item" role="presentation">
@@ -15606,46 +15658,88 @@ function renderizarTimelineEmElemento(dados, ids) {
           </li>
         </ul>
 
-        <!-- PAINEL 1: ITENS DO LOCAL -->
+        <!-- PAINEL 1: ITENS ATIVOS DO LOCAL -->
         <div id="painelAbaItensLocal">
-          <div class="d-flex justify-content-between align-items-center mb-2 p-2 bg-light rounded border flex-wrap gap-2">
-            <div><span class="small fw-bold text-muted" id="contadorDetSelecionados">0 selecionado(s)</span></div>
-            <div class="d-flex gap-2 flex-wrap">
-              <button class="btn btn-sm btn-outline-primary py-0" onclick="marcarTodosDetalhes(true)">Marcar Todos</button>
-              <button class="btn btn-sm btn-outline-secondary py-0" onclick="marcarTodosDetalhes(false)">Desmarcar</button>
-              <button class="btn btn-sm btn-warning fw-bold text-dark py-0 px-2" onclick="aplicarEdicaoLoteDetalhes()">Editar Lote</button>
-              <button class="btn btn-sm btn-outline-danger fw-bold py-0 px-2" onclick="iniciarDescarregamentoLoteModal()"><i class="fa-solid fa-box-archive me-1"></i> Descarregar Marcados</button>
-              ${botaoLoteExcluir}
+          ${itensAtivos.length === 0 ? `
+            <div class="alert alert-light border text-center py-4 text-muted small mb-0">
+              <i class="fa-solid fa-boxes-stacked fs-3 d-block mb-2 text-muted"></i>
+              Nenhum material ativo registrado neste local.
             </div>
-          </div>
+          ` : `
+            <div class="d-flex justify-content-between align-items-center mb-2 p-2 bg-light rounded border flex-wrap gap-2">
+              <div><span class="small fw-bold text-muted" id="contadorDetSelecionados">0 selecionado(s)</span></div>
+              <div class="d-flex gap-2 flex-wrap">
+                <button class="btn btn-sm btn-outline-primary py-0" onclick="marcarTodosDetalhes(true)">Marcar Todos</button>
+                <button class="btn btn-sm btn-outline-secondary py-0" onclick="marcarTodosDetalhes(false)">Desmarcar</button>
+                <button class="btn btn-sm btn-warning fw-bold text-dark py-0 px-2" onclick="aplicarEdicaoLoteDetalhes()">Editar Lote</button>
+                <button class="btn btn-sm btn-outline-danger fw-bold py-0 px-2" onclick="iniciarDescarregamentoLoteModal()"><i class="fa-solid fa-box-archive me-1"></i> Descarregar Marcados</button>
+                ${botaoLoteExcluir}
+              </div>
+            </div>
 
-          <div class="table-responsive" style="max-height: 380px; overflow-y: auto;">
-            <table class="table table-bordered table-sm align-middle small mb-0">
-              <thead class="table-light sticky-top">
-                <tr>
-                  <th style="width: 35px;" class="text-center"><input type="checkbox" id="checkMasterDet" onclick="marcarTodosDetalhes(this.checked)"></th>
-                  <th>ID do Sistema</th>
-                  ${temSerie ? `<th>Nº de Série</th>` : ''}
-                  <th>Patrimônio</th>
-                  <th>SEI Compra</th>
-                  <th style="width: 140px;">Status</th>
-                  <th style="width: 110px;" class="text-center">Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${linhasHtml}
-              </tbody>
-            </table>
-          </div>
+            <div class="table-responsive" style="max-height: 380px; overflow-y: auto;">
+              <table class="table table-bordered table-sm align-middle small mb-0">
+                <thead class="table-light sticky-top">
+                  <tr>
+                    <th style="width: 35px;" class="text-center"><input type="checkbox" id="checkMasterDet" onclick="marcarTodosDetalhes(this.checked)"></th>
+                    <th>ID do Sistema</th>
+                    ${temSerie ? '<th>Nº de Série</th>' : ''}
+                    <th>Patrimônio</th>
+                    <th>SEI Compra</th>
+                    <th style="width: 140px;">Status</th>
+                    <th style="width: 110px;" class="text-center">Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${linhasAtivosHtml}
+                </tbody>
+              </table>
+            </div>
+          `}
         </div>
 
-        <!-- PAINEL 2: HISTÓRICO / LINHA DO TEMPO -->
+        <!-- PAINEL 2: ITENS DESCARREGADOS -->
+        <div id="painelAbaDescarregadosLocal" style="display: none;">
+          <div class="alert alert-secondary py-2 px-3 small mb-2 d-flex align-items-center">
+            <i class="fa-solid fa-circle-info text-secondary me-2 fs-5 flex-shrink-0"></i>
+            <div>
+              Materiais descarregados definitivamente deste local através de Processo SEI. Não contabilizam mais nos estoques ativos ou checklists.
+            </div>
+          </div>
+          ${itensDescarregados.length === 0 ? `
+            <div class="text-center py-4 text-muted small border rounded bg-light">
+              <i class="fa-solid fa-box-archive text-muted fs-3 d-block mb-2"></i>
+              Nenhum material descarregado registrado neste local.
+            </div>
+          ` : `
+            <div class="table-responsive" style="max-height: 380px; overflow-y: auto;">
+              <table class="table table-bordered table-sm align-middle small mb-0">
+                <thead class="table-light sticky-top">
+                  <tr>
+                    <th>ID do Sistema</th>
+                    ${temSerie ? '<th>Nº de Série</th>' : ''}
+                    <th>Patrimônio</th>
+                    <th>Processo SEI</th>
+                    <th>Data Descarrego</th>
+                    <th style="width: 140px;">Status</th>
+                    <th style="width: 70px;" class="text-center">Histórico</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${linhasDescarregadosHtml}
+                </tbody>
+              </table>
+            </div>
+          `}
+        </div>
+
+        <!-- PAINEL 3: HISTÓRICO / LINHA DO TEMPO -->
         <div id="painelAbaHistoricoLocal" style="display: none;">
           <!-- Barra de seleção do item dentro do lote -->
           <div class="card border-0 bg-light p-2 mb-3">
             <div class="row g-2 align-items-center">
               <div class="col-md-7">
-                <label class="form-label small fw-bold mb-1 text-muted"><i class="fa-solid fa-list-check me-1 text-primary"></i> Selecione o item do lote:</label>
+                <label class="form-label small fw-bold mb-1 text-muted"><i class="fa-solid fa-list-check me-1 text-primary"></i> Selecione o item:</label>
                 <select id="selectItemHistoricoAba" class="form-select form-select-sm" onchange="carregarHistoricoItemNaAba(this.value)">
                   ${opcoesSelectItens}
                 </select>
@@ -15708,11 +15802,16 @@ function renderizarTimelineEmElemento(dados, ids) {
       html: conteudoModalHtml,
       width: '900px',
       showConfirmButton: false,
-      showCloseButton: true
+      showCloseButton: true,
+      didOpen: () => {
+        if (itensAtivos.length === 0 && itensDescarregados.length > 0) {
+          alternarAbaModalGerenciamento('descarregados');
+        }
+      }
     });
   }
 
-  function marcarTodosDetalhes(marcar) {
+    function marcarTodosDetalhes(marcar) {
     document.querySelectorAll('.check-item-detalhe').forEach(cb => cb.checked = marcar);
     const master = document.getElementById('checkMasterDet');
     if (master) master.checked = marcar;

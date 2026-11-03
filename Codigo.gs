@@ -2400,14 +2400,17 @@ function getMateriaisAtreladosPorLocal(unidadeOmega) {
               "UPPER(TRIM(COALESCE(SETOR, ''))) as set_ref, " +
               "UPPER(TRIM(COALESCE(LOCALIZACAO_ESPCIFICA_NA_OME_Se_Necessario, ''))) as loc_ref, " +
               "UPPER(TRIM(OBJETO)) as objeto_limpo, " +
-              "COUNT(*) as qtd, " +
+              "COUNT(CASE WHEN UPPER(TRIM(COALESCE(STATUS, 'ECD'))) NOT IN ('BAIXADO', 'DESCARREGADO') THEN 1 ELSE NULL END) as qtd, " +
               "SUM(CASE WHEN TRIM(UPPER(STATUS)) = 'ECD' THEN 1 ELSE 0 END) as qtd_ecd, " +
               "SUM(CASE WHEN TRIM(UPPER(STATUS)) = 'SCD' THEN 1 ELSE 0 END) as qtd_scd, " +
               "SUM(CASE WHEN TRIM(UPPER(STATUS)) = 'ACAUTELADO' THEN 1 ELSE 0 END) as qtd_acautelado, " +
               "SUM(CASE WHEN TRIM(UPPER(STATUS)) = 'EXTRAVIADO' THEN 1 ELSE 0 END) as qtd_extraviado, " +
-              "STRING_AGG(ITEM, ',') as ids_string " +
+              "SUM(CASE WHEN TRIM(UPPER(STATUS)) = 'DESCARREGADO' THEN 1 ELSE 0 END) as qtd_descarregado, " +
+              "STRING_AGG(CASE WHEN UPPER(TRIM(COALESCE(STATUS, 'ECD'))) NOT IN ('BAIXADO', 'DESCARREGADO') THEN ITEM ELSE NULL END, ',') as ids_string, " +
+              "STRING_AGG(CASE WHEN TRIM(UPPER(STATUS)) = 'DESCARREGADO' THEN ITEM ELSE NULL END, ',') as ids_desc_string " +
               "FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
               "WHERE UPPER(TRIM(UNIDADE)) IN (" + inSqlOme + ") " +
+              "  AND (STATUS IS NULL OR UPPER(TRIM(STATUS)) != 'BAIXADO') " +
               "GROUP BY local_ref, sub_ref, set_ref, loc_ref, objeto_limpo " +
               "ORDER BY objeto_limpo ASC";
 
@@ -2427,7 +2430,9 @@ function getMateriaisAtreladosPorLocal(unidadeOmega) {
       var qtdScd = parseInt(r.f[7].v || 0);
       var qtdAcautelado = parseInt(r.f[8].v || 0);
       var qtdExtraviado = parseInt(r.f[9].v || 0);
-      var idsStr = String(r.f[10].v || "").trim();
+      var qtdDesc = parseInt(r.f[10].v || 0);
+      var idsStr = String(r.f[11].v || "").trim();
+      var idsDescStr = String(r.f[12].v || "").trim();
 
       if (objeto) {
         // Exclui materiais de consumo da árvore física de locais (mantém apenas permanentes)
@@ -2485,7 +2490,9 @@ function getMateriaisAtreladosPorLocal(unidadeOmega) {
           itemExistente.scd += qtdScd;
           itemExistente.acautelado = (itemExistente.acautelado || 0) + qtdAcautelado;
           itemExistente.extraviado = (itemExistente.extraviado || 0) + qtdExtraviado;
+          itemExistente.descarregado = (itemExistente.descarregado || 0) + qtdDesc;
           if (idsStr) itemExistente.ids = itemExistente.ids.concat(idsStr.split(','));
+          if (idsDescStr) itemExistente.idsDescarregados = (itemExistente.idsDescarregados || []).concat(idsDescStr.split(','));
         } else {
           vinculos[idDestino].push({ 
             nome: objeto, 
@@ -2494,7 +2501,9 @@ function getMateriaisAtreladosPorLocal(unidadeOmega) {
             scd: qtdScd, 
             acautelado: qtdAcautelado, 
             extraviado: qtdExtraviado, 
-            ids: idsStr ? idsStr.split(',') : [] 
+            descarregado: qtdDesc,
+            ids: idsStr ? idsStr.split(',') : [],
+            idsDescarregados: idsDescStr ? idsDescStr.split(',') : []
           });
         }
       }
@@ -2510,19 +2519,15 @@ function getMateriaisAtreladosPorLocal(unidadeOmega) {
 
 
 function getDetalhesItensPorIds(idsArray) {
-
   try {
-
     if (!idsArray || idsArray.length === 0) return [];
-
     var idsSql = idsArray.map(function(id) { return "'" + String(id).replace(/'/g, "\\'") + "'"; }).join(",");
-
-    
 
     var colSerie = obterColunaSerieInventario_();
     var selectSerieSql = colSerie ? ("COALESCE(`" + colSerie + "`, '-')") : "CAST('-' AS STRING)";
 
-    var sql = "SELECT ITEM, OBJETO, STATUS, COALESCE(N_PATRIMONIO, '-'), COALESCE(SEI_COMPRA_RECEBIMENTO, '-'), " + selectSerieSql + " " +
+    var sql = "SELECT ITEM, OBJETO, STATUS, COALESCE(N_PATRIMONIO, '-'), COALESCE(SEI_COMPRA_RECEBIMENTO, '-'), " + selectSerieSql + ", " +
+              "COALESCE(SE_EXTRAVIADO_OU_SCD_N_DOC_SEI, '-'), OBSERVACAO_Mais_detalhes_sobre_a_situacao_do_material " +
               "FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
               "WHERE ITEM IN (" + idsSql + ") ORDER BY ITEM ASC";
 
@@ -2531,28 +2536,37 @@ function getDetalhesItensPorIds(idsArray) {
     var itens = [];
 
     rows.forEach(function(r) {
+      var st = String(r.f[2].v || "ECD").trim().toUpperCase();
+      var seiDoc = (r.f[6] && r.f[6].v && r.f[6].v !== "-") ? String(r.f[6].v) : "";
+      var obs = (r.f[7] && r.f[7].v) ? String(r.f[7].v) : "";
+
+      var dataDesc = "";
+      var seiDesc = seiDoc;
+      if (st === "DESCARREGADO") {
+        var mData = obs.match(/DESCARREGADO em\s+([^|;\n\r\-]+)/i);
+        if (mData && mData[1]) dataDesc = mData[1].trim();
+        var mSei = obs.match(/Proc\.?\s*SEI:\s*([^|;\n\r\-]+)/i);
+        if (mSei && mSei[1]) seiDesc = mSei[1].trim();
+      }
+
       itens.push({
         item: String(r.f[0].v || ""),
         objeto: String(r.f[1].v || ""),
-        status: String(r.f[2].v || "ECD"),
+        status: st,
         patrimonio: String(r.f[3].v || "-"),
         sei: String(r.f[4].v || "-"),
-        nSerie: (r.f[5] && r.f[5].v && r.f[5].v !== "-") ? String(r.f[5].v) : ""
+        nSerie: (r.f[5] && r.f[5].v && r.f[5].v !== "-") ? String(r.f[5].v) : "",
+        processoSeiDescarregamento: seiDesc,
+        dataDescarregamento: dataDesc,
+        observacao: obs
       });
     });
 
-    
-
     return itens;
-
   } catch (err) {
-
     console.error("Erro em getDetalhesItensPorIds: " + err.message);
-
     return [];
-
   }
-
 }
 
 
@@ -9101,6 +9115,7 @@ function getMateriaisDaOme(ome) {
     var sql = "SELECT TRIM(OBJETO) as material, COUNT(*) as qtd " +
               "FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
               "WHERE UPPER(TRIM(UNIDADE)) IN (" + inSqlOme + ") " +
+              "  AND (STATUS IS NULL OR UPPER(TRIM(STATUS)) NOT IN ('BAIXADO', 'DESCARREGADO')) " +
               "GROUP BY TRIM(OBJETO) " +
               "ORDER BY material ASC";
 
