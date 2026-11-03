@@ -20347,6 +20347,17 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     const exibirHeaderSubnivel = temSubniveis || numSubgrupos > 1;
 
     let bodyHtml = `
+      <!-- Alerta visual caso a divisão esteja desabilitada -->
+      <div class="alert alert-warning py-1.5 px-3 mb-2 small d-flex align-items-center justify-content-between alert-div-desabilitada" id="alerta-div-desab-${unitIndex}">
+        <div class="d-flex align-items-center">
+          <i class="fa-solid fa-lock text-warning me-2"></i>
+          <span><strong>Divisão Desabilitada:</strong> Marque o checkbox de habilitação no cabeçalho acima para registrar avarias ou extravios.</span>
+        </div>
+        <button type="button" class="btn btn-xs btn-warning text-dark fw-bold ms-2 py-0.5 px-2 text-nowrap" onclick="habilitarDivisaoPorBotao(${unitIndex})">
+          <i class="fa-solid fa-unlock me-1"></i>Habilitar Agora
+        </button>
+      </div>
+
       <div class="d-flex justify-content-between align-items-center mb-2 px-1 barra-agrupados-nome">
         <div class="small text-muted text-truncate fw-semibold" style="font-size: 0.78rem;">
           <i class="fa-solid fa-layer-group me-1 text-primary"></i>Agrupados por nome
@@ -20447,7 +20458,6 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
         itensObj.forEach(i => {
           let statusUpper = String(i.status || "ECD").trim().toUpperCase();
           let ehScd = statusUpper === "SCD";
-          let disabledAttr = ehScd ? 'disabled' : '';
           let badgeColor = ehScd ? 'danger' : 'success';
           let textoStatus = ehScd ? 'SCD (Inservível)' : 'ECD (Bom)';
           let obsTexto = ehScd ? `[Já em SCD] ${i.observacao || ''}` : '';
@@ -20471,17 +20481,17 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
               <td class="text-center">
                 <div class="d-flex align-items-center justify-content-center gap-2">
                   <div class="form-check form-check-inline m-0" title="Marcar avaria física ou defeito">
-                    <input type="checkbox" class="chk-inconsistencia form-check-input" id="chk-avaria-${i.item}" data-item="${i.item}" data-objeto="${i.objeto}" data-local="${localAuditoria}" data-divisao="${locKey}" data-div-index="${unitIndex}" data-unidade="${i.unidade || omeRawDef || ''}" data-subunidade="${subResItem}" onchange="toggleCampoAvaria(this, true)" ${disabledAttr}>
-                    <label class="form-check-label" style="font-size: 0.75rem;" for="chk-avaria-${i.item}">Avaria</label>
+                    <input type="checkbox" class="chk-inconsistencia form-check-input" id="chk-avaria-${i.item}" data-item="${i.item}" data-objeto="${i.objeto}" data-local="${localAuditoria}" data-divisao="${locKey}" data-div-index="${unitIndex}" data-unidade="${i.unidade || omeRawDef || ''}" data-subunidade="${subResItem}" onchange="toggleCampoAvaria(this, true)" disabled style="cursor: not-allowed; opacity: 0.5;">
+                    <label class="form-check-label lbl-chk-avaria" style="font-size: 0.75rem; opacity: 0.5; cursor: not-allowed;" for="chk-avaria-${i.item}">Avaria</label>
                   </div>
                   <div class="form-check form-check-inline m-0" title="Marcar material extraviado (sumiu ou se perdeu)">
-                    <input type="checkbox" class="chk-extraviado form-check-input" id="chk-ext-${i.item}" data-item="${i.item}" data-objeto="${i.objeto}" data-local="${localAuditoria}" data-divisao="${locKey}" data-div-index="${unitIndex}" data-unidade="${i.unidade || omeRawDef || ''}" data-subunidade="${subResItem}" onchange="toggleExtraviado(this, true)" ${disabledAttr}>
-                    <label class="form-check-label text-danger fw-bold" style="font-size: 0.75rem;" for="chk-ext-${i.item}">Extraviado</label>
+                    <input type="checkbox" class="chk-extraviado form-check-input" id="chk-ext-${i.item}" data-item="${i.item}" data-objeto="${i.objeto}" data-local="${localAuditoria}" data-divisao="${locKey}" data-div-index="${unitIndex}" data-unidade="${i.unidade || omeRawDef || ''}" data-subunidade="${subResItem}" onchange="toggleExtraviado(this, true)" disabled style="cursor: not-allowed; opacity: 0.5;">
+                    <label class="form-check-label text-danger fw-bold lbl-chk-ext" style="font-size: 0.75rem; opacity: 0.5; cursor: not-allowed;" for="chk-ext-${i.item}">Extraviado</label>
                   </div>
                 </div>
               </td>
               <td>
-                <input type="text" class="form-control form-control-sm txt-avaria" id="avaria-${i.item}" style="font-size: 0.78rem;" value="${obsTexto}" placeholder="${ehScd ? 'Material já baixado em SCD' : 'Descreva a avaria ou extravio...'}" onkeyup="sincronizarAvariaDesktop('${i.item}')" ${disabledAttr} ${ehScd ? 'readonly' : 'disabled'}>
+                <input type="text" class="form-control form-control-sm txt-avaria" id="avaria-${i.item}" style="font-size: 0.78rem; cursor: not-allowed; background-color: #f1f5f9;" value="${obsTexto}" placeholder="${ehScd ? 'Material já baixado em SCD' : 'Descreva a avaria ou extravio...'}" onkeyup="sincronizarAvariaDesktop('${i.item}')" disabled ${ehScd ? 'readonly' : ''}>
               </td>
             </tr>
           `;
@@ -20587,13 +20597,13 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
 
               <!-- BOTÕES TÁTEIS: CONFORME vs AVARIA vs EXTRAVIADO -->
               <div class="btn-group-checklist-mobile mt-2">
-                <button type="button" class="btn btn-sm btn-outline-success btn-touch-check active" id="btn-mob-ok-${i.item}" onclick="marcarItemMobile('${i.item}', 'conforme')">
+                <button type="button" class="btn btn-sm btn-outline-success btn-touch-check active" id="btn-mob-ok-${i.item}" onclick="marcarItemMobile('${i.item}', 'conforme')" disabled style="cursor: not-allowed; opacity: 0.6;">
                   <i class="fa-solid fa-circle-check"></i><span class="btn-text">Conforme</span>
                 </button>
-                <button type="button" class="btn btn-sm btn-outline-warning btn-touch-check" id="btn-mob-avaria-${i.item}" onclick="marcarItemMobile('${i.item}', 'avaria')" ${disabledAttr}>
+                <button type="button" class="btn btn-sm btn-outline-warning btn-touch-check" id="btn-mob-avaria-${i.item}" onclick="marcarItemMobile('${i.item}', 'avaria')" disabled style="cursor: not-allowed; opacity: 0.6;">
                   <i class="fa-solid fa-triangle-exclamation"></i><span class="btn-text">Avaria</span>
                 </button>
-                <button type="button" class="btn btn-sm btn-outline-danger btn-touch-check" id="btn-mob-extraviado-${i.item}" onclick="marcarItemMobile('${i.item}', 'extraviado')" ${disabledAttr}>
+                <button type="button" class="btn btn-sm btn-outline-danger btn-touch-check" id="btn-mob-extraviado-${i.item}" onclick="marcarItemMobile('${i.item}', 'extraviado')" disabled style="cursor: not-allowed; opacity: 0.6;">
                   <i class="fa-solid fa-person-falling-burst"></i><span class="btn-text">Extraviado</span>
                 </button>
               </div>
@@ -20609,7 +20619,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
                   <span class="tag-avaria-rapida" onclick="aplicarTagAvaria('${i.item}', 'Danificado')"><i class="fa-solid fa-triangle-exclamation me-1"></i>Danificado</span>
                   <span class="tag-avaria-rapida bg-danger-subtle text-danger border border-danger-subtle" onclick="aplicarTagAvaria('${i.item}', 'Material extraviado (sumiu ou se perdeu da unidade)')"><i class="fa-solid fa-person-falling-burst me-1"></i>Extraviado</span>
                 </div>
-                <input type="text" class="form-control form-control-sm txt-avaria-mobile" id="avaria-mob-${i.item}" value="${obsTexto}" placeholder="${ehScd ? 'Material já baixado em SCD' : 'Ex: Quebrado, extraviado, avariado...'}" onkeyup="sincronizarAvariaMobile('${i.item}')" ${disabledAttr} ${ehScd ? 'readonly' : ''}>
+                <input type="text" class="form-control form-control-sm txt-avaria-mobile" id="avaria-mob-${i.item}" value="${obsTexto}" placeholder="${ehScd ? 'Material já baixado em SCD' : 'Ex: Quebrado, extraviado, avariado...'}" onkeyup="sincronizarAvariaMobile('${i.item}')" disabled ${ehScd ? 'readonly' : ''} style="cursor: not-allowed; background-color: #f1f5f9;">
               </div>
             </div>
           `;
@@ -20660,7 +20670,6 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
         </h2>
         <div id="${collapseId}" class="accordion-collapse collapse" aria-labelledby="${headingId}">
           <div class="accordion-body p-2 p-md-3">
-              <button type="button" class="btn btn-xs btn-outline-secondary px-2 py-1 text-nowrap flex-shrink-0" style="font-size: 0.74rem;" onclick="abrirModalQrCodeChecklist(event, '${(omeRaw || '').replace(/'/g, "\\'")}', '${(subRes || '').replace(/'/g, "\\'")}', '${(tituloFlag || '').replace(/'/g, "\\'")}')">
             ${corpoHtml}
           </div>
         </div>
@@ -21071,6 +21080,19 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
   }
 
   function aplicarTagAvaria(itemId, texto) {
+    const cardMob = document.getElementById('card-mobile-' + itemId);
+    const divIndex = cardMob ? cardMob.getAttribute('data-div-index') : null;
+    const chkDiv = divIndex !== null ? document.getElementById('check-div-' + divIndex) : null;
+    if (chkDiv && !chkDiv.checked) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Divisão Desabilitada',
+        text: 'Habilite o checkbox no cabeçalho desta divisão para poder registrar avarias.',
+        timer: 3000,
+        showConfirmButton: false
+      });
+      return;
+    }
     const inputMob = document.getElementById('avaria-mob-' + itemId);
     const inputDesk = document.getElementById('avaria-' + itemId);
     if (inputMob) {
@@ -21122,6 +21144,20 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     if (est === false) est = 'conforme';
     if (est === true) est = 'avaria';
 
+    const cardMob = document.getElementById('card-mobile-' + itemId);
+    const divIndex = cardMob ? cardMob.getAttribute('data-div-index') : null;
+    const chkDiv = divIndex !== null ? document.getElementById('check-div-' + divIndex) : null;
+    if (chkDiv && !chkDiv.checked && est !== 'conforme') {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Divisão Desabilitada',
+        text: 'Habilite o checkbox de vistoria no cabeçalho desta divisão para poder apontar avarias ou extravios.',
+        timer: 3000,
+        showConfirmButton: false
+      });
+      return;
+    }
+
     const chkAvaria = document.getElementById('chk-avaria-' + itemId);
     const chkExt = document.getElementById('chk-ext-' + itemId);
     const inputDesk = document.getElementById('avaria-' + itemId);
@@ -21158,6 +21194,19 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
   }
 
   function toggleCampoAvaria(checkbox, syncMobile = true) {
+    const divIndex = checkbox.getAttribute('data-div-index');
+    const chkDiv = divIndex !== null ? document.getElementById('check-div-' + divIndex) : null;
+    if (chkDiv && !chkDiv.checked) {
+      checkbox.checked = false;
+      Swal.fire({
+        icon: 'warning',
+        title: 'Divisão Desabilitada',
+        text: 'Habilite o checkbox de vistoria no cabeçalho desta divisão para poder registrar avarias.',
+        timer: 3000,
+        showConfirmButton: false
+      });
+      return;
+    }
     const itemId = checkbox.getAttribute('data-item');
     const chkExt = document.getElementById('chk-ext-' + itemId);
     const inputAvaria = document.getElementById('avaria-' + itemId);
@@ -21183,6 +21232,19 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
   }
 
   function toggleExtraviado(checkbox, syncMobile = true) {
+    const divIndex = checkbox.getAttribute('data-div-index');
+    const chkDiv = divIndex !== null ? document.getElementById('check-div-' + divIndex) : null;
+    if (chkDiv && !chkDiv.checked) {
+      checkbox.checked = false;
+      Swal.fire({
+        icon: 'warning',
+        title: 'Divisão Desabilitada',
+        text: 'Habilite o checkbox de vistoria no cabeçalho desta divisão para poder registrar extravios.',
+        timer: 3000,
+        showConfirmButton: false
+      });
+      return;
+    }
     const itemId = checkbox.getAttribute('data-item');
     const chkAvaria = document.getElementById('chk-avaria-' + itemId);
     const inputAvaria = document.getElementById('avaria-' + itemId);
@@ -21396,10 +21458,19 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     });
   }
 
+  function habilitarDivisaoPorBotao(index) {
+    const chk = document.getElementById('check-div-' + index);
+    if (chk) {
+      chk.checked = true;
+      toggleHabilitarDivisaoChecklist(index, true);
+    }
+  }
+
   function toggleHabilitarDivisaoChecklist(index, habilitado) {
     const btn = document.getElementById('btn-accordion-' + index);
     const badge = document.getElementById('badge-div-status-' + index);
     const collapseEl = document.getElementById('collapseLoc' + index);
+    const alertaDesab = document.getElementById('alerta-div-desab-' + index);
 
     if (habilitado) {
       if (btn) {
@@ -21411,7 +21482,69 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
         badge.className = 'badge bg-success ms-2 badge-div-status';
         badge.innerHTML = '<i class="fa-solid fa-unlock me-1"></i>Habilitada';
       }
+      if (alertaDesab) {
+        alertaDesab.style.display = 'none';
+      }
+
+      // Habilita todos os inputs de inconsistência e extravio dentro desta divisão
       if (collapseEl) {
+        // Desktop: checkboxes de avaria
+        collapseEl.querySelectorAll('.chk-inconsistencia').forEach(cb => {
+          const tr = cb.closest('tr');
+          const isScd = tr && tr.querySelector('.badge.bg-danger')?.textContent?.includes('SCD');
+          if (!isScd) {
+            cb.removeAttribute('disabled');
+            cb.style.cursor = 'pointer';
+            cb.style.opacity = '1';
+            const lbl = tr ? tr.querySelector('.lbl-chk-avaria') : null;
+            if (lbl) { lbl.style.opacity = '1'; lbl.style.cursor = 'pointer'; }
+          }
+        });
+
+        // Desktop: checkboxes de extraviado
+        collapseEl.querySelectorAll('.chk-extraviado').forEach(cb => {
+          const tr = cb.closest('tr');
+          const isScd = tr && tr.querySelector('.badge.bg-danger')?.textContent?.includes('SCD');
+          if (!isScd) {
+            cb.removeAttribute('disabled');
+            cb.style.cursor = 'pointer';
+            cb.style.opacity = '1';
+            const lbl = tr ? tr.querySelector('.lbl-chk-ext') : null;
+            if (lbl) { lbl.style.opacity = '1'; lbl.style.cursor = 'pointer'; }
+          }
+        });
+
+        // Desktop: text inputs
+        collapseEl.querySelectorAll('.txt-avaria').forEach(txt => {
+          txt.style.cursor = '';
+          txt.style.backgroundColor = '';
+          const tr = txt.closest('tr');
+          const chkAvar = tr ? tr.querySelector('.chk-inconsistencia') : null;
+          const chkEx = tr ? tr.querySelector('.chk-extraviado') : null;
+          const isMarked = (chkAvar && chkAvar.checked) || (chkEx && chkEx.checked);
+          txt.disabled = !isMarked;
+        });
+
+        // Mobile: botões touch
+        collapseEl.querySelectorAll('.btn-touch-check').forEach(b => {
+          const card = b.closest('.card-item-checklist-mobile');
+          const isScd = card && card.querySelector('.badge.bg-danger')?.textContent?.includes('SCD');
+          if (!isScd) {
+            b.removeAttribute('disabled');
+            b.style.cursor = 'pointer';
+            b.style.opacity = '1';
+          }
+        });
+
+        // Mobile: text inputs
+        collapseEl.querySelectorAll('.txt-avaria-mobile').forEach(txt => {
+          txt.style.cursor = '';
+          txt.style.backgroundColor = '';
+          const card = txt.closest('.card-item-checklist-mobile');
+          const isAvariaOrExt = card && (card.classList.contains('com-avaria') || card.classList.contains('com-extraviado'));
+          txt.disabled = !isAvariaOrExt;
+        });
+
         try {
           const bsCol = bootstrap.Collapse.getOrCreateInstance(collapseEl);
           bsCol.show();
@@ -21420,14 +21553,6 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
         }
       }
     } else {
-      if (collapseEl) {
-        try {
-          const bsCol = bootstrap.Collapse.getOrCreateInstance(collapseEl);
-          bsCol.hide();
-        } catch(e) {
-          collapseEl.classList.remove('show');
-        }
-      }
       if (btn) {
         btn.setAttribute('disabled', 'true');
         btn.style.opacity = '0.65';
@@ -21437,22 +21562,79 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
         badge.className = 'badge bg-light text-secondary border ms-2 badge-div-status';
         badge.innerHTML = '<i class="fa-solid fa-lock me-1"></i>Desabilitada';
       }
+      if (alertaDesab) {
+        alertaDesab.style.display = 'flex';
+      }
 
-      // Se desabilitou a divisão, reseta inconsistências marcadas nela
+      // Se desabilitou a divisão, reseta e DESABILITA tudo dentro dela
       if (collapseEl) {
-        const inputsAvaria = collapseEl.querySelectorAll('.chk-inconsistencia:checked, .chk-extraviado:checked');
-        inputsAvaria.forEach(cb => {
+        // Desktop: desmarca e desabilita checkboxes de avaria
+        collapseEl.querySelectorAll('.chk-inconsistencia').forEach(cb => {
           cb.checked = false;
-          const itemId = cb.getAttribute('data-item');
-          const txt = document.getElementById('avaria-' + itemId);
-          if (txt) {
-            txt.value = '';
-            txt.disabled = true;
-          }
-          if (typeof sincronizarEstadoMobilePorItem === 'function') {
+          cb.setAttribute('disabled', 'true');
+          cb.style.cursor = 'not-allowed';
+          cb.style.opacity = '0.5';
+          const tr = cb.closest('tr');
+          const lbl = tr ? tr.querySelector('.lbl-chk-avaria') : null;
+          if (lbl) { lbl.style.opacity = '0.5'; lbl.style.cursor = 'not-allowed'; }
+        });
+
+        // Desktop: desmarca e desabilita checkboxes de extraviado
+        collapseEl.querySelectorAll('.chk-extraviado').forEach(cb => {
+          cb.checked = false;
+          cb.setAttribute('disabled', 'true');
+          cb.style.cursor = 'not-allowed';
+          cb.style.opacity = '0.5';
+          const tr = cb.closest('tr');
+          const lbl = tr ? tr.querySelector('.lbl-chk-ext') : null;
+          if (lbl) { lbl.style.opacity = '0.5'; lbl.style.cursor = 'not-allowed'; }
+        });
+
+        // Desktop: limpa e desabilita text inputs
+        collapseEl.querySelectorAll('.txt-avaria').forEach(txt => {
+          const isScd = txt.getAttribute('readonly') !== null;
+          if (!isScd) txt.value = '';
+          txt.disabled = true;
+          txt.style.cursor = 'not-allowed';
+          txt.style.backgroundColor = '#f1f5f9';
+        });
+
+        // Mobile: desabilita botões e reseta cartões para conforme
+        collapseEl.querySelectorAll('.btn-touch-check').forEach(b => {
+          b.setAttribute('disabled', 'true');
+          b.style.cursor = 'not-allowed';
+          b.style.opacity = '0.6';
+        });
+
+        collapseEl.querySelectorAll('.card-item-checklist-mobile').forEach(card => {
+          const itemId = card.getAttribute('data-item');
+          if (typeof sincronizarEstadoMobilePorItem === 'function' && itemId) {
             sincronizarEstadoMobilePorItem(itemId, 'conforme');
           }
+          const pnlAvaria = card.querySelector('.painel-avaria-mob');
+          if (pnlAvaria) pnlAvaria.style.display = 'none';
+          const txtMob = card.querySelector('.txt-avaria-mobile');
+          if (txtMob) {
+            const isScd = txtMob.getAttribute('readonly') !== null;
+            if (!isScd) txtMob.value = '';
+            txtMob.disabled = true;
+            txtMob.style.cursor = 'not-allowed';
+            txtMob.style.backgroundColor = '#f1f5f9';
+          }
+          const btnOk = card.querySelector('.btn-outline-success');
+          const btnAv = card.querySelector('.btn-outline-warning');
+          const btnEx = card.querySelector('.btn-outline-danger');
+          if (btnOk) btnOk.classList.add('active');
+          if (btnAv) btnAv.classList.remove('active');
+          if (btnEx) btnEx.classList.remove('active');
         });
+
+        try {
+          const bsCol = bootstrap.Collapse.getOrCreateInstance(collapseEl);
+          bsCol.hide();
+        } catch(e) {
+          collapseEl.classList.remove('show');
+        }
       }
     }
     atualizarContadoresChecklist();
