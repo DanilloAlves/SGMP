@@ -5013,6 +5013,113 @@
     return encontrado || omeAtual;
   }
 
+  function processarSessaoUsuario(usuario) {
+    if (!usuario || usuario.status === 'INATIVO' || usuario.status === 'BLOQUEADO' || usuario.status === 'NAO_CADASTRADO' || !usuario.cpf) {
+      removerOverlayESair(false);
+      Swal.fire({
+        icon: 'error',
+        title: 'Acesso Não Autorizado',
+        text: 'Seu usuário não possui cadastro ativo ou liberado no SGMP. Acesso negado por motivos de segurança.',
+        allowOutsideClick: false,
+        confirmButtonText: 'Sair'
+      }).then(() => {
+        deslogarSistemaDireto();
+      });
+      return;
+    }
+
+    if (usuario.primeiroAcesso === true || String(usuario.primeiroAcesso).toUpperCase() === 'SIM') {
+      removerOverlayESair(true);
+      ativarGatePrimeiroAcesso(usuario);
+      return;
+    }
+
+    if (usuario && usuario.perfil) {
+      usuario.perfil = padronizarPerfilTexto(usuario.perfil);
+    }
+    usuarioSessaoAtual = usuario || { perfil: 'Usuário', ome: '', subunidade: 'GERAL' };
+    if (usuarioSessaoAtual.perfil) {
+      usuarioSessaoAtual.perfil = padronizarPerfilTexto(usuarioSessaoAtual.perfil);
+    }
+
+    PERFIL_GLOBAL = usuarioSessaoAtual.perfil || "Usuário";
+    OME_GLOBAL = usuarioSessaoAtual.ome || "";
+    SUBUNIDADE_GLOBAL = usuarioSessaoAtual.subunidade || "GERAL";
+
+    try {
+      if (!window._loginLogRegistrado) {
+        window._loginLogRegistrado = true;
+        google.script.run.registrarLogAuditoria(
+          "LOGIN",
+          "Usuário " + (usuarioSessaoAtual.nome || usuarioSessaoAtual.email || "Militar") + " (" + (usuarioSessaoAtual.ome || "SEM OME") + ") acessou o sistema.",
+          usuarioSessaoAtual
+        );
+      }
+    } catch(eLogLogin) {}
+
+    const menuAcautelamentoTop = document.getElementById('menu-acautelamento');
+    if (menuAcautelamentoTop) {
+      menuAcautelamentoTop.style.display = 'flex';
+    }
+    
+    const ehAdmin = ehAdminGlobal();
+    const menuVisaoGeralEl = document.getElementById('menu-visao-geral');
+    if (menuVisaoGeralEl) {
+      menuVisaoGeralEl.style.display = 'flex';
+    }
+
+    const menuChamadosEl = document.getElementById('menu-chamados');
+    if (menuChamadosEl) {
+      menuChamadosEl.style.display = (typeof temPermissao === 'function' && temPermissao('abertura_chamados')) ? 'flex' : 'none';
+    }
+
+    const menuInventarioEl = document.getElementById('menu-inventario');
+    if (menuInventarioEl) {
+      menuInventarioEl.style.display = temPermissao('movimentacao_estoque') ? 'flex' : 'none';
+    }
+
+    const menuBaseEl = document.getElementById('menu-base');
+    if (menuBaseEl) {
+      menuBaseEl.style.display = ehAdmin ? 'flex' : 'none';
+    }
+    const menuUsuariosEl = document.getElementById('menu-gerenciar-usuarios');
+    if (menuUsuariosEl) {
+      menuUsuariosEl.style.display = podeGerenciarUsuariosGlobal() ? 'flex' : 'none';
+    }
+    const menuLogsEl = document.getElementById('menu-logs');
+    if (menuLogsEl) {
+      menuLogsEl.style.display = ehAdmin ? 'flex' : 'none';
+    }
+
+    const menuCintEl = document.getElementById('menu-cint');
+    if (menuCintEl) {
+      menuCintEl.style.display = temPermissao('recebimento_cint') ? 'flex' : 'none';
+    }
+
+    const nomeOmeExibicao = obterNomeOficialOme(OME_GLOBAL);
+    const spanUser = document.getElementById('spanUsuarioLogado');
+    if (spanUser) {
+      spanUser.innerText = `${usuarioSessaoAtual.nome || "Usuário"} (${nomeOmeExibicao})`;
+    }
+
+    atualizarIdentificacaoInspetorChecklist();
+
+    if (typeof aplicarRestricoesVisuaisPorPerfil === 'function') {
+      aplicarRestricoesVisuaisPorPerfil();
+    }
+
+    if (typeof atualizarCabecalhoAbaRecebimento === 'function') {
+      atualizarCabecalhoAbaRecebimento();
+    }
+
+    // Configura o seletor da árvore imediatamente para que nunca fique vazio na aba Armazenamento
+    if (typeof configurarCampoOmeArvore === 'function') {
+      configurarCampoOmeArvore();
+    }
+
+    iniciarAplicacaoAposAutenticacao();
+  }
+
   document.addEventListener("DOMContentLoaded", function() {
     modalEdicao = new bootstrap.Modal(document.getElementById('modalEditar'));
     modalEdicaoLivreInstance = new bootstrap.Modal(document.getElementById('modalEdicaoLivre'));
@@ -5023,13 +5130,22 @@
     aplicarModoMobileGlobalSeNecessario();
     atualizarIdentificacaoInspetorChecklist();
 
-    let carregouSessao = false;
+    // 1. Inicialização instantânea se os dados do usuário já foram injetados pelo servidor
+    if (typeof USUARIO_INJETADO !== 'undefined' && USUARIO_INJETADO && USUARIO_INJETADO.cpf) {
+      processarSessaoUsuario(USUARIO_INJETADO);
+      return;
+    }
 
-    // Rede de segurança: se por algum motivo o Google Apps Script demorar mais de 15 segundos, remove o trava-tela sozinho
+    // 2. Fallback assíncrono caso o usuário não tenha vindo pré-injetado
+    let carregouSessao = false;
     const safetyTimeout = setTimeout(() => {
       if (!carregouSessao) {
         console.warn("Timeout de sessão atingido. Forçando liberação da interface.");
-        removerOverlayESair(false);
+        if (typeof USUARIO_INJETADO !== 'undefined' && USUARIO_INJETADO && USUARIO_INJETADO.nome) {
+          processarSessaoUsuario(USUARIO_INJETADO);
+        } else {
+          removerOverlayESair(false);
+        }
       }
     }, 15000);
 
@@ -5037,129 +5153,19 @@
       .withSuccessHandler(usuario => {
         carregouSessao = true;
         clearTimeout(safetyTimeout);
-        
-        if (!usuario || usuario.status === 'INATIVO' || usuario.status === 'BLOQUEADO' || usuario.status === 'NAO_CADASTRADO' || !usuario.cpf) {
-          removerOverlayESair(false);
-          Swal.fire({
-            icon: 'error',
-            title: 'Acesso Não Autorizado',
-            text: 'Seu usuário não possui cadastro ativo ou liberado no SGMP. Acesso negado por motivos de segurança.',
-            allowOutsideClick: false,
-            confirmButtonText: 'Sair'
-          }).then(() => {
-            deslogarSistemaDireto();
-          });
-          return;
-        }
-
-        if (usuario.primeiroAcesso === true || String(usuario.primeiroAcesso).toUpperCase() === 'SIM') {
-          removerOverlayESair(true);
-          ativarGatePrimeiroAcesso(usuario);
-          return;
-        }
-
-        if (usuario && usuario.perfil) {
-          usuario.perfil = padronizarPerfilTexto(usuario.perfil);
-        }
-        usuarioSessaoAtual = usuario || usuarioSessaoAtual || { perfil: 'Usuário', ome: '', subunidade: 'GERAL' };
-        if (usuarioSessaoAtual.perfil) {
-          usuarioSessaoAtual.perfil = padronizarPerfilTexto(usuarioSessaoAtual.perfil);
-        }
-        
-
-
-        PERFIL_GLOBAL = usuarioSessaoAtual.perfil || "Usuário";
-        OME_GLOBAL = usuarioSessaoAtual.ome || "";
-        SUBUNIDADE_GLOBAL = usuarioSessaoAtual.subunidade || "GERAL"; // Popula a subunidade real
-
-        try {
-          if (!window._loginLogRegistrado) {
-            window._loginLogRegistrado = true;
-            google.script.run.registrarLogAuditoria(
-              "LOGIN",
-              "Usuário " + (usuarioSessaoAtual.nome || usuarioSessaoAtual.email || "Militar") + " (" + (usuarioSessaoAtual.ome || "SEM OME") + ") acessou o sistema.",
-              usuarioSessaoAtual
-            );
-          }
-        } catch(eLogLogin) {}
-
-        const menuAcautelamentoTop = document.getElementById('menu-acautelamento');
-        if (menuAcautelamentoTop) {
-          menuAcautelamentoTop.style.display = 'flex';
-        }
-        
-        const ehAdmin = ehAdminGlobal();
-        const ehChefe = ehChefeGlobal();
-        const ehChefia = ehAdmin || ehChefe;
-        const ehAdminOuChefe = ehAdminOuChefeGlobal();
-
-        // Libera os botões do menu superior (Visão Geral disponível para TODOS os perfis)
-        const menuVisaoGeralEl = document.getElementById('menu-visao-geral');
-        if (menuVisaoGeralEl) {
-          menuVisaoGeralEl.style.display = 'flex';
-        }
-
-        const menuChamadosEl = document.getElementById('menu-chamados');
-        if (menuChamadosEl) {
-          menuChamadosEl.style.display = (typeof temPermissao === 'function' && temPermissao('abertura_chamados')) ? 'flex' : 'none';
-        }
-
-        const menuInventarioEl = document.getElementById('menu-inventario');
-        if (menuInventarioEl) {
-          menuInventarioEl.style.display = temPermissao('movimentacao_estoque') ? 'flex' : 'none';
-        }
-
-        const menuBaseEl = document.getElementById('menu-base');
-        if (menuBaseEl) {
-          menuBaseEl.style.display = ehAdmin ? 'flex' : 'none';
-        }
-        // Botão de Usuários (Admin e Comandante de Unidade) e Logs (Apenas Administrador)
-        const menuUsuariosEl = document.getElementById('menu-gerenciar-usuarios');
-        if (menuUsuariosEl) {
-          menuUsuariosEl.style.display = podeGerenciarUsuariosGlobal() ? 'flex' : 'none';
-        }
-        const menuLogsEl = document.getElementById('menu-logs');
-        if (menuLogsEl) {
-          menuLogsEl.style.display = ehAdmin ? 'flex' : 'none';
-        }
-
-        const menuCintEl = document.getElementById('menu-cint');
-        if (menuCintEl) {
-          menuCintEl.style.display = temPermissao('recebimento_cint') ? 'flex' : 'none';
-        }
-
-        const nomeOmeExibicao = obterNomeOficialOme(OME_GLOBAL);
-        const spanUser = document.getElementById('spanUsuarioLogado');
-        if (spanUser) {
-          spanUser.innerText = `${usuarioSessaoAtual.nome || "Usuário"} (${nomeOmeExibicao})`;
-        }
-
-        atualizarIdentificacaoInspetorChecklist();
-
-        if (typeof aplicarRestricoesVisuaisPorPerfil === 'function') {
-          aplicarRestricoesVisuaisPorPerfil();
-        }
-
-        if (typeof atualizarCabecalhoAbaRecebimento === 'function') {
-          atualizarCabecalhoAbaRecebimento();
-        }
-
-        if (usuarioSessaoAtual && (usuarioSessaoAtual.primeiroAcesso === true || String(usuarioSessaoAtual.primeiroAcesso).toUpperCase() === 'SIM')) {
-          removerOverlayESair(true);
-          ativarGatePrimeiroAcesso(usuarioSessaoAtual);
-          return;
-        }
-
-        iniciarAplicacaoAposAutenticacao();
+        processarSessaoUsuario(usuario);
       })
       .withFailureHandler(err => {
         carregouSessao = true;
         clearTimeout(safetyTimeout);
         console.error('Erro crítico ao buscar usuário logado:', err);
-        removerOverlayESair(false);
+        if (typeof USUARIO_INJETADO !== 'undefined' && USUARIO_INJETADO && USUARIO_INJETADO.nome) {
+          processarSessaoUsuario(USUARIO_INJETADO);
+        } else {
+          removerOverlayESair(false);
+        }
       })
       .getDadosUsuarioLogado((USUARIO_INJETADO && (USUARIO_INJETADO.cpf || USUARIO_INJETADO.email)) || '');
-      
   });
 
   // Ativa a tela bloqueante de primeiro acesso
@@ -5496,6 +5502,9 @@
         carregarRemessasPendentesOme();
       }
     } else if (aba === 'locais') {
+      if (!document.getElementById('selectOmeArvore') && typeof configurarCampoOmeArvore === 'function') {
+        configurarCampoOmeArvore();
+      }
       const containerMat = document.getElementById('listaMateriaisCheckboxes');
       if (containerMat) containerMat.innerHTML = '<span class="text-muted small"><i class="fa-solid fa-spinner fa-spin me-2"></i> Lendo seu estoque...</span>';
       if (typeof modoVisaoArmazenamento !== 'undefined' && modoVisaoArmazenamento === 'consumo') {
@@ -10204,24 +10213,32 @@
   // ============================================================================
   // B. RECARREGAMENTO DAS PRATELEIRAS E MATERIAIS DA OME (PARALELISMO)
   // ============================================================================
-window.carregarLocaisArvoreGeral = function(forcarAtualizacao) {
+window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
     const forcar = Boolean(forcarAtualizacao);
-    const selOme = document.getElementById('selectOmeArvore');
+    let selOme = document.getElementById('selectOmeArvore');
+    if (!selOme && typeof configurarCampoOmeArvore === 'function') {
+      configurarCampoOmeArvore();
+      selOme = document.getElementById('selectOmeArvore');
+    }
     const containerMaterial = document.getElementById('listaMateriaisCheckboxes');
     const arvoreContainer = document.getElementById('arvoreContainer'); 
 
     if (containerMaterial) containerMaterial.innerHTML = '<span class="text-muted small"><i class="fa-solid fa-spinner fa-spin me-2"></i> Listando estoque...</span>';
 
-    const perfilNorm = (PERFIL_GLOBAL || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+    const perfilNorm = (PERFIL_GLOBAL || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
     const omeNorm = (OME_GLOBAL || "").trim().toUpperCase();
     const podeVerTodasOmes = perfilNorm.includes("admin") || omeNorm === "DLOG" || omeNorm === "CINT";
 
-    let omeEfetiva = "";
-    if (podeVerTodasOmes) {
-      omeEfetiva = selOme ? (selOme.value || selOme.getAttribute('data-value') || "") : "";
-    } else {
-      omeEfetiva = OME_GLOBAL || "";
-      if (selOme) { selOme.value = omeEfetiva; selOme.disabled = true; }
+    let omeEfetiva = omeManual || "";
+    if (!omeEfetiva) {
+      if (podeVerTodasOmes) {
+        omeEfetiva = selOme ? (selOme.value || selOme.getAttribute('data-value') || "") : "";
+      } else {
+        omeEfetiva = OME_GLOBAL || "";
+        if (selOme) { selOme.value = omeEfetiva; selOme.disabled = true; }
+      }
+    } else if (selOme && selOme.tagName === "SELECT" && selOme.value !== omeEfetiva) {
+      selOme.value = omeEfetiva;
     }
 
     if (podeVerTodasOmes && (!omeEfetiva || omeEfetiva === "")) {
@@ -10358,7 +10375,11 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao) {
   }
 
   function selecionarOmePeloCard(omeNome) {
-    const selOme = document.getElementById('selectOmeArvore');
+    let selOme = document.getElementById('selectOmeArvore');
+    if (!selOme && typeof configurarCampoOmeArvore === 'function') {
+      configurarCampoOmeArvore();
+      selOme = document.getElementById('selectOmeArvore');
+    }
     if (selOme && selOme.tagName === "SELECT") { 
       let encontrou = false;
       for (let i = 0; i < selOme.options.length; i++) {
@@ -10371,8 +10392,8 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao) {
       if (!encontrou) {
         selOme.value = omeNome;
       }
-      carregarLocaisArvoreGeral(); 
     }
+    carregarLocaisArvoreGeral(true, omeNome); 
   }
 
   function renderizarArvoreLocais() {
