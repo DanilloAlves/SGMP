@@ -10527,6 +10527,7 @@ window.carregarLocaisArvoreGeral = function() {
           
           matsDoLocal.forEach((m) => {
             const idsJson = encodeURIComponent(JSON.stringify(m.ids || []));
+            const idsDescJson = encodeURIComponent(JSON.stringify(m.idsDescarregados || []));
             
             let badgesHtml = `<span class="badge bg-info text-dark ms-1">${m.qtd} un(s)</span>`;
             if (m.ecd > 0) badgesHtml += `<span class="badge bg-success ms-1">ECD: ${m.ecd}</span>`;
