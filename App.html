@@ -20347,17 +20347,6 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     const exibirHeaderSubnivel = temSubniveis || numSubgrupos > 1;
 
     let bodyHtml = `
-      <!-- Alerta visual caso a divisão esteja desabilitada -->
-      <div class="alert alert-warning py-1.5 px-3 mb-2 small d-flex align-items-center justify-content-between alert-div-desabilitada" id="alerta-div-desab-${unitIndex}">
-        <div class="d-flex align-items-center">
-          <i class="fa-solid fa-lock text-warning me-2"></i>
-          <span><strong>Divisão Desabilitada:</strong> Marque o checkbox de habilitação no cabeçalho acima para registrar avarias ou extravios.</span>
-        </div>
-        <button type="button" class="btn btn-xs btn-warning text-dark fw-bold ms-2 py-0.5 px-2 text-nowrap" onclick="habilitarDivisaoPorBotao(${unitIndex})">
-          <i class="fa-solid fa-unlock me-1"></i>Habilitar Agora
-        </button>
-      </div>
-
       <div class="d-flex justify-content-between align-items-center mb-2 px-1 barra-agrupados-nome">
         <div class="small text-muted text-truncate fw-semibold" style="font-size: 0.78rem;">
           <i class="fa-solid fa-layer-group me-1 text-primary"></i>Agrupados por nome
@@ -21470,7 +21459,6 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     const btn = document.getElementById('btn-accordion-' + index);
     const badge = document.getElementById('badge-div-status-' + index);
     const collapseEl = document.getElementById('collapseLoc' + index);
-    const alertaDesab = document.getElementById('alerta-div-desab-' + index);
 
     if (habilitado) {
       if (btn) {
@@ -21481,9 +21469,6 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       if (badge) {
         badge.className = 'badge bg-success ms-2 badge-div-status';
         badge.innerHTML = '<i class="fa-solid fa-unlock me-1"></i>Habilitada';
-      }
-      if (alertaDesab) {
-        alertaDesab.style.display = 'none';
       }
 
       // Habilita todos os inputs de inconsistência e extravio dentro desta divisão
@@ -21561,9 +21546,6 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       if (badge) {
         badge.className = 'badge bg-light text-secondary border ms-2 badge-div-status';
         badge.innerHTML = '<i class="fa-solid fa-lock me-1"></i>Desabilitada';
-      }
-      if (alertaDesab) {
-        alertaDesab.style.display = 'flex';
       }
 
       // Se desabilitou a divisão, reseta e DESABILITA tudo dentro dela
