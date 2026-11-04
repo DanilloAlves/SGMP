@@ -17,6 +17,8 @@ var DATASET_ID = "db_Inventario";
 
 var TABELA_ID = "tb_Inventario";
 var TABELA_CHAMADOS = "tb_Chamados";
+var TABELA_ARVORE = "tb_Arvore";
+var tabelaArvoreGarantida_ = false;
 
 
 
@@ -1936,102 +1938,242 @@ function carregarDadosArmazenamentoCompleto(unidadeOmega, forcarAtualizacao) {
   }
 }
 
-function getArvoreLocais(unidadeOmega) {
 
+// =========================================================================
+// GESTÃO CENTRALIZADA DA BASE DE ÁRVORE DE ARMAZENAMENTO (tb_Arvore)
+// =========================================================================
+
+function garantirTabelaArvore_() {
+  if (tabelaArvoreGarantida_) return;
+  var cache = CacheService.getScriptCache();
+  if (cache && cache.get("BQ_TABELA_ARVORE_OK")) {
+    tabelaArvoreGarantida_ = true;
+    return;
+  }
   try {
+    var sqlCreate = "CREATE TABLE IF NOT EXISTS `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` (" +
+      "ID_Local STRING, " +
+      "Unidade_OME STRING, " +
+      "Nome_Local STRING, " +
+      "ID_Pai STRING" +
+    ")";
+    executarEscritaBigQuerySegura(sqlCreate);
+    tabelaArvoreGarantida_ = true;
+    if (cache) {
+      try { cache.put("BQ_TABELA_ARVORE_OK", "1", 21600); } catch(eC) {}
+    }
+  } catch (err) {
+    console.warn("Aviso ao garantir estrutura da tabela de árvore no banco: " + err.message);
+  }
+}
 
-    var omePadrao = obterOmePadronizada(unidadeOmega); // APLICA O TRADUTOR
-
+// Migra todos os locais da aba Arvore para a base centralizada
+function migrarArvorePlanilhaParaBanco() {
+  try {
+    garantirTabelaArvore_();
     var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
-
     var sheet = ss.getSheetByName(ABA_LOCAIS_ARMAZENAMENTO);
-
-    
-
-    if (!sheet) {
-
-      sheet = ss.insertSheet(ABA_LOCAIS_ARMAZENAMENTO);
-
-      sheet.appendRow(["ID_Local", "Unidade_OME", "Nome_Local", "ID_Pai"]);
-
-      return [];
-
+    if (!sheet || sheet.getLastRow() <= 1) {
+      return { sucesso: true, mensagem: "Nenhum local na planilha para migrar.", migrados: 0, total: 0 };
     }
 
-
-
-    var omePadraoFormatado = omePadrao ? (typeof obterOmePadronizada === 'function' ? obterOmePadronizada(omePadrao) : omePadrao) : "";
-    var idSedeOficial = omePadraoFormatado ? garantirSedePadraoOme(omePadraoFormatado) : "";
-
-    var ultimaLinha = sheet.getLastRow();
-    if (ultimaLinha <= 1) return [];
-
-    var dados = sheet.getRange(2, 1, ultimaLinha - 1, 4).getValues();
-    var locais = [];
-    var mapaGhostIds = {};
-
-    // 1ª passada: identifica nós raiz fantasmas cujo nome seja puramente equivalente ao da OME
-    dados.forEach(function(linha) {
-      var OMELinha = obterOmePadronizada(linha[1]);
-      var idLocal = String(linha[0] || "").trim();
-      var nomeLocal = String(linha[2] || "").trim();
-      var idPai = String(linha[3] || "").trim();
-
-      if (idLocal && nomeLocal) {
-        if (!omePadraoFormatado || OMELinha.toUpperCase() === omePadraoFormatado.toUpperCase()) {
-          if (!idPai && nomeLocal.toUpperCase() !== "SEDE" && ehSubunidadeEquivalenteOme_(nomeLocal, OMELinha)) {
-            mapaGhostIds[idLocal] = true;
+    var sqlExistentes = "SELECT DISTINCT ID_Local FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "`";
+    var resExistentes = null;
+    var setExistentes = {};
+    try {
+      resExistentes = executarConsultaBigQuerySegura(sqlExistentes);
+      if (resExistentes && resExistentes.rows) {
+        resExistentes.rows.forEach(function(r) {
+          if (r.f && r.f[0] && r.f[0].v) {
+            setExistentes[String(r.f[0].v).trim()] = true;
           }
-        }
+        });
       }
-    });
+    } catch(eCheck) {}
 
-    // 2ª passada: inclui nós legítimos na árvore e re-aponta filhos do nó fantasma para a SEDE oficial
-    dados.forEach(function(linha) {
-      var OMELinha = obterOmePadronizada(linha[1]);
-      var idLocal = String(linha[0] || "").trim();
-      var nomeLocal = String(linha[2] || "").trim();
-      var idPai = String(linha[3] || "").trim();
+    var dados = sheet.getDataRange().getValues();
+    var linhasParaInserir = [];
+    var totalPlanilha = 0;
 
-      if (idLocal && nomeLocal) {
-        if (!omePadraoFormatado || OMELinha.toUpperCase() === omePadraoFormatado.toUpperCase()) {
-          // Filtra nós raiz fantasmas
-          if (mapaGhostIds[idLocal]) {
-            return;
+    for (var i = 1; i < dados.length; i++) {
+      var row = dados[i];
+      var idLoc = String(row[0] || "").trim();
+      var omeLoc = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(row[1]) : String(row[1] || "").trim();
+      var nomeLoc = String(row[2] || "").trim();
+      var idPaiLoc = String(row[3] || "").trim();
+
+      if (!idLoc || !nomeLoc) continue;
+      totalPlanilha++;
+
+      if (setExistentes[idLoc]) continue;
+
+      linhasParaInserir.push("(" +
+        sqlLiteralChamado_(idLoc) + ", " +
+        sqlLiteralChamado_(omeLoc) + ", " +
+        sqlLiteralChamado_(nomeLoc) + ", " +
+        sqlLiteralChamado_(idPaiLoc) +
+      ")");
+    }
+
+    if (linhasParaInserir.length === 0) {
+      return { 
+        sucesso: true, 
+        mensagem: "Todos os locais da árvore (" + totalPlanilha + ") já constam na base centralizada.",
+        migrados: 0,
+        total: totalPlanilha
+      };
+    }
+
+    var tamanhoLote = 100;
+    for (var b = 0; b < linhasParaInserir.length; b += tamanhoLote) {
+      var lote = linhasParaInserir.slice(b, b + tamanhoLote);
+      var sqlBatch = "INSERT INTO `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` (" +
+        "ID_Local, Unidade_OME, Nome_Local, ID_Pai" +
+      ") VALUES " + lote.join(", ");
+      executarEscritaBigQuerySegura(sqlBatch);
+    }
+
+    return {
+      sucesso: true,
+      mensagem: "Migração da árvore concluída: " + linhasParaInserir.length + " nós importados com sucesso para a base centralizada.",
+      migrados: linhasParaInserir.length,
+      total: totalPlanilha
+    };
+  } catch (err) {
+    console.error("Erro na migração da árvore: " + err.message);
+    throw new Error("Falha ao migrar árvore: " + err.message);
+  }
+}
+
+// Obtém os locais de armazenamento da base centralizada (com fallback para planilha)
+function obterLocaisArvoreGeral_(unidadeOmega) {
+  garantirTabelaArvore_();
+  var omePadrao = unidadeOmega ? (typeof obterOmePadronizada === 'function' ? obterOmePadronizada(unidadeOmega) : unidadeOmega) : "";
+  
+  try {
+    var sql = "SELECT ID_Local, Unidade_OME, Nome_Local, ID_Pai FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "`";
+    if (omePadrao) {
+      var inSql = (typeof obterVariacoesOmeParaSql_ === 'function') 
+        ? obterVariacoesOmeParaSql_(omePadrao) 
+        : ("'" + limparSQLChamado_(omePadrao.toUpperCase()) + "'");
+      sql += " WHERE UPPER(TRIM(Unidade_OME)) IN (" + inSql + ")";
+    }
+
+    var res = executarConsultaBigQuerySegura(sql);
+    if (res && res.rows) {
+      // Se não encontrou registros na tabela inteira, tenta auto-migrar da planilha
+      if (res.rows.length === 0 && !omePadrao) {
+        try {
+          var mig = migrarArvorePlanilhaParaBanco();
+          if (mig && mig.migrados > 0) {
+            res = executarConsultaBigQuerySegura(sql);
           }
+        } catch(eMig) {}
+      }
 
-          var idPaiEfetivo = idPai;
-          if (idPai && mapaGhostIds[idPai]) {
-            idPaiEfetivo = idSedeOficial || "";
-          }
-
-          locais.push({
-            id: idLocal,
-            ome: OMELinha,
-            nome: nomeLocal,
-            idPai: idPaiEfetivo
+      var lista = [];
+      var rows = res.rows || [];
+      for (var i = 0; i < rows.length; i++) {
+        var f = rows[i].f || [];
+        var idLoc = String(f[0] && f[0].v ? f[0].v : "").trim();
+        var omeLoc = String(f[1] && f[1].v ? f[1].v : "").trim();
+        var nomeLoc = String(f[2] && f[2].v ? f[2].v : "").trim();
+        var idPaiLoc = String(f[3] && f[3].v ? f[3].v : "").trim();
+        if (idLoc && nomeLoc) {
+          lista.push({
+            id: idLoc,
+            ome: (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(omeLoc) : omeLoc,
+            nome: nomeLoc,
+            idPai: idPaiLoc
           });
         }
       }
+      if (lista.length > 0) return lista;
+    }
+  } catch (errBq) {
+    console.warn("Aviso na leitura da árvore no banco (utilizando fallback): " + errBq.message);
+  }
+
+  return obterLocaisArvorePlanilhaFallback_(omePadrao);
+}
+
+function obterLocaisArvorePlanilhaFallback_(omePadrao) {
+  try {
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
+    var sheet = ss.getSheetByName(ABA_LOCAIS_ARMAZENAMENTO);
+    if (!sheet || sheet.getLastRow() <= 1) return [];
+    var dados = sheet.getRange(2, 1, sheet.getLastRow() - 1, 4).getValues();
+    var lista = [];
+    for (var i = 0; i < dados.length; i++) {
+      var idLoc = String(dados[i][0] || "").trim();
+      var omeLoc = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(dados[i][1]) : String(dados[i][1] || "").trim();
+      var nomeLoc = String(dados[i][2] || "").trim();
+      var idPaiLoc = String(dados[i][3] || "").trim();
+      if (idLoc && nomeLoc) {
+        if (!omePadrao || omeLoc.toUpperCase() === omePadrao.toUpperCase()) {
+          lista.push({
+            id: idLoc,
+            ome: omeLoc,
+            nome: nomeLoc,
+            idPai: idPaiLoc
+          });
+        }
+      }
+    }
+    return lista;
+  } catch(e) {
+    return [];
+  }
+}
+
+function getArvoreLocais(unidadeOmega) {
+  try {
+    var omePadrao = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(unidadeOmega) : String(unidadeOmega || "").trim();
+    if (!omePadrao) return [];
+
+    var idSedeOficial = garantirSedePadraoOme(omePadrao);
+    var dadosLocais = obterLocaisArvoreGeral_(omePadrao);
+    if (!dadosLocais || dadosLocais.length === 0) return [];
+
+    var locais = [];
+    var mapaGhostIds = {};
+
+    // 1ª passada: identifica nós raiz fantasmas cujo nome repete a OME
+    dadosLocais.forEach(function(item) {
+      if (!item.idPai && item.nome.toUpperCase() !== "SEDE" && ehSubunidadeEquivalenteOme_(item.nome, item.ome)) {
+        mapaGhostIds[item.id] = true;
+      }
     });
 
-    // 3ª passada: garante que as viaturas da OME estejam cadastradas como Setores sob a SEDE ou suas subunidades
+    // 2ª passada: inclui nós legítimos na árvore
+    dadosLocais.forEach(function(item) {
+      if (mapaGhostIds[item.id]) return;
+
+      var idPaiEfetivo = item.idPai;
+      if (item.idPai && mapaGhostIds[item.idPai]) {
+        idPaiEfetivo = idSedeOficial || "";
+      }
+
+      locais.push({
+        id: item.id,
+        ome: item.ome,
+        nome: item.nome,
+        idPai: idPaiEfetivo
+      });
+    });
+
+    // 3ª passada: garante viaturas na árvore
     try {
-      garantirSetoresViaturasNaArvore_(omePadraoFormatado, idSedeOficial, sheet, locais);
+      garantirSetoresViaturasNaArvore_(omePadrao, idSedeOficial, null, locais);
     } catch(eVtrArvore) {
       console.warn("Aviso ao garantir setores de viaturas na árvore: " + eVtrArvore.message);
     }
 
     return locais;
-
   } catch (err) {
-
     console.error("Erro em getArvoreLocais: " + err.message);
-
     return [];
-
   }
-
 }
 
 
@@ -2048,14 +2190,6 @@ function adicionarLocalNaArvore(dadosLocal) {
       if (perfilStr === "usuário" || perfilStr === "usuario") {
         throw new Error("Acesso restrito: usuários com perfil 'Usuário' não possuem permissão para adicionar subunidades ou locais.");
       }
-    }
-
-    var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
-    var sheet = ss.getSheetByName(ABA_LOCAIS_ARMAZENAMENTO);
-
-    if (!sheet) {
-      sheet = ss.insertSheet(ABA_LOCAIS_ARMAZENAMENTO);
-      sheet.appendRow(["ID_Local", "Unidade_OME", "Nome_Local", "ID_Pai"]);
     }
 
     var omeAlvo = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(dadosLocal.ome || "") : String(dadosLocal.ome || "").trim();
@@ -2075,25 +2209,23 @@ function adicionarLocalNaArvore(dadosLocal) {
       }
     }
 
-    // Validação de duplicidade na árvore da mesma OME
-    var dados = sheet.getDataRange().getValues();
-    if (dados.length > 1) {
-      for (var i = 1; i < dados.length; i++) {
-        var rowOme = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(dados[i][1]) : String(dados[i][1] || "").trim();
-        var rowNome = String(dados[i][2] || "").trim();
-        var rowIdPai = String(dados[i][3] || "").trim();
+    garantirTabelaArvore_();
 
-        if (rowOme.toUpperCase() === omeAlvo.toUpperCase()) {
-          // Se for subunidade raiz (sem idPai ou idPai igual à OME)
-          if (!idPaiAlvo) {
-            if ((!rowIdPai || rowIdPai === rowOme) && rowNome.toUpperCase() === nomeAlvo.toUpperCase()) {
-              throw new Error("A subunidade '" + nomeAlvo + "' já foi criada anteriormente para a unidade " + omeAlvo + ".");
-            }
-          } else {
-            // Se for subnível, valida duplicidade no mesmo nível/pai
-            if (rowIdPai === idPaiAlvo && rowNome.toUpperCase() === nomeAlvo.toUpperCase()) {
-              throw new Error("O local '" + nomeAlvo + "' já existe neste nível.");
-            }
+    // Validação de duplicidade na árvore da mesma OME
+    var dadosArvore = obterLocaisArvoreGeral_(omeAlvo);
+    for (var i = 0; i < dadosArvore.length; i++) {
+      var rowOme = dadosArvore[i].ome;
+      var rowNome = dadosArvore[i].nome;
+      var rowIdPai = dadosArvore[i].idPai;
+
+      if (rowOme.toUpperCase() === omeAlvo.toUpperCase()) {
+        if (!idPaiAlvo) {
+          if ((!rowIdPai || rowIdPai === rowOme) && rowNome.toUpperCase() === nomeAlvo.toUpperCase()) {
+            throw new Error("A subunidade '" + nomeAlvo + "' já foi criada anteriormente para a unidade " + omeAlvo + ".");
+          }
+        } else {
+          if (rowIdPai === idPaiAlvo && rowNome.toUpperCase() === nomeAlvo.toUpperCase()) {
+            throw new Error("O local '" + nomeAlvo + "' já existe neste nível.");
           }
         }
       }
@@ -2101,12 +2233,26 @@ function adicionarLocalNaArvore(dadosLocal) {
 
     var novoId = "loc_" + new Date().getTime();
 
-    sheet.appendRow([
-      novoId,
-      omeAlvo,
-      nomeAlvo,
-      idPaiAlvo
-    ]);
+    // Grava na base centralizada
+    try {
+      var sqlIns = "INSERT INTO `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` (ID_Local, Unidade_OME, Nome_Local, ID_Pai) VALUES (" +
+        sqlLiteralChamado_(novoId) + ", " +
+        sqlLiteralChamado_(omeAlvo) + ", " +
+        sqlLiteralChamado_(nomeAlvo) + ", " +
+        sqlLiteralChamado_(idPaiAlvo) + ")";
+      executarEscritaBigQuerySegura(sqlIns);
+    } catch(eBq) {
+      console.warn("Aviso ao gravar local na base centralizada: " + eBq.message);
+    }
+
+    // Grava na planilha auxiliar para redundância
+    try {
+      var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
+      var sheet = ss.getSheetByName(ABA_LOCAIS_ARMAZENAMENTO);
+      if (sheet) {
+        sheet.appendRow([novoId, omeAlvo, nomeAlvo, idPaiAlvo]);
+      }
+    } catch(eSheet) {}
 
     registrarLogAuditoria("NOVO_LOCAL_ARVORE", "Adicionou '" + nomeAlvo + "' na OME " + omeAlvo);
     if (typeof invalidarCacheArmazenamentoOme_ === 'function') invalidarCacheArmazenamentoOme_(omeAlvo);
@@ -2136,25 +2282,33 @@ function excluirLocalDaArvore(idLocal) {
       }
     }
 
-    var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
-    var sheet = ss.getSheetByName(ABA_LOCAIS_ARMAZENAMENTO);
+    var idLimpo = String(idLocal || "").trim();
+    if (!idLimpo) throw new Error("ID do local não informado.");
 
-    if (!sheet) return "Aba não encontrada.";
+    garantirTabelaArvore_();
 
-
-
-    var dados = sheet.getDataRange().getValues();
-
-    for (var i = dados.length - 1; i >= 1; i--) {
-
-      if (String(dados[i][0]).trim() === String(idLocal).trim()) {
-        var omeRemovida = String(dados[i][1] || '').trim();
-        sheet.deleteRow(i + 1);
-        if (typeof invalidarCacheArmazenamentoOme_ === 'function' && omeRemovida) invalidarCacheArmazenamentoOme_(omeRemovida);
-        break;
-      }
-
+    try {
+      var sqlDel = "DELETE FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` WHERE ID_Local = '" + limparSQLChamado_(idLimpo) + "'";
+      executarEscritaBigQuerySegura(sqlDel);
+    } catch(eBq) {
+      console.warn("Aviso ao excluir local na base centralizada: " + eBq.message);
     }
+
+    try {
+      var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
+      var sheet = ss.getSheetByName(ABA_LOCAIS_ARMAZENAMENTO);
+      if (sheet) {
+        var dados = sheet.getDataRange().getValues();
+        for (var i = dados.length - 1; i >= 1; i--) {
+          if (String(dados[i][0]).trim() === idLimpo) {
+            var omeRemovida = String(dados[i][1] || '').trim();
+            sheet.deleteRow(i + 1);
+            if (typeof invalidarCacheArmazenamentoOme_ === 'function' && omeRemovida) invalidarCacheArmazenamentoOme_(omeRemovida);
+            break;
+          }
+        }
+      }
+    } catch(eSheet) {}
 
 
 
@@ -2307,42 +2461,45 @@ function atualizarPaiLocalArvore(idLocal, novoIdPai) {
       }
     }
 
-    var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
-    var sheet = ss.getSheetByName(ABA_LOCAIS_ARMAZENAMENTO);
-
-    if (!sheet) return "Aba não encontrada.";
-
-    var dados = sheet.getDataRange().getValues();
     var idLocalStr = String(idLocal || "").trim();
     var novoIdPaiStr = String(novoIdPai || "").trim();
 
+    garantirTabelaArvore_();
+
+    // Atualiza na base centralizada
+    try {
+      var sqlUpPai = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` SET ID_Pai = " + sqlLiteralChamado_(novoIdPaiStr) + " WHERE ID_Local = '" + limparSQLChamado_(idLocalStr) + "'";
+      executarEscritaBigQuerySegura(sqlUpPai);
+    } catch(eBq) {
+      console.warn("Aviso ao atualizar pai na base centralizada: " + eBq.message);
+    }
+
     var mapaNos = {};
-    var linhaAlvoIdx = -1;
     var nomeLocalAlvo = "";
     var omeLocalAlvo = "";
-
-    // Header da aba Arvore: [0: ID_Local, 1: Unidade_OME, 2: Nome_Local, 3: ID_Pai]
-    for (var k = 1; k < dados.length; k++) {
-      var rId = String(dados[k][0] || "").trim();
-      var rOme = String(dados[k][1] || "").trim();
-      var rNome = String(dados[k][2] || "").trim();
-      var rPai = String(dados[k][3] || "").trim();
-      if (rId) {
-        mapaNos[rId] = { id: rId, ome: rOme, nome: rNome, idPai: rPai, row: k + 1 };
+    var todosLocais = obterLocaisArvoreGeral_();
+    todosLocais.forEach(function(l) {
+      mapaNos[l.id] = l;
+      if (l.id === idLocalStr) {
+        nomeLocalAlvo = l.nome;
+        omeLocalAlvo = l.ome;
       }
-      if (rId === idLocalStr) {
-        nomeLocalAlvo = rNome;
-        omeLocalAlvo = rOme;
-        linhaAlvoIdx = k + 1;
+    });
+
+    // Atualiza na planilha auxiliar para redundância
+    try {
+      var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
+      var sheet = ss.getSheetByName(ABA_LOCAIS_ARMAZENAMENTO);
+      if (sheet) {
+        var dados = sheet.getDataRange().getValues();
+        for (var k = 1; k < dados.length; k++) {
+          if (String(dados[k][0] || "").trim() === idLocalStr) {
+            sheet.getRange(k + 1, 4).setValue(novoIdPaiStr);
+            break;
+          }
+        }
       }
-    }
-
-    if (linhaAlvoIdx === -1) {
-      throw new Error("Local não encontrado na árvore.");
-    }
-
-    // 1. Atualiza o ID_Pai na planilha Arvore
-    sheet.getRange(linhaAlvoIdx, 4).setValue(novoIdPaiStr);
+    } catch(eSheet) {}
 
     // 2. Identifica a Subunidade Raiz resultante do novo local pai
     var novaSubunidade = "SEDE";
@@ -2485,44 +2642,59 @@ function atualizarPaiLocalArvore(idLocal, novoIdPai) {
 function garantirSedePadraoOme(ome) {
   try {
     var omePadrao = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(ome) : String(ome || "").trim();
+    if (!omePadrao) return null;
+
+    garantirTabelaArvore_();
+
+    var omeTrim = omePadrao.toUpperCase();
+
+    // Consulta rápida no banco centralizado
+    try {
+      var inSql = (typeof obterVariacoesOmeParaSql_ === 'function') 
+        ? obterVariacoesOmeParaSql_(omePadrao) 
+        : ("'" + limparSQLChamado_(omeTrim) + "'");
+      
+      var sqlBusca = "SELECT ID_Local FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` " +
+        "WHERE UPPER(TRIM(Unidade_OME)) IN (" + inSql + ") AND UPPER(TRIM(Nome_Local)) = 'SEDE' LIMIT 1";
+      
+      var res = executarConsultaBigQuerySegura(sqlBusca);
+      if (res && res.rows && res.rows.length > 0 && res.rows[0].f && res.rows[0].f[0].v) {
+        return String(res.rows[0].f[0].v).trim();
+      }
+
+      var idSedeNovo = "SEDE_" + omeTrim.replace(/[^A-Z0-9]/g, "_") + "_" + new Date().getTime();
+      var sqlInsSede = "INSERT INTO `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` (ID_Local, Unidade_OME, Nome_Local, ID_Pai) VALUES (" +
+        sqlLiteralChamado_(idSedeNovo) + ", " +
+        sqlLiteralChamado_(omePadrao) + ", 'SEDE', '')";
+      executarEscritaBigQuerySegura(sqlInsSede);
+
+      try {
+        var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
+        var sheet = ss.getSheetByName(ABA_LOCAIS_ARMAZENAMENTO);
+        if (sheet) sheet.appendRow([idSedeNovo, omePadrao, "SEDE", ""]);
+      } catch(eSheet) {}
+
+      return idSedeNovo;
+    } catch(eBq) {
+      console.warn("Aviso ao buscar SEDE no banco (utilizando fallback): " + eBq.message);
+    }
+
+    // Fallback para a planilha
     var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
     var sheet = ss.getSheetByName(ABA_LOCAIS_ARMAZENAMENTO);
     if (!sheet) return null;
 
     var dados = sheet.getDataRange().getValues();
-    var omeTrim = omePadrao.toUpperCase();
-    var omeTrimNorm = omeTrim.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Z0-9]/g, "");
-
-    var sedsEncontradas = [];
-
     for (var r = 1; r < dados.length; r++) {
-      var rowOmeBruto = String(dados[r][1] || "").trim();
-      var omeLinha = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(rowOmeBruto).toUpperCase() : rowOmeBruto.toUpperCase();
-      var omeLinhaNorm = omeLinha.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Z0-9]/g, "");
+      var rowOme = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(dados[r][1]).toUpperCase() : String(dados[r][1] || "").toUpperCase();
       var nomeLinha = String(dados[r][2] || "").trim();
-
-      if (omeLinha === omeTrim || omeLinhaNorm === omeTrimNorm) {
-        if (nomeLinha.toUpperCase() === "SEDE") {
-          sedsEncontradas.push({ linha: r + 1, id: String(dados[r][0]).trim() });
-        }
+      if (rowOme === omeTrim && nomeLinha.toUpperCase() === "SEDE") {
+        return String(dados[r][0]).trim();
       }
     }
 
-    var idSede = "";
-    if (sedsEncontradas.length > 0) {
-      idSede = sedsEncontradas[0].id;
-      // Apaga apenas SEDEs duplicadas de baixo pra cima
-      if (sedsEncontradas.length > 1) {
-        for (var j = sedsEncontradas.length - 1; j >= 1; j--) {
-          sheet.deleteRow(sedsEncontradas[j].linha);
-        }
-      }
-    } else {
-      idSede = "SEDE_" + omeTrim.replace(/[^A-Z0-9]/g, "_") + "_" + new Date().getTime();
-      sheet.appendRow([idSede, omePadrao, "SEDE", ""]);
-      SpreadsheetApp.flush();
-    }
-
+    var idSede = "SEDE_" + omeTrim.replace(/[^A-Z0-9]/g, "_") + "_" + new Date().getTime();
+    sheet.appendRow([idSede, omePadrao, "SEDE", ""]);
     return idSede;
   } catch (err) {
     throw new Error("Erro ao garantir estrutura padrão OME: " + err.message);
@@ -2538,22 +2710,20 @@ function getMateriaisAtreladosPorLocal(unidadeOmega) {
 
     var idSedeOficial = garantirSedePadraoOme(omePadrao);
 
-    var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
-    var sheetArvore = ss.getSheetByName(ABA_LOCAIS_ARMAZENAMENTO);
     var mapaNomesLocais = {}; 
     var mapaNos = {};
     var mapaCaminhos = {};
     var mapaGhostIds = {};
 
-    if (sheetArvore && sheetArvore.getLastRow() > 1) {
-      var dadosArvore = sheetArvore.getRange(2, 1, sheetArvore.getLastRow() - 1, 4).getValues();
+    var dadosArvore = obterLocaisArvoreGeral_(omePadrao);
 
+    if (dadosArvore && dadosArvore.length > 0) {
       // 1ª passada: registra nós válidos e identifica nós raiz fantasmas que repetem a OME
       dadosArvore.forEach(function(linha) {
-        var omeLinha = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(linha[1]) : String(linha[1] || "").trim();
-        var idLocal = String(linha[0] || "").trim();
-        var nomeLocal = String(linha[2] || "").trim();
-        var idPai = String(linha[3] || "").trim();
+        var omeLinha = linha.ome;
+        var idLocal = linha.id;
+        var nomeLocal = linha.nome;
+        var idPai = linha.idPai;
         
         if (omeLinha.toUpperCase() === omePadrao.toUpperCase() && idLocal && nomeLocal) {
           var nomeUpper = nomeLocal.toUpperCase();
@@ -2806,42 +2976,21 @@ function transferirMaterialEntreLocais(dadosTransferencia) {
 
 
 
-    var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
-
-    var sheetArvore = ss.getSheetByName(ABA_LOCAIS_ARMAZENAMENTO);
-
-    
-
     var nomeDestinoTexto = novoLocalDestinoId;
-
     var nivelDestino = "LOCAL"; 
-
     var nomePaiDestino = "";
 
-
-
-    if (sheetArvore && sheetArvore.getLastRow() > 1) {
-
-      var dadosArvore = sheetArvore.getRange(2, 1, sheetArvore.getLastRow() - 1, 4).getValues();
-
+    var dadosArvore = obterLocaisArvoreGeral_(unidade);
+    if (dadosArvore && dadosArvore.length > 0) {
       var mapaLocaisObj = {};
 
-
-
       dadosArvore.forEach(function(linha) {
-
-        var id = String(linha[0] || "").trim();
-
-        var ome = String(linha[1] || "").trim();
-
-        if ((typeof obterOmePadronizada === 'function' ? obterOmePadronizada(ome).toUpperCase() : ome.toUpperCase()) === unidade.toUpperCase()) {
-
+        var id = linha.id;
+        var ome = linha.ome;
+        if (ome.toUpperCase() === unidade.toUpperCase()) {
           mapaLocaisObj[id] = {
-
-            nome: String(linha[2] || "").trim(),
-
-            idPai: String(linha[3] || "").trim()
-
+            nome: linha.nome,
+            idPai: linha.idPai
           };
 
         }
@@ -10374,8 +10523,18 @@ function garantirLocaisArvoreInterno_(locaisUnicos, usuario) {
       }
     }
 
-    // Se houve novas linhas para esta OME, grava em bloco na planilha
+    // Se houve novas linhas para esta OME, grava no banco centralizado e na planilha
     if (novasLinhasOme.length > 0) {
+      try {
+        var valoresSql = novasLinhasOme.map(function(nl) {
+          return "(" + sqlLiteralChamado_(nl[0]) + ", " + sqlLiteralChamado_(nl[1]) + ", " + sqlLiteralChamado_(nl[2]) + ", " + sqlLiteralChamado_(nl[3]) + ")";
+        });
+        var sqlBatchLoc = "INSERT INTO `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` (ID_Local, Unidade_OME, Nome_Local, ID_Pai) VALUES " + valoresSql.join(", ");
+        executarEscritaBigQuerySegura(sqlBatchLoc);
+      } catch(eBqLoc) {
+        console.warn("Aviso ao gravar locais criados no banco: " + eBqLoc.message);
+      }
+
       var proxLinha = sheet.getLastRow() + 1;
       sheet.getRange(proxLinha, 1, novasLinhasOme.length, 4).setValues(novasLinhasOme);
       SpreadsheetApp.flush();
@@ -13810,9 +13969,10 @@ function obterEstruturaArvoreOme_(omePadrao) {
     if (cachedArvore && cachedArvore.estrutura && cachedArvore.mapaNomes) {
       return cachedArvore;
     }
-    var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
-    var sheetArvore = ss.getSheetByName(ABA_LOCAIS_ARMAZENAMENTO);
-    if (!sheetArvore || sheetArvore.getLastRow() <= 1) {
+    var omePadraoFormatado = omePadrao ? (typeof obterOmePadronizada === 'function' ? obterOmePadronizada(omePadrao) : omePadrao) : "";
+    var idSedeOficial = omePadraoFormatado ? garantirSedePadraoOme(omePadraoFormatado) : "";
+    var locaisArvore = obterLocaisArvoreGeral_(omePadraoFormatado);
+    if (!locaisArvore || locaisArvore.length === 0) {
       return {
         estrutura: [
           { id: "SEDE_AUTO", nome: "SEDE", subRes: "SEDE", setores: [] }
@@ -13823,9 +13983,9 @@ function obterEstruturaArvoreOme_(omePadrao) {
       };
     }
 
-    var omePadraoFormatado = omePadrao ? (typeof obterOmePadronizada === 'function' ? obterOmePadronizada(omePadrao) : omePadrao) : "";
-    var idSedeOficial = omePadraoFormatado ? garantirSedePadraoOme(omePadraoFormatado) : "";
-    var dados = sheetArvore.getRange(2, 1, sheetArvore.getLastRow() - 1, 4).getValues();
+    var dados = locaisArvore.map(function(l) {
+      return [l.id, l.ome, l.nome, l.idPai];
+    });
 
     var mapaNos = {};
     var nosDaOme = [];
@@ -16578,14 +16738,12 @@ function getMapaTodasSubunidadesPorOme() {
     });
 
     try {
-      var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
-      var sheetLocais = ss.getSheetByName(ABA_LOCAIS_ARMAZENAMENTO);
-      if (sheetLocais && sheetLocais.getLastRow() > 1) {
-        var dados = sheetLocais.getDataRange().getValues();
-        for (var i = 1; i < dados.length; i++) {
-          var omePadrao = (typeof obterOmePadronizada === "function") ? obterOmePadronizada(dados[i][1]) : String(dados[i][1] || "").trim();
-          var nomeLocal = String(dados[i][2] || "").trim();
-          var idPai = String(dados[i][3] || "").trim();
+      var todosLocais = obterLocaisArvoreGeral_();
+      if (todosLocais && todosLocais.length > 0) {
+        for (var i = 0; i < todosLocais.length; i++) {
+          var omePadrao = todosLocais[i].ome;
+          var nomeLocal = todosLocais[i].nome;
+          var idPai = todosLocais[i].idPai;
           if (omePadrao && nomeLocal) {
             if (!mapa[omePadrao]) mapa[omePadrao] = ["SEDE"];
             if ((!idPai || idPai === omePadrao) && mapa[omePadrao].indexOf(nomeLocal) === -1) {
@@ -20374,31 +20532,29 @@ function garantirSetorViaturaNaSubunidade_(unidadeOme, idSubunidadeOuNome, nomeV
     var omePadrao = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(unidadeOme) : String(unidadeOme || "").trim();
     if (!omePadrao) return null;
 
-    var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
-    var sheet = ss.getSheetByName(ABA_LOCAIS_ARMAZENAMENTO);
-    if (!sheet) return null;
+    garantirTabelaArvore_();
 
-    var dados = sheet.getDataRange().getValues();
-    if (dados.length <= 1) return null;
+    var dadosLocais = obterLocaisArvoreGeral_(omePadrao);
 
     // 1. Identifica a Subunidade alvo na árvore
     var idSubunidadeAlvo = "";
     var nomeSubunidadeAlvo = "";
     var idAlvo = String(idSubunidadeOuNome || "").trim();
 
-    for (var i = 1; i < dados.length; i++) {
-      var rowId = String(dados[i][0] || "").trim();
-      var rowOme = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(dados[i][1]) : String(dados[i][1] || "").trim();
-      var rowNome = String(dados[i][2] || "").trim();
-      var rowPai = String(dados[i][3] || "").trim();
+    if (dadosLocais && dadosLocais.length > 0) {
+      for (var i = 0; i < dadosLocais.length; i++) {
+        var rowId = dadosLocais[i].id;
+        var rowOme = dadosLocais[i].ome;
+        var rowNome = dadosLocais[i].nome;
+        var rowPai = dadosLocais[i].idPai;
 
-      if (rowOme.toUpperCase() === omePadrao.toUpperCase()) {
-        if (rowId === idAlvo || rowNome.toUpperCase() === idAlvo.toUpperCase()) {
-          // Se for nó raiz (subunidade)
-          if (!rowPai || rowPai === rowOme) {
-            idSubunidadeAlvo = rowId;
-            nomeSubunidadeAlvo = rowNome;
-            break;
+        if (rowOme.toUpperCase() === omePadrao.toUpperCase()) {
+          if (rowId === idAlvo || rowNome.toUpperCase() === idAlvo.toUpperCase()) {
+            if (!rowPai || rowPai === rowOme) {
+              idSubunidadeAlvo = rowId;
+              nomeSubunidadeAlvo = rowNome;
+              break;
+            }
           }
         }
       }
@@ -20421,27 +20577,42 @@ function garantirSetorViaturaNaSubunidade_(unidadeOme, idSubunidadeOuNome, nomeV
     }
 
     // 3. Verifica se o setor da viatura já existe sob essa subunidade
-    for (var j = 1; j < dados.length; j++) {
-      var rOme = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(dados[j][1]) : String(dados[j][1] || "").trim();
-      var rNome = String(dados[j][2] || "").trim();
-      var rPai = String(dados[j][3] || "").trim();
-      var rId = String(dados[j][0] || "").trim();
+    if (dadosLocais && dadosLocais.length > 0) {
+      for (var j = 0; j < dadosLocais.length; j++) {
+        var rOme = dadosLocais[j].ome;
+        var rNome = dadosLocais[j].nome;
+        var rPai = dadosLocais[j].idPai;
+        var rId = dadosLocais[j].id;
 
-      if (rOme.toUpperCase() === omePadrao.toUpperCase() && rPai === idSubunidadeAlvo) {
-        if (rNome.toUpperCase() === nomeSetor.toUpperCase()) {
-          return { idSetor: rId, nomeSetor: rNome, subunidade: nomeSubunidadeAlvo };
+        if (rOme.toUpperCase() === omePadrao.toUpperCase() && rPai === idSubunidadeAlvo) {
+          if (rNome.toUpperCase() === nomeSetor.toUpperCase()) {
+            return { idSetor: rId, nomeSetor: rNome, subunidade: nomeSubunidadeAlvo };
+          }
         }
       }
     }
 
     // 4. Cria o novo setor da viatura sob a subunidade
     var novoIdSetor = "loc_vtr_" + new Date().getTime();
-    sheet.appendRow([
-      novoIdSetor,
-      omePadrao,
-      nomeSetor,
-      idSubunidadeAlvo
-    ]);
+
+    try {
+      var sqlIns = "INSERT INTO `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` (ID_Local, Unidade_OME, Nome_Local, ID_Pai) VALUES (" +
+        sqlLiteralChamado_(novoIdSetor) + ", " +
+        sqlLiteralChamado_(omePadrao) + ", " +
+        sqlLiteralChamado_(nomeSetor) + ", " +
+        sqlLiteralChamado_(idSubunidadeAlvo) + ")";
+      executarEscritaBigQuerySegura(sqlIns);
+    } catch(eBq) {
+      console.warn("Aviso ao gravar setor de viatura no banco: " + eBq.message);
+    }
+
+    try {
+      var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
+      var sheet = ss.getSheetByName(ABA_LOCAIS_ARMAZENAMENTO);
+      if (sheet) {
+        sheet.appendRow([novoIdSetor, omePadrao, nomeSetor, idSubunidadeAlvo]);
+      }
+    } catch(eSheet) {}
 
     registrarLogAuditoria("AUTO_CRIACAO_SETOR_VIATURA", "Setor da viatura '" + nomeSetor + "' criado automaticamente sob a Subunidade '" + nomeSubunidadeAlvo + "' na OME " + omePadrao);
 
