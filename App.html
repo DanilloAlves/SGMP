@@ -10478,8 +10478,6 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
             contadorBisFilhos++;
           }
         });
-        const filhos = locais.filter(l => String(l.idPai) === String(idPai));
-        if (filhos.length === 0) return '';
         
         let subHtml = `<div class="tree-node">`;
         filhos.forEach((f) => {
