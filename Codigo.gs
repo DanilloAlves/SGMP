@@ -10946,7 +10946,7 @@ function executarConsultaBigQuerySegura(sqlQuery) {
 
 function getServiceAccountAccessToken() {
   var cache = CacheService.getScriptCache();
-  var cachedToken = cache.get("BQ_SA_ACCESS_TOKEN");
+  var cachedToken = cache.get("BQ_SA_ACCESS_TOKEN_V2");
   if (cachedToken) {
     return cachedToken;
   }
@@ -10969,7 +10969,7 @@ function getServiceAccountAccessToken() {
   var now = Math.floor(Date.now() / 1000);
   var claimSet = {
     iss: clientEmail,
-    scope: "https://www.googleapis.com/auth/bigquery",
+    scope: "https://www.googleapis.com/auth/bigquery https://www.googleapis.com/auth/drive",
     aud: "https://oauth2.googleapis.com/token",
     exp: now + 3600,
     iat: now
@@ -10998,7 +10998,7 @@ function getServiceAccountAccessToken() {
 
   if (result.access_token) {
     try {
-      cache.put("BQ_SA_ACCESS_TOKEN", result.access_token, 3000); // 50 minutos de cache
+      cache.put("BQ_SA_ACCESS_TOKEN_V2", result.access_token, 3000); // 50 minutos de cache
     } catch (eCache) {}
   }
 
