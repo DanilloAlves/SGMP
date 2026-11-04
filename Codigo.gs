@@ -1921,7 +1921,11 @@ function sincronizarViaturasInventarioNaArvore_(omePadrao, idSedeOficial, locais
         else if (itemBq === "CBMPE-2026-158255") serieExtraida = "1052";
       }
 
-      var nomeSetorAlvo = serieExtraida ? (sigla + " - " + serieExtraida) : sigla;
+      // REGRA ESTRITA: Viatura operacional EXIGE número de ordem/série!
+      // Se não possui número de ordem/série, NÃO é uma viatura operacional individual (evita criar setores genéricos "AR", "ABT", "BIS")
+      if (!serieExtraida) return;
+
+      var nomeSetorAlvo = sigla + " - " + serieExtraida;
 
       viaturasInventario.push({
         itemBq: itemBq,
@@ -2013,12 +2017,21 @@ function sincronizarViaturasInventarioNaArvore_(omePadrao, idSedeOficial, locais
       }
     });
 
-    // Remove viaturas da árvore que não estejam registradas no inventário oficial desta OME
+    // Remove viaturas genéricas sem número ou que não estejam no inventário oficial desta OME
+    var siglasPurasLista = ["BIS", "AR", "ABT", "ABTS", "AT", "ASE", "AE", "AEM", "ABTF", "ABSL", "ABSM", "ABSC", "MSA", "MR", "UR", "UTI", "VTR"];
     for (var i = locais.length - 1; i >= 0; i--) {
       var loc = locais[i];
       if (!loc.idPai || String(loc.nome).toUpperCase() === "SEDE") continue;
+      
+      var nUpper = String(loc.nome || "").trim().toUpperCase();
+      if (siglasPurasLista.indexOf(nUpper) !== -1) {
+        locais.splice(i, 1);
+        alterouAlgumLocal = true;
+        continue;
+      }
+
       if (typeof ehViaturaLocalBackend_ === 'function' && ehViaturaLocalBackend_(loc.nome)) {
-        if (!mapaSetoresViaturaAlvo[String(loc.nome).trim().toUpperCase()]) {
+        if (!mapaSetoresViaturaAlvo[nUpper]) {
           locais.splice(i, 1);
           alterouAlgumLocal = true;
         }
@@ -2029,10 +2042,7 @@ function sincronizarViaturasInventarioNaArvore_(omePadrao, idSedeOficial, locais
     try {
       var sqlLimpeza = "DELETE FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` " +
                        "WHERE UPPER(TRIM(Unidade_OME)) IN (" + inSqlOme + ") " +
-                       "  AND (UPPER(TRIM(Nome_Local)) = 'BIS' " +
-                       "    OR UPPER(TRIM(Nome_Local)) = 'AR' " +
-                       "    OR UPPER(TRIM(Nome_Local)) = 'ABT' " +
-                       "    OR UPPER(TRIM(Nome_Local)) = 'VTR')";
+                       "  AND UPPER(TRIM(Nome_Local)) IN ('BIS', 'AR', 'ABT', 'ABTS', 'VTR', 'AT', 'ASE', 'AE', 'AEM', 'ABTF', 'ABSL', 'ABSM', 'ABSC', 'MSA', 'MR', 'UR', 'UTI')";
       executarEscritaBigQuerySegura(sqlLimpeza);
     } catch(eLimp) {}
 
@@ -2047,7 +2057,7 @@ function invalidarCacheArmazenamentoOme_(ome) {
   try {
     var omePadrao = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(ome) : (ome || "");
     if (!omePadrao) return;
-    var sufixos = ["", "_V3", "_V4", "_V5", "_V6"];
+    var sufixos = ["", "_V3", "_V4", "_V5", "_V6", "_V7"];
     var cache = CacheService.getScriptCache();
     sufixos.forEach(function(suf) {
       var chaveBase = "CACHE_ARM_COMPLETO" + suf + "_" + omePadrao.toUpperCase().replace(/[^A-Z0-9]/g, "_");
@@ -2073,7 +2083,7 @@ function carregarDadosArmazenamentoCompleto(unidadeOmega, forcarAtualizacao) {
     if (!omePadrao) return { locais: [], materiais: [], vinculos: {} };
 
     // Prefixo V5 para descarte absoluto de qualquer cache antigo e sincronização estrita BigQuery
-    var chaveBase = "CACHE_ARM_COMPLETO_V6_" + omePadrao.toUpperCase().replace(/[^A-Z0-9]/g, "_");
+    var chaveBase = "CACHE_ARM_COMPLETO_V7_" + omePadrao.toUpperCase().replace(/[^A-Z0-9]/g, "_");
     var cached = (!forcarAtualizacao && typeof lerDeCacheChunked_ === 'function') ? lerDeCacheChunked_(chaveBase) : null;
 
     // Se houver algum setor não identificado ou genérico (ex: "BIS"), bypass no cache
@@ -2548,9 +2558,9 @@ function getArvoreLocais(unidadeOmega) {
       if (mapaGhostIds[item.id]) return;
 
       var nomeU = String(item.nome || "").trim().toUpperCase();
-      var ehGenericoSemNumero = (nomeU === "BIS" || nomeU === "AR" || nomeU === "ABT" || nomeU === "VTR" || nomeU === "AT");
-      if (ehGenericoSemNumero) {
-        return; // Descarta nós genéricos antigos sem número
+      var siglasPurasDescartar = ["BIS", "AR", "ABT", "ABTS", "AT", "ASE", "AE", "AEM", "ABTF", "ABSL", "ABSM", "ABSC", "MSA", "MR", "UR", "UTI", "VTR"];
+      if (siglasPurasDescartar.indexOf(nomeU) !== -1) {
+        return; // Descarta nós genéricos antigos sem número (ex: "AR", "ABT", "BIS")
       }
 
       var idPaiEfetivo = item.idPai;
