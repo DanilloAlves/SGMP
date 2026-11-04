@@ -106,7 +106,8 @@ function obterValoresAbaSegura_(sheet, startRow, startCol, numRows, numCols) {
 // =========================================================================
 
 function doGet(e) {
-  var appUrl = "";
+  try {
+    var appUrl = "";
   try {
     appUrl = ScriptApp.getService().getUrl();
   } catch (errUrl) {
@@ -189,6 +190,21 @@ function doGet(e) {
     .setTitle('SGMP — CBMPE | Sistema de Gestão de Materiais e Patrimônio')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  } catch (errFatal) {
+    console.error("Falha temporária ao inicializar doGet: " + errFatal.message);
+    return HtmlService.createHtmlOutput(
+      '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">' +
+      '<title>Conectando ao SGMP...</title>' +
+      '<style>body{font-family:system-ui,-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f8fafc;color:#334155;text-align:center;padding:20px;}' +
+      '.card{background:white;padding:32px;border-radius:12px;box-shadow:0 4px 6px -1px rgba(0,0,0,0.1);max-width:420px;width:100%;}' +
+      '.spinner{width:40px;height:40px;border:4px solid #e2e8f0;border-top-color:#dc2626;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 16px;}' +
+      '@keyframes spin{to{transform:rotate(360deg)}}</style>' +
+      '<script>setTimeout(function(){ window.location.reload(); }, 1800);</script>' +
+      '</head><body><div class="card"><div class="spinner"></div><h3 style="margin:0 0 8px;color:#1e293b;">Sincronizando Sessão</h3><p style="font-size:14px;color:#64748b;margin:0 0 16px;">O servidor do Google apresentou uma breve oscilação de armazenamento temporário. Reconectando automaticamente em instantes...</p><button onclick="window.location.reload()" style="background:#dc2626;color:white;border:none;padding:10px 20px;border-radius:6px;font-weight:600;cursor:pointer;">Reconectar Agora</button></div></body></html>'
+    ).setTitle('SGMP — Reconectando...')
+     .addMetaTag('viewport', 'width=device-width, initial-scale=1.0')
+     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  }
 }
 
 
@@ -329,6 +345,98 @@ function obterIndicesLogins_(sheet) {
   return idx;
 }
 
+var _cacheUsuariosMem_ = {};
+var _cacheLoginsDadosMem_ = null;
+var _cacheLoginsDadosTime_ = 0;
+
+function invalidarCacheLoginsEUsuarios_(cpf, email) {
+  _cacheUsuariosMem_ = {};
+  _cacheLoginsDadosMem_ = null;
+  _cacheLoginsDadosTime_ = 0;
+  try {
+    var cache = CacheService.getScriptCache();
+    if (cache) {
+      cache.remove("DADOS_TABELA_LOGINS_CHUNKS_OK");
+      cache.remove("TABELA_LOGINS_CHUNKS_V2");
+      if (cpf) {
+        var cClean = String(cpf).replace(/\D/g, "");
+        cache.remove("USER_PERM_" + cClean);
+        cache.remove("USR_PERM_" + cClean.substring(0, 45));
+      }
+      if (email) {
+        var eClean = String(email).trim().toLowerCase().replace(/[^a-z0-9]/g, "_");
+        cache.remove("USER_PERM_" + eClean);
+        cache.remove("USR_PERM_" + eClean.substring(0, 45));
+      }
+    }
+  } catch(e) {}
+}
+
+function obterDadosTabelaLoginsSeguro_(forcar) {
+  var agora = new Date().getTime();
+  if (!forcar && _cacheLoginsDadosMem_ && (agora - _cacheLoginsDadosTime_ < 60000)) {
+    return _cacheLoginsDadosMem_;
+  }
+  var cache = CacheService.getScriptCache();
+  if (!forcar && cache) {
+    try {
+      var cachedOk = cache.get("DADOS_TABELA_LOGINS_CHUNKS_OK");
+      if (cachedOk) {
+        var parsed = (typeof lerDeCacheChunked_ === 'function') ? lerDeCacheChunked_("TABELA_LOGINS_CHUNKS_V2") : null;
+        if (parsed && Array.isArray(parsed) && parsed.length > 0) {
+          _cacheLoginsDadosMem_ = parsed;
+          _cacheLoginsDadosTime_ = agora;
+          return parsed;
+        }
+      }
+    } catch (e) {}
+  }
+  try {
+    var ssUser = abrirPlanilhaSegura_(ID_PLANILHA_USUARIOS);
+    var sheetLogins = ssUser.getSheetByName(ABA_USUARIOS);
+    if (!sheetLogins || sheetLogins.getLastRow() <= 1) {
+      return [];
+    }
+    var dados = (typeof obterValoresAbaSegura_ === 'function') ? obterValoresAbaSegura_(sheetLogins) : sheetLogins.getDataRange().getValues();
+    _cacheLoginsDadosMem_ = dados;
+    _cacheLoginsDadosTime_ = agora;
+    if (cache && typeof salvarEmCacheChunked_ === 'function') {
+      try {
+        salvarEmCacheChunked_("TABELA_LOGINS_CHUNKS_V2", dados, 120);
+        cache.put("DADOS_TABELA_LOGINS_CHUNKS_OK", "1", 120);
+      } catch (eCache) {}
+    }
+    return dados;
+  } catch (err) {
+    console.error("Erro ao ler tabela Logins: " + err.message);
+    if (_cacheLoginsDadosMem_) return _cacheLoginsDadosMem_;
+    return [];
+  }
+}
+
+function obterIndicesLoginsArray_(cabecalho) {
+  var idx = {
+    email: -1, cpf: -1, nome: -1, ome: -1, perfil: -1, subunidade: -1, pin: -1, status: -1, permissoes: -1, primeiroAcesso: -1
+  };
+  if (!cabecalho || !Array.isArray(cabecalho)) return idx;
+  for (var c = 0; c < cabecalho.length; c++) {
+    var raw = String(cabecalho[c] || "").trim();
+    var h = raw.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+    if (!h) continue;
+    if (h === "email") idx.email = c;
+    else if (h === "cpf") idx.cpf = c;
+    else if (h === "nome") idx.nome = c;
+    else if (h === "ome" || h === "unidade") idx.ome = c;
+    else if (h === "perfil") idx.perfil = c;
+    else if (h === "subunidade") idx.subunidade = c;
+    else if (h === "pin") idx.pin = c;
+    else if (h === "status") idx.status = c;
+    else if (h === "permissoes" || h === "permissao" || h === "permissions") idx.permissoes = c;
+    else if (h.includes("primeiro") || h.includes("primeiroacesso") || h.includes("firstaccess")) idx.primeiroAcesso = c;
+  }
+  return idx;
+}
+
 function verificarPermissaoUsuario(emailOuCpfInformado) {
   try {
     var buscaAlvo = String(emailOuCpfInformado || "").trim().toLowerCase();
@@ -341,18 +449,32 @@ function verificarPermissaoUsuario(emailOuCpfInformado) {
     }
     if (!buscaAlvo) return null;
 
-    // SEMPRE consulta diretamente a tabela de Logins (sem CacheService persistente),
-    // garantindo que alterações de perfil/OME/status/permissões na planilha sejam reconhecidas em tempo real.
-    var ss = abrirPlanilhaSegura_(ID_PLANILHA_USUARIOS);
-    var sheet = ss.getSheetByName(ABA_USUARIOS); 
-    if (!sheet) return null;
+        var chaveLimpa = buscaAlvo.replace(/[^a-z0-9]/g, "_");
 
-    var ultimaLinha = sheet.getLastRow();
-    if (ultimaLinha <= 1) return null;
+    // 1. Memória de execução
+    if (_cacheUsuariosMem_[chaveLimpa]) {
+      return _cacheUsuariosMem_[chaveLimpa];
+    }
 
-    var idx = obterIndicesLogins_(sheet);
-    var maxCols = Math.max(sheet.getLastColumn(), idx.primeiroAcesso + 1, (idx.permissoes || 0) + 1);
-    var dados = sheet.getRange(1, 1, ultimaLinha, maxCols).getValues();
+    // 2. CacheService (ScriptCache) - 90s de validade
+    var cache = CacheService.getScriptCache();
+    if (cache) {
+      try {
+        var userCached = cache.get("USER_PERM_" + chaveLimpa);
+        if (userCached) {
+          var parsed = JSON.parse(userCached);
+          if (parsed && parsed.cpf) {
+            _cacheUsuariosMem_[chaveLimpa] = parsed;
+            return parsed;
+          }
+        }
+      } catch (eCache) {}
+    }
+
+    var dados = obterDadosTabelaLoginsSeguro_();
+    if (!dados || dados.length <= 1) return null;
+
+    var idx = (typeof obterIndicesLoginsArray_ === 'function') ? obterIndicesLoginsArray_(dados[0]) : obterIndicesLogins_(dados[0]);
 
     var buscaAlvoNorm = buscaAlvo.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     var buscaAlvoLimpo = buscaAlvo.replace(/\D/g, "");
@@ -411,6 +533,21 @@ function verificarPermissaoUsuario(emailOuCpfInformado) {
     if (candidatoEncontrado) {
       if (candidatoEncontrado.status === "INATIVO" || candidatoEncontrado.status === "BLOQUEADO") {
         candidatoEncontrado.perfil = "Inativo";
+      }
+      _cacheUsuariosMem_[chaveLimpa] = candidatoEncontrado;
+      if (cache) {
+        try {
+          var jsonUser = JSON.stringify(candidatoEncontrado);
+          cache.put("USER_PERM_" + chaveLimpa, jsonUser, 120);
+          if (candidatoEncontrado.email) {
+            var kEmail = candidatoEncontrado.email.trim().toLowerCase().replace(/[^a-z0-9]/g, "_");
+            cache.put("USER_PERM_" + kEmail, jsonUser, 120);
+          }
+          if (candidatoEncontrado.cpf) {
+            var kCpf = candidatoEncontrado.cpf.replace(/\D/g, "");
+            cache.put("USER_PERM_" + kCpf, jsonUser, 120);
+          }
+        } catch(ePut) {}
       }
       return candidatoEncontrado;
     }
@@ -3302,8 +3439,15 @@ function getOmesPorMateriaisSelecionados(materiais) {
 
 
 function getResumoOmesComTotais() {
-
   try {
+    var cacheKey = "CACHE_RESUMO_OMES_TOTAIS_V2";
+    var cache = CacheService.getScriptCache();
+    if (cache) {
+      try {
+        var cached = cache.get(cacheKey);
+        if (cached) return JSON.parse(cached);
+      } catch(e) {}
+    }
 
     var sql = "SELECT UNIDADE, COUNT(*) as total_itens " +
 
@@ -3358,11 +3502,14 @@ function getResumoOmesComTotais() {
       return a.ome.localeCompare(b.ome);
     });
 
-    return {
+    var resObj = {
       totalGeral: totalGeralCbmpe,
       omes: resumo
-
     };
+    if (cache) {
+      try { cache.put(cacheKey, JSON.stringify(resObj), 600); } catch(ePut) {}
+    }
+    return resObj;
 
   } catch (err) {
 
@@ -3433,7 +3580,18 @@ function getMateriaisPlanilhaCompras() {
 
 
 
-    return [...new Set(materiais)].sort();
+    var resultadoFinal = [...new Set(materiais)].sort();
+    if (cache && resultadoFinal.length > 0) {
+      try {
+        var strRes = JSON.stringify(resultadoFinal);
+        if (strRes.length < 95000) {
+          cache.put(cacheKey, strRes, 1800);
+        } else if (typeof salvarEmCacheChunked_ === 'function') {
+          salvarEmCacheChunked_(cacheKey, resultadoFinal, 1800);
+        }
+      } catch(ePut) {}
+    }
+    return resultadoFinal;
 
   } catch (err) {
 
@@ -3705,12 +3863,10 @@ function obterMapaClassificacaoConsumo_() {
   }
 
   var cache = CacheService.getScriptCache();
-  var cachedJson = cache.get("MAPA_MATERIAIS_CONSUMO_V2");
-  if (cachedJson) {
-    try {
-      _cacheMapaClassificacaoConsumo = JSON.parse(cachedJson);
-      return _cacheMapaClassificacaoConsumo;
-    } catch(e) {}
+  var cachedJson = (typeof lerDeCacheChunked_ === 'function') ? lerDeCacheChunked_("MAPA_MATERIAIS_CONSUMO_V4") : null;
+  if (cachedJson && typeof cachedJson === 'object') {
+    _cacheMapaClassificacaoConsumo = cachedJson;
+    return _cacheMapaClassificacaoConsumo;
   }
 
   var mapaConsumo = {};
@@ -3790,11 +3946,10 @@ function obterMapaClassificacaoConsumo_() {
 
     _cacheMapaClassificacaoConsumo = mapaConsumo;
 
-    // Cacheia por 15 minutos (900s)
+    // Cacheia por 30 minutos (1800s) chunked
     try {
-      var jsonStr = JSON.stringify(mapaConsumo);
-      if (jsonStr.length < 95000) {
-        cache.put("MAPA_MATERIAIS_CONSUMO_V2", jsonStr, 900);
+      if (typeof salvarEmCacheChunked_ === 'function') {
+        salvarEmCacheChunked_("MAPA_MATERIAIS_CONSUMO_V4", mapaConsumo, 1800);
       }
     } catch(eCache) {}
 
@@ -15627,10 +15782,9 @@ function confirmarCodigoESolicitarAcesso(dados, codigoDigitado) {
 
     SpreadsheetApp.flush();
 
-    // Limpa cache de permissões do usuário
+    // Invalida cache de logins e permissoes do usuario
     try {
-      if (emailGoogle) cache.remove("USR_PERM_" + emailGoogle.replace(/[^a-z0-9]/gi, "_").substring(0, 45));
-      if (cpfLimpo) cache.remove("USR_PERM_" + cpfLimpo.replace(/[^a-z0-9]/gi, "_").substring(0, 45));
+      invalidarCacheLoginsEUsuarios_(cpfLimpo, emailGoogle);
     } catch (eCache) {}
 
     // Envia e-mail oficial com o PIN Temporário de Primeiro Acesso
@@ -15871,13 +16025,10 @@ function avaliarCadastroPendentes(idSolicitacao, acao, perfilSolicitante, omeSol
             console.error("Aviso ao enviar e-mail de PIN temporário: " + eMailAp.message);
           }
           
-          // Invalida cache de sessão
+          // Invalida cache de logins e permissoes do usuario
           try {
-            var cache = CacheService.getScriptCache();
-            var emClean = emailAprovado.toLowerCase();
-            if (emClean) cache.remove("USR_PERM_" + emClean.replace(/[^a-z0-9]/gi, "_").substring(0, 45));
-            if (cpfAprovado) cache.remove("USR_PERM_" + cpfAprovado.replace(/[^a-z0-9]/gi, "_").substring(0, 45));
-            if (cpfAprovadoLimpo) cache.remove("USR_PERM_" + cpfAprovadoLimpo.replace(/[^a-z0-9]/gi, "_").substring(0, 45));
+            SpreadsheetApp.flush();
+            invalidarCacheLoginsEUsuarios_(cpfAprovadoLimpo || cpfAprovado, emailAprovado);
           } catch(eC) {}
 
           var executorDesc = (ehComandante && !ehAdmin) ? "Comandante da OME " + omeSolPadrao : "Administrador";
@@ -15924,15 +16075,14 @@ function validarPinTransacao(cpfOrEmail, pinInformado) {
 // Busca usuários da base para o painel de Gerenciamento de Usuários
 function getTodosUsuarios(filtroOmeSolicitante, perfilSolicitante) {
   try {
-    var ss = abrirPlanilhaSegura_(ID_PLANILHA_USUARIOS);
-    var sheet = ss.getSheetByName(ABA_USUARIOS); // Aba "Logins"
-    if (!sheet) return [];
-    
-    var ultimaLinha = sheet.getLastRow();
-    if (ultimaLinha <= 1) return [];
-
-    var maxCols = Math.max(sheet.getLastColumn(), 9);
-    var dados = sheet.getRange(1, 1, ultimaLinha, maxCols).getValues();
+    var dados = (typeof obterDadosTabelaLoginsSeguro_ === 'function') ? obterDadosTabelaLoginsSeguro_() : [];
+    if (!dados || dados.length <= 1) {
+      var ss = abrirPlanilhaSegura_(ID_PLANILHA_USUARIOS);
+      var sheet = ss.getSheetByName(ABA_USUARIOS); // Aba "Logins"
+      if (!sheet || sheet.getLastRow() <= 1) return [];
+      dados = sheet.getDataRange().getValues();
+    }
+    if (!dados || dados.length <= 1) return [];
 
     var cabecalho = dados[0];
     var idxEmail = -1, idxCpf = -1, idxNome = -1, idxOme = -1, idxPerfil = -1, idxSub = -1, idxStatus = -1, idxPermissoes = -1;
@@ -16150,22 +16300,23 @@ function atualizarUsuario(linha, novaOme, novoPerfil, novoStatus, novaSubunidade
       }
     }
 
-    // Invalida completamente o cache de sessão para todas as variações de chave
+    // Invalida completamente o cache de logins e permissoes para todas as variacoes
     try {
-      var cache = CacheService.getScriptCache();
+      SpreadsheetApp.flush();
+      invalidarCacheLoginsEUsuarios_(userCpf || userCpfLimpo, userEmail);
       emailsParaLimparCache.forEach(function(em) {
-        if (em) cache.remove("USR_PERM_" + em.replace(/[^a-z0-9]/gi, "_").substring(0, 45));
+        if (em) invalidarCacheLoginsEUsuarios_(null, em);
       });
       cpfsParaLimparCache.forEach(function(c) {
-        if (c) cache.remove("USR_PERM_" + c.replace(/[^a-z0-9]/gi, "_").substring(0, 45));
+        if (c) invalidarCacheLoginsEUsuarios_(c, null);
       });
       try {
         var actEm = Session.getActiveUser().getEmail().trim().toLowerCase();
-        if (actEm) cache.remove("USR_PERM_" + actEm.replace(/[^a-z0-9]/gi, "_").substring(0, 45));
+        if (actEm) invalidarCacheLoginsEUsuarios_(null, actEm);
       } catch(eAct) {}
       try {
         var effEm = Session.getEffectiveUser().getEmail().trim().toLowerCase();
-        if (effEm) cache.remove("USR_PERM_" + effEm.replace(/[^a-z0-9]/gi, "_").substring(0, 45));
+        if (effEm) invalidarCacheLoginsEUsuarios_(null, effEm);
       } catch(eEff) {}
     } catch (eCache) {}
 
@@ -17814,11 +17965,9 @@ function redefinirPinPrimeiroAcesso(pinTemporario, novoPin, confirmaPin, identif
     sheetLogins.getRange(linhaUsuario, idx.primeiroAcesso + 1).setValue("NAO");
     SpreadsheetApp.flush(); // Garante persistência imediata
     
-    // Invalida cache de sessão
+    // Invalida cache de sessao e tabela de logins
     try {
-      var cache = CacheService.getScriptCache();
-      if (userEmail) cache.remove("USR_PERM_" + userEmail.replace(/[^a-z0-9]/gi, "_").substring(0, 45));
-      if (userCpf) cache.remove("USR_PERM_" + userCpf.replace(/[^a-z0-9]/gi, "_").substring(0, 45));
+      invalidarCacheLoginsEUsuarios_(userCpf, userEmail);
     } catch (eCache) {}
 
     return { sucesso: true, mensagem: "PIN pessoal cadastrado com sucesso!" };
@@ -18011,11 +18160,9 @@ function executarResetPinMilitar(identificador, emailInstInformado) {
     sheetLogins.getRange(linhaUsuario, idxPrimeiroAcesso + 1).setValue("SIM");
     SpreadsheetApp.flush();
 
-    // Invalida cache de sessão
+    // Invalida cache de sessao e tabela de logins
     try {
-      var cache = CacheService.getScriptCache();
-      if (usuarioEncontrado.email) cache.remove("USR_PERM_" + usuarioEncontrado.email.replace(/[^a-z0-9]/gi, "_").substring(0, 45));
-      if (usuarioEncontrado.cpf) cache.remove("USR_PERM_" + usuarioEncontrado.cpf.replace(/[^a-z0-9]/gi, "_").substring(0, 45));
+      invalidarCacheLoginsEUsuarios_(usuarioEncontrado.cpf, usuarioEncontrado.email);
     } catch (eCache) {}
 
     // 5. Envia e-mail oficial com o novo PIN temporário para o e-mail institucional
