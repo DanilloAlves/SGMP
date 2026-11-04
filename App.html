@@ -10470,18 +10470,6 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
         const filhos = locais.filter(l => String(l.idPai) === String(idPai));
         if (filhos.length === 0) return '';
         
-        // Auto-heal preventivo para exibição rigorosa de BIS - 1060 e BIS - 1052
-        let contadorBisFilhos = 0;
-        const nomesBisMapeados = ["BIS - 1060", "BIS - 1052"];
-        filhos.forEach(f => {
-          if (String(f.nome || '').trim().toUpperCase() === "BIS") {
-            if (contadorBisFilhos < nomesBisMapeados.length) {
-              f.nome = nomesBisMapeados[contadorBisFilhos];
-            }
-            contadorBisFilhos++;
-          }
-        });
-        
         let subHtml = `<div class="tree-node">`;
         filhos.forEach((f) => {
           let matsDoLocal = cacheMateriaisAtrelados[f.id] || [];
@@ -10824,9 +10812,6 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
   }
 
   function abrirModalViaturaHibrida(idLocal, nomeLocal, ome) {
-    if (String(nomeLocal || '').trim().toUpperCase() === 'BIS') {
-      nomeLocal = 'BIS - 1060';
-    }
     Swal.fire({
       title: 'Carregando Viatura...',
       html: `<div class="py-3 text-center"><i class="fa-solid fa-truck-fire fa-spin fa-2x text-danger mb-2"></i><br>Buscando dados cadastrais e histórico de <strong>${nomeLocal}</strong>...</div>`,
