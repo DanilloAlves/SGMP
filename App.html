@@ -3737,6 +3737,9 @@
           <button type="button" class="btn btn-sm btn-outline-secondary px-2" title="Recarregar base" onclick="carregarDadosFrotas(true)">
             <i class="fa-solid fa-rotate"></i>
           </button>
+          <button type="button" class="btn btn-sm btn-outline-danger px-2 ms-auto fw-bold" title="Sincronizar dados da Planilha com a tabela nativa do BigQuery" onclick="sincronizarPeculioComBigQueryUI()">
+            <i class="fa-solid fa-cloud-arrow-up me-1"></i> Sincronizar BigQuery
+          </button>
         </div>
 
         <!-- BARRA DE LEGENDAS / FILTROS RÁPIDOS POR SITUAÇÃO -->
@@ -29284,6 +29287,36 @@ function alternarMenuFrotas(menu) {
   } else if (menu === 'permissoes') {
     if (titulo) titulo.innerText = 'Permissões';
   }
+}
+
+function sincronizarPeculioComBigQueryUI() {
+  Swal.fire({
+    title: 'Sincronizando com BigQuery...',
+    html: '<div class="text-center py-3"><i class="fa-solid fa-arrows-rotate fa-spin fa-2x text-danger mb-2"></i><br>Carregando dados da Planilha Pecúlio para a tabela nativa <strong>tb_Peculio_Viatura</strong> do BigQuery...</div>',
+    allowOutsideClick: false,
+    showConfirmButton: false
+  });
+
+  google.script.run
+    .withSuccessHandler(function(resp) {
+      Swal.close();
+      if (!resp || !resp.sucesso) {
+        Swal.fire('Erro', (resp && resp.erro) || 'Falha ao sincronizar com o BigQuery.', 'error');
+        return;
+      }
+      Swal.fire({
+        icon: 'success',
+        title: 'Sincronizado!',
+        text: resp.mensagem || (resp.total + ' viaturas sincronizadas com sucesso.'),
+        timer: 3000,
+        showConfirmButton: false
+      });
+      carregarDadosFrotas(true);
+    })
+    .withFailureHandler(function(err) {
+      Swal.fire('Erro', err.message || err, 'error');
+    })
+    .sincronizarPeculioViaturaParaBigQuery(true);
 }
 
 function carregarDadosFrotas(forcar) {
