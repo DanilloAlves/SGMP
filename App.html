@@ -8076,6 +8076,7 @@
   }
 
   function carregarResumoMaterialSubunidade(forcar) {
+    if (forcar) dadosResumoMaterialAtual = null;
     const selOme = document.getElementById('selectOmeArvore');
     const perfilNorm = (PERFIL_GLOBAL || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
     const omeNorm = (OME_GLOBAL || "").trim().toUpperCase();
@@ -8185,6 +8186,7 @@
 
     // Filtra lista de materiais
     const materiaisFiltrados = dadosResumoMaterialAtual.materiais.filter(function(item) {
+      if ((item.totais.total || 0) <= 0) return false;
       if (filtroTexto && item.material.toLowerCase().indexOf(filtroTexto) === -1) {
         return false;
       }
@@ -10521,12 +10523,12 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
               const idsDescJson = encodeURIComponent(JSON.stringify(m.idsDescarregados || []));
               
               // DIVISÃO DE TAGS (ECD, SCD, ACAUTELADO e EXTRAVIADO) alinhadas na árvore
+              if ((parseInt(m.qtd) || 0) <= 0) return;
               let badgesHtml = `<span class="badge bg-info text-dark ms-1">${m.qtd} un(s)</span>`;
               if (m.ecd > 0) badgesHtml += `<span class="badge bg-success ms-1">ECD: ${m.ecd}</span>`;
               if (m.scd > 0) badgesHtml += `<span class="badge bg-danger ms-1">SCD: ${m.scd}</span>`;
               if (m.acautelado > 0) badgesHtml += `<span class="badge bg-warning text-dark ms-1">ACAUTELADO: ${m.acautelado}</span>`;
               if (m.extraviado > 0) badgesHtml += `<span class="badge bg-secondary ms-1">EXTRAVIADO: ${m.extraviado}</span>`;
-              if (m.descarregado > 0) badgesHtml += `<span class="badge bg-danger ms-1" title="${m.descarregado} material(is) descarregado(s)"><i class="fa-solid fa-box-archive me-1"></i>DESC: ${m.descarregado}</span>`;
 
               const botaoMover = podeMoverArvore ? `<button class="btn btn-sm btn-outline-primary py-0 px-2 me-1" onclick="abrirModalMoverMaterial('${f.id}', '${f.nome}', ${m.qtd}, '${m.nome}', '${idsJson}')"><i class="fa-solid fa-arrows-split-up-and-left"></i> Mover Qtd</button>` : '';
 
@@ -10606,12 +10608,12 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
             const idsJson = encodeURIComponent(JSON.stringify(m.ids || []));
             const idsDescJson = encodeURIComponent(JSON.stringify(m.idsDescarregados || []));
             
+            if ((parseInt(m.qtd) || 0) <= 0) return;
             let badgesHtml = `<span class="badge bg-info text-dark ms-1">${m.qtd} un(s)</span>`;
             if (m.ecd > 0) badgesHtml += `<span class="badge bg-success ms-1">ECD: ${m.ecd}</span>`;
             if (m.scd > 0) badgesHtml += `<span class="badge bg-danger ms-1">SCD: ${m.scd}</span>`;
             if (m.acautelado > 0) badgesHtml += `<span class="badge bg-warning text-dark ms-1">ACAUTELADO: ${m.acautelado}</span>`;
             if (m.extraviado > 0) badgesHtml += `<span class="badge bg-secondary ms-1">EXTRAVIADO: ${m.extraviado}</span>`;
-              if (m.descarregado > 0) badgesHtml += `<span class="badge bg-danger ms-1" title="${m.descarregado} material(is) descarregado(s)"><i class="fa-solid fa-box-archive me-1"></i>DESC: ${m.descarregado}</span>`;
 
             const botaoMover = podeMoverArvore ? `<button class="btn btn-sm btn-outline-primary py-0 px-2 me-1" onclick="abrirModalMoverMaterial('${l.id}', '${l.nome}', ${m.qtd}, '${m.nome}', '${idsJson}')"><i class="fa-solid fa-arrows-split-up-and-left"></i> Mover Qtd</button>` : '';
 

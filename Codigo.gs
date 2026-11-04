@@ -2781,7 +2781,7 @@ function getMateriaisAtreladosPorLocal(unidadeOmega) {
               "UPPER(TRIM(COALESCE(SETOR, ''))) as set_ref, " +
               "UPPER(TRIM(COALESCE(LOCALIZACAO_ESPCIFICA_NA_OME_Se_Necessario, ''))) as loc_ref, " +
               "UPPER(TRIM(OBJETO)) as objeto_limpo, " +
-              "COUNT(CASE WHEN UPPER(TRIM(COALESCE(STATUS, 'ECD'))) NOT IN ('BAIXADO', 'DESCARREGADO') THEN 1 ELSE NULL END) as qtd, " +
+              "COUNT(CASE WHEN UPPER(TRIM(COALESCE(STATUS, 'ECD'))) NOT IN ('BAIXADO', 'DESCARREGADO') AND UPPER(COALESCE(STATUS, '')) NOT LIKE '%DESCARREGADO%' AND UPPER(COALESCE(STATUS, '')) NOT LIKE '%BAIXA%' THEN 1 ELSE NULL END) as qtd, " +
               "SUM(CASE WHEN TRIM(UPPER(STATUS)) = 'ECD' THEN 1 ELSE 0 END) as qtd_ecd, " +
               "SUM(CASE WHEN TRIM(UPPER(STATUS)) = 'SCD' THEN 1 ELSE 0 END) as qtd_scd, " +
               "SUM(CASE WHEN TRIM(UPPER(STATUS)) = 'ACAUTELADO' THEN 1 ELSE 0 END) as qtd_acautelado, " +
@@ -4466,14 +4466,24 @@ function getResumoArvoreArmazenamento(unidadeOme) {
               "UPPER(TRIM(COALESCE(SETOR, ''))) as set_raw, " +
               "UPPER(TRIM(COALESCE(LOCALIZACAO_ESPCIFICA_NA_OME_Se_Necessario, ''))) as loc_raw, " +
               "UPPER(TRIM(OBJETO)) as objeto_raw, " +
-              "COUNT(*) as qtd_total, " +
-              "SUM(CASE WHEN UPPER(TRIM(STATUS)) = 'ECD' THEN 1 ELSE 0 END) as qtd_ecd, " +
-              "SUM(CASE WHEN UPPER(TRIM(STATUS)) = 'SCD' THEN 1 ELSE 0 END) as qtd_scd, " +
-              "SUM(CASE WHEN UPPER(TRIM(STATUS)) = 'ACAUTELADO' THEN 1 ELSE 0 END) as qtd_acautelado, " +
-              "SUM(CASE WHEN UPPER(TRIM(STATUS)) = 'EXTRAVIADO' THEN 1 ELSE 0 END) as qtd_extraviado " +
+              "COUNT(CASE WHEN (STATUS IS NULL OR (" +
+              "       UPPER(TRIM(STATUS)) NOT IN ('BAIXADO', 'DESCARREGADO') " +
+              "       AND UPPER(COALESCE(STATUS, '')) NOT LIKE '%DESCARREGADO%' " +
+              "       AND UPPER(COALESCE(STATUS, '')) NOT LIKE '%BAIXA%' " +
+              "     )) THEN 1 ELSE NULL END) as qtd_total, " +
+              "SUM(CASE WHEN UPPER(TRIM(STATUS)) = 'ECD' AND UPPER(COALESCE(STATUS, '')) NOT LIKE '%DESCARREGADO%' AND UPPER(COALESCE(STATUS, '')) NOT LIKE '%BAIXA%' THEN 1 ELSE 0 END) as qtd_ecd, " +
+              "SUM(CASE WHEN UPPER(TRIM(STATUS)) = 'SCD' AND UPPER(COALESCE(STATUS, '')) NOT LIKE '%DESCARREGADO%' AND UPPER(COALESCE(STATUS, '')) NOT LIKE '%BAIXA%' THEN 1 ELSE 0 END) as qtd_scd, " +
+              "SUM(CASE WHEN UPPER(TRIM(STATUS)) = 'ACAUTELADO' AND UPPER(COALESCE(STATUS, '')) NOT LIKE '%DESCARREGADO%' AND UPPER(COALESCE(STATUS, '')) NOT LIKE '%BAIXA%' THEN 1 ELSE 0 END) as qtd_acautelado, " +
+              "SUM(CASE WHEN UPPER(TRIM(STATUS)) = 'EXTRAVIADO' AND UPPER(COALESCE(STATUS, '')) NOT LIKE '%DESCARREGADO%' AND UPPER(COALESCE(STATUS, '')) NOT LIKE '%BAIXA%' THEN 1 ELSE 0 END) as qtd_extraviado " +
               "FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
               "WHERE UPPER(TRIM(UNIDADE)) IN (" + inSqlOme + ") " +
-              "AND (STATUS IS NULL OR UPPER(TRIM(STATUS)) NOT IN ('BAIXADO', 'DESCARREGADO')) " +
+              "AND (STATUS IS NULL OR (" +
+              "     UPPER(TRIM(STATUS)) NOT IN ('BAIXADO', 'DESCARREGADO') " +
+              "     AND UPPER(COALESCE(STATUS, '')) NOT LIKE '%DESCARREGADO%' " +
+              "     AND UPPER(COALESCE(STATUS, '')) NOT LIKE '%BAIXA%' " +
+              ")) " +
+              "AND UPPER(TRIM(COALESCE(SUBUNIDADE, ''))) != 'DESCARREGADO' " +
+              "AND UPPER(TRIM(COALESCE(SETOR, ''))) != 'DESCARREGADO' " +
               "GROUP BY sub_raw, set_raw, loc_raw, objeto_raw " +
               "ORDER BY objeto_raw ASC";
 
@@ -4848,14 +4858,28 @@ function getResumoMaterialSubunidade(unidadeOme) {
               "UPPER(TRIM(COALESCE(SUBUNIDADE, ''))) as sub_raw, " +
               "UPPER(TRIM(COALESCE(SETOR, ''))) as set_raw, " +
               "UPPER(TRIM(COALESCE(LOCALIZACAO_ESPCIFICA_NA_OME_Se_Necessario, ''))) as loc_raw, " +
-              "SUM(CASE WHEN UPPER(TRIM(STATUS)) = 'SCD' THEN 1 ELSE 0 END) as qtd_scd, " +
-              "SUM(CASE WHEN UPPER(TRIM(STATUS)) = 'ACAUTELADO' THEN 1 ELSE 0 END) as qtd_acautelado, " +
-              "SUM(CASE WHEN UPPER(TRIM(STATUS)) = 'EXTRAVIADO' THEN 1 ELSE 0 END) as qtd_extraviado, " +
-              "SUM(CASE WHEN UPPER(TRIM(COALESCE(STATUS, 'ECD'))) = 'ECD' OR UPPER(TRIM(STATUS)) = '' OR UPPER(TRIM(STATUS)) NOT IN ('SCD', 'ACAUTELADO', 'EXTRAVIADO', 'BAIXADO', 'DESCARREGADO') THEN 1 ELSE 0 END) as qtd_ecd, " +
-              "COUNT(*) as qtd_total " +
+              "SUM(CASE WHEN UPPER(TRIM(STATUS)) = 'SCD' AND UPPER(COALESCE(STATUS, '')) NOT LIKE '%DESCARREGADO%' AND UPPER(COALESCE(STATUS, '')) NOT LIKE '%BAIXA%' THEN 1 ELSE 0 END) as qtd_scd, " +
+              "SUM(CASE WHEN UPPER(TRIM(STATUS)) = 'ACAUTELADO' AND UPPER(COALESCE(STATUS, '')) NOT LIKE '%DESCARREGADO%' AND UPPER(COALESCE(STATUS, '')) NOT LIKE '%BAIXA%' THEN 1 ELSE 0 END) as qtd_acautelado, " +
+              "SUM(CASE WHEN UPPER(TRIM(STATUS)) = 'EXTRAVIADO' AND UPPER(COALESCE(STATUS, '')) NOT LIKE '%DESCARREGADO%' AND UPPER(COALESCE(STATUS, '')) NOT LIKE '%BAIXA%' THEN 1 ELSE 0 END) as qtd_extraviado, " +
+              "SUM(CASE WHEN (UPPER(TRIM(COALESCE(STATUS, 'ECD'))) = 'ECD' OR UPPER(TRIM(STATUS)) = '') " +
+              "         AND UPPER(COALESCE(STATUS, '')) NOT LIKE '%DESCARREGADO%' " +
+              "         AND UPPER(COALESCE(STATUS, '')) NOT LIKE '%BAIXA%' " +
+              "         AND UPPER(TRIM(COALESCE(STATUS, ''))) NOT IN ('SCD', 'ACAUTELADO', 'EXTRAVIADO', 'BAIXADO', 'DESCARREGADO') THEN 1 ELSE 0 END) as qtd_ecd, " +
+              "COUNT(CASE WHEN (STATUS IS NULL OR (" +
+              "       UPPER(TRIM(STATUS)) NOT IN ('BAIXADO', 'DESCARREGADO') " +
+              "       AND UPPER(COALESCE(STATUS, '')) NOT LIKE '%DESCARREGADO%' " +
+              "       AND UPPER(COALESCE(STATUS, '')) NOT LIKE '%BAIXA%' " +
+              "     )) THEN 1 ELSE NULL END) as qtd_total " +
               "FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
               "WHERE UPPER(TRIM(UNIDADE)) IN (" + inSqlOme + ") " +
-              "AND (STATUS IS NULL OR UPPER(TRIM(STATUS)) NOT IN ('BAIXADO', 'DESCARREGADO')) " +
+              "AND (STATUS IS NULL OR (" +
+              "     UPPER(TRIM(STATUS)) NOT IN ('BAIXADO', 'DESCARREGADO') " +
+              "     AND UPPER(COALESCE(STATUS, '')) NOT LIKE '%DESCARREGADO%' " +
+              "     AND UPPER(COALESCE(STATUS, '')) NOT LIKE '%BAIXA%' " +
+              ")) " +
+              "AND UPPER(TRIM(COALESCE(SUBUNIDADE, ''))) != 'DESCARREGADO' " +
+              "AND UPPER(TRIM(COALESCE(SETOR, ''))) != 'DESCARREGADO' " +
+              "AND UPPER(TRIM(COALESCE(LOCALIZACAO_ESPCIFICA_NA_OME_Se_Necessario, ''))) != 'DESCARREGADO' " +
               "GROUP BY objeto_raw, sub_raw, set_raw, loc_raw " +
               "ORDER BY objeto_raw ASC";
 
@@ -4897,6 +4921,7 @@ function getResumoMaterialSubunidade(unidadeOme) {
       var qtdTotal = parseInt(r.f[8].v || 0);
 
       if (!objeto) return;
+      if (qtdTotal <= 0 && qtdEcd <= 0 && qtdScd <= 0 && qtdAcautelado <= 0 && qtdExtraviado <= 0) return;
 
       // Exclui materiais de consumo da lista de permanentes
       if (typeof ehMaterialConsumo_ === 'function' && ehMaterialConsumo_(objeto, mapaConsumo)) {
