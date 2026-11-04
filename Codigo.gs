@@ -1849,7 +1849,8 @@ function garantirSetoresViaturasNaArvore_(omePadrao, idSedeOficial, sheet, locai
               "UPPER(TRIM(COALESCE(SUBUNIDADE, ''))) as subunidade, " +
               "UPPER(TRIM(COALESCE(SETOR, ''))) as setor, " +
               "UPPER(TRIM(COALESCE(N_SERIE, ''))) as n_serie, " +
-              "UPPER(TRIM(COALESCE(N_PATRIMONIO, ''))) as n_patrimonio " +
+              "UPPER(TRIM(COALESCE(N_PATRIMONIO, ''))) as n_patrimonio, " +
+              "COALESCE(OBSERVACAO_Mais_detalhes_sobre_a_situacao_do_material, '') as observacao " +
               "FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
               "WHERE UPPER(TRIM(UNIDADE)) IN (" + inSqlOme + ") " +
               "ORDER BY objeto ASC";
@@ -1878,16 +1879,39 @@ function garantirSetoresViaturasNaArvore_(omePadrao, idSedeOficial, sheet, locai
     var frotaUsada = {};
 
     rows.forEach(function(r) {
-      var itemBq = String(r.f[0].v || "").trim();
-      var objeto = String(r.f[1].v || "").trim();
-      var subRef = String(r.f[2].v || "").trim();
-      var setRef = String(r.f[3].v || "").trim();
-      var nSerie = String(r.f[4].v || "").trim();
-      var nPat = String(r.f[5] ? r.f[5].v : "").trim();
+      var itemBq = String(r.f[0] && r.f[0].v ? r.f[0].v : "").trim();
+      var objeto = String(r.f[1] && r.f[1].v ? r.f[1].v : "").trim();
+      var subRef = String(r.f[2] && r.f[2].v ? r.f[2].v : "").trim();
+      var setRef = String(r.f[3] && r.f[3].v ? r.f[3].v : "").trim();
+      var nSerie = String(r.f[4] && r.f[4].v ? r.f[4].v : "").trim();
+      var nPat = String(r.f[5] && r.f[5].v ? r.f[5].v : "").trim();
+      var obs = String(r.f[6] && r.f[6].v ? r.f[6].v : "").trim();
 
       var sigla = (typeof obterSiglaViaturaBackend_ === 'function') ? obterSiglaViaturaBackend_(objeto) : "";
       if (!sigla && setRef) {
         sigla = (typeof obterSiglaViaturaBackend_ === 'function') ? obterSiglaViaturaBackend_(setRef) : "";
+      }
+
+      // Extrai número de série / ordem de todas as fontes possíveis (coluna N_SERIE, OBJETO, OBSERVACAO)
+      var serieExtraida = "";
+      if (nSerie && nSerie !== "-" && nSerie !== "NULL" && nSerie !== "UNDEFINED" && nSerie !== "NI" && nSerie !== "0") {
+        serieExtraida = nSerie.replace(/^(?:S[EÉ]RIE|N[º°]?\s*DE\s*S[EÉ]RIE|N[º°]?\s*DE\s*ORDEM|ORDEM)[:\s]*/i, '').trim();
+      }
+      if (!serieExtraida && objeto) {
+        var mObj = objeto.match(/\((?:BIS|AR|ABT|AT|ASE|AE|AEM|ABTF|ABSL|ABSM|ABSC|MSA|MR|UR)[\s-_]+([A-Z0-9]+)\)/i);
+        if (mObj && mObj[1]) {
+          serieExtraida = mObj[1].trim();
+        } else {
+          var mObj2 = objeto.match(/\b(?:BIS|AR|ABT|AT|ASE|AE|AEM|ABTF|ABSL|ABSM|ABSC|MSA|MR|UR)[\s-_]+(\d+)\b/i);
+          if (mObj2 && mObj2[1]) serieExtraida = mObj2[1].trim();
+        }
+      }
+      if (!serieExtraida && obs) {
+        var mObs = obs.match(/(?:N[º°]?\s*de\s*S[eé]rie|S[eé]rie|N[º°]?\s*de\s*Ordem|Ordem)[:\s]+([^|\r\n,;)]+)/i);
+        if (mObs && mObs[1]) {
+          var oVal = mObs[1].trim();
+          if (oVal && oVal !== "-" && oVal !== "0") serieExtraida = oVal;
+        }
       }
 
       // Tenta cruzar com viaturasFrota para obter sigla/nOrdem se não estiver preenchido
@@ -1897,9 +1921,10 @@ function garantirSetoresViaturasNaArvore_(omePadrao, idSedeOficial, sheet, locai
         var vfOrdem = String(vf.nOrdem || "").trim().toUpperCase();
         var vfPat = String(vf.patrimonio || "").trim().toUpperCase();
         var vfPlaca = String(vf.placa || "").trim().toUpperCase();
-        var matchOrdem = nSerie && vfOrdem && (nSerie.toUpperCase() === vfOrdem || nSerie.replace(/\D/g, '') === vfOrdem.replace(/\D/g, ''));
+        var sCheck = serieExtraida || nSerie;
+        var matchOrdem = sCheck && vfOrdem && (sCheck.toUpperCase() === vfOrdem || sCheck.replace(/\D/g, '') === vfOrdem.replace(/\D/g, ''));
         var matchPat = nPat && vfPat && nPat.toUpperCase() === vfPat;
-        var matchPlaca = nSerie && vfPlaca && vfPlaca !== "NI" && nSerie.toUpperCase() === vfPlaca;
+        var matchPlaca = sCheck && vfPlaca && vfPlaca !== "NI" && sCheck.toUpperCase() === vfPlaca;
         if (matchOrdem || matchPat || matchPlaca) {
           matchFrota = vf;
           frotaUsada[vf.id] = true;
@@ -1914,8 +1939,8 @@ function garantirSetoresViaturasNaArvore_(omePadrao, idSedeOficial, sheet, locai
       if (!sigla) return; // Não é viatura
 
       var serieFinal = "";
-      if (nSerie && nSerie !== "-" && nSerie !== "NULL" && nSerie !== "UNDEFINED" && nSerie !== "NI" && nSerie !== "0") {
-        serieFinal = nSerie;
+      if (serieExtraida) {
+        serieFinal = serieExtraida;
       } else if (matchFrota && matchFrota.nOrdem && matchFrota.nOrdem !== "-" && matchFrota.nOrdem !== "0") {
         serieFinal = matchFrota.nOrdem;
       }
@@ -1935,6 +1960,14 @@ function garantirSetoresViaturasNaArvore_(omePadrao, idSedeOficial, sheet, locai
       if (frotaUsada[vf.id]) return;
       var siglaF = (typeof obterSiglaViaturaBackend_ === 'function') ? obterSiglaViaturaBackend_(vf.tipo || vf.nome) : (vf.tipo || "");
       if (!siglaF) return;
+      var nOrdemF = String(vf.nOrdem || "").trim();
+      var jaExisteNaLista = listaViaturas.some(function(vExist) {
+        if (vExist.sigla !== siglaF) return false;
+        if (nOrdemF && vExist.nSerie && (vExist.nSerie === nOrdemF || vExist.nSerie.replace(/\D/g, '') === nOrdemF.replace(/\D/g, ''))) return true;
+        return false;
+      });
+      if (jaExisteNaLista) return;
+
       listaViaturas.push({
         itemBq: "",
         objeto: vf.nome || siglaF,
@@ -1981,8 +2014,9 @@ function garantirSetoresViaturasNaArvore_(omePadrao, idSedeOficial, sheet, locai
       // Encontra setores candidatos ainda não reivindicados nesta execução
       var setorExistente = null;
 
-      // 2.1 Busca por nome exato (ex: "BIS - 01" ou "BIS01")
+      // 2.1 Busca por nome exato (ex: "BIS - 1060" ou "BIS1060")
       setorExistente = locais.find(function(l) {
+        if (!l.idPai || String(l.nome).toUpperCase() === "SEDE") return false;
         if (setoresViaturaValidos[l.id]) return false;
         var nClean = String(l.nome || "").trim().replace(/[^A-Z0-9]/gi, "").toUpperCase();
         if (nClean === alvoClean) return true;
@@ -1993,10 +2027,12 @@ function garantirSetoresViaturasNaArvore_(omePadrao, idSedeOficial, sheet, locai
         return false;
       });
 
-      // 2.2 Se não encontrou por nome completo, busca por setor de referência anterior
-      if (!setorExistente && setRef) {
+      // 2.2 Se não encontrou por nome completo, busca por setor de referência anterior (desde que não seja Subunidade/SEDE)
+      var ehSetRefSubunidade = !setRef || setRef.toUpperCase() === "SEDE" || (subRef && setRef.toUpperCase() === subRef.toUpperCase());
+      if (!setorExistente && setRef && !ehSetRefSubunidade) {
         var setRefClean = setRef.replace(/[^A-Z0-9]/gi, "").toUpperCase();
         setorExistente = locais.find(function(l) {
+          if (!l.idPai || String(l.nome).toUpperCase() === "SEDE") return false;
           if (setoresViaturaValidos[l.id]) return false;
           var nClean = String(l.nome || "").trim().replace(/[^A-Z0-9]/gi, "").toUpperCase();
           return nClean === setRefClean;
@@ -2006,9 +2042,10 @@ function garantirSetoresViaturasNaArvore_(omePadrao, idSedeOficial, sheet, locai
       // 2.3 Se não encontrou, busca setor antigo genérico correspondente à sigla (ex: "BIS" ou "AR")
       if (!setorExistente) {
         setorExistente = locais.find(function(l) {
+          if (!l.idPai || String(l.nome).toUpperCase() === "SEDE") return false;
           if (setoresViaturaValidos[l.id]) return false;
           var nClean = String(l.nome || "").trim().replace(/[^A-Z0-9]/gi, "").toUpperCase();
-          return nClean === siglaClean || (setRef && nClean === setRef.toUpperCase());
+          return nClean === siglaClean || nClean === "BIS" || nClean === "AR" || nClean === "ABT" || nClean === "AT";
         });
       }
 
@@ -2098,10 +2135,11 @@ function garantirSetoresViaturasNaArvore_(omePadrao, idSedeOficial, sheet, locai
     for (var i = locais.length - 1; i >= 0; i--) {
       var loc = locais[i];
       if (setoresViaturaValidos[loc.id]) continue;
+      if (!loc.idPai || String(loc.nome).toUpperCase() === "SEDE") continue;
 
       var nomeU = String(loc.nome || "").trim().toUpperCase();
       var siglaAntiga = (typeof obterSiglaViaturaBackend_ === 'function') ? obterSiglaViaturaBackend_(nomeU) : "";
-      var ehSiglaPura = siglaAntiga && (nomeU === siglaAntiga || nomeU === "BIS" || nomeU === "VTR");
+      var ehSiglaPura = siglaAntiga && (nomeU === siglaAntiga || nomeU === "BIS" || nomeU === "VTR" || nomeU === "AR" || nomeU === "ABT");
 
       if (ehSiglaPura && nomeU.indexOf("-") === -1) {
         var temFilhos = locais.some(function(filho) { return filho.idPai === loc.id; });
@@ -21412,9 +21450,12 @@ function garantirSetorViaturaNaSubunidade_(unidadeOme, idSubunidadeOuNome, nomeV
 // Retorna dados completos da viatura vinculada a um Setor da árvore
 function getDadosViaturaPorSetor(nomeSetor, ome) {
   try {
-    var frota = getDadosGestaoFrotas();
-    if (!frota.sucesso || !frota.viaturas) {
-      throw new Error(frota.erro || "Falha ao consultar base de viaturas.");
+    var frota = null;
+    try {
+      frota = getDadosGestaoFrotas();
+    } catch(eF) {}
+    if (!frota || !frota.sucesso || !frota.viaturas) {
+      frota = { sucesso: true, viaturas: [] };
     }
 
     var setorLimpo = String(nomeSetor || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
@@ -21425,6 +21466,8 @@ function getDadosViaturaPorSetor(nomeSetor, ome) {
     var siglaSetor = (typeof obterSiglaViaturaBackend_ === 'function') ? obterSiglaViaturaBackend_(nomeSetor) : "";
 
     var viatEncontrada = null;
+
+    // 1. Busca na base de frotas (Peculio_Viatura) com conferência estrita de número de ordem
     for (var i = 0; i < frota.viaturas.length; i++) {
       var v = frota.viaturas[i];
       var vNome = String(v.nome || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
@@ -21437,13 +21480,13 @@ function getDadosViaturaPorSetor(nomeSetor, ome) {
 
       var numOrdem = vOrdem.replace(/[^0-9]/g, '').replace(/^0+/, '');
 
-      var matchNome = (vNome && (setorLimpo === vNome || setorLimpo.indexOf(vNome) !== -1 || vNome.indexOf(setorLimpo) !== -1));
+      var matchNomeExato = (vNome && (setorLimpo === vNome || setorLimpo === (vTipo + numOrdem)));
       var matchPlaca = (vPlaca && vPlaca !== "NI" && setorLimpo.indexOf(vPlaca) !== -1);
       var matchPat = (vPat && vPat !== "NI" && setorLimpo.indexOf(vPat) !== -1);
-      var matchTipoOrdem = (vTipo && vOrdem && setorLimpo.indexOf(vTipo) !== -1 && (setorLimpo.indexOf(vOrdem) !== -1 || (numSetor && numOrdem && numSetor === numOrdem)));
+      var matchTipoOrdem = (vTipo && numSetor && numOrdem && numSetor === numOrdem && (siglaSetor === vTipo || setorLimpo.indexOf(vTipo) !== -1));
       var matchSiglaNum = (siglaSetor && numSetor && (vTipo === siglaSetor || vNome.indexOf(siglaSetor) !== -1) && numSetor === numOrdem);
 
-      if (matchNome || matchPlaca || matchPat || matchTipoOrdem || matchSiglaNum) {
+      if (matchNomeExato || matchPlaca || matchPat || matchTipoOrdem || matchSiglaNum) {
         if (!omeNorm || !vOmeNorm || vOmeNorm === omeNorm || matchPlaca) {
           viatEncontrada = v;
           break;
@@ -21459,7 +21502,7 @@ function getDadosViaturaPorSetor(nomeSetor, ome) {
         var v2Placa = String(v2.placa || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
         var v2Ordem = String(v2.nOrdem || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "").replace(/^0+/, '');
         var v2Tipo = String(v2.tipo || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
-        if (v2Nome && (setorLimpo === v2Nome || setorLimpo.indexOf(v2Nome) !== -1)) {
+        if (v2Nome && (setorLimpo === v2Nome || (numSetor && v2Ordem && numSetor === v2Ordem && (siglaSetor === v2Tipo || setorLimpo.indexOf(v2Tipo) !== -1)))) {
           viatEncontrada = v2;
           break;
         }
@@ -21467,40 +21510,92 @@ function getDadosViaturaPorSetor(nomeSetor, ome) {
           viatEncontrada = v2;
           break;
         }
-        if (numSetor && v2Ordem && numSetor === v2Ordem && (siglaSetor === v2Tipo || setorLimpo.indexOf(v2Tipo) !== -1)) {
-          viatEncontrada = v2;
-          break;
-        }
       }
     }
 
-    // Se ainda não encontrou e o setor for genérico (ex: "BIS"), busca na tb_Inventario se há algum item com N_SERIE
+    // 2. Se a viatura não constar no Pecúlio de Frotas, busca diretamente no Inventário (tb_Inventario)
     if (!viatEncontrada && omePadrao) {
       try {
-        var inOmeSqlGen = (typeof obterVariacoesOmeParaSql_ === 'function') ? obterVariacoesOmeParaSql_(omePadrao) : ("'" + omePadrao.toUpperCase().replace(/'/g, "\\'") + "'");
-        var sqlGen = "SELECT N_SERIE, OBJETO, ITEM, N_PATRIMONIO FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
-                     "WHERE UPPER(TRIM(UNIDADE)) IN (" + inOmeSqlGen + ") AND (" +
-                     "UPPER(TRIM(SETOR)) = '" + setorLimpo + "' OR " +
-                     "UPPER(TRIM(OBJETO)) LIKE '%" + setorLimpo + "%' OR " +
-                     "UPPER(TRIM(OBJETO)) LIKE '%BOTE%' OR " +
-                     "UPPER(TRIM(OBJETO)) LIKE '%RESGATE%') AND N_SERIE IS NOT NULL AND TRIM(N_SERIE) != '' LIMIT 1";
-        var resGen = executarConsultaBigQuerySegura(sqlGen);
-        if (resGen && resGen.rows && resGen.rows.length > 0) {
-          var nSerGen = String(resGen.rows[0].f[0].v || "").trim().toUpperCase();
-          var nSerClean = nSerGen.replace(/^0+/, '');
-          if (nSerClean) {
-            for (var k = 0; k < frota.viaturas.length; k++) {
-              var vk = frota.viaturas[k];
-              var vkOrdem = String(vk.nOrdem || "").replace(/[^0-9]/g, '').replace(/^0+/, '');
-              var vkTipo = String(vk.tipo || "").toUpperCase();
-              if ((vkTipo === "BIS" || vkTipo.indexOf("BIS") !== -1 || (siglaSetor && vkTipo === siglaSetor)) && vkOrdem === nSerClean) {
-                viatEncontrada = vk;
+        var inOmeSql = (typeof obterVariacoesOmeParaSql_ === 'function') ? obterVariacoesOmeParaSql_(omePadrao) : ("'" + omePadrao.toUpperCase().replace(/'/g, "\'") + "'");
+        var condsBuscaInv = [];
+        if (numSetor) {
+          condsBuscaInv.push("UPPER(TRIM(COALESCE(N_SERIE, ''))) = '" + numSetor + "'");
+          condsBuscaInv.push("REGEXP_REPLACE(TRIM(COALESCE(N_SERIE, '')), r'^0+', '') = '" + numSetor + "'");
+          condsBuscaInv.push("UPPER(TRIM(COALESCE(OBJETO, ''))) LIKE '%" + numSetor + "%'");
+        }
+        condsBuscaInv.push("UPPER(TRIM(COALESCE(SETOR, ''))) = '" + setorLimpo + "'");
+        condsBuscaInv.push("UPPER(TRIM(COALESCE(SETOR, ''))) = '" + limparSQLChamado_(nomeSetor).toUpperCase() + "'");
+        if (siglaSetor && numSetor) {
+          condsBuscaInv.push("(UPPER(TRIM(COALESCE(OBJETO, ''))) LIKE '%" + siglaSetor + "%' AND (UPPER(TRIM(COALESCE(N_SERIE, ''))) = '" + numSetor + "' OR UPPER(TRIM(COALESCE(OBJETO, ''))) LIKE '%" + numSetor + "%'))");
+        }
+
+        var sqlInvVtr = "SELECT ITEM, OBJETO, N_SERIE, N_PATRIMONIO, STATUS, SEI_COMPRA_RECEBIMENTO, SUBUNIDADE, SETOR, OBSERVACAO_Mais_detalhes_sobre_a_situacao_do_material " +
+                        "FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
+                        "WHERE UPPER(TRIM(UNIDADE)) IN (" + inOmeSql + ") AND (" + condsBuscaInv.join(" OR ") + ") LIMIT 1";
+        var resInvVtr = executarConsultaBigQuerySegura(sqlInvVtr);
+        if (resInvVtr && resInvVtr.rows && resInvVtr.rows.length > 0) {
+          var fInvRow = resInvVtr.rows[0].f;
+          var itemBqInv = String(fInvRow[0] && fInvRow[0].v ? fInvRow[0].v : "").trim();
+          var objInv = String(fInvRow[1] && fInvRow[1].v ? fInvRow[1].v : "").trim();
+          var serieInv = String(fInvRow[2] && fInvRow[2].v ? fInvRow[2].v : "").trim();
+          var patInv = String(fInvRow[3] && fInvRow[3].v ? fInvRow[3].v : "").trim();
+          var stInv = String(fInvRow[4] && fInvRow[4].v ? fInvRow[4].v : "").trim();
+          var seiInv = String(fInvRow[5] && fInvRow[5].v ? fInvRow[5].v : "").trim();
+          var subInv = String(fInvRow[6] && fInvRow[6].v ? fInvRow[6].v : "").trim();
+          var setInv = String(fInvRow[7] && fInvRow[7].v ? fInvRow[7].v : "").trim();
+          var obsInv = String(fInvRow[8] && fInvRow[8].v ? fInvRow[8].v : "").trim();
+
+          var siglaInv = (typeof obterSiglaViaturaBackend_ === 'function') ? obterSiglaViaturaBackend_(objInv || nomeSetor) : (siglaSetor || "VTR");
+          var ordemEfetiva = serieInv || numSetor || "";
+
+          // Tenta cruzar mais uma vez com a frota geral pelo número de ordem
+          if (ordemEfetiva && frota && frota.viaturas) {
+            for (var k2 = 0; k2 < frota.viaturas.length; k2++) {
+              var vFrota = frota.viaturas[k2];
+              var vFrotaOrdem = String(vFrota.nOrdem || "").replace(/[^0-9]/g, '').replace(/^0+/, '');
+              var vFrotaTipo = String(vFrota.tipo || "").toUpperCase();
+              if ((vFrotaTipo === siglaInv || vFrota.nome.indexOf(siglaInv) !== -1) && vFrotaOrdem === ordemEfetiva) {
+                viatEncontrada = vFrota;
                 break;
               }
             }
           }
+
+          if (!viatEncontrada) {
+            var nomeDisplay = siglaInv + (ordemEfetiva ? (" - " + ordemEfetiva) : "");
+            viatEncontrada = {
+              id: "inv_" + itemBqInv,
+              nome: nomeDisplay,
+              tipo: siglaInv,
+              nOrdem: ordemEfetiva,
+              placa: "N/I",
+              patrimonio: patInv || "N/I",
+              marcaModelo: objInv || nomeDisplay,
+              marca: "CBMPE",
+              modelo: objInv || nomeDisplay,
+              ano: "-",
+              situacao: (stInv === "ECD" || stInv === "SCD") ? "Ativa" : (stInv || "Ativa"),
+              ome: omePadrao,
+              combustivel: (siglaInv === "BIS" || siglaInv === "MSA") ? "Gasolina" : "Diesel",
+              posse: "Próprio",
+              destinacao: "Operacional",
+              rastreado: "Não",
+              caracterizado: "Sim",
+              condutores: "-",
+              categoriaCnh: (siglaInv === "BIS" || siglaInv === "MSA") ? "Arrais / Motonauta" : "B",
+              odometro: "-",
+              ultimoAbastecimento: "-",
+              dataAbastecimento: "",
+              saldoCartao: "-",
+              observacoes: obsInv || "",
+              bigqueryItem: itemBqInv,
+              seiCompra: seiInv || ""
+            };
+          }
         }
-      } catch(eGen) {}
+      } catch(eInvVtr) {
+        console.warn("Aviso ao buscar viatura no inventario: " + eInvVtr.message);
+      }
     }
 
     if (!viatEncontrada) {
@@ -21525,21 +21620,23 @@ function getDadosViaturaPorSetor(nomeSetor, ome) {
       // Se bigqueryItem nao estiver preenchido, tenta buscar no Inventario
       if (!itemRef) {
         try {
-          var inOmeSql = (typeof obterVariacoesOmeParaSql_ === 'function') ? obterVariacoesOmeParaSql_(omePadrao) : ("'" + omePadrao.toUpperCase().replace(/'/g, "\\'") + "'");
+          var inOmeSql = (typeof obterVariacoesOmeParaSql_ === 'function') ? obterVariacoesOmeParaSql_(omePadrao) : ("'" + omePadrao.toUpperCase().replace(/'/g, "\'") + "'");
           var sqlBuscaInv = "SELECT ITEM, SEI_COMPRA_RECEBIMENTO, OBJETO, N_PATRIMONIO, STATUS, SUBUNIDADE " +
                             "FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
                             "WHERE UPPER(TRIM(UNIDADE)) IN (" + inOmeSql + ") AND (";
           var condsInv = [];
-          if (setorRef) condsInv.push("UPPER(TRIM(SETOR)) = '" + setorRef.toUpperCase().replace(/'/g, "\\'") + "'");
           if (nOrdemRef && nOrdemRef !== "NI" && nOrdemRef !== "-") {
-            condsInv.push("UPPER(TRIM(COALESCE(N_SERIE, ''))) = '" + nOrdemRef.toUpperCase().replace(/'/g, "\\'") + "'");
+            condsInv.push("UPPER(TRIM(COALESCE(N_SERIE, ''))) = '" + nOrdemRef.toUpperCase().replace(/'/g, "\'") + "'");
             var numOnly = nOrdemRef.replace(/[^0-9]/g, '').replace(/^0+/, '');
             if (numOnly) {
-              condsInv.push("REGEXP_REPLACE(TRIM(COALESCE(N_SERIE, '')), r'^0+', '') = '" + numOnly.replace(/'/g, "\\'") + "'");
+              condsInv.push("REGEXP_REPLACE(TRIM(COALESCE(N_SERIE, '')), r'^0+', '') = '" + numOnly.replace(/'/g, "\'") + "'");
             }
           }
+          if (setorRef && setorRef.indexOf("-") !== -1) {
+            condsInv.push("UPPER(TRIM(SETOR)) = '" + setorRef.toUpperCase().replace(/'/g, "\'") + "'");
+          }
           if (patRef && patRef !== "N/I" && patRef !== "-") {
-            condsInv.push("UPPER(TRIM(N_PATRIMONIO)) = '" + patRef.toUpperCase().replace(/'/g, "\\'") + "'");
+            condsInv.push("UPPER(TRIM(N_PATRIMONIO)) = '" + patRef.toUpperCase().replace(/'/g, "\'") + "'");
           }
           if (condsInv.length > 0) {
             sqlBuscaInv += condsInv.join(" OR ") + ") LIMIT 1";
@@ -21562,24 +21659,23 @@ function getDadosViaturaPorSetor(nomeSetor, ome) {
 
       var whereParts = [];
       if (itemRef) {
-        whereParts.push("UPPER(TRIM(ITEM)) = UPPER('" + itemRef.replace(/'/g, "\\'") + "')");
+        whereParts.push("UPPER(TRIM(ITEM)) = UPPER('" + itemRef.replace(/'/g, "\'") + "')");
       }
       if (placaRef && placaRef !== "N/I" && placaRef !== "-") {
-        whereParts.push("UPPER(TRIM(ITEM)) = UPPER('VTR-" + placaRef.replace(/'/g, "\\'") + "')");
+        whereParts.push("UPPER(TRIM(ITEM)) = UPPER('VTR-" + placaRef.replace(/'/g, "\'") + "')");
       }
       if (patRef && patRef !== "N/I" && patRef !== "-") {
-        whereParts.push("UPPER(TRIM(N_PATRIMONIO)) = UPPER('" + patRef.replace(/'/g, "\\'") + "')");
+        whereParts.push("UPPER(TRIM(N_PATRIMONIO)) = UPPER('" + patRef.replace(/'/g, "\'") + "')");
       }
       if (nOrdemRef && nOrdemRef !== "NI" && nOrdemRef !== "-") {
-        whereParts.push("UPPER(TRIM(ITEM)) = UPPER('VTR-" + nOrdemRef.replace(/'/g, "\\'") + "')");
-        whereParts.push("UPPER(TRIM(DOCUMENTO_REF)) LIKE '%" + nOrdemRef.replace(/'/g, "\\'") + "%'");
+        whereParts.push("UPPER(TRIM(ITEM)) = UPPER('VTR-" + nOrdemRef.replace(/'/g, "\'") + "')");
+        whereParts.push("UPPER(TRIM(DOCUMENTO_REF)) LIKE '%" + nOrdemRef.replace(/'/g, "\'") + "%'");
       }
       if (nomeRef) {
-        whereParts.push("UPPER(TRIM(OBJETO)) LIKE '%" + nomeRef.replace(/'/g, "\\'") + "%'");
-        whereParts.push("UPPER(TRIM(DESTINO_LOCAL)) LIKE '%" + nomeRef.replace(/'/g, "\\'") + "%'");
+        whereParts.push("UPPER(TRIM(OBJETO)) LIKE '%" + nomeRef.replace(/'/g, "\'") + "%'");
       }
-      if (setorRef) {
-        whereParts.push("UPPER(TRIM(DESTINO_LOCAL)) LIKE '%" + setorRef.replace(/'/g, "\\'") + "%'");
+      if (setorRef && setorRef.indexOf("-") !== -1) {
+        whereParts.push("UPPER(TRIM(DESTINO_LOCAL)) LIKE '%" + setorRef.replace(/'/g, "\'") + "%'");
       }
 
       if (whereParts.length > 0) {
@@ -21623,8 +21719,8 @@ function getDadosViaturaPorSetor(nomeSetor, ome) {
         var codItemVtr = itemRef || ("VTR-" + (placaRef && placaRef !== "N/I" ? placaRef : (nomeRef || setorRef)));
         var eventoBaseline = {
           id: "BASE-" + codItemVtr.replace(/[^A-Za-z0-9]/g, "-"),
-          dataHora: (viatEncontrada.ano ? ("01/01/" + viatEncontrada.ano + " 08:00:00") : "Cadastro Inicial"),
-          data: (viatEncontrada.ano ? ("01/01/" + viatEncontrada.ano + " 08:00:00") : "Cadastro Inicial"),
+          dataHora: (viatEncontrada.ano && viatEncontrada.ano !== "-" ? ("01/01/" + viatEncontrada.ano + " 08:00:00") : Utilities.formatDate(new Date(), "America/Recife", "dd/MM/yyyy HH:mm:ss")),
+          data: (viatEncontrada.ano && viatEncontrada.ano !== "-" ? ("01/01/" + viatEncontrada.ano + " 08:00:00") : Utilities.formatDate(new Date(), "America/Recife", "dd/MM/yyyy HH:mm:ss")),
           item: codItemVtr,
           objeto: viatEncontrada.marcaModelo ? (nomeRef + " (" + viatEncontrada.marcaModelo + ")") : (nomeRef || setorRef),
           nPatrimonio: (patRef && patRef !== "N/I") ? patRef : "-",

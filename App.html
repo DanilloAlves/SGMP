@@ -13233,6 +13233,10 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
       .withSuccessHandler(res => {
         Swal.fire({ icon: 'success', title: 'Atualizado!', text: res, timer: 1200, showConfirmButton: false });
         window.modalEdicaoLivreInstance.hide();
+        window._cacheArmazenamentoOme = {};
+        if (typeof carregarLocaisArvoreGeral === 'function') {
+          carregarLocaisArvoreGeral(true);
+        }
         carregarDadosTabelaBaseAdmin();
       })
       .withFailureHandler(err => Swal.fire('Erro', err.message, 'error'))
@@ -13810,7 +13814,15 @@ function renderizarTimelineEmElemento(dados, ids) {
 
     Swal.fire({ title: 'Atualizando lote...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
     google.script.run
-      .withSuccessHandler(res => { Swal.fire('Sucesso!', res, 'success'); modalEdicaoLoteBaseInstance.hide(); carregarDadosTabelaBaseAdmin(); })
+      .withSuccessHandler(res => {
+        Swal.fire('Sucesso!', res, 'success');
+        modalEdicaoLoteBaseInstance.hide();
+        window._cacheArmazenamentoOme = {};
+        if (typeof carregarLocaisArvoreGeral === 'function') {
+          carregarLocaisArvoreGeral(true);
+        }
+        carregarDadosTabelaBaseAdmin();
+      })
       .withFailureHandler(err => Swal.fire('Erro', err.message, 'error'))
       .atualizarLotePorIds(marcados, novosDados);
   }
