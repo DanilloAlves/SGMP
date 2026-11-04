@@ -7061,8 +7061,8 @@
 
     google.script.run
       .withSuccessHandler(lista => {
-        const itens = lista || [];
-        if (contador) contador.innerText = itens.length;
+        const itens = Array.isArray(lista) ? lista : (lista && lista.itens ? lista.itens : []);
+        if (contador) contador.innerText = (lista && typeof lista.total === 'number') ? lista.total : itens.length;
 
         if (itens.length === 0) {
           if (bloco) bloco.style.display = 'none';
@@ -12631,7 +12631,7 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
 
     google.script.run
       .withSuccessHandler(lista => {
-        const itens = lista || [];
+        const itens = Array.isArray(lista) ? lista : (lista && lista.itens ? lista.itens : []);
         if (!tbody) return;
 
         if (itens.length === 0) {

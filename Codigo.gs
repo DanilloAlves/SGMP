@@ -5898,6 +5898,8 @@ function registrarRemessaPendente(dados) {
       ""
     ]);
 
+    SpreadsheetApp.flush();
+    invalidarCacheRemessasPendentes_();
     registrarLogAuditoria("REMESSA_DESPACHADA", "OME " + remetenteOme + " despachou " + dados.quantidade + "x " + dados.material + " para " + dados.omeDestino);
     return { sucesso: true, mensagem: "Remessa despachada com sucesso pela OME " + remetenteOme + "!" };
   } catch (err) {
@@ -5940,116 +5942,293 @@ function saoMesmaOme_(ome1, ome2) {
   return false;
 }
 
-function getRemessasPendentesPorOme(omeUsuario) {
-  try {
-    try {
-      corrigirUnidadeItensExtraviadosRemessas_();
-    } catch (eCorr) {}
+// =========================================================================
+// OTIMIZACAO DE PERFORMANCE: CACHE E LEITURA EM LOTE DE REMESSAS PENDENTES
+// =========================================================================
 
+var _cacheRemessasPendentesMem_ = null;
+var _cacheRemessasPendentesTime_ = 0;
+
+function invalidarCacheRemessasPendentes_() {
+  _cacheRemessasPendentesMem_ = null;
+  _cacheRemessasPendentesTime_ = 0;
+  try {
+    var cache = CacheService.getScriptCache();
+    if (cache) {
+      cache.remove("CACHE_REMESSAS_PENDENTES_CHUNKS_OK");
+      cache.remove("CACHE_REMESSAS_PENDENTES_V1");
+    }
+  } catch(e) {}
+}
+
+function obterDadosRemessasPendentesSeguro_(forcar) {
+  var agora = new Date().getTime();
+  if (!forcar && _cacheRemessasPendentesMem_ && (agora - _cacheRemessasPendentesTime_ < 30000)) {
+    return _cacheRemessasPendentesMem_;
+  }
+  
+  var cache = CacheService.getScriptCache();
+  if (!forcar && cache) {
+    try {
+      var cachedOk = cache.get("CACHE_REMESSAS_PENDENTES_CHUNKS_OK");
+      if (cachedOk) {
+        var parsed = (typeof lerDeCacheChunked_ === 'function') ? lerDeCacheChunked_("CACHE_REMESSAS_PENDENTES_V1") : null;
+        if (parsed && Array.isArray(parsed) && parsed.length > 0) {
+          _cacheRemessasPendentesMem_ = parsed;
+          _cacheRemessasPendentesTime_ = agora;
+          return parsed;
+        }
+      }
+    } catch (e) {}
+  }
+
+  try {
     var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
     var sheetRemessa = ss.getSheetByName("RemessasPendentes");
     if (!sheetRemessa || sheetRemessa.getLastRow() <= 1) {
       return [];
     }
+    var dados = (typeof obterValoresAbaSegura_ === 'function') 
+      ? obterValoresAbaSegura_(sheetRemessa) 
+      : sheetRemessa.getDataRange().getValues();
 
-    // Se omeUsuario não foi passado, tenta obter da sessão
-    if (!omeUsuario || String(omeUsuario).trim() === "") {
+    _cacheRemessasPendentesMem_ = dados;
+    _cacheRemessasPendentesTime_ = agora;
+
+    if (cache && typeof salvarEmCacheChunked_ === 'function') {
+      try {
+        salvarEmCacheChunked_("CACHE_REMESSAS_PENDENTES_V1", dados, 60);
+        cache.put("CACHE_REMESSAS_PENDENTES_CHUNKS_OK", "1", 60);
+      } catch (eCache) {}
+    }
+
+    return dados;
+  } catch (err) {
+    console.error("Erro ao ler tabela RemessasPendentes: " + err.message);
+    if (_cacheRemessasPendentesMem_) return _cacheRemessasPendentesMem_;
+    return [];
+  }
+}
+
+/**
+ * Busca remessas pendentes com alta performance:
+ * - Leitura em lote de uma so vez com cache em RAM e ScriptCache (elimina DEADLINE_EXCEEDED).
+ * - Processamento rapido em memoria via .filter() e .map().
+ * - Suporte a paginacao e filtros (page, limit, status, termo, dataInicio, dataFim).
+ * - Payload ultraleve contendo apenas os campos estritamente necessarios.
+ */
+function getRemessasPendentesPorOme(omeUsuario, opcoes) {
+  try {
+    var ome = "";
+    var opts = {};
+
+    if (omeUsuario && typeof omeUsuario === "object") {
+      opts = omeUsuario;
+      ome = opts.ome || opts.omeUsuario || opts.unidade || "";
+    } else {
+      ome = String(omeUsuario || "").trim();
+      if (opcoes && typeof opcoes === "object") {
+        opts = opcoes;
+      }
+    }
+
+    // Se OME nao foi informada, resolve da sessao
+    if (!ome) {
       try {
         var sessaoUser = typeof obterUsuarioSessao_ === "function" ? obterUsuarioSessao_() : null;
         if (sessaoUser) {
           if (String(sessaoUser.perfil || "").toLowerCase().indexOf("admin") !== -1) {
-            omeUsuario = "TODAS";
+            ome = "TODAS";
           } else if (sessaoUser.ome) {
-            omeUsuario = sessaoUser.ome;
+            ome = sessaoUser.ome;
           }
         }
       } catch(e) {}
     }
 
-    var dados = sheetRemessa.getDataRange().getValues();
-    var pendentes = [];
-    var isTodas = String(omeUsuario || "").trim().toUpperCase() === "TODAS";
+    var isTodas = !ome || String(ome).trim().toUpperCase() === "TODAS";
 
-    for (var i = 1; i < dados.length; i++) {
-      var idRem = String(dados[i][0] || "").trim();         // Coluna A: ID_Remessa
-      var data = dados[i][1];                               // Coluna B: Data
-      var destino = String(dados[i][2] || "").trim();       // Coluna C: OME_Destino
-      var material = dados[i][3];                           // Coluna D: Material
-      var qtd = dados[i][4];                                // Coluna E: Quantidade
-      var status = String(dados[i][5] || "").trim().toUpperCase(); // Coluna F: Status
-      var adminEnvio = String(dados[i][6] || "").trim();    // Coluna G: Admin_Envio
-      var processoSeiCol = String(dados[i][10] || "").trim(); // Coluna K: SEI / Referência
+    // 1. Leitura em lote protegida com cache
+    var dados = obterDadosRemessasPendentesSeguro_();
+    if (!dados || dados.length <= 1) {
+      return [];
+    }
 
-      if (!idRem) continue;
+    // Mapeamento dinamico do cabecalho
+    var cabecalho = dados[0] || [];
+    var idxId = 0, idxData = 1, idxDestino = 2, idxMaterial = 3, idxQtd = 4, idxStatus = 5, idxAdmin = 6, idxSei = 10;
+    for (var c = 0; c < cabecalho.length; c++) {
+      var h = String(cabecalho[c] || "").trim().toLowerCase();
+      if (h.indexOf("id") !== -1 && h.indexOf("remessa") !== -1) idxId = c;
+      else if (h === "data") idxData = c;
+      else if (h.indexOf("destino") !== -1) idxDestino = c;
+      else if (h === "material") idxMaterial = c;
+      else if (h.indexOf("quant") !== -1) idxQtd = c;
+      else if (h === "status") idxStatus = c;
+      else if (h.indexOf("admin") !== -1 || h.indexOf("envio") !== -1) idxAdmin = c;
+      else if (h === "sei" || h.indexOf("processo") !== -1) idxSei = c;
+    }
 
+    var filtroStatus = opts.status ? String(opts.status).trim().toUpperCase() : "PENDENTES";
+    var filtroTermo = opts.termo ? String(opts.termo).trim().toLowerCase() : "";
+    var dataInicio = opts.dataInicio ? new Date(opts.dataInicio).getTime() : null;
+    var dataFim = opts.dataFim ? new Date(opts.dataFim).getTime() : null;
+
+    var linhas = dados.slice(1);
+
+    // 2. Filtragem veloz em memoria (RAM) com .filter()
+    var filtrados = linhas.filter(function(row) {
+      var idRem = String(row[idxId] || "").trim();
+      if (!idRem) return false;
+
+      var status = String(row[idxStatus] || "").trim().toUpperCase();
       var statusLimpo = status.replace(/[\s_-]+/g, "_");
-      var ehFinalizado = (statusLimpo === "RECEBIDO" || statusLimpo === "CONCLUIDO" || statusLimpo === "FINALIZADO" || statusLimpo === "CANCELADO" || statusLimpo === "RECUSADO" || statusLimpo === "REJEITADO");
-      var ehPendente = !ehFinalizado && (
-        statusLimpo === "PENDENTE" ||
-        statusLimpo === "AGUARDANDO" ||
-        statusLimpo === "AGUARDANDO_RECEBIMENTO" ||
-        statusLimpo === "AGUARDANDO_LIBERACAO_CINT" ||
-        statusLimpo === "AGUARDANDO_ACEITE" ||
-        statusLimpo.indexOf("AGUARD") !== -1 ||
-        statusLimpo.indexOf("PEND") !== -1 ||
-        statusLimpo.indexOf("TRANSIT") !== -1 ||
-        statusLimpo.indexOf("ENVIAD") !== -1 ||
-        statusLimpo.indexOf("DESPACH") !== -1 ||
-        !statusLimpo
-      );
 
-      if (!ehPendente) continue;
+      if (filtroStatus === "PENDENTES" || !filtroStatus) {
+        var ehFinalizado = (statusLimpo === "RECEBIDO" || statusLimpo === "CONCLUIDO" || statusLimpo === "FINALIZADO" || statusLimpo === "CANCELADO" || statusLimpo === "RECUSADO" || statusLimpo === "REJEITADO");
+        if (ehFinalizado) return false;
+        var ehPendente = (
+          statusLimpo === "PENDENTE" ||
+          statusLimpo === "AGUARDANDO" ||
+          statusLimpo === "AGUARDANDO_RECEBIMENTO" ||
+          statusLimpo === "AGUARDANDO_LIBERACAO_CINT" ||
+          statusLimpo === "AGUARDANDO_ACEITE" ||
+          statusLimpo.indexOf("AGUARD") !== -1 ||
+          statusLimpo.indexOf("PEND") !== -1 ||
+          statusLimpo.indexOf("TRANSIT") !== -1 ||
+          statusLimpo.indexOf("ENVIAD") !== -1 ||
+          statusLimpo.indexOf("DESPACH") !== -1 ||
+          !statusLimpo
+        );
+        if (!ehPendente) return false;
+      } else if (filtroStatus !== "TODOS" && statusLimpo !== filtroStatus) {
+        return false;
+      }
 
-      // Extrai a OME de origem da coluna 'Admin_Envio'
+      var destino = String(row[idxDestino] || "").trim();
+      var adminEnvio = String(row[idxAdmin] || "").trim();
       var origemEnvio = "CINT";
       if (adminEnvio) {
         var matchOme = adminEnvio.match(/^(.*?)\s*\(/);
-        if (matchOme) {
-          origemEnvio = matchOme[1].trim();
-        } else {
-          origemEnvio = adminEnvio.trim();
+        origemEnvio = matchOme ? matchOme[1].trim() : adminEnvio.trim();
+      }
+
+      if (!isTodas) {
+        var ehDestino = (typeof saoMesmaOme_ === 'function') ? saoMesmaOme_(destino, ome) : (destino.toUpperCase() === ome.toUpperCase());
+        var ehOrigem = (typeof saoMesmaOme_ === 'function') ? saoMesmaOme_(origemEnvio, ome) : (origemEnvio.toUpperCase() === ome.toUpperCase());
+        if (!ehDestino && !ehOrigem) return false;
+      }
+
+      if (filtroTermo) {
+        var mat = String(row[idxMaterial] || "").toLowerCase();
+        var sei = String(row[idxSei] || "").toLowerCase();
+        if (mat.indexOf(filtroTermo) === -1 && sei.indexOf(filtroTermo) === -1 && idRem.toLowerCase().indexOf(filtroTermo) === -1) {
+          return false;
         }
       }
 
-      var ehDestino = isTodas || saoMesmaOme_(destino, omeUsuario);
-      var ehOrigem = isTodas || saoMesmaOme_(origemEnvio, omeUsuario);
+      if (dataInicio || dataFim) {
+        var rawData = row[idxData];
+        var ts = rawData instanceof Date ? rawData.getTime() : new Date(rawData).getTime();
+        if (!isNaN(ts)) {
+          if (dataInicio && ts < dataInicio) return false;
+          if (dataFim && ts > dataFim) return false;
+        }
+      }
 
-      // Se a remessa não pertence à OME nem como remetente nem como destinatária, ignora
-      if (!isTodas && !ehDestino && !ehOrigem) {
-        continue;
+      return true;
+    });
+
+    // 3. Ordenacao veloz: remessas mais recentes primeiro
+    filtrados.sort(function(a, b) {
+      var dataA = a[idxData];
+      var dataB = b[idxData];
+      var tsA = dataA instanceof Date ? dataA.getTime() : new Date(dataA).getTime();
+      var tsB = dataB instanceof Date ? dataB.getTime() : new Date(dataB).getTime();
+      if (!isNaN(tsA) && !isNaN(tsB)) return tsB - tsA;
+      return String(b[idxId]).localeCompare(String(a[idxId]));
+    });
+
+    // 4. Paginacao e Limitacao de Lote
+    var totalRegistros = filtrados.length;
+    var limit = (typeof opts.limit === "number") ? opts.limit : 50;
+    if (limit <= 0) limit = 100;
+    if (limit > 300) limit = 300;
+
+    var page = (typeof opts.page === "number" && opts.page > 0) ? opts.page : 1;
+    var offset = (page - 1) * limit;
+    var itensPaginados = filtrados.slice(offset, offset + limit);
+
+    // 5. Eficiencia de Payload: Mapeamento (.map) apenas dos campos estritamente necessarios
+    var itensOtimizados = itensPaginados.map(function(row) {
+      var idRem = String(row[idxId] || "").trim();
+      var dataVal = row[idxData];
+      var dataStr = (dataVal instanceof Date)
+        ? Utilities.formatDate(dataVal, "America/Recife", "yyyy-MM-dd HH:mm:ss")
+        : String(dataVal || "");
+
+      var destino = String(row[idxDestino] || "").trim();
+      var material = String(row[idxMaterial] || "").trim();
+      var qtd = parseInt(row[idxQtd], 10) || 0;
+      var adminEnvio = String(row[idxAdmin] || "").trim();
+      var processoSei = String(row[idxSei] || "").trim();
+
+      var origemEnvio = "CINT";
+      if (adminEnvio) {
+        var matchOme = adminEnvio.match(/^(.*?)\s*\(/);
+        origemEnvio = matchOme ? matchOme[1].trim() : adminEnvio.trim();
       }
 
       var ehInterna = (idRem.indexOf("INTERN") !== -1) || 
-                      (processoSeiCol.indexOf("INTERNAL_TREE") !== -1) || 
-                      (saoMesmaOme_(destino, origemEnvio));
+                      (processoSei.indexOf("INTERNAL_TREE") !== -1) || 
+                      (typeof saoMesmaOme_ === 'function' ? saoMesmaOme_(destino, origemEnvio) : (destino.toUpperCase() === origemEnvio.toUpperCase()));
 
       var papel = "DESTINO";
       if (ehInterna) {
         papel = "INTERNA";
-      } else if (!isTodas && ehOrigem && !ehDestino) {
-        papel = "REMETENTE";
-      } else {
-        papel = "DESTINO";
+      } else if (!isTodas) {
+        var ehDest = (typeof saoMesmaOme_ === 'function') ? saoMesmaOme_(destino, ome) : (destino.toUpperCase() === ome.toUpperCase());
+        var ehOrig = (typeof saoMesmaOme_ === 'function') ? saoMesmaOme_(origemEnvio, ome) : (origemEnvio.toUpperCase() === ome.toUpperCase());
+        if (ehOrig && !ehDest) {
+          papel = "REMETENTE";
+        }
       }
 
       var podeReceber = (papel === "DESTINO" || papel === "INTERNA");
 
-      pendentes.push({
+      return {
         id: idRem,
-        data: String(data || ""),
-        material: String(material || ""),
-        quantidade: parseInt(qtd || 0),
+        data: dataStr,
+        material: material,
+        quantidade: qtd,
         destino: destino,
         origem: origemEnvio,
-        despachante: adminEnvio || "Administração",
-        sei: processoSeiCol || "N/I",
+        despachante: adminEnvio || "Administracao",
+        sei: processoSei || "N/I",
         papel: papel,
         podeReceber: podeReceber
-      });
+      };
+    });
+
+    itensOtimizados.total = totalRegistros;
+    itensOtimizados.pagina = page;
+    itensOtimizados.limite = limit;
+    itensOtimizados.totalPaginas = Math.ceil(totalRegistros / limit) || 1;
+
+    if (opts.formatoObjeto || opts.retornarObjeto) {
+      return {
+        sucesso: true,
+        itens: itensOtimizados,
+        total: totalRegistros,
+        pagina: page,
+        limite: limit,
+        totalPaginas: itensOtimizados.totalPaginas
+      };
     }
-    return pendentes;
+
+    return itensOtimizados;
   } catch (err) {
-    console.error("Erro crítico em getRemessasPendentesPorOme: " + err.message);
+    console.error("Erro em getRemessasPendentesPorOme: " + err.message);
     return [];
   }
 }
@@ -6185,6 +6364,8 @@ function assinarEConfirmarRecebimento(dadosAssinatura) {
     sheetRemessa.getRange(linhaRemessa, 6).setValue("CONFIRMADO");
     sheetRemessa.getRange(linhaRemessa, 9).setValue(usuarioValido.nome);
     sheetRemessa.getRange(linhaRemessa, 10).setValue(cpfInformado);
+    SpreadsheetApp.flush();
+    invalidarCacheRemessasPendentes_();
 
     // Sincronização estrita com a planilha #DIST:
     // A quantidade na #DIST só é alterada a partir do momento em que a OME Destino confirma o recebimento assinando a remessa
@@ -6320,6 +6501,8 @@ function recusarRemessaPendente(dadosRecusa) {
 
 
     sheetRemessa.getRange(linhaRemessa, 6).setValue("RECUSADO");
+    SpreadsheetApp.flush();
+    invalidarCacheRemessasPendentes_();
 
 
 
@@ -12100,6 +12283,8 @@ function confirmarRecebimentoRemessa(idRemessa, cpfRecebedor, nomeRecebedor, dad
     sheetRemessa.getRange(rowIndex, 6).setValue(statusGravacao);
     sheetRemessa.getRange(rowIndex, 9).setValue(nomeRecebedor);
     sheetRemessa.getRange(rowIndex, 10).setValue(cpfRecebedor);
+    SpreadsheetApp.flush();
+    invalidarCacheRemessasPendentes_();
 
     // Sincronização estrita com a planilha #DIST:
     // A quantidade na #DIST só é alterada a partir do momento em que a OME Destino confirma o recebimento assinando a remessa
