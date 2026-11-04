@@ -1851,7 +1851,7 @@ function sincronizarViaturasInventarioNaArvore_(omePadrao, idSedeOficial, locais
               "UPPER(TRIM(COALESCE(N_SERIE, ''))) as n_serie, " +
               "UPPER(TRIM(COALESCE(N_PATRIMONIO, ''))) as n_patrimonio, " +
               "COALESCE(OBSERVACAO_Mais_detalhes_sobre_a_situacao_do_material, '') as observacao, " +
-              "COALESCE(PROCESSO_SEI, '') as processo_sei, " +
+              "COALESCE(SEI_COMPRA_RECEBIMENTO, '') as processo_sei, " +
               "COALESCE(STATUS, '') as status " +
               "FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
               "WHERE UPPER(TRIM(UNIDADE)) IN (" + inSqlOme + ") " +
@@ -2013,6 +2013,18 @@ function sincronizarViaturasInventarioNaArvore_(omePadrao, idSedeOficial, locais
       }
     });
 
+    // Remove viaturas da árvore que não estejam registradas no inventário oficial desta OME
+    for (var i = locais.length - 1; i >= 0; i--) {
+      var loc = locais[i];
+      if (!loc.idPai || String(loc.nome).toUpperCase() === "SEDE") continue;
+      if (typeof ehViaturaLocalBackend_ === 'function' && ehViaturaLocalBackend_(loc.nome)) {
+        if (!mapaSetoresViaturaAlvo[String(loc.nome).trim().toUpperCase()]) {
+          locais.splice(i, 1);
+          alterouAlgumLocal = true;
+        }
+      }
+    }
+
     // 4. Limpeza no BigQuery tb_Arvore: remove nós genéricos (ex: "BIS" sem número) ou viaturas fantasmas não inventariadas
     try {
       var sqlLimpeza = "DELETE FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` " +
@@ -2035,7 +2047,7 @@ function invalidarCacheArmazenamentoOme_(ome) {
   try {
     var omePadrao = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(ome) : (ome || "");
     if (!omePadrao) return;
-    var sufixos = ["", "_V3", "_V4", "_V5"];
+    var sufixos = ["", "_V3", "_V4", "_V5", "_V6"];
     var cache = CacheService.getScriptCache();
     sufixos.forEach(function(suf) {
       var chaveBase = "CACHE_ARM_COMPLETO" + suf + "_" + omePadrao.toUpperCase().replace(/[^A-Z0-9]/g, "_");
@@ -2061,7 +2073,7 @@ function carregarDadosArmazenamentoCompleto(unidadeOmega, forcarAtualizacao) {
     if (!omePadrao) return { locais: [], materiais: [], vinculos: {} };
 
     // Prefixo V5 para descarte absoluto de qualquer cache antigo e sincronização estrita BigQuery
-    var chaveBase = "CACHE_ARM_COMPLETO_V5_" + omePadrao.toUpperCase().replace(/[^A-Z0-9]/g, "_");
+    var chaveBase = "CACHE_ARM_COMPLETO_V6_" + omePadrao.toUpperCase().replace(/[^A-Z0-9]/g, "_");
     var cached = (!forcarAtualizacao && typeof lerDeCacheChunked_ === 'function') ? lerDeCacheChunked_(chaveBase) : null;
 
     // Se houver algum setor não identificado ou genérico (ex: "BIS"), bypass no cache
@@ -2536,9 +2548,9 @@ function getArvoreLocais(unidadeOmega) {
       if (mapaGhostIds[item.id]) return;
 
       var nomeU = String(item.nome || "").trim().toUpperCase();
-      var ehSubunidade = (!item.idPai || nomeU === "SEDE");
-      if (!ehSubunidade && (typeof ehViaturaLocalBackend_ === 'function') && ehViaturaLocalBackend_(item.nome)) {
-        return; // Não inclui setores de viatura salvos em tb_Arvore, pois o BigQuery tb_Inventario é a fonte primária
+      var ehGenericoSemNumero = (nomeU === "BIS" || nomeU === "AR" || nomeU === "ABT" || nomeU === "VTR" || nomeU === "AT");
+      if (ehGenericoSemNumero) {
+        return; // Descarta nós genéricos antigos sem número
       }
 
       var idPaiEfetivo = item.idPai;
