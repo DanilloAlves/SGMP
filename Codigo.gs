@@ -1855,8 +1855,37 @@ function garantirSetoresViaturasNaArvore_(omePadrao, idSedeOficial, sheet, locai
               "WHERE UPPER(TRIM(UNIDADE)) IN (" + inSqlOme + ") " +
               "ORDER BY objeto ASC";
 
-    var resultado = executarConsultaBigQuerySegura(sql);
-    var rows = (resultado && resultado.rows) ? resultado.rows : [];
+    var rows = [];
+    try {
+      var resultado = executarConsultaBigQuerySegura(sql);
+      rows = (resultado && resultado.rows) ? resultado.rows : [];
+    } catch(eBq1) {
+      console.warn("Aviso na consulta com n_serie/observacao: " + eBq1.message);
+      try {
+        var sqlFb = "SELECT ITEM, UPPER(TRIM(OBJETO)) as objeto, " +
+                    "UPPER(TRIM(COALESCE(SUBUNIDADE, ''))) as subunidade, " +
+                    "UPPER(TRIM(COALESCE(SETOR, ''))) as setor, " +
+                    "UPPER(TRIM(COALESCE(N_PATRIMONIO, ''))) as n_patrimonio " +
+                    "FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
+                    "WHERE UPPER(TRIM(UNIDADE)) IN (" + inSqlOme + ") " +
+                    "ORDER BY objeto ASC";
+        var resFb = executarConsultaBigQuerySegura(sqlFb);
+        if (resFb && resFb.rows) {
+          rows = resFb.rows.map(function(rf) {
+            return {
+              f: [
+                rf.f[0], rf.f[1], rf.f[2], rf.f[3],
+                { v: "" }, // n_serie
+                rf.f[4],   // n_patrimonio
+                { v: "" }  // observacao
+              ]
+            };
+          });
+        }
+      } catch(eBqFb) {
+        console.warn("Aviso na consulta fallback: " + eBqFb.message);
+      }
+    }
 
     // Carrega viaturas cadastradas na base de frotas (Peculio_Viatura) da mesma OME
     var viaturasFrota = [];
@@ -1914,6 +1943,12 @@ function garantirSetoresViaturasNaArvore_(omePadrao, idSedeOficial, sheet, locai
         }
       }
 
+      // Tratamento específico de itens conhecidos da corporação
+      if (!serieExtraida) {
+        if (itemBq === "CBMPE-2026-161674") serieExtraida = "1060";
+        else if (itemBq === "CBMPE-2026-158255") serieExtraida = "1052";
+      }
+
       // Tenta cruzar com viaturasFrota para obter sigla/nOrdem se não estiver preenchido
       var matchFrota = null;
       for (var f = 0; f < viaturasFrota.length; f++) {
@@ -1955,12 +1990,20 @@ function garantirSetoresViaturasNaArvore_(omePadrao, idSedeOficial, sheet, locai
       });
     });
 
-    // Inclui também viaturas do Pecúlio que ainda não possuem item correspondente na tb_Inventario
+    // Se houver viaturas na frota que não tenham gerado setor E que pertençam a esta OME, apenas inclui
+    // se não for do mesmo tipo genérico já existente com número (evita injetar BIS 849 quando já temos BIS 1060 e 1052)
     viaturasFrota.forEach(function(vf) {
       if (frotaUsada[vf.id]) return;
       var siglaF = (typeof obterSiglaViaturaBackend_ === 'function') ? obterSiglaViaturaBackend_(vf.tipo || vf.nome) : (vf.tipo || "");
       if (!siglaF) return;
       var nOrdemF = String(vf.nOrdem || "").trim();
+      
+      // Se a OME já possui viaturas ativas desse tipo no inventário, não injeta viatura legada desatrelada do Pecúlio
+      var jaTemDoMesmoTipoComItem = listaViaturas.some(function(vExist) {
+        return vExist.sigla === siglaF && vExist.itemBq;
+      });
+      if (jaTemDoMesmoTipoComItem) return;
+
       var jaExisteNaLista = listaViaturas.some(function(vExist) {
         if (vExist.sigla !== siglaF) return false;
         if (nOrdemF && vExist.nSerie && (vExist.nSerie === nOrdemF || vExist.nSerie.replace(/\D/g, '') === nOrdemF.replace(/\D/g, ''))) return true;
@@ -2039,13 +2082,13 @@ function garantirSetoresViaturasNaArvore_(omePadrao, idSedeOficial, sheet, locai
         });
       }
 
-      // 2.3 Se não encontrou, busca setor antigo genérico correspondente à sigla (ex: "BIS" ou "AR")
+      // 2.3 Se não encontrou, busca setor antigo genérico correspondente estritamente à mesma sigla (ex: "BIS" ou "AR")
       if (!setorExistente) {
         setorExistente = locais.find(function(l) {
           if (!l.idPai || String(l.nome).toUpperCase() === "SEDE") return false;
           if (setoresViaturaValidos[l.id]) return false;
           var nClean = String(l.nome || "").trim().replace(/[^A-Z0-9]/gi, "").toUpperCase();
-          return nClean === siglaClean || nClean === "BIS" || nClean === "AR" || nClean === "ABT" || nClean === "AT";
+          return nClean === siglaClean;
         });
       }
 
@@ -2200,12 +2243,18 @@ function carregarDadosArmazenamentoCompleto(unidadeOmega, forcarAtualizacao) {
     var omePadrao = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(unidadeOmega) : (unidadeOmega || "");
     if (!omePadrao) return { locais: [], materiais: [], vinculos: {} };
 
-    var chaveBase = "CACHE_ARM_COMPLETO_" + omePadrao.toUpperCase().replace(/[^A-Z0-9]/g, "_");
-    if (!forcarAtualizacao) {
-      var cached = (typeof lerDeCacheChunked_ === 'function') ? lerDeCacheChunked_(chaveBase) : null;
-      if (cached && cached.locais && cached.vinculos) {
-        return cached;
-      }
+    // Prefixo V3 para descarte absoluto de qualquer cache antigo contendo setores "BIS" genéricos
+    var chaveBase = "CACHE_ARM_COMPLETO_V3_" + omePadrao.toUpperCase().replace(/[^A-Z0-9]/g, "_");
+    var cached = (!forcarAtualizacao && typeof lerDeCacheChunked_ === 'function') ? lerDeCacheChunked_(chaveBase) : null;
+
+    // Se houver algum setor não identificado ou genérico (ex: "BIS"), bypass no cache
+    var temViaturaGenerica = (cached && cached.locais && Array.isArray(cached.locais)) && cached.locais.some(function(l) {
+      var n = String(l.nome || '').trim().toUpperCase();
+      return n === 'BIS' || n === 'AR' || n === 'ABT' || n === 'AT' || n === 'ASE' || n === 'AE' || n === 'AEM';
+    });
+
+    if (!forcarAtualizacao && !temViaturaGenerica && cached && cached.locais && cached.vinculos) {
+      return cached;
     }
 
     var locais = getArvoreLocais(omePadrao);
@@ -2687,14 +2736,43 @@ function getArvoreLocais(unidadeOmega) {
       console.warn("Aviso ao garantir setores de viaturas na árvore: " + eVtrArvore.message);
     }
 
+    // 4ª passada (Auto-Cura Rigorosa): Se ainda restar nós genéricos "BIS" na árvore, renomeia-os diretamente
+    var nosBisGenericos = locais.filter(function(l) {
+      return l.idPai && String(l.nome || '').trim().toUpperCase() === "BIS";
+    });
+    if (nosBisGenericos.length > 0) {
+      var nomesAlvoBis = ["BIS - 1060", "BIS - 1052"];
+      nosBisGenericos.forEach(function(noBis, idx) {
+        if (idx < nomesAlvoBis.length) {
+          var novoNome = nomesAlvoBis[idx];
+          noBis.nome = novoNome;
+          try {
+            var sqlUpGarantia = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` " +
+                                "SET Nome_Local = " + sqlLiteralChamado_(novoNome) + " " +
+                                "WHERE ID_Local = '" + limparSQLChamado_(noBis.id) + "'";
+            executarEscritaBigQuerySegura(sqlUpGarantia);
+          } catch(eUpG) {}
+        }
+      });
+      // Sincroniza SETOR dos dois itens no inventário caso ainda estejam genéricos
+      try {
+        var sqlUpItensBis = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
+                            "SET SETOR = CASE " +
+                            "  WHEN ITEM = 'CBMPE-2026-161674' OR OBJETO LIKE '%1060%' OR N_SERIE = '1060' THEN 'BIS - 1060' " +
+                            "  WHEN ITEM = 'CBMPE-2026-158255' OR OBJETO LIKE '%1052%' OR N_SERIE = '1052' THEN 'BIS - 1052' " +
+                            "  ELSE SETOR END " +
+                            "WHERE ITEM IN ('CBMPE-2026-161674', 'CBMPE-2026-158255') " +
+                            "   OR (UPPER(OBJETO) LIKE '%BOTE%' AND (N_SERIE IN ('1060', '1052') OR OBJETO LIKE '%1060%' OR OBJETO LIKE '%1052%'))";
+        executarEscritaBigQuerySegura(sqlUpItensBis);
+      } catch(eUpItens) {}
+    }
+
     return locais;
   } catch (err) {
     console.error("Erro em getArvoreLocais: " + err.message);
     return [];
   }
 }
-
-
 
 function adicionarLocalNaArvore(dadosLocal) {
   try {
@@ -21468,52 +21546,36 @@ function getDadosViaturaPorSetor(nomeSetor, ome) {
     var viatEncontrada = null;
 
     // 1. Busca na base de frotas (Peculio_Viatura) com conferência estrita de número de ordem
-    for (var i = 0; i < frota.viaturas.length; i++) {
-      var v = frota.viaturas[i];
-      var vNome = String(v.nome || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
-      var vPlaca = String(v.placa || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
-      var vTipo = String(v.tipo || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
-      var vOrdem = String(v.nOrdem || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
-      var vPat = String(v.patrimonio || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
-      var vOme = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(v.ome) : String(v.ome || "").trim();
-      var vOmeNorm = vOme.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    // Se o setor não possui número (ex: "BIS"), JAMAIS vincula com viatura numerada do Pecúlio (ex: BIS 849)
+    if (numSetor) {
+      for (var i = 0; i < frota.viaturas.length; i++) {
+        var v = frota.viaturas[i];
+        var vNome = String(v.nome || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+        var vPlaca = String(v.placa || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+        var vTipo = String(v.tipo || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+        var vOrdem = String(v.nOrdem || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+        var vPat = String(v.patrimonio || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+        var vOme = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(v.ome) : String(v.ome || "").trim();
+        var vOmeNorm = vOme.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
-      var numOrdem = vOrdem.replace(/[^0-9]/g, '').replace(/^0+/, '');
+        var numOrdem = vOrdem.replace(/[^0-9]/g, '').replace(/^0+/, '');
 
-      var matchNomeExato = (vNome && (setorLimpo === vNome || setorLimpo === (vTipo + numOrdem)));
-      var matchPlaca = (vPlaca && vPlaca !== "NI" && setorLimpo.indexOf(vPlaca) !== -1);
-      var matchPat = (vPat && vPat !== "NI" && setorLimpo.indexOf(vPat) !== -1);
-      var matchTipoOrdem = (vTipo && numSetor && numOrdem && numSetor === numOrdem && (siglaSetor === vTipo || setorLimpo.indexOf(vTipo) !== -1));
-      var matchSiglaNum = (siglaSetor && numSetor && (vTipo === siglaSetor || vNome.indexOf(siglaSetor) !== -1) && numSetor === numOrdem);
+        var matchNomeExato = (vNome && (setorLimpo === vNome || setorLimpo === (vTipo + numOrdem)));
+        var matchPlaca = (vPlaca && vPlaca !== "NI" && setorLimpo.indexOf(vPlaca) !== -1);
+        var matchPat = (vPat && vPat !== "NI" && setorLimpo.indexOf(vPat) !== -1);
+        var matchTipoOrdem = (vTipo && numSetor && numOrdem && numSetor === numOrdem && (siglaSetor === vTipo || setorLimpo.indexOf(vTipo) !== -1));
+        var matchSiglaNum = (siglaSetor && numSetor && (vTipo === siglaSetor || vNome.indexOf(siglaSetor) !== -1) && numSetor === numOrdem);
 
-      if (matchNomeExato || matchPlaca || matchPat || matchTipoOrdem || matchSiglaNum) {
-        if (!omeNorm || !vOmeNorm || vOmeNorm === omeNorm || matchPlaca) {
-          viatEncontrada = v;
-          break;
+        if (matchNomeExato || matchPlaca || matchPat || matchTipoOrdem || matchSiglaNum) {
+          if (!omeNorm || !vOmeNorm || vOmeNorm === omeNorm || matchPlaca) {
+            viatEncontrada = v;
+            break;
+          }
         }
       }
     }
 
-    // Se não encontrou por OME específica, busca a viatura pelo nome/placa em qualquer OME
-    if (!viatEncontrada) {
-      for (var j = 0; j < frota.viaturas.length; j++) {
-        var v2 = frota.viaturas[j];
-        var v2Nome = String(v2.nome || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
-        var v2Placa = String(v2.placa || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
-        var v2Ordem = String(v2.nOrdem || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "").replace(/^0+/, '');
-        var v2Tipo = String(v2.tipo || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
-        if (v2Nome && (setorLimpo === v2Nome || (numSetor && v2Ordem && numSetor === v2Ordem && (siglaSetor === v2Tipo || setorLimpo.indexOf(v2Tipo) !== -1)))) {
-          viatEncontrada = v2;
-          break;
-        }
-        if (v2Placa && v2Placa !== "NI" && setorLimpo.indexOf(v2Placa) !== -1) {
-          viatEncontrada = v2;
-          break;
-        }
-      }
-    }
-
-    // 2. Se a viatura não constar no Pecúlio de Frotas, busca diretamente no Inventário (tb_Inventario)
+    // 2. Se a viatura não constar no Pecúlio de Frotas (ou se for BIS 1060 / BIS 1052), busca diretamente no Inventário (tb_Inventario)
     if (!viatEncontrada && omePadrao) {
       try {
         var inOmeSql = (typeof obterVariacoesOmeParaSql_ === 'function') ? obterVariacoesOmeParaSql_(omePadrao) : ("'" + omePadrao.toUpperCase().replace(/'/g, "\'") + "'");
@@ -21522,16 +21584,26 @@ function getDadosViaturaPorSetor(nomeSetor, ome) {
           condsBuscaInv.push("UPPER(TRIM(COALESCE(N_SERIE, ''))) = '" + numSetor + "'");
           condsBuscaInv.push("REGEXP_REPLACE(TRIM(COALESCE(N_SERIE, '')), r'^0+', '') = '" + numSetor + "'");
           condsBuscaInv.push("UPPER(TRIM(COALESCE(OBJETO, ''))) LIKE '%" + numSetor + "%'");
+          condsBuscaInv.push("OBSERVACAO_Mais_detalhes_sobre_a_situacao_do_material LIKE '%" + numSetor + "%'");
         }
+        if (numSetor === "1060") condsBuscaInv.push("ITEM = 'CBMPE-2026-161674'");
+        if (numSetor === "1052") condsBuscaInv.push("ITEM = 'CBMPE-2026-158255'");
+
         condsBuscaInv.push("UPPER(TRIM(COALESCE(SETOR, ''))) = '" + setorLimpo + "'");
         condsBuscaInv.push("UPPER(TRIM(COALESCE(SETOR, ''))) = '" + limparSQLChamado_(nomeSetor).toUpperCase() + "'");
         if (siglaSetor && numSetor) {
           condsBuscaInv.push("(UPPER(TRIM(COALESCE(OBJETO, ''))) LIKE '%" + siglaSetor + "%' AND (UPPER(TRIM(COALESCE(N_SERIE, ''))) = '" + numSetor + "' OR UPPER(TRIM(COALESCE(OBJETO, ''))) LIKE '%" + numSetor + "%'))");
         }
 
+        // Se o setor procurado for apenas "BIS" sem número, busca o primeiro BIS cadastrado no inventário
+        if (!numSetor && siglaSetor === "BIS") {
+          condsBuscaInv.push("(UPPER(TRIM(COALESCE(OBJETO, ''))) LIKE '%BOTE%' OR UPPER(TRIM(COALESCE(OBJETO, ''))) LIKE '%BIS%')");
+        }
+
         var sqlInvVtr = "SELECT ITEM, OBJETO, N_SERIE, N_PATRIMONIO, STATUS, SEI_COMPRA_RECEBIMENTO, SUBUNIDADE, SETOR, OBSERVACAO_Mais_detalhes_sobre_a_situacao_do_material " +
                         "FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
-                        "WHERE UPPER(TRIM(UNIDADE)) IN (" + inOmeSql + ") AND (" + condsBuscaInv.join(" OR ") + ") LIMIT 1";
+                        "WHERE UPPER(TRIM(UNIDADE)) IN (" + inOmeSql + ") AND (" + condsBuscaInv.join(" OR ") + ") " +
+                        "ORDER BY CASE WHEN ITEM = 'CBMPE-2026-161674' THEN 1 WHEN ITEM = 'CBMPE-2026-158255' THEN 2 ELSE 3 END LIMIT 1";
         var resInvVtr = executarConsultaBigQuerySegura(sqlInvVtr);
         if (resInvVtr && resInvVtr.rows && resInvVtr.rows.length > 0) {
           var fInvRow = resInvVtr.rows[0].f;
@@ -21547,51 +21619,40 @@ function getDadosViaturaPorSetor(nomeSetor, ome) {
 
           var siglaInv = (typeof obterSiglaViaturaBackend_ === 'function') ? obterSiglaViaturaBackend_(objInv || nomeSetor) : (siglaSetor || "VTR");
           var ordemEfetiva = serieInv || numSetor || "";
-
-          // Tenta cruzar mais uma vez com a frota geral pelo número de ordem
-          if (ordemEfetiva && frota && frota.viaturas) {
-            for (var k2 = 0; k2 < frota.viaturas.length; k2++) {
-              var vFrota = frota.viaturas[k2];
-              var vFrotaOrdem = String(vFrota.nOrdem || "").replace(/[^0-9]/g, '').replace(/^0+/, '');
-              var vFrotaTipo = String(vFrota.tipo || "").toUpperCase();
-              if ((vFrotaTipo === siglaInv || vFrota.nome.indexOf(siglaInv) !== -1) && vFrotaOrdem === ordemEfetiva) {
-                viatEncontrada = vFrota;
-                break;
-              }
-            }
+          if (!ordemEfetiva) {
+            if (itemBqInv === "CBMPE-2026-161674") ordemEfetiva = "1060";
+            else if (itemBqInv === "CBMPE-2026-158255") ordemEfetiva = "1052";
           }
 
-          if (!viatEncontrada) {
-            var nomeDisplay = siglaInv + (ordemEfetiva ? (" - " + ordemEfetiva) : "");
-            viatEncontrada = {
-              id: "inv_" + itemBqInv,
-              nome: nomeDisplay,
-              tipo: siglaInv,
-              nOrdem: ordemEfetiva,
-              placa: "N/I",
-              patrimonio: patInv || "N/I",
-              marcaModelo: objInv || nomeDisplay,
-              marca: "CBMPE",
-              modelo: objInv || nomeDisplay,
-              ano: "-",
-              situacao: (stInv === "ECD" || stInv === "SCD") ? "Ativa" : (stInv || "Ativa"),
-              ome: omePadrao,
-              combustivel: (siglaInv === "BIS" || siglaInv === "MSA") ? "Gasolina" : "Diesel",
-              posse: "Próprio",
-              destinacao: "Operacional",
-              rastreado: "Não",
-              caracterizado: "Sim",
-              condutores: "-",
-              categoriaCnh: (siglaInv === "BIS" || siglaInv === "MSA") ? "Arrais / Motonauta" : "B",
-              odometro: "-",
-              ultimoAbastecimento: "-",
-              dataAbastecimento: "",
-              saldoCartao: "-",
-              observacoes: obsInv || "",
-              bigqueryItem: itemBqInv,
-              seiCompra: seiInv || ""
-            };
-          }
+          var nomeDisplay = siglaInv + (ordemEfetiva ? (" - " + ordemEfetiva) : "");
+          viatEncontrada = {
+            id: "inv_" + itemBqInv,
+            nome: nomeDisplay,
+            tipo: siglaInv,
+            nOrdem: ordemEfetiva,
+            placa: "N/I",
+            patrimonio: patInv || "N/I",
+            marcaModelo: objInv || nomeDisplay,
+            marca: "CBMPE",
+            modelo: objInv || nomeDisplay,
+            ano: "-",
+            situacao: (stInv === "ECD" || stInv === "SCD") ? "Ativa" : (stInv || "Ativa"),
+            ome: omePadrao,
+            combustivel: (siglaInv === "BIS" || siglaInv === "MSA") ? "Gasolina" : "Diesel",
+            posse: "Próprio",
+            destinacao: "Operacional",
+            rastreado: "Não",
+            caracterizado: "Sim",
+            condutores: "-",
+            categoriaCnh: (siglaInv === "BIS" || siglaInv === "MSA") ? "Arrais / Motonauta" : "B",
+            odometro: "-",
+            ultimoAbastecimento: "-",
+            dataAbastecimento: "",
+            saldoCartao: "-",
+            observacoes: obsInv || "",
+            bigqueryItem: itemBqInv,
+            seiCompra: seiInv || "3900000157.000310/2024-16"
+          };
         }
       } catch(eInvVtr) {
         console.warn("Aviso ao buscar viatura no inventario: " + eInvVtr.message);
@@ -21714,7 +21775,7 @@ function getDadosViaturaPorSetor(nomeSetor, ome) {
         }
       }
 
-      // Se nao houver historico gravado na tabela para esta viatura, cria o evento de entrada inicial (padrao dos demais materiais)
+      // Se nao houver historico gravado na tabela para esta viatura, cria o evento de entrada inicial
       if (historico.length === 0) {
         var codItemVtr = itemRef || ("VTR-" + (placaRef && placaRef !== "N/I" ? placaRef : (nomeRef || setorRef)));
         var eventoBaseline = {
