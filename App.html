@@ -3737,8 +3737,8 @@
           <button type="button" class="btn btn-sm btn-outline-secondary px-2" title="Recarregar base" onclick="carregarDadosFrotas(true)">
             <i class="fa-solid fa-rotate"></i>
           </button>
-          <button type="button" class="btn btn-sm btn-outline-danger px-2 ms-auto fw-bold" title="Sincronizar dados da Planilha com a tabela nativa do BigQuery" onclick="sincronizarPeculioComBigQueryUI()">
-            <i class="fa-solid fa-cloud-arrow-up me-1"></i> Sincronizar BigQuery
+          <button type="button" class="btn btn-sm btn-outline-danger px-2 ms-auto fw-bold" title="Atualizar dados da Frota" onclick="sincronizarPeculioComBigQueryUI()">
+            <i class="fa-solid fa-arrows-rotate me-1"></i> Atualizar Frota
           </button>
         </div>
 
@@ -29276,8 +29276,8 @@ function alternarMenuFrotas(menu) {
 
 function sincronizarPeculioComBigQueryUI() {
   Swal.fire({
-    title: 'Sincronizando com BigQuery...',
-    html: '<div class="text-center py-3"><i class="fa-solid fa-arrows-rotate fa-spin fa-2x text-danger mb-2"></i><br>Carregando dados da Planilha Pecúlio para a tabela nativa <strong>tb_Peculio_Viatura</strong> do BigQuery...</div>',
+    title: 'Atualizando',
+    html: '<div class="text-center py-3"><i class="fa-solid fa-arrows-rotate fa-spin fa-2x text-danger mb-2"></i></div>',
     allowOutsideClick: false,
     showConfirmButton: false
   });
@@ -29286,14 +29286,14 @@ function sincronizarPeculioComBigQueryUI() {
     .withSuccessHandler(function(resp) {
       Swal.close();
       if (!resp || !resp.sucesso) {
-        Swal.fire('Erro', (resp && resp.erro) || 'Falha ao sincronizar com o BigQuery.', 'error');
+        Swal.fire('Erro', (resp && resp.erro) || 'Falha ao atualizar a frota.', 'error');
         return;
       }
       Swal.fire({
         icon: 'success',
-        title: 'Sincronizado!',
-        text: resp.mensagem || (resp.total + ' viaturas sincronizadas com sucesso.'),
-        timer: 3000,
+        title: 'Atualizado!',
+        text: resp.mensagem || (resp.total + ' viaturas atualizadas com sucesso.'),
+        timer: 2500,
         showConfirmButton: false
       });
       carregarDadosFrotas(true);
