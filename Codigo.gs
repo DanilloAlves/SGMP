@@ -16,6 +16,7 @@ var PROJECT_ID = "db-bigquery-escala";
 var DATASET_ID = "db_Inventario";
 
 var TABELA_ID = "tb_Inventario";
+var TABELA_CHAMADOS = "tb_Chamados";
 
 
 
@@ -17862,8 +17863,78 @@ function converterUrlDriveParaImagem_(url) {
 }
 
 var ABA_CHAMADOS = "Chamados";
+var TABELA_CHAMADOS = "tb_Chamados";
+var tabelaChamadosGarantida_ = false;
 
-// Garante que a aba de Chamados exista com os cabeçalhos apropriados
+function limparSQLChamado_(val) {
+  if (val === null || val === undefined) return '';
+  return String(val)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/\r\n/g, '\\n')
+    .replace(/\r/g, '\\n')
+    .replace(/\n/g, '\\n');
+}
+
+function sqlLiteralChamado_(val) {
+  if (val === null || val === undefined) return "''";
+  return "'" + limparSQLChamado_(val) + "'";
+}
+
+function parsearDataBrChamado_(str) {
+  if (!str) return 0;
+  var partes = String(str).match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?)?/);
+  if (partes) {
+    return new Date(
+      parseInt(partes[3], 10),
+      parseInt(partes[2], 10) - 1,
+      parseInt(partes[1], 10),
+      parseInt(partes[4] || 0, 10),
+      parseInt(partes[5] || 0, 10),
+      parseInt(partes[6] || 0, 10)
+    ).getTime();
+  }
+  return 0;
+}
+
+// Garante que a estrutura da tabela de chamados exista no banco centralizado
+function garantirTabelaChamados_() {
+  if (tabelaChamadosGarantida_) return;
+  var cache = CacheService.getScriptCache();
+  if (cache && cache.get("BQ_TABELA_CHAMADOS_OK")) {
+    tabelaChamadosGarantida_ = true;
+    return;
+  }
+  try {
+    var sqlCreate = "CREATE TABLE IF NOT EXISTS `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_CHAMADOS + "` (" +
+      "PROTOCOLO STRING, " +
+      "DATA_CRIACAO STRING, " +
+      "CPF_SOLICITANTE STRING, " +
+      "NOME_SOLICITANTE STRING, " +
+      "EMAIL_SOLICITANTE STRING, " +
+      "OME_SOLICITANTE STRING, " +
+      "SUBUNIDADE_SOLICITANTE STRING, " +
+      "TIPO_PROBLEMA STRING, " +
+      "TITULO STRING, " +
+      "DESCRICAO STRING, " +
+      "URL_IMAGEM STRING, " +
+      "STATUS STRING, " +
+      "RESPOSTA_SUPORTE STRING, " +
+      "DATA_ATUALIZACAO STRING, " +
+      "RESPONSAVEL_SUPORTE STRING, " +
+      "MENSAGENS_HISTORICO STRING" +
+    ")";
+    executarEscritaBigQuerySegura(sqlCreate);
+    tabelaChamadosGarantida_ = true;
+    if (cache) {
+      try { cache.put("BQ_TABELA_CHAMADOS_OK", "1", 21600); } catch(eC) {}
+    }
+  } catch (err) {
+    console.warn("Aviso ao garantir estrutura da tabela de chamados: " + err.message);
+  }
+}
+
+// Garante compatibilidade retroativa caso a planilha auxiliar seja consultada
 function garantirAbaChamados_() {
   var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
   var sheet = ss.getSheetByName(ABA_CHAMADOS);
@@ -17892,6 +17963,112 @@ function garantirAbaChamados_() {
     sheet.setFrozenRows(1);
   }
   return sheet;
+}
+
+// Função de migração automática dos chamados da planilha auxiliar para o banco centralizado
+function migrarChamadosPlanilhaParaBanco() {
+  try {
+    garantirTabelaChamados_();
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
+    var sheet = ss.getSheetByName(ABA_CHAMADOS);
+    if (!sheet || sheet.getLastRow() <= 1) {
+      return { sucesso: true, mensagem: "Nenhum chamado na planilha auxiliar para migrar.", migrados: 0, total: 0 };
+    }
+    
+    // Busca protocolos já cadastrados no banco centralizado
+    var sqlExistentes = "SELECT DISTINCT PROTOCOLO FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_CHAMADOS + "`";
+    var resExistentes = executarConsultaBigQuerySegura(sqlExistentes);
+    var setExistentes = {};
+    if (resExistentes && resExistentes.rows) {
+      resExistentes.rows.forEach(function(r) {
+        if (r.f && r.f[0] && r.f[0].v) {
+          setExistentes[String(r.f[0].v).trim().toUpperCase()] = true;
+        }
+      });
+    }
+
+    var dados = sheet.getDataRange().getValues();
+    var linhasParaInserir = [];
+    var totalPlanilha = 0;
+
+    for (var i = 1; i < dados.length; i++) {
+      var row = dados[i];
+      var prot = String(row[0] || "").trim().toUpperCase();
+      if (!prot) continue;
+      totalPlanilha++;
+
+      if (setExistentes[prot]) {
+        continue; // Já migrado
+      }
+
+      var rowDataCriacao = String(row[1] || "").trim();
+      var rowCpf = String(row[2] || "").trim().replace(/\D/g, "");
+      if (rowCpf.length === 10) rowCpf = "0" + rowCpf;
+      var rowNome = String(row[3] || "").trim();
+      var rowEmail = String(row[4] || "").trim().toLowerCase();
+      var rowOme = String(row[5] || "").trim();
+      var rowSub = String(row[6] || "").trim();
+      var rowTipo = String(row[7] || "").trim();
+      var rowTitulo = String(row[8] || "").trim();
+      var rowDescricao = String(row[9] || "").trim();
+      var rowImagem = String(row[10] || "").trim();
+      var rowStatus = String(row[11] || "ABERTO").trim().toUpperCase();
+      var rowResposta = String(row[12] || "").trim();
+      var rowDataAtualizacao = String(row[13] || rowDataCriacao).trim();
+      var rowRespSuporte = String(row[14] || "").trim();
+      var rowHistoricoRaw = String(row[15] || "[]").trim();
+
+      linhasParaInserir.push("(" +
+        sqlLiteralChamado_(prot) + ", " +
+        sqlLiteralChamado_(rowDataCriacao) + ", " +
+        sqlLiteralChamado_(rowCpf) + ", " +
+        sqlLiteralChamado_(rowNome) + ", " +
+        sqlLiteralChamado_(rowEmail) + ", " +
+        sqlLiteralChamado_(rowOme) + ", " +
+        sqlLiteralChamado_(rowSub) + ", " +
+        sqlLiteralChamado_(rowTipo) + ", " +
+        sqlLiteralChamado_(rowTitulo) + ", " +
+        sqlLiteralChamado_(rowDescricao) + ", " +
+        sqlLiteralChamado_(rowImagem) + ", " +
+        sqlLiteralChamado_(rowStatus) + ", " +
+        sqlLiteralChamado_(rowResposta) + ", " +
+        sqlLiteralChamado_(rowDataAtualizacao) + ", " +
+        sqlLiteralChamado_(rowRespSuporte) + ", " +
+        sqlLiteralChamado_(rowHistoricoRaw) +
+      ")");
+    }
+
+    if (linhasParaInserir.length === 0) {
+      return { 
+        sucesso: true, 
+        mensagem: "Todos os chamados da planilha (" + totalPlanilha + ") já constam na base centralizada.",
+        migrados: 0,
+        total: totalPlanilha
+      };
+    }
+
+    // Inserção em lotes de até 50 registros por consulta
+    var tamanhoLote = 50;
+    for (var b = 0; b < linhasParaInserir.length; b += tamanhoLote) {
+      var lote = linhasParaInserir.slice(b, b + tamanhoLote);
+      var sqlBatch = "INSERT INTO `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_CHAMADOS + "` (" +
+        "PROTOCOLO, DATA_CRIACAO, CPF_SOLICITANTE, NOME_SOLICITANTE, EMAIL_SOLICITANTE, " +
+        "OME_SOLICITANTE, SUBUNIDADE_SOLICITANTE, TIPO_PROBLEMA, TITULO, DESCRICAO, " +
+        "URL_IMAGEM, STATUS, RESPOSTA_SUPORTE, DATA_ATUALIZACAO, RESPONSAVEL_SUPORTE, MENSAGENS_HISTORICO" +
+      ") VALUES " + lote.join(", ");
+      executarEscritaBigQuerySegura(sqlBatch);
+    }
+
+    return {
+      sucesso: true,
+      mensagem: "Migração concluída com sucesso: " + linhasParaInserir.length + " chamados importados para a base centralizada.",
+      migrados: linhasParaInserir.length,
+      total: totalPlanilha
+    };
+  } catch (err) {
+    console.error("Erro na migração de chamados: " + err.message);
+    throw new Error("Falha ao migrar chamados: " + err.message);
+  }
 }
 
 // Permite a qualquer usuário abrir um novo chamado com foto opcional
@@ -17944,7 +18121,7 @@ function abrirNovoChamado(dadosChamado, anexoBase64) {
     var aleatorio = String(Math.floor(1000 + Math.random() * 9000));
     var protocolo = "CHAM-" + prefixoData + "-" + aleatorio;
     
-    var sheet = garantirAbaChamados_();
+    garantirTabelaChamados_();
     
     var historicoInicial = JSON.stringify([{
       remetente: usuario.nome || usuario.email,
@@ -17953,28 +18130,31 @@ function abrirNovoChamado(dadosChamado, anexoBase64) {
       mensagem: descricao,
       urlImagem: urlImagem
     }]);
-    
-    var novaLinha = [
-      protocolo,
-      dataFormatada,
-      usuario.cpf || "",
-      usuario.nome || "Militar",
-      usuario.email || "",
-      usuario.ome || "SEM OME",
-      usuario.subunidade || "GERAL",
-      tipoProblema,
-      titulo,
-      descricao,
-      urlImagem,
-      "ABERTO",
-      "", // RESPOSTA_SUPORTE
-      dataFormatada, // DATA_ATUALIZACAO
-      "", // RESPONSAVEL_SUPORTE
-      historicoInicial
-    ];
-    
-    sheet.appendRow(novaLinha);
-    SpreadsheetApp.flush();
+
+    var sqlInsert = "INSERT INTO `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_CHAMADOS + "` (" +
+      "PROTOCOLO, DATA_CRIACAO, CPF_SOLICITANTE, NOME_SOLICITANTE, EMAIL_SOLICITANTE, " +
+      "OME_SOLICITANTE, SUBUNIDADE_SOLICITANTE, TIPO_PROBLEMA, TITULO, DESCRICAO, " +
+      "URL_IMAGEM, STATUS, RESPOSTA_SUPORTE, DATA_ATUALIZACAO, RESPONSAVEL_SUPORTE, MENSAGENS_HISTORICO" +
+    ") VALUES (" +
+      sqlLiteralChamado_(protocolo) + ", " +
+      sqlLiteralChamado_(dataFormatada) + ", " +
+      sqlLiteralChamado_(usuario.cpf || "") + ", " +
+      sqlLiteralChamado_(usuario.nome || "Militar") + ", " +
+      sqlLiteralChamado_(usuario.email || "") + ", " +
+      sqlLiteralChamado_(usuario.ome || "SEM OME") + ", " +
+      sqlLiteralChamado_(usuario.subunidade || "GERAL") + ", " +
+      sqlLiteralChamado_(tipoProblema) + ", " +
+      sqlLiteralChamado_(titulo) + ", " +
+      sqlLiteralChamado_(descricao) + ", " +
+      sqlLiteralChamado_(urlImagem) + ", " +
+      "'ABERTO', " +
+      "'', " +
+      sqlLiteralChamado_(dataFormatada) + ", " +
+      "'', " +
+      sqlLiteralChamado_(historicoInicial) +
+    ")";
+
+    executarEscritaBigQuerySegura(sqlInsert);
     
     // Dispara e-mail de aviso sigiloso para dcsdlog@gmail.com
     try {
@@ -18043,7 +18223,7 @@ function abrirNovoChamado(dadosChamado, anexoBase64) {
   }
 }
 
-// Lista os chamados (Admin vê todos; Usuário vê apenas os seus)
+// Lista os chamados (Admin vê todos; Comandante vê de sua OME; Usuário vê apenas os seus)
 function listarChamados(filtroStatus) {
   try {
     var emailSessao = "";
@@ -18072,64 +18252,93 @@ function listarChamados(filtroStatus) {
     if (cpfUser.length === 10) cpfUser = "0" + cpfUser;
     var emailUser = String(usuario.email || "").trim().toLowerCase();
     
-    var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
-    var sheet = ss.getSheetByName(ABA_CHAMADOS);
-    if (!sheet || sheet.getLastRow() <= 1) {
-      return { ehAdmin: ehAdmin, ehComandante: ehComandante, chamados: [] };
+    garantirTabelaChamados_();
+    
+    var sql = "SELECT " +
+      "PROTOCOLO, DATA_CRIACAO, CPF_SOLICITANTE, NOME_SOLICITANTE, EMAIL_SOLICITANTE, " +
+      "OME_SOLICITANTE, SUBUNIDADE_SOLICITANTE, TIPO_PROBLEMA, TITULO, DESCRICAO, " +
+      "URL_IMAGEM, STATUS, RESPOSTA_SUPORTE, DATA_ATUALIZACAO, RESPONSAVEL_SUPORTE, MENSAGENS_HISTORICO " +
+      "FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_CHAMADOS + "` WHERE 1=1";
+
+    if (filtroStatus && filtroStatus !== "TODOS") {
+      sql += " AND UPPER(TRIM(STATUS)) = '" + limparSQLChamado_(filtroStatus.toUpperCase()) + "'";
     }
-    
-    var dados = sheet.getDataRange().getValues();
+
+    if (!ehAdmin) {
+      var condsAcesso = [];
+      if (cpfUser) {
+        condsAcesso.push("REGEXP_REPLACE(IFNULL(CPF_SOLICITANTE, ''), r'\\D', '') = '" + limparSQLChamado_(cpfUser) + "'");
+      }
+      if (emailUser) {
+        condsAcesso.push("LOWER(TRIM(IFNULL(EMAIL_SOLICITANTE, ''))) = '" + limparSQLChamado_(emailUser) + "'");
+      }
+      if (ehComandante && omeUserPadrao) {
+        condsAcesso.push("UPPER(TRIM(IFNULL(OME_SOLICITANTE, ''))) = '" + limparSQLChamado_(omeUserPadrao) + "'");
+      }
+      if (condsAcesso.length > 0) {
+        sql += " AND (" + condsAcesso.join(" OR ") + ")";
+      }
+    }
+
+    var queryRes = executarConsultaBigQuerySegura(sql);
+    var rows = (queryRes && queryRes.rows) ? queryRes.rows : [];
+
+    // Se não retornou nenhum registro, verifica se há chamados legados na planilha auxiliar para auto-migrar
+    if (rows.length === 0) {
+      try {
+        var migrou = migrarChamadosPlanilhaParaBanco();
+        if (migrou && migrou.migrados > 0) {
+          queryRes = executarConsultaBigQuerySegura(sql);
+          rows = (queryRes && queryRes.rows) ? queryRes.rows : [];
+        }
+      } catch (eAutoMig) {
+        console.warn("Aviso na migração automática de chamados: " + eAutoMig.message);
+      }
+    }
+
     var lista = [];
-    
-    // Varre de trás para frente para trazer do mais novo para o mais antigo
-    for (var i = dados.length - 1; i >= 1; i--) {
-      var row = dados[i];
-      var prot = String(row[0] || "").trim();
-      var dataCriacao = String(row[1] || "").trim();
-      var rowCpf = String(row[2] || "").trim().replace(/\D/g, "");
+
+    for (var i = 0; i < rows.length; i++) {
+      var f = rows[i].f || [];
+      var prot = String(f[0] && f[0].v ? f[0].v : "").trim();
+      var dataCriacao = String(f[1] && f[1].v ? f[1].v : "").trim();
+      var rowCpf = String(f[2] && f[2].v ? f[2].v : "").trim().replace(/\D/g, "");
       if (rowCpf.length === 10) rowCpf = "0" + rowCpf;
-      var rowNome = String(row[3] || "").trim();
-      var rowEmail = String(row[4] || "").trim().toLowerCase();
-      var rowOme = String(row[5] || "").trim();
-      var rowSub = String(row[6] || "").trim();
-      var rowTipo = String(row[7] || "").trim();
-      var rowTitulo = String(row[8] || "").trim();
-      var rowDescricao = String(row[9] || "").trim();
-      var rowImagem = String(row[10] || "").trim();
+      var rowNome = String(f[3] && f[3].v ? f[3].v : "").trim();
+      var rowEmail = String(f[4] && f[4].v ? f[4].v : "").trim().toLowerCase();
+      var rowOme = String(f[5] && f[5].v ? f[5].v : "").trim();
+      var rowSub = String(f[6] && f[6].v ? f[6].v : "").trim();
+      var rowTipo = String(f[7] && f[7].v ? f[7].v : "").trim();
+      var rowTitulo = String(f[8] && f[8].v ? f[8].v : "").trim();
+      var rowDescricao = String(f[9] && f[9].v ? f[9].v : "").trim();
+      var rowImagem = String(f[10] && f[10].v ? f[10].v : "").trim();
       var urlImagemFormatada = converterUrlDriveParaImagem_(rowImagem);
-      var rowStatus = String(row[11] || "ABERTO").trim().toUpperCase();
-      var rowResposta = String(row[12] || "").trim();
-      var rowDataAtualizacao = String(row[13] || dataCriacao).trim();
-      var rowRespSuporte = String(row[14] || "").trim();
-      var rowHistoricoRaw = String(row[15] || "[]").trim();
-      
+      var rowStatus = String(f[11] && f[11].v ? f[11].v : "ABERTO").trim().toUpperCase();
+      var rowResposta = String(f[12] && f[12].v ? f[12].v : "").trim();
+      var rowDataAtualizacao = String(f[13] && f[13].v ? f[13].v : dataCriacao).trim();
+      var rowRespSuporte = String(f[14] && f[14].v ? f[14].v : "").trim();
+      var rowHistoricoRaw = String(f[15] && f[15].v ? f[15].v : "[]").trim();
+
       var rowOmePadrao = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(rowOme) : rowOme.toUpperCase();
       var pertenceAoUsuario = false;
       if (cpfUser && rowCpf && cpfUser === rowCpf) pertenceAoUsuario = true;
       if (emailUser && rowEmail && emailUser === rowEmail) pertenceAoUsuario = true;
 
-      // Comandante de Unidade tem visão dos chamados abertos por militares de sua própria OME
       var daMesmaOme = (ehComandante && omeUserPadrao && rowOmePadrao && omeUserPadrao === rowOmePadrao);
 
       if (!ehAdmin && !daMesmaOme && !pertenceAoUsuario) {
         continue;
       }
 
-      // Flag indicando se o operador atual pode tratar/responder a este chamado
       var podeTratar = ehAdmin || daMesmaOme;
-      
-      // Filtro opcional por status
-      if (filtroStatus && filtroStatus !== "TODOS" && rowStatus !== filtroStatus.toUpperCase()) {
-        continue;
-      }
-      
+
       var historicoMensagens = [];
       try {
         historicoMensagens = JSON.parse(rowHistoricoRaw);
       } catch(eJson) {
         historicoMensagens = [];
       }
-      
+
       lista.push({
         protocolo: prot,
         dataCriacao: dataCriacao,
@@ -18152,6 +18361,14 @@ function listarChamados(filtroStatus) {
         linha: i + 1
       });
     }
+
+    // Ordena do mais recente para o mais antigo
+    lista.sort(function(a, b) {
+      var tA = parsearDataBrChamado_(a.dataAtualizacao || a.dataCriacao);
+      var tB = parsearDataBrChamado_(b.dataAtualizacao || b.dataCriacao);
+      if (tA !== tB) return tB - tA;
+      return String(b.protocolo).localeCompare(String(a.protocolo));
+    });
     
     return {
       ehAdmin: ehAdmin,
@@ -18172,7 +18389,7 @@ function listarChamados(filtroStatus) {
   }
 }
 
-// Responde ao chamado (ação restrita ao Administrador)
+// Responde ao chamado (ação restrita ao Administrador e Comandante da OME)
 function responderChamadoAdmin(protocolo, respostaTexto, novoStatus) {
   try {
     var emailSessao = "";
@@ -18204,36 +18421,32 @@ function responderChamadoAdmin(protocolo, respostaTexto, novoStatus) {
       throw new Error("Informe o protocolo e o parecer técnico do suporte.");
     }
     
-    var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
-    var sheet = ss.getSheetByName(ABA_CHAMADOS);
-    if (!sheet) throw new Error("Aba de Chamados não encontrada.");
-    
-    var dados = sheet.getDataRange().getValues();
-    var linhaAlvo = -1;
-    var chamado = null;
-    
-    for (var i = 1; i < dados.length; i++) {
-      if (String(dados[i][0] || "").trim().toUpperCase() === protLimpo) {
-        linhaAlvo = i + 1;
-        chamado = {
-          protocolo: protLimpo,
-          dataCriacao: String(dados[i][1] || ""),
-          cpf: String(dados[i][2] || ""),
-          nome: String(dados[i][3] || ""),
-          email: String(dados[i][4] || ""),
-          ome: String(dados[i][5] || ""),
-          tipo: String(dados[i][7] || ""),
-          titulo: String(dados[i][8] || ""),
-          descricao: String(dados[i][9] || ""),
-          historicoRaw: String(dados[i][15] || "[]")
-        };
-        break;
-      }
-    }
-    
-    if (linhaAlvo === -1 || !chamado) {
+    garantirTabelaChamados_();
+
+    var sqlBusca = "SELECT PROTOCOLO, DATA_CRIACAO, CPF_SOLICITANTE, NOME_SOLICITANTE, EMAIL_SOLICITANTE, " +
+      "OME_SOLICITANTE, SUBUNIDADE_SOLICITANTE, TIPO_PROBLEMA, TITULO, DESCRICAO, MENSAGENS_HISTORICO " +
+      "FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_CHAMADOS + "` " +
+      "WHERE UPPER(TRIM(PROTOCOLO)) = '" + limparSQLChamado_(protLimpo) + "' LIMIT 1";
+
+    var resBusca = executarConsultaBigQuerySegura(sqlBusca);
+    if (!resBusca || !resBusca.rows || resBusca.rows.length === 0) {
       throw new Error("Chamado " + protLimpo + " não foi localizado.");
     }
+
+    var f = resBusca.rows[0].f;
+    var chamado = {
+      protocolo: protLimpo,
+      dataCriacao: String(f[1] && f[1].v ? f[1].v : ""),
+      cpf: String(f[2] && f[2].v ? f[2].v : ""),
+      nome: String(f[3] && f[3].v ? f[3].v : ""),
+      email: String(f[4] && f[4].v ? f[4].v : ""),
+      ome: String(f[5] && f[5].v ? f[5].v : ""),
+      subunidade: String(f[6] && f[6].v ? f[6].v : "GERAL"),
+      tipo: String(f[7] && f[7].v ? f[7].v : ""),
+      titulo: String(f[8] && f[8].v ? f[8].v : ""),
+      descricao: String(f[9] && f[9].v ? f[9].v : ""),
+      historicoRaw: String(f[10] && f[10].v ? f[10].v : "[]")
+    };
 
     var omeTicketPadrao = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(chamado.ome) : String(chamado.ome || "").trim().toUpperCase();
 
@@ -18261,12 +18474,15 @@ function responderChamadoAdmin(protocolo, respostaTexto, novoStatus) {
       status: statusLimpo
     });
     
-    sheet.getRange(linhaAlvo, 12).setValue(statusLimpo);
-    sheet.getRange(linhaAlvo, 13).setValue(respLimpa);
-    sheet.getRange(linhaAlvo, 14).setValue(dataFormatada);
-    sheet.getRange(linhaAlvo, 15).setValue(nomeRemetente);
-    sheet.getRange(linhaAlvo, 16).setValue(JSON.stringify(historico));
-    SpreadsheetApp.flush();
+    var sqlUpdate = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_CHAMADOS + "` SET " +
+      "STATUS = " + sqlLiteralChamado_(statusLimpo) + ", " +
+      "RESPOSTA_SUPORTE = " + sqlLiteralChamado_(respLimpa) + ", " +
+      "DATA_ATUALIZACAO = " + sqlLiteralChamado_(dataFormatada) + ", " +
+      "RESPONSAVEL_SUPORTE = " + sqlLiteralChamado_(nomeRemetente) + ", " +
+      "MENSAGENS_HISTORICO = " + sqlLiteralChamado_(JSON.stringify(historico)) + " " +
+      "WHERE UPPER(TRIM(PROTOCOLO)) = '" + limparSQLChamado_(protLimpo) + "'";
+
+    executarEscritaBigQuerySegura(sqlUpdate);
     
     // Dispara e-mail oficial para o usuário solicitante comunicando a resposta
     if (chamado.email) {
@@ -18353,33 +18569,29 @@ function adicionarRespostaUsuarioChamado(protocolo, mensagemTexto, anexoBase64) 
       throw new Error("Digite a mensagem complementar para enviar ao suporte.");
     }
     
-    var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
-    var sheet = ss.getSheetByName(ABA_CHAMADOS);
-    if (!sheet) throw new Error("Aba de Chamados não encontrada.");
-    
-    var dados = sheet.getDataRange().getValues();
-    var linhaAlvo = -1;
-    var chamado = null;
-    
-    for (var i = 1; i < dados.length; i++) {
-      if (String(dados[i][0] || "").trim().toUpperCase() === protLimpo) {
-        linhaAlvo = i + 1;
-        chamado = {
-          protocolo: protLimpo,
-          cpf: String(dados[i][2] || ""),
-          nome: String(dados[i][3] || ""),
-          email: String(dados[i][4] || ""),
-          ome: String(dados[i][5] || ""),
-          titulo: String(dados[i][8] || ""),
-          historicoRaw: String(dados[i][15] || "[]")
-        };
-        break;
-      }
-    }
-    
-    if (linhaAlvo === -1 || !chamado) {
+    garantirTabelaChamados_();
+
+    var sqlBusca = "SELECT PROTOCOLO, DATA_CRIACAO, CPF_SOLICITANTE, NOME_SOLICITANTE, EMAIL_SOLICITANTE, " +
+      "OME_SOLICITANTE, SUBUNIDADE_SOLICITANTE, TITULO, MENSAGENS_HISTORICO " +
+      "FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_CHAMADOS + "` " +
+      "WHERE UPPER(TRIM(PROTOCOLO)) = '" + limparSQLChamado_(protLimpo) + "' LIMIT 1";
+
+    var resBusca = executarConsultaBigQuerySegura(sqlBusca);
+    if (!resBusca || !resBusca.rows || resBusca.rows.length === 0) {
       throw new Error("Chamado " + protLimpo + " não encontrado.");
     }
+
+    var f = resBusca.rows[0].f;
+    var chamado = {
+      protocolo: protLimpo,
+      cpf: String(f[2] && f[2].v ? f[2].v : ""),
+      nome: String(f[3] && f[3].v ? f[3].v : ""),
+      email: String(f[4] && f[4].v ? f[4].v : ""),
+      ome: String(f[5] && f[5].v ? f[5].v : ""),
+      subunidade: String(f[6] && f[6].v ? f[6].v : "GERAL"),
+      titulo: String(f[7] && f[7].v ? f[7].v : ""),
+      historicoRaw: String(f[8] && f[8].v ? f[8].v : "[]")
+    };
     
     var novaUrlImagem = "";
     if (anexoBase64 && anexoBase64.data) {
@@ -18406,11 +18618,13 @@ function adicionarRespostaUsuarioChamado(protocolo, mensagemTexto, anexoBase64) 
       urlImagem: novaUrlImagem
     });
     
-    // Altera status de volta para EM_ATENDIMENTO
-    sheet.getRange(linhaAlvo, 12).setValue("EM_ATENDIMENTO");
-    sheet.getRange(linhaAlvo, 14).setValue(dataFormatada);
-    sheet.getRange(linhaAlvo, 16).setValue(JSON.stringify(historico));
-    SpreadsheetApp.flush();
+    var sqlUpdate = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_CHAMADOS + "` SET " +
+      "STATUS = 'EM_ATENDIMENTO', " +
+      "DATA_ATUALIZACAO = " + sqlLiteralChamado_(dataFormatada) + ", " +
+      "MENSAGENS_HISTORICO = " + sqlLiteralChamado_(JSON.stringify(historico)) + " " +
+      "WHERE UPPER(TRIM(PROTOCOLO)) = '" + limparSQLChamado_(protLimpo) + "'";
+
+    executarEscritaBigQuerySegura(sqlUpdate);
     
     // Notifica dcsdlog@gmail.com
     try {
@@ -18465,35 +18679,31 @@ function reabrirChamadoUsuario(protocolo, motivo) {
       throw new Error("Informe o protocolo e o motivo da reabertura.");
     }
     
-    var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
-    var sheet = ss.getSheetByName(ABA_CHAMADOS);
-    if (!sheet) throw new Error("Aba de Chamados não encontrada.");
-    
-    var dados = sheet.getDataRange().getValues();
-    var linhaAlvo = -1;
-    var chamado = null;
-    
-    for (var i = 1; i < dados.length; i++) {
-      if (String(dados[i][0] || "").trim().toUpperCase() === protLimpo) {
-        linhaAlvo = i + 1;
-        chamado = {
-          protocolo: protLimpo,
-          cpf: String(dados[i][2] || ""),
-          nome: String(dados[i][3] || ""),
-          email: String(dados[i][4] || ""),
-          ome: String(dados[i][5] || ""),
-          subunidade: String(dados[i][6] || "GERAL"),
-          titulo: String(dados[i][8] || ""),
-          status: String(dados[i][11] || ""),
-          historicoRaw: String(dados[i][15] || "[]")
-        };
-        break;
-      }
-    }
-    
-    if (linhaAlvo === -1 || !chamado) {
+    garantirTabelaChamados_();
+
+    var sqlBusca = "SELECT PROTOCOLO, DATA_CRIACAO, CPF_SOLICITANTE, NOME_SOLICITANTE, EMAIL_SOLICITANTE, " +
+      "OME_SOLICITANTE, SUBUNIDADE_SOLICITANTE, TITULO, STATUS, MENSAGENS_HISTORICO " +
+      "FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_CHAMADOS + "` " +
+      "WHERE UPPER(TRIM(PROTOCOLO)) = '" + limparSQLChamado_(protLimpo) + "' LIMIT 1";
+
+    var resBusca = executarConsultaBigQuerySegura(sqlBusca);
+    if (!resBusca || !resBusca.rows || resBusca.rows.length === 0) {
       throw new Error("Chamado " + protLimpo + " não encontrado.");
     }
+
+    var f = resBusca.rows[0].f;
+    var chamado = {
+      protocolo: protLimpo,
+      dataCriacao: String(f[1] && f[1].v ? f[1].v : ""),
+      cpf: String(f[2] && f[2].v ? f[2].v : ""),
+      nome: String(f[3] && f[3].v ? f[3].v : ""),
+      email: String(f[4] && f[4].v ? f[4].v : ""),
+      ome: String(f[5] && f[5].v ? f[5].v : ""),
+      subunidade: String(f[6] && f[6].v ? f[6].v : "GERAL"),
+      titulo: String(f[7] && f[7].v ? f[7].v : ""),
+      status: String(f[8] && f[8].v ? f[8].v : ""),
+      historicoRaw: String(f[9] && f[9].v ? f[9].v : "[]")
+    };
     
     var agora = new Date();
     var dataFormatada = Utilities.formatDate(agora, "America/Recife", "dd/MM/yyyy HH:mm:ss");
@@ -18509,10 +18719,13 @@ function reabrirChamadoUsuario(protocolo, motivo) {
       status: "REABERTO"
     });
     
-    sheet.getRange(linhaAlvo, 12).setValue("REABERTO");
-    sheet.getRange(linhaAlvo, 14).setValue(dataFormatada);
-    sheet.getRange(linhaAlvo, 16).setValue(JSON.stringify(historico));
-    SpreadsheetApp.flush();
+    var sqlUpdate = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_CHAMADOS + "` SET " +
+      "STATUS = 'REABERTO', " +
+      "DATA_ATUALIZACAO = " + sqlLiteralChamado_(dataFormatada) + ", " +
+      "MENSAGENS_HISTORICO = " + sqlLiteralChamado_(JSON.stringify(historico)) + " " +
+      "WHERE UPPER(TRIM(PROTOCOLO)) = '" + limparSQLChamado_(protLimpo) + "'";
+
+    executarEscritaBigQuerySegura(sqlUpdate);
     
     // Dispara e-mail de alerta para dcsdlog@gmail.com
     try {
