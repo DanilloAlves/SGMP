@@ -5844,7 +5844,7 @@
       })
       .getMateriaisPlanilhaCompras();
 
-    buscarTicketsVisaoGeral();
+    setTimeout(() => { if (typeof buscarTicketsVisaoGeral === "function") buscarTicketsVisaoGeral(); }, 300);
   }
 
   // =========================================================================
@@ -10257,7 +10257,21 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
         }).getMateriaisPlanilhaCompras();
       }
       if (typeof renderizarResumoGeralOmes === "function") {
-        google.script.run.withSuccessHandler(resumoDados => renderizarResumoGeralOmes(resumoDados)).getResumoOmesComTotais();
+        function tentarObterResumoOmes(tentativa = 1) {
+          google.script.run
+            .withSuccessHandler(resumoDados => renderizarResumoGeralOmes(resumoDados))
+            .withFailureHandler(err => {
+              const msg = String(err && (err.message || err));
+              if ((msg.includes("DEADLINE_EXCEEDED") || msg.includes("armazenamento") || msg.includes("ScriptError")) && tentativa <= 2) {
+                console.warn("Aviso: Retentando resumo geral de OMEs em " + (tentativa * 1200) + "ms...");
+                setTimeout(() => tentarObterResumoOmes(tentativa + 1), tentativa * 1200);
+                return;
+              }
+              console.error("Erro ao obter resumo de OMEs:", err);
+            })
+            .getResumoOmesComTotais();
+        }
+        tentarObterResumoOmes(1);
       }
       return;
     }
@@ -10298,27 +10312,36 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
       cacheMateriaisAtrelados = {};
       cacheLocaisArvore = [];
 
-      google.script.run
-        .withSuccessHandler(res => {
-          if (!res) res = { locais: [], materiais: [], vinculos: {} };
-          window._cacheArmazenamentoOme[omeEfetiva] = res;
+      function tentarCarregarDadosArmazenamento(tentativa = 1) {
+        google.script.run
+          .withSuccessHandler(res => {
+            if (!res) res = { locais: [], materiais: [], vinculos: {} };
+            window._cacheArmazenamentoOme[omeEfetiva] = res;
 
-          window.estoqueDetalhadoOME = res.materiais || [];
-          materiaisUnidadeLocais = window.estoqueDetalhadoOME.map(m => typeof m === 'object' ? (m.nome || m) : m);
-          cacheMateriaisAtrelados = res.vinculos || {};
-          cacheLocaisArvore = res.locais || [];
+            window.estoqueDetalhadoOME = res.materiais || [];
+            materiaisUnidadeLocais = window.estoqueDetalhadoOME.map(m => typeof m === 'object' ? (m.nome || m) : m);
+            cacheMateriaisAtrelados = res.vinculos || {};
+            cacheLocaisArvore = res.locais || [];
 
-          renderizarListaMateriaisLateral();
-          if (typeof renderizarArvoreLocais === "function") {
-            renderizarArvoreLocais();
-          }
-        })
-        .withFailureHandler(err => {
-          console.error("Erro ao carregar dados consolidados da OME:", err);
-          if (containerMaterial) containerMaterial.innerHTML = '<span class="text-danger small">Falha ao buscar estoque.</span>';
-          if (arvoreContainer) arvoreContainer.innerHTML = '<div class="alert alert-danger mt-3">Erro ao sincronizar com o banco de dados: ' + (err.message || err) + '</div>';
-        })
-        .carregarDadosArmazenamentoCompleto(omeEfetiva, forcar);
+            renderizarListaMateriaisLateral();
+            if (typeof renderizarArvoreLocais === "function") {
+              renderizarArvoreLocais();
+            }
+          })
+          .withFailureHandler(err => {
+            const msg = String(err && (err.message || err));
+            if ((msg.includes("DEADLINE_EXCEEDED") || msg.includes("armazenamento") || msg.includes("ScriptError")) && tentativa <= 2) {
+              console.warn("Aviso: Instabilidade temporária ao carregar dados consolidados da OME (" + omeEfetiva + "). Retentando em " + (tentativa * 1400) + "ms...");
+              setTimeout(() => tentarCarregarDadosArmazenamento(tentativa + 1), tentativa * 1400);
+              return;
+            }
+            console.error("Erro ao carregar dados consolidados da OME:", err);
+            if (containerMaterial) containerMaterial.innerHTML = '<span class="text-danger small">Falha ao buscar estoque.</span>';
+            if (arvoreContainer) arvoreContainer.innerHTML = '<div class="alert alert-danger mt-3">Erro ao sincronizar com o banco de dados: ' + (err.message || err) + '</div>';
+          })
+          .carregarDadosArmazenamentoCompleto(omeEfetiva, forcar);
+      }
+      tentarCarregarDadosArmazenamento(1);
     }
   };
 
@@ -18278,7 +18301,7 @@ function alternarVisaoGeral(modo) {
   renderizarVisualizacaoVisaoGeral(cacheTicketsVisaoGeral);
 }
 
-function buscarTicketsVisaoGeral() {
+function buscarTicketsVisaoGeral(tentativa = 1) {
   const gridContainer = document.getElementById('gridCardsTicketsVisao');
   const cardCorporativo = document.getElementById('cardGestaoLotesAdmin');
   if (!gridContainer) return;
@@ -18286,7 +18309,9 @@ function buscarTicketsVisaoGeral() {
   const filtroSei = document.getElementById('filtroVisaoSei') ? document.getElementById('filtroVisaoSei').value.trim() : "";
   const filtroMaterial = document.getElementById('filtroVisaoMaterial') ? $('#filtroVisaoMaterial').val() : "";
 
-  gridContainer.innerHTML = '<p class="text-muted small text-center py-4"><i class="fa-solid fa-spinner fa-spin me-2"></i> Buscando lotes...</p>';
+  if (tentativa === 1) {
+    gridContainer.innerHTML = '<p class="text-muted small text-center py-4"><i class="fa-solid fa-spinner fa-spin me-2"></i> Buscando lotes...</p>';
+  }
 
   google.script.run
     .withSuccessHandler(tickets => {
@@ -18294,6 +18319,12 @@ function buscarTicketsVisaoGeral() {
       renderizarVisualizacaoVisaoGeral(cacheTicketsVisaoGeral);
     })
     .withFailureHandler(err => {
+      const msg = String(err && (err.message || err));
+      if ((msg.includes("DEADLINE_EXCEEDED") || msg.includes("armazenamento") || msg.includes("ScriptError")) && tentativa <= 2) {
+        console.warn("Aviso: Instabilidade temporária ao consultar lotes na Visão Geral. Retentando em " + (tentativa * 1200) + "ms...");
+        setTimeout(() => buscarTicketsVisaoGeral(tentativa + 1), tentativa * 1200);
+        return;
+      }
       console.error("Erro na busca de tickets da visão geral:", err);
       const temFiltroAtivo = Boolean(filtroSei || filtroMaterial);
       if (!temFiltroAtivo && cardCorporativo) {

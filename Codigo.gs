@@ -9315,8 +9315,64 @@ function getTicketsLiberacaoDpl() {
   }
 }
 
+var _cacheDadosRemessasMem_ = null;
+var _cacheDadosRemessasTime_ = 0;
+
+function obterDadosRemessasPendentesSeguro_(forcar) {
+  var agora = new Date().getTime();
+  if (!forcar && _cacheDadosRemessasMem_ && (agora - _cacheDadosRemessasTime_ < 35000)) {
+    return _cacheDadosRemessasMem_;
+  }
+  var cache = CacheService.getScriptCache();
+  if (!forcar && cache) {
+    try {
+      var cached = cache.get("DADOS_REMESSAS_PENDENTES_LEITURA");
+      if (cached) {
+        var parsed = JSON.parse(cached);
+        _cacheDadosRemessasMem_ = parsed;
+        _cacheDadosRemessasTime_ = agora;
+        return parsed;
+      }
+    } catch(e) {}
+  }
+  try {
+    var ssAux = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
+    var sheetRemessa = ssAux.getSheetByName("RemessasPendentes");
+    if (!sheetRemessa || sheetRemessa.getLastRow() <= 1) {
+      _cacheDadosRemessasMem_ = [];
+      _cacheDadosRemessasTime_ = agora;
+      return [];
+    }
+    var dados = (typeof obterValoresAbaSegura_ === 'function') ? obterValoresAbaSegura_(sheetRemessa) : sheetRemessa.getDataRange().getValues();
+    _cacheDadosRemessasMem_ = dados;
+    _cacheDadosRemessasTime_ = agora;
+    if (cache) {
+      try {
+        var str = JSON.stringify(dados);
+        if (str.length < 95000) {
+          cache.put("DADOS_REMESSAS_PENDENTES_LEITURA", str, 45);
+        }
+      } catch(eCache) {}
+    }
+    return dados;
+  } catch(err) {
+    console.error("Erro ao ler RemessasPendentes: " + err.message);
+    if (_cacheDadosRemessasMem_) return _cacheDadosRemessasMem_;
+    return [];
+  }
+}
+
 function getTicketsLiberacaoDplFiltrados(filtroSei, filtroMaterial) {
   try {
+    var fSeiNorm = String(filtroSei || "").trim().toUpperCase();
+    var fMatNorm = String(filtroMaterial || "").trim().toUpperCase();
+    var cacheKey = "CACHE_TKTS_LIB_DPL_" + fSeiNorm.replace(/[^A-Z0-9]/g, "_") + "_" + fMatNorm.replace(/[^A-Z0-9]/g, "_");
+    var cache = CacheService.getScriptCache();
+    if (cache) {
+      var cached = cache.get(cacheKey);
+      if (cached) { try { return JSON.parse(cached); } catch(e){} }
+    }
+
     function limpaSQL(t) { return String(t || '').trim().replace(/'/g, "\\'"); }
 
     var sqlCint = "SELECT SEI_COMPRA_RECEBIMENTO, OBJETO, COUNT(*) as qtd " +
@@ -9340,9 +9396,7 @@ function getTicketsLiberacaoDplFiltrados(filtroSei, filtroMaterial) {
     var rowsCint = resCint.rows || [];
 
     // Busca na planilha auxiliar de RemessasPendentes o que já foi despachado e ainda não foi confirmado/recusado
-    var ssAux = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
-    var sheetRemessa = ssAux.getSheetByName("RemessasPendentes");
-    var dadosRemessas = (sheetRemessa && sheetRemessa.getLastRow() > 1) ? sheetRemessa.getDataRange().getValues() : [];
+    var dadosRemessas = obterDadosRemessasPendentesSeguro_();
     
     // Mapeia o quantitativo já comprometido por (SEI + Material) e por Material
     var mapaComprometido = {};
@@ -11906,6 +11960,10 @@ function confirmarRecebimentoRemessa(idRemessa, cpfRecebedor, nomeRecebedor, dad
 
 function corrigirUnidadeItensExtraviadosRemessas_() {
   try {
+    var cacheThrottle = CacheService.getScriptCache();
+    if (cacheThrottle && cacheThrottle.get("LOCK_CORRECAO_EXTRAVIADOS_HOJE")) return;
+    if (cacheThrottle) { try { cacheThrottle.put("LOCK_CORRECAO_EXTRAVIADOS_HOJE", "1", 21600); } catch(eThrottle){} }
+
     function limparSQL(t) { return String(t || '').replace(/'/g, "\\'"); }
 
     // 1. REGRA CRÍTICA: Material extraviado de distribuição sai de CINT e nunca deve constar em DLOG.
