@@ -19,6 +19,9 @@ var TABELA_ID = "tb_Inventario";
 var TABELA_CHAMADOS = "tb_Chamados";
 var TABELA_ARVORE = "tb_Arvore";
 var tabelaArvoreGarantida_ = false;
+var TABELA_CARGA_PADRAO = "tb_Carga_Padrao";
+var tabelaCargaPadraoGarantida_ = false;
+var ABA_CARGA_PADRAO = "Carga_Padrao_Setores";
 
 
 
@@ -2376,6 +2379,233 @@ function obterLocaisArvorePlanilhaFallback_(omePadrao) {
   }
 }
 
+
+// =========================================================================
+// GESTÃO CENTRALIZADA DA BASE DE CARGA PADRÃO / QUANTIDADE IDEAL (tb_Carga_Padrao)
+// =========================================================================
+
+function garantirTabelaCargaPadrao_() {
+  if (tabelaCargaPadraoGarantida_) return;
+  var cache = CacheService.getScriptCache();
+  if (cache && cache.get("BQ_TABELA_CARGA_PADRAO_OK")) {
+    tabelaCargaPadraoGarantida_ = true;
+    return;
+  }
+  try {
+    var sqlCreate = "CREATE TABLE IF NOT EXISTS `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_CARGA_PADRAO + "` (" +
+      "UNIDADE_OME STRING, " +
+      "SUBUNIDADE STRING, " +
+      "SETOR STRING, " +
+      "MATERIAL STRING, " +
+      "CARGA_PADRAO INT64, " +
+      "DATA_ATUALIZACAO STRING, " +
+      "RESPONSAVEL STRING" +
+    ")";
+    executarEscritaBigQuerySegura(sqlCreate);
+    tabelaCargaPadraoGarantida_ = true;
+    if (cache) {
+      try { cache.put("BQ_TABELA_CARGA_PADRAO_OK", "1", 21600); } catch(eC) {}
+    }
+  } catch (err) {
+    console.warn("Aviso ao garantir estrutura da tabela de carga padrão no banco: " + err.message);
+  }
+}
+
+// Migra todas as cotas da aba Carga_Padrao_Setores da planilha auxiliar para a base centralizada
+function migrarCargaPadraoPlanilhaParaBanco() {
+  try {
+    garantirTabelaCargaPadrao_();
+    var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
+    var sheet = ss.getSheetByName(ABA_CARGA_PADRAO || "Carga_Padrao_Setores");
+    if (!sheet || sheet.getLastRow() <= 1) {
+      return { sucesso: true, mensagem: "Nenhuma carga padrão na planilha para migrar.", migrados: 0, total: 0 };
+    }
+
+    var sqlExistentes = "SELECT UPPER(TRIM(UNIDADE_OME)), UPPER(TRIM(SUBUNIDADE)), UPPER(TRIM(SETOR)), UPPER(TRIM(MATERIAL)) FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_CARGA_PADRAO + "`";
+    var resExistentes = null;
+    var setExistentes = {};
+    try {
+      resExistentes = executarConsultaBigQuerySegura(sqlExistentes);
+      if (resExistentes && resExistentes.rows) {
+        resExistentes.rows.forEach(function(r) {
+          if (r.f) {
+            var o = String(r.f[0] && r.f[0].v ? r.f[0].v : "").trim();
+            var s = String(r.f[1] && r.f[1].v ? r.f[1].v : "").trim();
+            var set = String(r.f[2] && r.f[2].v ? r.f[2].v : "").trim();
+            var m = String(r.f[3] && r.f[3].v ? r.f[3].v : "").trim();
+            var chave = o + "___" + s + "___" + set + "___" + m;
+            setExistentes[chave] = true;
+          }
+        });
+      }
+    } catch(eCheck) {}
+
+    var dados = sheet.getDataRange().getValues();
+    var linhasParaInserir = [];
+    var totalPlanilha = 0;
+
+    for (var i = 1; i < dados.length; i++) {
+      var row = dados[i];
+      var omeLoc = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(row[0]) : String(row[0] || "").trim();
+      var subLoc = String(row[1] || "SEDE").trim();
+      var setLoc = String(row[2] || "Geral").trim();
+      var matLoc = String(row[3] || "").trim();
+      var cargaNum = Math.max(0, parseInt(row[4], 10) || 0);
+      var dataAtu = String(row[5] || "").trim() || Utilities.formatDate(new Date(), "America/Recife", "dd/MM/yyyy HH:mm:ss");
+      var respLoc = String(row[6] || "").trim() || "Sistema";
+
+      if (!omeLoc || !matLoc) continue;
+      totalPlanilha++;
+
+      var chaveCheck = omeLoc.toUpperCase() + "___" + subLoc.toUpperCase() + "___" + setLoc.toUpperCase() + "___" + matLoc.toUpperCase();
+      if (setExistentes[chaveCheck]) continue;
+      setExistentes[chaveCheck] = true;
+
+      linhasParaInserir.push("(" +
+        sqlLiteralChamado_(omeLoc) + ", " +
+        sqlLiteralChamado_(subLoc) + ", " +
+        sqlLiteralChamado_(setLoc) + ", " +
+        sqlLiteralChamado_(matLoc) + ", " +
+        cargaNum + ", " +
+        sqlLiteralChamado_(dataAtu) + ", " +
+        sqlLiteralChamado_(respLoc) +
+      ")");
+    }
+
+    if (linhasParaInserir.length === 0) {
+      return { 
+        sucesso: true, 
+        mensagem: "Todas as cargas padrão da planilha (" + totalPlanilha + ") já constam na base centralizada.",
+        migrados: 0,
+        total: totalPlanilha
+      };
+    }
+
+    var tamanhoLote = 100;
+    for (var b = 0; b < linhasParaInserir.length; b += tamanhoLote) {
+      var lote = linhasParaInserir.slice(b, b + tamanhoLote);
+      var sqlBatch = "INSERT INTO `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_CARGA_PADRAO + "` (" +
+        "UNIDADE_OME, SUBUNIDADE, SETOR, MATERIAL, CARGA_PADRAO, DATA_ATUALIZACAO, RESPONSAVEL" +
+      ") VALUES " + lote.join(", ");
+      executarEscritaBigQuerySegura(sqlBatch);
+    }
+
+    return {
+      sucesso: true,
+      mensagem: "Migração de Carga Padrão concluída: " + linhasParaInserir.length + " registros importados com sucesso para a base centralizada.",
+      migrados: linhasParaInserir.length,
+      total: totalPlanilha
+    };
+  } catch (err) {
+    console.error("Erro na migração de Carga Padrão: " + err.message);
+    return { sucesso: false, erro: err.message };
+  }
+}
+
+// Obtém as Cargas Padrão da base centralizada (com fallback para planilha auxiliar)
+function obterCargasPadraoBanco_(unidadeOme) {
+  garantirTabelaCargaPadrao_();
+  var omePadrao = unidadeOme ? ((typeof obterOmePadronizada === 'function') ? obterOmePadronizada(unidadeOme) : String(unidadeOme).trim()) : "";
+
+  try {
+    var sql = "SELECT UNIDADE_OME, SUBUNIDADE, SETOR, MATERIAL, CARGA_PADRAO, DATA_ATUALIZACAO, RESPONSAVEL FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_CARGA_PADRAO + "`";
+    if (omePadrao && omePadrao.toUpperCase() !== "TODAS" && omePadrao.toUpperCase() !== "TODAS AS OMES") {
+      var inSql = (typeof obterVariacoesOmeParaSql_ === 'function') 
+        ? obterVariacoesOmeParaSql_(omePadrao) 
+        : ("'" + limparSQLChamado_(omePadrao.toUpperCase()) + "'");
+      sql += " WHERE UPPER(TRIM(UNIDADE_OME)) IN (" + inSql + ")";
+    }
+
+    var res = executarConsultaBigQuerySegura(sql);
+    if (res && res.rows) {
+      // Se não encontrou registros, verifica se a tabela inteira está vazia e faz auto-migração
+      if (res.rows.length === 0) {
+        try {
+          var checkCount = executarConsultaBigQuerySegura("SELECT COUNT(1) as total FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_CARGA_PADRAO + "`");
+          if (checkCount && checkCount.rows && parseInt(checkCount.rows[0].f[0].v, 10) === 0) {
+            var mig = migrarCargaPadraoPlanilhaParaBanco();
+            if (mig && mig.migrados > 0) {
+              res = executarConsultaBigQuerySegura(sql);
+            }
+          }
+        } catch(eAutoMig) {}
+      }
+
+      var lista = [];
+      var rows = (res && res.rows) ? res.rows : [];
+      for (var i = 0; i < rows.length; i++) {
+        var f = rows[i].f || [];
+        var ome = String(f[0] && f[0].v ? f[0].v : "").trim();
+        var sub = String(f[1] && f[1].v ? f[1].v : "SEDE").trim();
+        var set = String(f[2] && f[2].v ? f[2].v : "Geral").trim();
+        var mat = String(f[3] && f[3].v ? f[3].v : "").trim();
+        var carga = parseInt(f[4] && f[4].v ? f[4].v : 0, 10) || 0;
+        var dataAtu = String(f[5] && f[5].v ? f[5].v : "").trim();
+        var resp = String(f[6] && f[6].v ? f[6].v : "").trim();
+
+        if (ome && mat) {
+          lista.push({
+            ome: (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(ome) : ome,
+            subunidade: sub,
+            setor: set,
+            material: mat,
+            cargaPadrao: carga,
+            dataAtualizacao: dataAtu,
+            responsavel: resp
+          });
+        }
+      }
+      if (lista.length > 0 || (res && res.rows && res.rows.length === 0)) {
+        return lista;
+      }
+    }
+  } catch (errBq) {
+    console.warn("Aviso na leitura de Cargas Padrão no BigQuery: " + errBq.message);
+  }
+
+  return obterCargasPadraoPlanilhaFallback_(omePadrao);
+}
+
+function obterCargasPadraoPlanilhaFallback_(omePadrao) {
+  try {
+    var ssAux = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
+    var sheetCargas = ssAux.getSheetByName(ABA_CARGA_PADRAO || "Carga_Padrao_Setores");
+    if (!sheetCargas || sheetCargas.getLastRow() <= 1) return [];
+
+    var dadosCargas = sheetCargas.getRange(2, 1, sheetCargas.getLastRow() - 1, 7).getValues();
+    var lista = [];
+    var omeFiltroUpper = (omePadrao && omePadrao.toUpperCase() !== "TODAS") ? omePadrao.toUpperCase() : "";
+
+    for (var i = 0; i < dadosCargas.length; i++) {
+      var row = dadosCargas[i];
+      var cOme = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(row[0]) : String(row[0] || "").trim();
+      var cSub = String(row[1] || "SEDE").trim();
+      var cSet = String(row[2] || "Geral").trim();
+      var cMat = String(row[3] || "").trim();
+      var cVal = parseInt(row[4], 10) || 0;
+      var cData = String(row[5] || "").trim();
+      var cResp = String(row[6] || "").trim();
+
+      if (!cOme || !cMat) continue;
+      if (omeFiltroUpper && cOme.toUpperCase() !== omeFiltroUpper) continue;
+
+      lista.push({
+        ome: cOme,
+        subunidade: cSub,
+        setor: cSet,
+        material: cMat,
+        cargaPadrao: cVal,
+        dataAtualizacao: cData,
+        responsavel: cResp
+      });
+    }
+    return lista;
+  } catch(e) {
+    return [];
+  }
+}
+
+
 function getArvoreLocais(unidadeOmega) {
   try {
     var omePadrao = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(unidadeOmega) : String(unidadeOmega || "").trim();
@@ -4691,37 +4921,32 @@ function getResumoArvoreArmazenamento(unidadeOme) {
       return String(str || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
     };
 
-    // 2. Lê Cargas Padrão da planilha auxiliar (Aba Carga_Padrao_Setores)
+    // 2. Lê Cargas Padrão da base centralizada (BigQuery tb_Carga_Padrao)
     var mapaCargas = {};
     var listaCargasPorSetor = {};
     try {
-      var ssAux = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
-      var sheetCargas = ssAux.getSheetByName("Carga_Padrao_Setores");
-      if (!sheetCargas) {
-        sheetCargas = ssAux.insertSheet("Carga_Padrao_Setores");
-        sheetCargas.appendRow(["UNIDADE_OME", "SUBUNIDADE", "SETOR", "MATERIAL", "CARGA_PADRAO", "DATA_ATUALIZACAO", "RESPONSAVEL"]);
-      } else if (sheetCargas.getLastRow() > 1) {
-        var dadosCargas = sheetCargas.getRange(2, 1, sheetCargas.getLastRow() - 1, 5).getValues();
-        dadosCargas.forEach(function(cRow) {
-          var cOme = norm(cRow[0]);
-          var cSub = norm(cRow[1]);
-          var cSet = norm(cRow[2]);
-          var cMat = norm(cRow[3]);
-          var cVal = parseInt(cRow[4], 10) || 0;
+      var dadosCargas = (typeof obterCargasPadraoBanco_ === 'function') 
+        ? obterCargasPadraoBanco_(omePadrao) 
+        : [];
+      dadosCargas.forEach(function(cRow) {
+        var cOme = norm(cRow.ome);
+        var cSub = norm(cRow.subunidade);
+        var cSet = norm(cRow.setor);
+        var cMat = norm(cRow.material);
+        var cVal = parseInt(cRow.cargaPadrao, 10) || 0;
 
-          var chave = cOme + "___" + cSub + "___" + cSet + "___" + cMat;
-          mapaCargas[chave] = cVal;
+        var chave = cOme + "___" + cSub + "___" + cSet + "___" + cMat;
+        mapaCargas[chave] = cVal;
 
-          var setorChave = cOme + "___" + cSub + "___" + cSet;
-          if (!listaCargasPorSetor[setorChave]) listaCargasPorSetor[setorChave] = [];
-          listaCargasPorSetor[setorChave].push({
-            material: String(cRow[3] || "").trim(),
-            carga: cVal
-          });
+        var setorChave = cOme + "___" + cSub + "___" + cSet;
+        if (!listaCargasPorSetor[setorChave]) listaCargasPorSetor[setorChave] = [];
+        listaCargasPorSetor[setorChave].push({
+          material: String(cRow.material || "").trim(),
+          carga: cVal
         });
-      }
+      });
     } catch (eCarg) {
-      console.warn("Aviso ao ler Carga_Padrao_Setores: " + eCarg.message);
+      console.warn("Aviso ao ler tb_Carga_Padrao no resumo da árvore: " + eCarg.message);
     }
 
     // 3. Consulta BigQuery com agrupamento por Subunidade, Setor e Objeto
@@ -5372,44 +5597,79 @@ function salvarCargaPadraoSetor(unidadeOme, subunidade, setor, material, novaCar
 
     if (!matPadrao) throw new Error("Material não especificado.");
 
-    var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
-    var sheet = ss.getSheetByName("Carga_Padrao_Setores");
-    if (!sheet) {
-      sheet = ss.insertSheet("Carga_Padrao_Setores");
-      sheet.appendRow(["UNIDADE_OME", "SUBUNIDADE", "SETOR", "MATERIAL", "CARGA_PADRAO", "DATA_ATUALIZACAO", "RESPONSAVEL"]);
-    }
+    garantirTabelaCargaPadrao_();
 
     var dataAtual = Utilities.formatDate(new Date(), "America/Recife", "dd/MM/yyyy HH:mm:ss");
     var nomeResponsavel = (dadosUser && dadosUser.nome) ? dadosUser.nome : ((usuarioCliente && usuarioCliente.nome) ? usuarioCliente.nome : "Administrador");
 
-    var norm = function(str) {
-      return String(str || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-    };
+    // 1. Grava diretamente na base centralizada (BigQuery tb_Carga_Padrao)
+    try {
+      var sqlDel = "DELETE FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_CARGA_PADRAO + "` " +
+                   "WHERE UPPER(TRIM(UNIDADE_OME)) = '" + limparSQLChamado_(omePadrao.toUpperCase()) + "' " +
+                   "  AND UPPER(TRIM(SUBUNIDADE)) = '" + limparSQLChamado_(subPadrao.toUpperCase()) + "' " +
+                   "  AND UPPER(TRIM(SETOR)) = '" + limparSQLChamado_(setPadrao.toUpperCase()) + "' " +
+                   "  AND UPPER(TRIM(MATERIAL)) = '" + limparSQLChamado_(matPadrao.toUpperCase()) + "'";
+      executarEscritaBigQuerySegura(sqlDel);
 
-    var dados = sheet.getDataRange().getValues();
-    var linhaExistente = -1;
-
-    for (var i = 1; i < dados.length; i++) {
-      var oRow = norm(dados[i][0]);
-      var sRow = norm(dados[i][1]);
-      var setRow = norm(dados[i][2]);
-      var mRow = norm(dados[i][3]);
-
-      if (oRow === norm(omePadrao) && sRow === norm(subPadrao) && setRow === norm(setPadrao) && mRow === norm(matPadrao)) {
-        linhaExistente = i + 1;
-        break;
+      if (cargaNum > 0) {
+        var sqlIns = "INSERT INTO `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_CARGA_PADRAO + "` " +
+                     "(UNIDADE_OME, SUBUNIDADE, SETOR, MATERIAL, CARGA_PADRAO, DATA_ATUALIZACAO, RESPONSAVEL) VALUES (" +
+                     sqlLiteralChamado_(omePadrao) + ", " +
+                     sqlLiteralChamado_(subPadrao) + ", " +
+                     sqlLiteralChamado_(setPadrao) + ", " +
+                     sqlLiteralChamado_(matPadrao) + ", " +
+                     cargaNum + ", " +
+                     sqlLiteralChamado_(dataAtual) + ", " +
+                     sqlLiteralChamado_(nomeResponsavel) + ")";
+        executarEscritaBigQuerySegura(sqlIns);
       }
+    } catch(eBqCg) {
+      console.warn("Aviso ao salvar carga padrão no BigQuery: " + eBqCg.message);
     }
 
-    if (linhaExistente !== -1) {
-      sheet.getRange(linhaExistente, 5).setValue(cargaNum);
-      sheet.getRange(linhaExistente, 6).setValue(dataAtual);
-      sheet.getRange(linhaExistente, 7).setValue(nomeResponsavel);
-    } else {
-      sheet.appendRow([omePadrao, subPadrao, setPadrao, matPadrao, cargaNum, dataAtual, nomeResponsavel]);
-    }
+    // 2. Grava na planilha auxiliar para redundância/backup
+    try {
+      var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
+      var sheet = ss.getSheetByName(ABA_CARGA_PADRAO || "Carga_Padrao_Setores");
+      if (!sheet) {
+        sheet = ss.insertSheet(ABA_CARGA_PADRAO || "Carga_Padrao_Setores");
+        sheet.appendRow(["UNIDADE_OME", "SUBUNIDADE", "SETOR", "MATERIAL", "CARGA_PADRAO", "DATA_ATUALIZACAO", "RESPONSAVEL"]);
+      }
+      var norm = function(str) {
+        return String(str || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+      };
+      var dados = sheet.getDataRange().getValues();
+      var linhaExistente = -1;
+      for (var i = 1; i < dados.length; i++) {
+        var oRow = norm(dados[i][0]);
+        var sRow = norm(dados[i][1]);
+        var setRow = norm(dados[i][2]);
+        var mRow = norm(dados[i][3]);
+        if (oRow === norm(omePadrao) && sRow === norm(subPadrao) && setRow === norm(setPadrao) && mRow === norm(matPadrao)) {
+          linhaExistente = i + 1;
+          break;
+        }
+      }
+      if (linhaExistente !== -1) {
+        sheet.getRange(linhaExistente, 5).setValue(cargaNum);
+        sheet.getRange(linhaExistente, 6).setValue(dataAtual);
+        sheet.getRange(linhaExistente, 7).setValue(nomeResponsavel);
+      } else if (cargaNum > 0) {
+        sheet.appendRow([omePadrao, subPadrao, setPadrao, matPadrao, cargaNum, dataAtual, nomeResponsavel]);
+      }
+    } catch(eSheetCg) {}
 
-    SpreadsheetApp.flush();
+    // Invalida caches pertinentes
+    if (typeof invalidarCacheArmazenamentoOme_ === 'function') {
+      invalidarCacheArmazenamentoOme_(omePadrao);
+    }
+    try {
+      var cache = CacheService.getScriptCache();
+      if (cache) {
+        cache.remove("CACHE_EXTRAVIADOS_GERAL_" + omePadrao.toUpperCase().replace(/[^A-Z0-9]/g, "_"));
+        cache.remove("CACHE_EXTRAVIADOS_GERAL_TODAS");
+      }
+    } catch(eCr) {}
 
     try {
       registrarLogAuditoria("CARGA_PADRAO", "Definiu quantidade ideal de " + cargaNum + " un(s) para " + matPadrao + " em " + omePadrao + " > " + subPadrao + " > " + setPadrao, dadosUser);
@@ -5428,10 +5688,6 @@ function salvarCargaPadraoSetor(unidadeOme, subunidade, setor, material, novaCar
     return { sucesso: false, erro: err.message };
   }
 }
-
-// =========================================================================
-// RESUMO DE MATERIAIS EXTRAVIADOS (PARA VISÃO GERAL DO ADMINISTRADOR / CHEFE)
-// =========================================================================
 
 function getResumoMateriaisExtraviadosGeral(unidadeOme) {
   try {
@@ -5467,26 +5723,26 @@ function getResumoMateriaisExtraviadosGeral(unidadeOme) {
       return String(t || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Z0-9]/g, '');
     };
 
-    // 1. Lê Cargas Padrão da planilha auxiliar (Aba Carga_Padrao_Setores)
-    var ssAux = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
-    var sheetCargas = ssAux.getSheetByName("Carga_Padrao_Setores");
-    if (!sheetCargas || sheetCargas.getLastRow() <= 1) {
+    // 1. Lê Cargas Padrão da base centralizada (BigQuery tb_Carga_Padrao)
+    var dadosCargas = (typeof obterCargasPadraoBanco_ === 'function') 
+      ? obterCargasPadraoBanco_(omeFiltroNorm) 
+      : [];
+    if (!dadosCargas || dadosCargas.length === 0) {
       return { sucesso: true, itens: [], totalExtraviados: 0, totalItensAfetados: 0, totalOmesAfetadas: 0 };
     }
 
-    var dadosCargas = sheetCargas.getRange(2, 1, sheetCargas.getLastRow() - 1, 7).getValues();
     var cotasConfiguradas = [];
     var omesSet = {};
     var materiaisSet = {};
 
     dadosCargas.forEach(function(row) {
-      var cOme = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(row[0]) : String(row[0] || '').trim();
-      var cSub = String(row[1] || 'SEDE').trim();
-      var cSet = String(row[2] || 'Geral').trim();
-      var cMat = String(row[3] || '').trim();
-      var cVal = parseInt(row[4], 10) || 0;
-      var cData = String(row[5] || '').trim();
-      var cResp = String(row[6] || '').trim();
+      var cOme = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(row.ome) : String(row.ome || '').trim();
+      var cSub = String(row.subunidade || 'SEDE').trim();
+      var cSet = String(row.setor || 'Geral').trim();
+      var cMat = String(row.material || '').trim();
+      var cVal = parseInt(row.cargaPadrao, 10) || 0;
+      var cData = String(row.dataAtualizacao || '').trim();
+      var cResp = String(row.responsavel || '').trim();
 
       if (!cOme || !cMat || cVal <= 0) return;
 
@@ -19638,24 +19894,21 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao, omeCliente, perfilClie
     var catDados = obterMapaCatalogoClasses_(forcarAtualizacao);
     var mapaCat = catDados.mapa || {};
 
-    // 2. Lê Cargas Padrão (Quantidade Ideal) da planilha auxiliar (Aba Carga_Padrao_Setores)
+    // 2. Lê Cargas Padrão (Quantidade Ideal) da base centralizada (BigQuery tb_Carga_Padrao)
     var mapaCargas = {}; // chave: "OME___MATERIAIS_NORM" -> soma das cotas
     try {
-      var ssAux = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
-      var sheetCargas = ssAux.getSheetByName("Carga_Padrao_Setores");
-      if (sheetCargas && sheetCargas.getLastRow() > 1) {
-        var dadosCargas = sheetCargas.getRange(2, 1, sheetCargas.getLastRow() - 1, 5).getValues();
-        for (var c = 0; c < dadosCargas.length; c++) {
-          var cRow = dadosCargas[c];
-          var cOmeRaw = String(cRow[0] || '').trim();
-          var cOme = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(cOmeRaw) : cOmeRaw;
-          var cMat = String(cRow[3] || '').trim();
-          var cVal = parseInt(cRow[4], 10) || 0;
-          if (!cOme || !cMat || cVal <= 0) continue;
-          
-          var normOmeMat = (cOme || '').toUpperCase() + "___" + (cMat || '').toUpperCase();
-          mapaCargas[normOmeMat] = (mapaCargas[normOmeMat] || 0) + cVal;
-        }
+      var dadosCargas = (typeof obterCargasPadraoBanco_ === 'function')
+        ? obterCargasPadraoBanco_(ehAdmin ? "" : omeUsuario)
+        : [];
+      for (var c = 0; c < dadosCargas.length; c++) {
+        var cRow = dadosCargas[c];
+        var cOme = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(cRow.ome) : String(cRow.ome || '').trim();
+        var cMat = String(cRow.material || '').trim();
+        var cVal = parseInt(cRow.cargaPadrao, 10) || 0;
+        if (!cOme || !cMat || cVal <= 0) continue;
+        
+        var normOmeMat = (cOme || '').toUpperCase() + "___" + (cMat || '').toUpperCase();
+        mapaCargas[normOmeMat] = (mapaCargas[normOmeMat] || 0) + cVal;
       }
     } catch (eCarg) {
       console.warn("Aviso ao ler Cargas Padrão no Dashboard: " + eCarg.message);
