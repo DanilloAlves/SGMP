@@ -13062,6 +13062,61 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
     carregarDadosTabelaBaseAdmin();
   }
 
+  window.formatarLinkSeiRobo = function(numeroSei) {
+    if (!numeroSei || numeroSei === '-' || numeroSei === 'Sem SEI' || numeroSei === 'N/I') {
+      return 'SEI: -';
+    }
+    const cleanSei = String(numeroSei).trim();
+    return `SEI: <a href="javascript:void(0)" onclick="abrirProcessoSeiRobo('${cleanSei}')" class="text-primary text-decoration-none fw-bold" style="cursor: pointer;" title="Clique para abrir este processo no SEI via Robô">${cleanSei} <i class="fa-solid fa-arrow-up-right-from-square ms-1" style="font-size: 0.72rem;"></i></a>`;
+  };
+
+  window.abrirProcessoSeiRobo = function(numeroSei) {
+    if (!numeroSei || numeroSei === '-' || numeroSei === 'Sem SEI' || numeroSei === 'N/I') {
+      if (typeof Swal !== 'undefined') {
+        Swal.fire({
+          icon: 'warning',
+          title: 'Processo Não Informado',
+          text: 'Este item não possui um número de processo SEI vinculado.',
+          confirmButtonColor: '#0d6efd'
+        });
+      }
+      return;
+    }
+
+    const seiLimpo = String(numeroSei).trim();
+
+    if (typeof Swal !== 'undefined') {
+      Swal.fire({
+        title: 'Abrindo no SEI...',
+        html: `
+          <div class="text-center my-3">
+            <div class="spinner-border text-primary mb-3" role="status"></div>
+            <p class="fw-bold mb-1">Processo: <span class="font-monospace text-primary">${seiLimpo}</span></p>
+            <p class="small text-muted mb-0">O robô está autenticando no SEI e carregando o documento...</p>
+          </div>
+        `,
+        showConfirmButton: false,
+        timer: 3500,
+        timerProgressBar: true
+      });
+    }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 1200);
+
+    fetch('http://127.0.0.1:18888/abrir?sei=' + encodeURIComponent(seiLimpo), { signal: controller.signal })
+      .then(res => res.json())
+      .then(data => {
+        clearTimeout(timeoutId);
+        console.log('Robô SEI iniciado com sucesso via servidor local:', data);
+      })
+      .catch(() => {
+        clearTimeout(timeoutId);
+        console.log('Disparando protocolo Windows sgmp-sei://...');
+        window.location.href = 'sgmp-sei://' + encodeURIComponent(seiLimpo);
+      });
+  };
+
   function carregarDadosTabelaBaseAdmin(resetarPagina = true) {
     if (resetarPagina) paginaAtualBase = 1;
 
@@ -13129,7 +13184,7 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
               <td>${unidadeOficial || '-'}</td>
               <td><small>${localFormatado}</small></td> <!-- EXIBE O CAMINHO COMPLETO AQUI -->
               <td>${formatarBadgeStatusBase(r.status)}</td>
-              <td><small>PAT: ${r.nPatrimonio || '-'}<br>SEI: ${r.seiCompra || '-'}${badgeSerie}</small></td>
+              <td><small>PAT: ${r.nPatrimonio || '-'}<br>${formatarLinkSeiRobo(r.seiCompra)}${badgeSerie}</small></td>
               <td class="text-center text-nowrap">
                 <button class="btn btn-sm btn-outline-info py-0 px-2 me-1" title="Ver Histórico de Movimentações" onclick="abrirModalHistoricoItem('${r.item}')"><i class="fa-solid fa-clock-rotate-left"></i></button>
                 <button class="btn btn-sm btn-outline-primary py-0 px-2" title="Editar" onclick="abrirEdicaoLivre(${idx})"><i class="fa-solid fa-pen-to-square"></i></button>
@@ -13590,7 +13645,12 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
       let docHtml = '';
       let docRefVal = ev.documentoRef || ev.documento || '';
       if (docRefVal && docRefVal !== '-') {
-        docHtml = `<span class="ms-3"><i class="fa-solid fa-file-lines me-1 text-secondary"></i><strong>Ref:</strong> ${docRefVal}</span>`;
+        const cleanRef = String(docRefVal).trim();
+        const isProcessoSei = /^\d{7,10}\.\d{4,8}\/\d{4}-\d{2}$/.test(cleanRef) || cleanRef.toLowerCase().includes('3900000');
+        const docRefDisplay = isProcessoSei
+          ? `<a href="javascript:void(0)" onclick="abrirProcessoSeiRobo('${cleanRef}')" class="text-primary text-decoration-none fw-bold" title="Abrir processo no SEI via Robô">${cleanRef} <i class="fa-solid fa-arrow-up-right-from-square ms-1" style="font-size: 0.7rem;"></i></a>`
+          : docRefVal;
+        docHtml = `<span class="ms-3"><i class="fa-solid fa-file-lines me-1 text-secondary"></i><strong>Ref:</strong> ${docRefDisplay}</span>`;
       }
 
       let obsHtml = '';
@@ -13712,7 +13772,14 @@ function renderizarTimelineEmElemento(dados, ids) {
       let locTxt = partesLoc.length > 0 ? partesLoc.join(' > ') : 'Não informado';
       if (localAtual) localAtual.innerText = locTxt;
 
-      if (docSei) docSei.innerText = item.seiCompra || '-';
+      if (docSei) {
+        const valSei = item.seiCompra || '-';
+        if (valSei && valSei !== '-' && valSei !== 'Sem SEI') {
+          docSei.innerHTML = '<a href="javascript:void(0)" onclick="abrirProcessoSeiRobo(\'' + valSei + '\')" class="text-primary text-decoration-none fw-bold" title="Abrir processo no SEI via Robô">' + valSei + ' <i class="fa-solid fa-arrow-up-right-from-square ms-1" style="font-size: 0.72rem;"></i></a>';
+        } else {
+          docSei.innerText = '-';
+        }
+      }
 
       if (stAtual === 'ACAUTELADO' && item.nomeAcautelado) {
         if (respAtualCont) respAtualCont.style.display = 'block';
@@ -14014,7 +14081,7 @@ function renderizarTimelineEmElemento(dados, ids) {
           <td>${unidadeOficial || '-'}</td>
           <td><small>${localFormatado}</small></td>
           <td>${formatarBadgeStatusBase(r.status)}</td>
-          <td><small>PAT: ${r.nPatrimonio || '-'}<br>SEI: ${r.seiCompra || '-'}${badgeSerie}</small></td>
+          <td><small>PAT: ${r.nPatrimonio || '-'}<br>${formatarLinkSeiRobo(r.seiCompra)}${badgeSerie}</small></td>
           <td class="text-center text-nowrap">
             <button class="btn btn-sm btn-outline-info py-0 px-2 me-1" title="Ver Histórico de Movimentações" onclick="abrirModalHistoricoItem('${r.item}')"><i class="fa-solid fa-clock-rotate-left"></i></button>
             <button class="btn btn-sm btn-outline-primary py-0 px-2" title="Editar" onclick="abrirEdicaoLivre(${idx})"><i class="fa-solid fa-pen-to-square"></i></button>
