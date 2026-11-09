@@ -4320,11 +4320,15 @@
                   <i class="fa-solid fa-tags me-2"></i> Identificação e Classificação
                 </h6>
                 <div class="row g-2">
-                  <div class="col-md-7">
+                  <div class="col-md-2">
+                    <label class="form-label small fw-bold mb-1"><i class="fa-solid fa-hashtag text-primary me-1"></i>Nº Cadastro Itens:</label>
+                    <input type="text" id="cadItens_inputNumeroCadastro" class="form-control form-control-sm fw-bold text-primary border-primary border-opacity-50" placeholder="EX: #726">
+                  </div>
+                  <div class="col-md-6">
                     <label class="form-label small fw-bold mb-1">Nome do Material (OBJETO RESUMIDO) <span class="text-danger">*</span>:</label>
                     <input type="text" id="cadItens_inputObjetoResumido" class="form-control form-control-sm text-uppercase fw-bold border-primary" placeholder="EX: BOTA TÁTICA DE COMBATE A INCÊNDIO..." required>
                   </div>
-                  <div class="col-md-3">
+                  <div class="col-md-2">
                     <label class="form-label small fw-bold mb-1">Código E-FISCO:</label>
                     <input type="text" id="cadItens_inputEFisco" class="form-control form-control-sm text-uppercase" placeholder="EX: 123456-7">
                   </div>
@@ -29224,6 +29228,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     const selMat = document.getElementById('selectGerencCadItensMaterial');
     if (selMat && selMat.value !== val) selMat.value = val;
 
+    const inputNumCad = document.getElementById('cadItens_inputNumeroCadastro');
     const inputNome = document.getElementById('cadItens_inputObjetoResumido');
     const inputEFisco = document.getElementById('cadItens_inputEFisco');
     const selConsumo = document.getElementById('cadItens_inputConsumo');
@@ -29253,6 +29258,9 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       }
       if (btnSalvar) btnSalvar.innerHTML = '<i class="fa-solid fa-plus me-1"></i> Cadastrar Material';
 
+      if (inputNumCad) {
+        inputNumCad.value = (cacheDadosCadItens && cacheDadosCadItens.proximoNumeroCadastro) ? cacheDadosCadItens.proximoNumeroCadastro : '';
+      }
       if (inputNome) { inputNome.value = ''; inputNome.focus(); }
       if (inputEFisco) inputEFisco.value = '';
       if (selConsumo) selConsumo.value = 'NÃO';
@@ -29297,6 +29305,12 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       return '';
     }
 
+    if (inputNumCad) {
+      inputNumCad.value = buscarValor(k => k.includes('CADASTRO') && (k.includes('ITEN') || k.includes('NUM') || k.includes('Nº') || k.includes('NO')));
+      if (!inputNumCad.value && cacheDadosCadItens && cacheDadosCadItens.colNumCadNome) {
+        inputNumCad.value = campos[cacheDadosCadItens.colNumCadNome] || '';
+      }
+    }
     if (inputNome) inputNome.value = mat.nome;
     if (inputEFisco) inputEFisco.value = buscarValor(k => k.includes('FISCO'));
     
@@ -29335,6 +29349,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
 
     const colunasPadraoNorm = [
       'OBJETO', 'MATERIAL', 'DESCRI', 'FISCO', 'CLASSE 1', 'CLASSE 2', 'CLASSE 3', 'CONSUMO',
+      'CADASTRO',
       'MARCA 1', 'MARCA 2', 'MARCA 3', 'MODELO 1', 'MODELO 2', 'MODELO 3',
       'FORNECEDOR 1', 'FORNECEDOR 2', 'FORNECEDOR 3',
       'CONTATO',
@@ -29390,6 +29405,11 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       }
     }
 
+    const valNumCad = (document.getElementById('cadItens_inputNumeroCadastro')?.value || '').trim();
+    if (cacheDadosCadItens && cacheDadosCadItens.colNumCadNome && valNumCad) {
+      mapaCampos[cacheDadosCadItens.colNumCadNome] = valNumCad;
+    }
+    atribuirSeColunaExiste(n => n.includes('CADASTRO') && (n.includes('ITEN') || n.includes('NUM') || n.includes('Nº') || n.includes('NO') || n === 'CADASTRO'), valNumCad);
     atribuirSeColunaExiste(n => n.includes('FISCO'), (document.getElementById('cadItens_inputEFisco')?.value || '').trim());
     atribuirSeColunaExiste(n => n === 'CONSUMO' || n.includes('CONSUMO'), document.getElementById('cadItens_inputConsumo')?.value || 'NÃO');
     atribuirSeColunaExiste(n => n === 'CLASSE 1' || (n.includes('CLASSE 1') && !n.includes('2') && !n.includes('3')), (document.getElementById('cadItens_inputClasse1')?.value || '').trim().toUpperCase());

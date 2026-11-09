@@ -20545,7 +20545,55 @@ function obterDadosGerenciamentoCadItens(usuarioCliente) {
       });
     }
 
-    if (colMatIdx === -1) colMatIdx = 2; // Coluna C por padrão
+    if (colMatIdx === -1) colMatIdx = 2; // Coluna C por padrão (índice 2)
+
+    // Identifica coluna de Nº CADASTRO ITENS (padrão: Coluna B, índice 1)
+    var colNumCadIdx = -1;
+    for (var cB = 0; cB < cabecalho.length; cB++) {
+      var hNormB = String(cabecalho[cB] || "").trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      if (hNormB.includes("CADASTRO") && (hNormB.includes("ITEN") || hNormB.includes("ITEM") || hNormB.includes("NUMERO") || hNormB.includes("Nº") || hNormB.includes("NO"))) {
+        colNumCadIdx = cB;
+        break;
+      }
+    }
+    if (colNumCadIdx === -1 && cabecalho.length > 1) {
+      colNumCadIdx = 1; // Coluna B por padrão
+    }
+    var colNumCadNome = (colNumCadIdx !== -1 && cabecalho[colNumCadIdx]) ? String(cabecalho[colNumCadIdx]).trim() : "Nº CADASTRO ITENS";
+
+    // Cálculo do próximo Nº CADASTRO ITENS:
+    // Regra oficial: vai até a última linha preenchida da coluna C ("OBJETO RESUMIDO").
+    // Retorna o valor da coluna B da linha subsequente (se houver, ex: #726).
+    // Se estiver vazio, pega o valor da coluna B da última linha preenchida (ex: #725) e calcula o posterior (#726).
+    var maxLinhasAba = abaCad.getMaxRows();
+    var linhasParaLer = Math.min(Math.max(lastRow + 20, 60), maxLinhasAba - dataStartRow + 1);
+    var colBIdx1Based = colNumCadIdx + 1;
+    var colCIdx1Based = colMatIdx + 1;
+
+    var dadosColB = abaCad.getRange(dataStartRow, colBIdx1Based, linhasParaLer, 1).getValues();
+    var dadosColC = abaCad.getRange(dataStartRow, colCIdx1Based, linhasParaLer, 1).getValues();
+
+    var ultimaLinhaComObjetoIdx = -1;
+    var ultimoValorColB = "";
+
+    for (var rBC = 0; rBC < dadosColC.length; rBC++) {
+      var valC = String(dadosColC[rBC][0] || "").trim();
+      if (valC !== "") {
+        ultimaLinhaComObjetoIdx = rBC;
+        var valB = String(dadosColB[rBC][0] || "").trim();
+        if (valB !== "") {
+          ultimoValorColB = valB;
+        }
+      }
+    }
+
+    var valorLinhaSubsequente = "";
+    if (ultimaLinhaComObjetoIdx !== -1 && (ultimaLinhaComObjetoIdx + 1) < dadosColB.length) {
+      valorLinhaSubsequente = String(dadosColB[ultimaLinhaComObjetoIdx + 1][0] || "").trim();
+    }
+
+    var proximoNumCadastro = valorLinhaSubsequente || calcularProximoNumeroCadastro_(ultimoValorColB);
+    var proximaLinhaDisponivel = (ultimaLinhaComObjetoIdx !== -1) ? (dataStartRow + ultimaLinhaComObjetoIdx + 1) : dataStartRow;
 
     var numLinhas = lastRow - (dataStartRow - 1);
     var materiais = [];
@@ -20630,6 +20678,10 @@ function obterDadosGerenciamentoCadItens(usuarioCliente) {
       colunas: colunas,
       colObjetoIndex: colMatIdx + 1,
       colObjetoNome: cabecalho[colMatIdx] || "OBJETO RESUMIDO",
+      colNumCadIndex: colNumCadIdx + 1,
+      colNumCadNome: colNumCadNome,
+      proximoNumeroCadastro: proximoNumCadastro,
+      proximaLinhaDisponivel: proximaLinhaDisponivel,
       materiais: materiais,
       classes1: Object.keys(setsClasses.classe1).sort(),
       classes2: Object.keys(setsClasses.classe2).sort(),
@@ -20646,6 +20698,35 @@ function obterDadosGerenciamentoCadItens(usuarioCliente) {
     console.error("Erro em obterDadosGerenciamentoCadItens: " + err.message);
     return { sucesso: false, erro: err.message };
   }
+}
+
+/**
+ * Calcula o próximo número de cadastro baseado no último preenchido (ex: #725 -> #726).
+ */
+function calcularProximoNumeroCadastro_(valBase) {
+  if (!valBase) return "#1";
+  var str = String(valBase).trim();
+  var match = str.match(/^(.*?)(-?\d+)([^\d]*)$/);
+  if (match) {
+    var prefix = match[1];
+    var num = parseInt(match[2], 10);
+    var suffix = match[3];
+    var nextNum = num + 1;
+    var lenDigitos = match[2].length;
+    var nextNumStr = String(nextNum);
+    if (lenDigitos > nextNumStr.length && match[2].charAt(0) === '0') {
+      while (nextNumStr.length < lenDigitos) {
+        nextNumStr = '0' + nextNumStr;
+      }
+    }
+    return prefix + nextNumStr + suffix;
+  }
+  var apenasNum = str.replace(/\D/g, "");
+  if (apenasNum) {
+    var n = parseInt(apenasNum, 10) + 1;
+    return (str.indexOf("#") !== -1 ? "#" : "") + n;
+  }
+  return "#1";
 }
 
 /**
