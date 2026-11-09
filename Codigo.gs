@@ -2220,7 +2220,7 @@ function carregarDadosArmazenamentoCompleto(unidadeOmega, forcarAtualizacao) {
 function garantirTabelaArvore_() {
   if (tabelaArvoreGarantida_) return;
   var cache = CacheService.getScriptCache();
-  if (cache && cache.get("BQ_TABELA_ARVORE_OK")) {
+  if (cache && cache.get("BQ_TABELA_ARVORE_OK_V3")) {
     tabelaArvoreGarantida_ = true;
     return;
   }
@@ -2229,12 +2229,19 @@ function garantirTabelaArvore_() {
       "ID_Local STRING, " +
       "Unidade_OME STRING, " +
       "Nome_Local STRING, " +
-      "ID_Pai STRING" +
+      "ID_Pai STRING, " +
+      "Ordem INT64" +
     ")";
     executarEscritaBigQuerySegura(sqlCreate);
+
+    try {
+      var sqlAlter = "ALTER TABLE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` ADD COLUMN IF NOT EXISTS Ordem INT64";
+      executarEscritaBigQuerySegura(sqlAlter);
+    } catch(eAlt) {}
+
     tabelaArvoreGarantida_ = true;
     if (cache) {
-      try { cache.put("BQ_TABELA_ARVORE_OK", "1", 21600); } catch(eC) {}
+      try { cache.put("BQ_TABELA_ARVORE_OK_V3", "1", 21600); } catch(eC) {}
     }
   } catch (err) {
     console.warn("Aviso ao garantir estrutura da tabela de árvore no banco: " + err.message);
@@ -2325,15 +2332,25 @@ function obterLocaisArvoreGeral_(unidadeOmega) {
   var omePadrao = unidadeOmega ? (typeof obterOmePadronizada === 'function' ? obterOmePadronizada(unidadeOmega) : unidadeOmega) : "";
   
   try {
-    var sql = "SELECT ID_Local, Unidade_OME, Nome_Local, ID_Pai FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "`";
-    if (omePadrao) {
-      var inSql = (typeof obterVariacoesOmeParaSql_ === 'function') 
-        ? obterVariacoesOmeParaSql_(omePadrao) 
-        : ("'" + limparSQLChamado_(omePadrao.toUpperCase()) + "'");
-      sql += " WHERE UPPER(TRIM(Unidade_OME)) IN (" + inSql + ")";
-    }
+    var inSql = omePadrao ? ((typeof obterVariacoesOmeParaSql_ === 'function') 
+      ? obterVariacoesOmeParaSql_(omePadrao) 
+      : ("'" + limparSQLChamado_(omePadrao.toUpperCase()) + "'")) : "";
 
-    var res = executarConsultaBigQuerySegura(sql);
+    var res = null;
+    try {
+      var sql = "SELECT ID_Local, Unidade_OME, Nome_Local, ID_Pai, COALESCE(Ordem, 999999) as Ordem FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "`";
+      if (inSql) {
+        sql += " WHERE UPPER(TRIM(Unidade_OME)) IN (" + inSql + ")";
+      }
+      sql += " ORDER BY Ordem ASC";
+      res = executarConsultaBigQuerySegura(sql);
+    } catch(eSqlOrd) {
+      var sqlFallback = "SELECT ID_Local, Unidade_OME, Nome_Local, ID_Pai FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "`";
+      if (inSql) {
+        sqlFallback += " WHERE UPPER(TRIM(Unidade_OME)) IN (" + inSql + ")";
+      }
+      res = executarConsultaBigQuerySegura(sqlFallback);
+    }
     if (res && res.rows) {
       // Se não encontrou registros na tabela inteira, tenta auto-migrar da planilha
       if (res.rows.length === 0 && !omePadrao) {
@@ -9273,82 +9290,97 @@ function getOpcoesOrgDataPorOme(ome) {
 
 
 
-function salvarNovaOrdemLocais(idsOrdenados) {
-
+function salvarNovaOrdemLocais(idsOrdenados, omeParam) {
   try {
+    if (!idsOrdenados || !Array.isArray(idsOrdenados) || idsOrdenados.length === 0) {
+      return "Nenhum local para ordenar.";
+    }
 
-    var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
+    garantirTabelaArvore_();
 
-    var sheet = ss.getSheetByName(ABA_LOCAIS_ARMAZENAMENTO);
-
-    if (!sheet) throw new Error("Aba não encontrada");
-
-
-
-    var dados = sheet.getDataRange().getValues();
-
-    var cabecalho = dados[0];
-
-    var mapaLinhas = {};
-
-
-
-    for (var i = 1; i < dados.length; i++) {
-
-      var id = String(dados[i][0]).trim();
-
-      if (id) {
-
-        mapaLinhas[id] = dados[i];
-
+    // 1. Atualiza a ordem diretamente na base centralizada BigQuery (tb_Arvore)
+    try {
+      var whenClausulas = [];
+      var idsParaIn = [];
+      for (var idx = 0; idx < idsOrdenados.length; idx++) {
+        var idStr = String(idsOrdenados[idx]).trim().replace(/'/g, "\\'");
+        if (!idStr) continue;
+        whenClausulas.push("WHEN '" + idStr + "' THEN " + (idx + 1));
+        idsParaIn.push("'" + idStr + "'");
       }
 
-    }
-
-
-
-    var novasLinhas = [cabecalho];
-
-    for (var j = 0; j < idsOrdenados.length; j++) {
-
-      var idOrd = String(idsOrdenados[j]).trim();
-
-      if (mapaLinhas[idOrd]) {
-
-        novasLinhas.push(mapaLinhas[idOrd]);
-
-        delete mapaLinhas[idOrd];
-
+      if (whenClausulas.length > 0) {
+        var sqlUpdateOrdem = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` " +
+                             "SET Ordem = CASE ID_Local " + whenClausulas.join(" ") + " ELSE Ordem END " +
+                             "WHERE ID_Local IN (" + idsParaIn.join(", ") + ")";
+        executarEscritaBigQuerySegura(sqlUpdateOrdem);
       }
-
+    } catch (eBqOrd) {
+      console.warn("Aviso ao salvar ordem no BigQuery: " + eBqOrd.message);
     }
 
+    // 2. Sincroniza a planilha auxiliar de forma tolerante a falhas (cria se não existir, sem quebrar)
+    try {
+      var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
+      if (ss) {
+        var sheet = ss.getSheetByName(ABA_LOCAIS_ARMAZENAMENTO);
+        if (!sheet) {
+          sheet = ss.insertSheet(ABA_LOCAIS_ARMAZENAMENTO);
+          sheet.appendRow(["ID_Local", "Unidade_OME", "Nome_Local", "ID_Pai", "Ordem"]);
+        }
 
+        if (sheet && sheet.getLastRow() > 1) {
+          var dados = sheet.getDataRange().getValues();
+          var cabecalho = dados[0];
+          var mapaLinhas = {};
 
-    for (var restoId in mapaLinhas) {
+          for (var i = 1; i < dados.length; i++) {
+            var id = String(dados[i][0]).trim();
+            if (id) mapaLinhas[id] = dados[i];
+          }
 
-      novasLinhas.push(mapaLinhas[restoId]);
+          var novasLinhas = [cabecalho];
+          for (var j = 0; j < idsOrdenados.length; j++) {
+            var idOrd = String(idsOrdenados[j]).trim();
+            if (mapaLinhas[idOrd]) {
+              novasLinhas.push(mapaLinhas[idOrd]);
+              delete mapaLinhas[idOrd];
+            }
+          }
+          for (var restoId in mapaLinhas) {
+            novasLinhas.push(mapaLinhas[restoId]);
+          }
 
+          sheet.clearContents();
+          sheet.getRange(1, 1, novasLinhas.length, novasLinhas[0].length).setValues(novasLinhas);
+        }
+      }
+    } catch (eSheet) {
+      console.warn("Aviso na sincronização da planilha auxiliar em salvarNovaOrdemLocais: " + eSheet.message);
     }
 
-
-
-    sheet.clearContents();
-
-    sheet.getRange(1, 1, novasLinhas.length, novasLinhas[0].length).setValues(novasLinhas);
+    // 3. Invalida cache de armazenamento para que a nova ordem seja renderizada imediatamente
+    try {
+      var omeAlvo = omeParam || "";
+      if (!omeAlvo && idsOrdenados.length > 0) {
+        var resOme = executarConsultaBigQuerySegura("SELECT Unidade_OME FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` WHERE ID_Local = '" + String(idsOrdenados[0]).replace(/'/g, "\\'") + "' LIMIT 1");
+        if (resOme && resOme.rows && resOme.rows[0] && resOme.rows[0].f && resOme.rows[0].f[0]) {
+          omeAlvo = String(resOme.rows[0].f[0].v || "");
+        }
+      }
+      if (omeAlvo && typeof invalidarCacheArmazenamentoOme_ === 'function') {
+        invalidarCacheArmazenamentoOme_(omeAlvo);
+      }
+    } catch(eInv) {}
 
     try {
       registrarLogAuditoria("REORDENACAO_LOCAIS", "Reordenou estrutura de " + idsOrdenados.length + " locais na árvore.");
     } catch(eLogOrd) {}
 
     return "Ordem atualizada com sucesso!";
-
   } catch (err) {
-
     throw new Error("Erro ao salvar ordem: " + err.message);
-
   }
-
 }
 
 

@@ -10703,13 +10703,15 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
     });
 
     const idsOrdenados = novaListaOrdenada.map(l => l.id);
+    const selOme = document.getElementById('selectOmeArvore');
+    const omeAtual = selOme ? (selOme.value || selOme.getAttribute('data-value') || '') : (OME_GLOBAL || '');
 
     google.script.run
       .withSuccessHandler(() => {
-        carregarLocaisArvoreGeral();
+        carregarLocaisArvoreGeral(true);
       })
       .withFailureHandler(err => Swal.fire('Erro', err.message, 'error'))
-      .salvarNovaOrdemLocais(idsOrdenados);
+      .salvarNovaOrdemLocais(idsOrdenados, omeAtual);
   }
 
   function adicionarFilhosRecursivos(idPai, listaCompleta, destinoArray) {
