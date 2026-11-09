@@ -182,14 +182,11 @@
     // URL Base do Web App do Google Apps Script
     const GAS_WEBAPP_BASE_URL = "https://script.google.com/macros/s/AKfycby0n-qt5bVAp96LnHgdMuNoa2l-I70Sz_FzxgSnjJThxMtiIUoUOcn5OJLEfhzDudGR2Q/exec";
 
-    // Versão da aplicação para invalidação imediata de cache no iframe
-    const APP_VERSION = "512";
-
-    // Preserva parâmetros da URL e adiciona cache-buster de versão
+    // Preserva parâmetros da URL (ex: ?checklist=true, ?c=..., etc)
     const currentSearch = window.location.search || "";
     const currentHash = window.location.hash || "";
     const paramChar = currentSearch ? "&" : "?";
-    const targetUrl = GAS_WEBAPP_BASE_URL + currentSearch + paramChar + "_v=" + APP_VERSION + currentHash;
+    const targetUrl = GAS_WEBAPP_BASE_URL + currentSearch + paramChar + "_v=514" + currentHash;
 
     const frame = document.getElementById("app-frame");
     const splash = document.getElementById("loading-splash");

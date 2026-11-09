@@ -13062,61 +13062,6 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
     carregarDadosTabelaBaseAdmin();
   }
 
-  window.formatarLinkSeiRobo = function(numeroSei) {
-    if (!numeroSei || numeroSei === '-' || numeroSei === 'Sem SEI' || numeroSei === 'N/I') {
-      return 'SEI: -';
-    }
-    const cleanSei = String(numeroSei).trim();
-    return `SEI: <a href="javascript:void(0)" onclick="abrirProcessoSeiRobo('${cleanSei}')" class="text-primary text-decoration-none fw-bold" style="cursor: pointer;" title="Clique para abrir este processo no SEI via Robô">${cleanSei} <i class="fa-solid fa-arrow-up-right-from-square ms-1" style="font-size: 0.72rem;"></i></a>`;
-  };
-
-  window.abrirProcessoSeiRobo = function(numeroSei) {
-    if (!numeroSei || numeroSei === '-' || numeroSei === 'Sem SEI' || numeroSei === 'N/I') {
-      if (typeof Swal !== 'undefined') {
-        Swal.fire({
-          icon: 'warning',
-          title: 'Processo Não Informado',
-          text: 'Este item não possui um número de processo SEI vinculado.',
-          confirmButtonColor: '#0d6efd'
-        });
-      }
-      return;
-    }
-
-    const seiLimpo = String(numeroSei).trim();
-
-    if (typeof Swal !== 'undefined') {
-      Swal.fire({
-        title: 'Abrindo no SEI...',
-        html: `
-          <div class="text-center my-3">
-            <div class="spinner-border text-primary mb-3" role="status"></div>
-            <p class="fw-bold mb-1">Processo: <span class="font-monospace text-primary">${seiLimpo}</span></p>
-            <p class="small text-muted mb-0">O robô está autenticando no SEI e carregando o documento...</p>
-          </div>
-        `,
-        showConfirmButton: false,
-        timer: 3500,
-        timerProgressBar: true
-      });
-    }
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 1200);
-
-    fetch('http://127.0.0.1:18888/abrir?sei=' + encodeURIComponent(seiLimpo), { signal: controller.signal })
-      .then(res => res.json())
-      .then(data => {
-        clearTimeout(timeoutId);
-        console.log('Robô SEI iniciado com sucesso via servidor local:', data);
-      })
-      .catch(() => {
-        clearTimeout(timeoutId);
-        console.log('Disparando protocolo Windows sgmp-sei://...');
-        window.location.href = 'sgmp-sei://' + encodeURIComponent(seiLimpo);
-      });
-  };
-
   function carregarDadosTabelaBaseAdmin(resetarPagina = true) {
     if (resetarPagina) paginaAtualBase = 1;
 
@@ -13174,6 +13119,9 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
           const serieItem = extrairSerieItem(r);
           const objetoVisual = formatarDescricaoViaturaVisual(r.objeto, serieItem);
           const badgeSerie = serieItem ? `<br><span class="badge bg-light text-dark border">SÉRIE: ${serieItem}</span>` : '';
+      const linkSei = (r.seiCompra && r.seiCompra !== '-' && r.seiCompra !== 'Sem SEI' && r.seiCompra !== 'N/I')
+        ? `<a href="sgmp-sei:${encodeURIComponent(r.seiCompra)}" class="text-primary fw-bold text-decoration-none" title="Abrir no SEI via Robô">${r.seiCompra} <i class="fa-solid fa-arrow-up-right-from-square ms-1" style="font-size: 0.7rem;"></i></a>`
+        : (r.seiCompra || '-');
           const badgeClasse = r.classe2 ? `<br><span class="badge bg-light text-primary border border-primary-subtle" style="font-size: 0.68rem;" title="Classe 1: ${r.classe1 || '-'}\\nClasse 2: ${r.classe2}"><i class="fa-solid fa-layer-group me-1"></i>${r.classe2}</span>` : (r.classe1 ? `<br><span class="badge bg-light text-secondary border" style="font-size: 0.68rem;">${r.classe1}</span>` : '');
 
           html += `
@@ -13184,7 +13132,7 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
               <td>${unidadeOficial || '-'}</td>
               <td><small>${localFormatado}</small></td> <!-- EXIBE O CAMINHO COMPLETO AQUI -->
               <td>${formatarBadgeStatusBase(r.status)}</td>
-              <td><small>PAT: ${r.nPatrimonio || '-'}<br>${formatarLinkSeiRobo(r.seiCompra)}${badgeSerie}</small></td>
+              <td><small>PAT: ${r.nPatrimonio || '-'}<br>SEI: ${linkSei}${badgeSerie}</small></td>
               <td class="text-center text-nowrap">
                 <button class="btn btn-sm btn-outline-info py-0 px-2 me-1" title="Ver Histórico de Movimentações" onclick="abrirModalHistoricoItem('${r.item}')"><i class="fa-solid fa-clock-rotate-left"></i></button>
                 <button class="btn btn-sm btn-outline-primary py-0 px-2" title="Editar" onclick="abrirEdicaoLivre(${idx})"><i class="fa-solid fa-pen-to-square"></i></button>
@@ -13645,12 +13593,7 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
       let docHtml = '';
       let docRefVal = ev.documentoRef || ev.documento || '';
       if (docRefVal && docRefVal !== '-') {
-        const cleanRef = String(docRefVal).trim();
-        const isProcessoSei = /^\d{7,10}\.\d{4,8}\/\d{4}-\d{2}$/.test(cleanRef) || cleanRef.toLowerCase().includes('3900000');
-        const docRefDisplay = isProcessoSei
-          ? `<a href="javascript:void(0)" onclick="abrirProcessoSeiRobo('${cleanRef}')" class="text-primary text-decoration-none fw-bold" title="Abrir processo no SEI via Robô">${cleanRef} <i class="fa-solid fa-arrow-up-right-from-square ms-1" style="font-size: 0.7rem;"></i></a>`
-          : docRefVal;
-        docHtml = `<span class="ms-3"><i class="fa-solid fa-file-lines me-1 text-secondary"></i><strong>Ref:</strong> ${docRefDisplay}</span>`;
+        docHtml = `<span class="ms-3"><i class="fa-solid fa-file-lines me-1 text-secondary"></i><strong>Ref:</strong> ${docRefVal}</span>`;
       }
 
       let obsHtml = '';
@@ -13772,14 +13715,7 @@ function renderizarTimelineEmElemento(dados, ids) {
       let locTxt = partesLoc.length > 0 ? partesLoc.join(' > ') : 'Não informado';
       if (localAtual) localAtual.innerText = locTxt;
 
-      if (docSei) {
-        const valSei = item.seiCompra || '-';
-        if (valSei && valSei !== '-' && valSei !== 'Sem SEI') {
-          docSei.innerHTML = `<a href="javascript:void(0)" onclick="abrirProcessoSeiRobo('${valSei}')" class="text-primary text-decoration-none fw-bold" title="Abrir processo no SEI via Robô">${valSei} <i class="fa-solid fa-arrow-up-right-from-square ms-1" style="font-size: 0.72rem;"></i></a>`;
-        } else {
-          docSei.innerText = '-';
-        }
-      }
+      if (docSei) docSei.innerText = item.seiCompra || '-';
 
       if (stAtual === 'ACAUTELADO' && item.nomeAcautelado) {
         if (respAtualCont) respAtualCont.style.display = 'block';
@@ -14072,6 +14008,9 @@ function renderizarTimelineEmElemento(dados, ids) {
       const serieItem = extrairSerieItem(r);
       const objetoVisual = formatarDescricaoViaturaVisual(r.objeto, serieItem);
       const badgeSerie = serieItem ? `<br><span class="badge bg-light text-dark border">SÉRIE: ${serieItem}</span>` : '';
+      const linkSei = (r.seiCompra && r.seiCompra !== '-' && r.seiCompra !== 'Sem SEI' && r.seiCompra !== 'N/I')
+        ? `<a href="sgmp-sei:${encodeURIComponent(r.seiCompra)}" class="text-primary fw-bold text-decoration-none" title="Abrir no SEI via Robô">${r.seiCompra} <i class="fa-solid fa-arrow-up-right-from-square ms-1" style="font-size: 0.7rem;"></i></a>`
+        : (r.seiCompra || '-');
 
       html += `
         <tr>
@@ -14081,7 +14020,7 @@ function renderizarTimelineEmElemento(dados, ids) {
           <td>${unidadeOficial || '-'}</td>
           <td><small>${localFormatado}</small></td>
           <td>${formatarBadgeStatusBase(r.status)}</td>
-          <td><small>PAT: ${r.nPatrimonio || '-'}<br>${formatarLinkSeiRobo(r.seiCompra)}${badgeSerie}</small></td>
+          <td><small>PAT: ${r.nPatrimonio || '-'}<br>SEI: ${linkSei}${badgeSerie}</small></td>
           <td class="text-center text-nowrap">
             <button class="btn btn-sm btn-outline-info py-0 px-2 me-1" title="Ver Histórico de Movimentações" onclick="abrirModalHistoricoItem('${r.item}')"><i class="fa-solid fa-clock-rotate-left"></i></button>
             <button class="btn btn-sm btn-outline-primary py-0 px-2" title="Editar" onclick="abrirEdicaoLivre(${idx})"><i class="fa-solid fa-pen-to-square"></i></button>
@@ -16862,34 +16801,62 @@ function renderizarTimelineEmElemento(dados, ids) {
     }
   };
 
-  const LISTA_CLASSES_PADRAO_C1 = ["OPERACIONAL", "ADMINISTRATIVO", "SERVIÇO"];
-  const MAPA_CLASSES_PADRAO_C1_PARA_C2 = {
-    "OPERACIONAL": ["VIATURA ATV FIM", "MATERIAL OPERACIONAL", "EPI", "TREINAMENTO", "APOIO OPERACIONAL"],
-    "ADMINISTRATIVO": ["VIATURA ATV MEIO", "BENS MATERIAIS"],
-    "SERVIÇO": ["OBRAS E ENGENHARIA", "SERVIÇO DE TIC", "MANUTENÇÃO DE BENS", "LOCAÇÃO", "COMPANHIAS", "SAÚDE"]
-  };
-  const LISTA_CLASSES_PADRAO_C3 = [
-    "ALIMENTAÇÃO", "AMBULÂNCIA", "ANIMAIS", "APH", "AUTOMÓVEL", "BÉLICO", "BENS IMÓVEIS", "BENS MÓVEIS",
-    "CAMINHÃO", "CAMINHONETE", "CONSTRUÇÃO", "CONSUMO", "CORRESPONDÊNCIA", "DESSEDENTAÇÃO", "EFETIVO",
-    "ELETRODOMÉSTICO", "ELETROELETRÔNICO", "FORNECIMENTO", "INCÊNDIO FLORESTAL", "INCÊNDIO URBANO", "LIMPEZA",
-    "MATERIAL DE EXPEDIENTE", "MATERIAL DE LIMPEZA", "MATERIAL DE TIC", "MERGULHO", "MICRO-ÔNIBUS", "MOBILIÁRIO",
-    "MULTIMISSÕES", "OBRAS E CONSTRUÇÃO", "ODONTO", "ÔNIBUS", "PRODUTOS PERIGOSOS", "REPAROS", "SALV. ALTURA",
-    "SALV. AQUÁTICO", "SALV. TERRESTRE", "SERVIÇO", "TECNOLOGIAS DIVERSAS", "TPEI", "TREINAMENTO", "UNIFORME",
-    "USO NO SERVIÇO"
-  ];
-
-  function gerarHtmlOptionsClasse_(lista, placeholder) {
-    let opts = '<option value="" disabled selected>' + (placeholder || "Selecione...") + '</option>';
-    for (let i = 0; i < lista.length; i++) {
-      opts += '<option value="' + lista[i] + '">' + lista[i] + '</option>';
-    }
-    return opts;
-  }
-
+  // Abre o modal para criar um material provisório
+  // Abre o modal para criar um material provisório
   // Abre o modal para criar um material provisório
   function abrirModalCriarMaterialProvisorio() {
-    const optC1 = gerarHtmlOptionsClasse_(LISTA_CLASSES_PADRAO_C1, "Selecione...");
-    const optC3 = gerarHtmlOptionsClasse_(LISTA_CLASSES_PADRAO_C3, "Selecione...");
+    const optC1 = `
+      <option value="" disabled selected>Selecione...</option>
+      <option value="OPERACIONAL">OPERACIONAL</option>
+      <option value="ADMINISTRATIVO">ADMINISTRATIVO</option>
+      <option value="SERVIÇO">SERVIÇO</option>
+    `;
+
+    const optC3 = `
+      <option value="" disabled selected>Selecione...</option>
+      <option value="ALIMENTAÇÃO">ALIMENTAÇÃO</option>
+      <option value="AMBULÂNCIA">AMBULÂNCIA</option>
+      <option value="ANIMAIS">ANIMAIS</option>
+      <option value="APH">APH</option>
+      <option value="AUTOMÓVEL">AUTOMÓVEL</option>
+      <option value="BÉLICO">BÉLICO</option>
+      <option value="BENS IMÓVEIS">BENS IMÓVEIS</option>
+      <option value="BENS MÓVEIS">BENS MÓVEIS</option>
+      <option value="CAMINHÃO">CAMINHÃO</option>
+      <option value="CAMINHONETE">CAMINHONETE</option>
+      <option value="CONSTRUÇÃO">CONSTRUÇÃO</option>
+      <option value="CONSUMO">CONSUMO</option>
+      <option value="CORRESPONDÊNCIA">CORRESPONDÊNCIA</option>
+      <option value="DESSEDENTAÇÃO">DESSEDENTAÇÃO</option>
+      <option value="EFETIVO">EFETIVO</option>
+      <option value="ELETRODOMÉSTICO">ELETRODOMÉSTICO</option>
+      <option value="ELETROELETRÔNICO">ELETROELETRÔNICO</option>
+      <option value="FORNECIMENTO">FORNECIMENTO</option>
+      <option value="INCÊNDIO FLORESTAL">INCÊNDIO FLORESTAL</option>
+      <option value="INCÊNDIO URBANO">INCÊNDIO URBANO</option>
+      <option value="LIMPEZA">LIMPEZA</option>
+      <option value="MATERIAL DE EXPEDIENTE">MATERIAL DE EXPEDIENTE</option>
+      <option value="MATERIAL DE LIMPEZA">MATERIAL DE LIMPEZA</option>
+      <option value="MATERIAL DE TIC">MATERIAL DE TIC</option>
+      <option value="MERGULHO">MERGULHO</option>
+      <option value="MICRO-ÔNIBUS">MICRO-ÔNIBUS</option>
+      <option value="MOBILIÁRIO">MOBILIÁRIO</option>
+      <option value="MULTIMISSÕES">MULTIMISSÕES</option>
+      <option value="OBRAS E CONSTRUÇÃO">OBRAS E CONSTRUÇÃO</option>
+      <option value="ODONTO">ODONTO</option>
+      <option value="ÔNIBUS">ÔNIBUS</option>
+      <option value="PRODUTOS PERIGOSOS">PRODUTOS PERIGOSOS</option>
+      <option value="REPAROS">REPAROS</option>
+      <option value="SALV. ALTURA">SALV. ALTURA</option>
+      <option value="SALV. AQUÁTICO">SALV. AQUÁTICO</option>
+      <option value="SALV. TERRESTRE">SALV. TERRESTRE</option>
+      <option value="SERVIÇO">SERVIÇO</option>
+      <option value="TECNOLOGIAS DIVERSAS">TECNOLOGIAS DIVERSAS</option>
+      <option value="TPEI">TPEI</option>
+      <option value="TREINAMENTO">TREINAMENTO</option>
+      <option value="UNIFORME">UNIFORME</option>
+      <option value="USO NO SERVIÇO">USO NO SERVIÇO</option>
+    `;
 
     Swal.fire({
       title: 'Cadastrar Novo Material (Provisório)',
@@ -16987,6 +16954,490 @@ function renderizarTimelineEmElemento(dados, ids) {
             classe3: res.value.classe3,
             ome: OME_GLOBAL
           });
+      }
+    });
+  }
+
+  function corrigirEAProvarTicket(idTicket, nomeProvisorioAtual, c1Atual, c2Atual, c3Atual) {
+    const optC1 = `
+      <option value="" disabled>Selecione...</option>
+      <option value="OPERACIONAL">OPERACIONAL</option>
+      <option value="ADMINISTRATIVO">ADMINISTRATIVO</option>
+      <option value="SERVIÇO">SERVIÇO</option>
+    `;
+
+    const optC3 = `
+      <option value="" disabled>Selecione...</option>
+      <option value="ALIMENTAÇÃO">ALIMENTAÇÃO</option>
+      <option value="AMBULÂNCIA">AMBULÂNCIA</option>
+      <option value="ANIMAIS">ANIMAIS</option>
+      <option value="APH">APH</option>
+      <option value="AUTOMÓVEL">AUTOMÓVEL</option>
+      <option value="BÉLICO">BÉLICO</option>
+      <option value="BENS IMÓVEIS">BENS IMÓVEIS</option>
+      <option value="BENS MÓVEIS">BENS MÓVEIS</option>
+      <option value="CAMINHÃO">CAMINHÃO</option>
+      <option value="CAMINHONETE">CAMINHONETE</option>
+      <option value="CONSTRUÇÃO">CONSTRUÇÃO</option>
+      <option value="CONSUMO">CONSUMO</option>
+      <option value="CORRESPONDÊNCIA">CORRESPONDÊNCIA</option>
+      <option value="DESSEDENTAÇÃO">DESSEDENTAÇÃO</option>
+      <option value="EFETIVO">EFETIVO</option>
+      <option value="ELETRODOMÉSTICO">ELETRODOMÉSTICO</option>
+      <option value="ELETROELETRÔNICO">ELETROELETRÔNICO</option>
+      <option value="FORNECIMENTO">FORNECIMENTO</option>
+      <option value="INCÊNDIO FLORESTAL">INCÊNDIO FLORESTAL</option>
+      <option value="INCÊNDIO URBANO">INCÊNDIO URBANO</option>
+      <option value="LIMPEZA">LIMPEZA</option>
+      <option value="MATERIAL DE EXPEDIENTE">MATERIAL DE EXPEDIENTE</option>
+      <option value="MATERIAL DE LIMPEZA">MATERIAL DE LIMPEZA</option>
+      <option value="MATERIAL DE TIC">MATERIAL DE TIC</option>
+      <option value="MERGULHO">MERGULHO</option>
+      <option value="MICRO-ÔNIBUS">MICRO-ÔNIBUS</option>
+      <option value="MOBILIÁRIO">MOBILIÁRIO</option>
+      <option value="MULTIMISSÕES">MULTIMISSÕES</option>
+      <option value="OBRAS E CONSTRUÇÃO">OBRAS E CONSTRUÇÃO</option>
+      <option value="ODONTO">ODONTO</option>
+      <option value="ÔNIBUS">ÔNIBUS</option>
+      <option value="PRODUTOS PERIGOSOS">PRODUTOS PERIGOSOS</option>
+      <option value="REPAROS">REPAROS</option>
+      <option value="SALV. ALTURA">SALV. ALTURA</option>
+      <option value="SALV. AQUÁTICO">SALV. AQUÁTICO</option>
+      <option value="SALV. TERRESTRE">SALV. TERRESTRE</option>
+      <option value="SERVIÇO">SERVIÇO</option>
+      <option value="TECNOLOGIAS DIVERSAS">TECNOLOGIAS DIVERSAS</option>
+      <option value="TPEI">TPEI</option>
+      <option value="TREINAMENTO">TREINAMENTO</option>
+      <option value="UNIFORME">UNIFORME</option>
+      <option value="USO NO SERVIÇO">USO NO SERVIÇO</option>
+    `;
+
+    let optionsCatalogo = `<option value="${nomeProvisorioAtual}">${nomeProvisorioAtual}</option>`;
+    (dadosMateriaisGlobais || []).forEach(m => {
+      const nomeOficial = typeof m === 'object' ? (m.nome || m) : m;
+      if (nomeOficial !== nomeProvisorioAtual) {
+        optionsCatalogo += `<option value="${nomeOficial}">${nomeOficial}</option>`;
+      }
+    });
+
+    Swal.fire({
+      title: 'Corrigir e Oficializar Material',
+      html: `
+        <div class="text-start">
+          <p class="small text-muted mb-3">Nome cadastrado provisoriamente: <strong>${nomeProvisorioAtual}</strong></p>
+          
+          <div class="mb-3">
+            <label class="form-label small fw-bold mb-1">Informe o Nome Definitivo / Oficial do Catálogo:</label>
+            <select id="swalNomeDefinitivo" class="form-select text-uppercase" style="width: 100%;">
+              ${optionsCatalogo}
+            </select>
+          </div>
+
+          <div class="row g-2 mb-2">
+            <div class="col-md-4">
+              <label class="form-label small fw-bold mb-1">Classe 1:</label>
+              <select id="swalClasse1" class="form-select form-select-sm">${optC1}</select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small fw-bold mb-1">Classe 2:</label>
+              <select id="swalClasse2" class="form-select form-select-sm">
+                 <option value="" disabled>Selecione a Classe 1 primeiro...</option>
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small fw-bold mb-1">Classe 3:</label>
+              <select id="swalClasse3" class="form-select form-select-sm">${optC3}</select>
+            </div>
+          </div>
+        </div>
+      `,
+      width: '750px',
+      showCancelButton: true,
+      confirmButtonText: 'Salvar e Oficializar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#198754',
+      didOpen: () => {
+        const selC1 = document.getElementById('swalClasse1');
+        const selC2 = document.getElementById('swalClasse2');
+        const selC3 = document.getElementById('swalClasse3');
+
+        const opcoesC2 = {
+          "OPERACIONAL": ["VIATURA ATV FIM", "MATERIAL OPERACIONAL", "EPI", "TREINAMENTO", "APOIO OPERACIONAL"],
+          "ADMINISTRATIVO": ["VIATURA ATV MEIO", "BENS MATERIAIS"],
+          "SERVIÇO": ["OBRAS E ENGENHARIA", "SERVIÇO DE TIC", "MANUTENÇÃO DE BENS", "LOCAÇÃO", "COMPANHIAS", "SAÚDE"]
+        };
+
+        // Função de preencher o Select de C2 dinamicamente
+        function popularClasse2(valorC1, valorSelecionadoC2) {
+          selC2.innerHTML = '<option value="" disabled selected>Selecione...</option>';
+          if (opcoesC2[valorC1]) {
+            opcoesC2[valorC1].forEach(opt => {
+              const selected = (opt === valorSelecionadoC2) ? 'selected' : '';
+              selC2.innerHTML += `<option value="${opt}" ${selected}>${opt}</option>`;
+            });
+          }
+        }
+
+        // Aciona evento de mudança manual
+        selC1.addEventListener('change', (e) => popularClasse2(e.target.value, ""));
+
+        // Se o ticket já vier com C1, carrega a lista da C2 correspondente na inicialização
+        if (c1Atual) {
+          selC1.value = c1Atual;
+          popularClasse2(c1Atual, c2Atual);
+        }
+        
+        if (c3Atual) selC3.value = c3Atual;
+
+        if (window.jQuery && $.fn.select2) {
+          $('#swalNomeDefinitivo').select2({
+            tags: true, 
+            dropdownParent: $('.swal2-container')
+          });
+          $('#swalNomeDefinitivo').val(nomeProvisorioAtual).trigger('change');
+        }
+      },
+      preConfirm: () => {
+        const novoNome = document.getElementById('swalNomeDefinitivo').value.trim();
+        const c1 = document.getElementById('swalClasse1').value;
+        const c2 = document.getElementById('swalClasse2').value;
+        const c3 = document.getElementById('swalClasse3').value;
+
+        if (!novoNome) {
+          Swal.showValidationMessage('O nome definitivo não pode ficar vazio.');
+          return false;
+        }
+        if (!c1 || !c2 || !c3) {
+          Swal.showValidationMessage('Selecione todas as três classes do material.');
+          return false;
+        }
+
+        return { nomeDefinitivo: novoNome.toUpperCase(), classe1: c1, classe2: c2, classe3: c3 };
+      }
+    }).then(res => {
+      if (res.isConfirmed && res.value) {
+        processarAvaliacaoTicket(idTicket, nomeProvisorioAtual, res.value.nomeDefinitivo, res.value.classe1, res.value.classe2, res.value.classe3);
+      }
+    });
+  }
+
+  // Verifica se o usuário atual é Admin ou pertence à OME DLOG para exibir painel de auditoria de tickets
+  function verificarPainelTicketsMateriais() {
+    const perfil = (PERFIL_GLOBAL || "").trim();
+    const ome = (OME_GLOBAL || "").trim().toUpperCase();
+    const ehAdminOuDlog = typeof ehAdminGlobal === "function" ? ehAdminGlobal() : perfil === "Administrador";
+
+    // Você pode criar uma seção na Visão Geral ou no Recebimento para exibir isso.
+    // Vamos buscar os tickets pendentes se ele tiver permissão:
+    if (ehAdminOuDlog) {
+      google.script.run
+        .withSuccessHandler(tickets => {
+          if (tickets && tickets.length > 0) {
+            // Exibe um alerta discreto ou badge indicando que há materiais pendentes de aprovação
+            console.log(`Existem ${tickets.length} materiais provisórios aguardando validação.`);
+          }
+        })
+        .getTicketsMateriaisPendentes();
+    }
+  }
+
+  // Dispara a checagem de tickets pendentes ao carregar o sistema
+  document.addEventListener("DOMContentLoaded", function() {
+    // ... (seu código existente do DOMContentLoaded) ...
+    
+    // Aguarda um segundo para garantir que PERFIL_GLOBAL e OME_GLOBAL já foram definidos na sessão
+    setTimeout(() => {
+      verificarNotificacoesTicketsProvisorios();
+    }, 1000);
+  });
+
+  function verificarNotificacoesTicketsProvisorios() {
+    const perfil = (PERFIL_GLOBAL || "").trim();
+    const ome = (OME_GLOBAL || "").trim().toUpperCase();
+    const ehAdminOuDlog = typeof ehAdminGlobal === "function" ? ehAdminGlobal() : perfil === "Administrador";
+
+    if (!ehAdminOuDlog) return; // Se não for Admin nem DLOG, encerra aqui
+
+    google.script.run
+      .withSuccessHandler(resultado => {
+        const painelAlerta = document.getElementById('painelAlertaTicketsProvisorios');
+        const badgeQtd = document.getElementById('badgeQtdTickets');
+
+        if (resultado && resultado.total > 0) {
+          if (badgeQtd) badgeQtd.innerText = resultado.total;
+          if (painelAlerta) painelAlerta.style.display = 'block';
+          
+          // Guarda os tickets globalmente para abrir no modal depois
+          window.listaTicketsPendentesGlobais = resultado.lista;
+        } else {
+          if (painelAlerta) painelAlerta.style.display = 'none';
+        }
+      })
+      .getContagemETicketsPendentes();
+      
+  }
+
+  // Modal interativo para o Admin/DLOG avaliar, aceitar ou corrigir o nome do material
+  function abrirModalGerenciarTicketsProvisorios() {
+    const tickets = window.listaTicketsPendentesGlobais || [];
+    if (tickets.length === 0) {
+      Swal.fire('Tudo em ordem', 'Não há tickets pendentes no momento.', 'info');
+      return;
+    }
+
+    let htmlTabela = `
+      <div class="table-responsive text-start" style="max-height: 400px; overflow-y: auto;">
+        <table class="table table-bordered table-sm align-middle small">
+          <thead class="table-light">
+            <tr>
+              <th>Data</th>
+              <th>Solicitante</th>
+              <th>Nome Provisório Cadastrado</th>
+              <th class="text-center" style="width: 140px;">Ação</th>
+            </tr>
+          </thead>
+          <tbody>
+    `;
+
+    tickets.forEach(t => {
+      const dataFmt = new Date(t.data).toLocaleString('pt-BR');
+      htmlTabela += `
+        <tr>
+          <td>${dataFmt}</td>
+          <td><span class="badge bg-secondary">${t.solicitante}</span></td>
+          <td class="fw-bold text-danger">${t.nomeProvisorio}</td>
+          <td class="text-center">
+            <button class="btn btn-sm btn-success fw-bold py-0 px-2 me-1" onclick="aprovarTicketDireto('${t.idTicket}', '${t.nomeProvisorio}')" title="Aprovar como está"><i class="fa-solid fa-check"></i></button>
+            <button class="btn btn-sm btn-primary fw-bold py-0 px-2" onclick="corrigirEAProvarTicket('${t.idTicket}', '${t.nomeProvisorio}')" title="Editar / Corrigir Nome"><i class="fa-solid fa-pen"></i></button>
+          </td>
+        </tr>`;
+    });
+
+    htmlTabela += `</tbody></table></div>`;
+
+    Swal.fire({
+      title: '<i class="fa-solid fa-clipboard-list text-primary me-2"></i> Validação de Materiais Provisórios',
+      html: htmlTabela,
+      width: '800px',
+      showCloseButton: true,
+      showConfirmButton: false
+    });
+  }
+
+  function carregarListaTicketsMateriaisPendentes(tentativa = 1) {
+    const bloco = document.getElementById('blocoTicketsMateriaisProvisorios');
+    const corpo = document.getElementById('corpoTabelaTicketsMateriais');
+    const contador = document.getElementById('contadorTicketsProvisorios');
+    
+    if (!bloco || !corpo) return;
+
+    google.script.run
+      .withSuccessHandler(tickets => {
+        if (!tickets || tickets.length === 0) {
+          bloco.style.display = 'none';
+          return;
+        }
+
+        bloco.style.display = 'block';
+        if (contador) contador.innerText = tickets.length;
+
+        let html = `
+          <div class="table-responsive" style="max-height: 250px; overflow-y: auto;">
+            <table class="table table-bordered table-sm align-middle small mb-0">
+              <thead class="table-light sticky-top">
+                <tr>
+                  <th>Data</th>
+                  <th>OME Solicitante</th>
+                  <th>Nome Provisório Cadastrado</th>
+                  <th class="text-center" style="width: 140px;">Ações</th>
+                </tr>
+              </thead>
+              <tbody>`;
+
+        tickets.forEach(t => {
+          let dataFmt = formatarDataHoraBrasil(t.data);
+
+          html += `
+            <tr>
+              <td>${dataFmt}</td>
+              <td><span class="badge bg-secondary">${t.solicitante || 'N/D'}</span></td>
+              <td class="fw-bold text-danger">${t.nomeProvisorio}</td>
+              <td class="text-center">
+                <button class="btn btn-sm btn-success fw-bold py-0 px-2 me-1" onclick="aprovarTicketDireto('${t.idTicket}', '${t.nomeProvisorio}', '${t.classe1}', '${t.classe2}', '${t.classe3}')" title="Aprovar como está"><i class="fa-solid fa-check"></i></button>
+                <button class="btn btn-sm btn-primary fw-bold py-0 px-2 me-1" onclick="corrigirEAProvarTicket('${t.idTicket}', '${t.nomeProvisorio}', '${t.classe1}', '${t.classe2}', '${t.classe3}')" title="Corrigir / Ajustar e Oficializar"><i class="fa-solid fa-pen"></i></button>
+                <button class="btn btn-sm btn-danger fw-bold py-0 px-2" onclick="rejeitarTicketMaterial('${t.idTicket}', '${t.nomeProvisorio}')" title="Recusar Sugestão de Cadastro"><i class="fa-solid fa-ban"></i></button>
+              </td>
+            </tr>`;
+        });
+
+        html += `</tbody></table></div>`;
+        corpo.innerHTML = html;
+      })
+      .withFailureHandler(err => {
+        const msg = String(err && (err.message || err));
+        if ((msg.includes("DEADLINE_EXCEEDED") || msg.includes("armazenamento")) && tentativa <= 2) {
+          console.warn("Aviso: Instabilidade temporária ao carregar materiais provisórios. Retentando...");
+          setTimeout(() => carregarListaTicketsMateriaisPendentes(tentativa + 1), tentativa * 1200);
+          return;
+        }
+        console.error("Erro ao carregar tickets de materiais provisórios:", err);
+      })
+      .getTicketsMateriaisPendentes();
+  }
+
+  function aprovarTicketDireto(idTicket, nomeProvisorio, c1, c2, c3) {
+    processarAvaliacaoTicket(idTicket, nomeProvisorio, nomeProvisorio, c1, c2, c3);
+  }
+
+  function corrigirEAProvarTicket(idTicket, nomeProvisorioAtual, c1Atual, c2Atual, c3Atual) {
+    const optC1 = `
+      <option value="" disabled>Selecione...</option>
+      <option value="OPERACIONAL">OPERACIONAL</option>
+      <option value="ADMINISTRATIVO">ADMINISTRATIVO</option>
+      <option value="SERVIÇO">SERVIÇO</option>
+    `;
+
+    const optC2 = `
+      <option value="" disabled>Selecione...</option>
+      <option value="VIATURA ATV FIM">VIATURA ATV FIM</option>
+      <option value="MATERIAL OPERACIONAL">MATERIAL OPERACIONAL</option>
+      <option value="EPI">EPI</option>
+      <option value="TREINAMENTO">TREINAMENTO</option>
+      <option value="APOIO OPERACIONAL">APOIO OPERACIONAL</option>
+      <option value="VIATURA ATV MEIO">VIATURA ATV MEIO</option>
+      <option value="BENS MATERIAIS">BENS MATERIAIS</option>
+      <option value="OBRAS E ENGENHARIA">OBRAS E ENGENHARIA</option>
+      <option value="SERVIÇO DE TIC">SERVIÇO DE TIC</option>
+      <option value="MANUTENÇÃO DE BENS">MANUTENÇÃO DE BENS</option>
+      <option value="LOCAÇÃO">LOCAÇÃO</option>
+      <option value="COMPANHIAS">COMPANHIAS</option>
+      <option value="SAÚDE">SAÚDE</option>
+    `;
+
+    const optC3 = `
+      <option value="" disabled>Selecione...</option>
+      <option value="ALIMENTAÇÃO">ALIMENTAÇÃO</option>
+      <option value="AMBULÂNCIA">AMBULÂNCIA</option>
+      <option value="ANIMAIS">ANIMAIS</option>
+      <option value="APH">APH</option>
+      <option value="AUTOMÓVEL">AUTOMÓVEL</option>
+      <option value="BÉLICO">BÉLICO</option>
+      <option value="BENS IMÓVEIS">BENS IMÓVEIS</option>
+      <option value="BENS MÓVEIS">BENS MÓVEIS</option>
+      <option value="CAMINHÃO">CAMINHÃO</option>
+      <option value="CAMINHONETE">CAMINHONETE</option>
+      <option value="CONSTRUÇÃO">CONSTRUÇÃO</option>
+      <option value="CONSUMO">CONSUMO</option>
+      <option value="CORRESPONDÊNCIA">CORRESPONDÊNCIA</option>
+      <option value="DESSEDENTAÇÃO">DESSEDENTAÇÃO</option>
+      <option value="EFETIVO">EFETIVO</option>
+      <option value="ELETRODOMÉSTICO">ELETRODOMÉSTICO</option>
+      <option value="ELETROELETRÔNICO">ELETROELETRÔNICO</option>
+      <option value="FORNECIMENTO">FORNECIMENTO</option>
+      <option value="INCÊNDIO FLORESTAL">INCÊNDIO FLORESTAL</option>
+      <option value="INCÊNDIO URBANO">INCÊNDIO URBANO</option>
+      <option value="LIMPEZA">LIMPEZA</option>
+      <option value="MATERIAL DE EXPEDIENTE">MATERIAL DE EXPEDIENTE</option>
+      <option value="MATERIAL DE LIMPEZA">MATERIAL DE LIMPEZA</option>
+      <option value="MATERIAL DE TIC">MATERIAL DE TIC</option>
+      <option value="MERGULHO">MERGULHO</option>
+      <option value="MICRO-ÔNIBUS">MICRO-ÔNIBUS</option>
+      <option value="MOBILIÁRIO">MOBILIÁRIO</option>
+      <option value="MULTIMISSÕES">MULTIMISSÕES</option>
+      <option value="OBRAS E CONSTRUÇÃO">OBRAS E CONSTRUÇÃO</option>
+      <option value="ODONTO">ODONTO</option>
+      <option value="ÔNIBUS">ÔNIBUS</option>
+      <option value="PRODUTOS PERIGOSOS">PRODUTOS PERIGOSOS</option>
+      <option value="REPAROS">REPAROS</option>
+      <option value="SALV. ALTURA">SALV. ALTURA</option>
+      <option value="SALV. AQUÁTICO">SALV. AQUÁTICO</option>
+      <option value="SALV. TERRESTRE">SALV. TERRESTRE</option>
+      <option value="SERVIÇO">SERVIÇO</option>
+      <option value="TECNOLOGIAS DIVERSAS">TECNOLOGIAS DIVERSAS</option>
+      <option value="TPEI">TPEI</option>
+      <option value="TREINAMENTO">TREINAMENTO</option>
+      <option value="UNIFORME">UNIFORME</option>
+      <option value="USO NO SERVIÇO">USO NO SERVIÇO</option>
+    `;
+
+    // Monta o catálogo do arquivo como options, incluindo o valor atual já selecionado
+    let optionsCatalogo = `<option value="${nomeProvisorioAtual}">${nomeProvisorioAtual}</option>`;
+    (dadosMateriaisGlobais || []).forEach(m => {
+      const nomeOficial = typeof m === 'object' ? (m.nome || m) : m;
+      if (nomeOficial !== nomeProvisorioAtual) {
+        optionsCatalogo += `<option value="${nomeOficial}">${nomeOficial}</option>`;
+      }
+    });
+
+    Swal.fire({
+      title: 'Corrigir e Oficializar Material',
+      html: `
+        <div class="text-start">
+          <p class="small text-muted mb-3">Nome cadastrado provisoriamente: <strong>${nomeProvisorioAtual}</strong></p>
+          
+          <div class="mb-3">
+            <label class="form-label small fw-bold mb-1">Informe o Nome Definitivo / Oficial do Catálogo:</label>
+            <select id="swalNomeDefinitivo" class="form-select text-uppercase" style="width: 100%;">
+              ${optionsCatalogo}
+            </select>
+          </div>
+
+          <div class="row g-2 mb-2">
+            <div class="col-md-4">
+              <label class="form-label small fw-bold mb-1">Classe 1:</label>
+              <select id="swalClasse1" class="form-select form-select-sm">${optC1}</select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small fw-bold mb-1">Classe 2:</label>
+              <select id="swalClasse2" class="form-select form-select-sm">${optC2}</select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small fw-bold mb-1">Classe 3:</label>
+              <select id="swalClasse3" class="form-select form-select-sm">${optC3}</select>
+            </div>
+          </div>
+        </div>
+      `,
+      width: '750px',
+      showCancelButton: true,
+      confirmButtonText: 'Salvar e Oficializar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#198754',
+      didOpen: () => {
+        // Preenche os selects das classes com os valores originais do cadastro provisório
+        if (c1Atual) document.getElementById('swalClasse1').value = c1Atual;
+        if (c2Atual) document.getElementById('swalClasse2').value = c2Atual;
+        if (c3Atual) document.getElementById('swalClasse3').value = c3Atual;
+
+        // Inicia o Select2 no campo do Catálogo permitindo escolher ou editar (tags: true)
+        if (window.jQuery && $.fn.select2) {
+          $('#swalNomeDefinitivo').select2({
+            tags: true, 
+            dropdownParent: $('.swal2-container')
+          });
+          $('#swalNomeDefinitivo').val(nomeProvisorioAtual).trigger('change');
+        }
+      },
+      preConfirm: () => {
+        const novoNome = document.getElementById('swalNomeDefinitivo').value.trim();
+        const c1 = document.getElementById('swalClasse1').value;
+        const c2 = document.getElementById('swalClasse2').value;
+        const c3 = document.getElementById('swalClasse3').value;
+
+        if (!novoNome) {
+          Swal.showValidationMessage('O nome definitivo não pode ficar vazio.');
+          return false;
+        }
+        if (!c1 || !c2 || !c3) {
+          Swal.showValidationMessage('Selecione todas as três classes do material.');
+          return false;
+        }
+
+        return { nomeDefinitivo: novoNome.toUpperCase(), classe1: c1, classe2: c2, classe3: c3 };
+      }
+    }).then(res => {
+      if (res.isConfirmed && res.value) {
+        processarAvaliacaoTicket(idTicket, nomeProvisorioAtual, res.value.nomeDefinitivo, res.value.classe1, res.value.classe2, res.value.classe3);
       }
     });
   }
