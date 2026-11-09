@@ -1628,6 +1628,13 @@
               </button>
             </div>
 
+            <!-- BOTÃO DE ATUALIZAR ÁRVORE -->
+            <div>
+              <button class="btn btn-primary btn-sm fw-bold px-3 py-2 shadow-sm" id="btnAtualizarArvoreTopo" onclick="carregarLocaisArvoreGeral(true)" title="Recarregar árvore e sincronizar alterações mais recentes do banco">
+                <i class="fa-solid fa-rotate me-1 btn-atualizar-arvore-ico"></i> Atualizar Árvore
+              </button>
+            </div>
+
             <div style="width: 300px;" id="containerSeletorOmeArvore">
               <label class="form-label fw-semibold small mb-1" id="labelOmeArvore">Selecione a Unidade (OME):</label>
               <div id="wrapperOmeArvore"></div>
@@ -1673,8 +1680,11 @@
             </div>
 
             <!-- Ações do Modo Árvore -->
-            <div class="text-muted small" id="acoesBarraModoArvore">
-              <i class="fa-solid fa-circle-info me-1 text-primary"></i> Estrutura hierárquica de depósitos, salas, armários e prateleiras.
+            <div class="d-flex align-items-center gap-2" id="acoesBarraModoArvore">
+              <button class="btn btn-outline-primary btn-sm fw-bold shadow-sm" onclick="carregarLocaisArvoreGeral(true)" title="Recarregar árvore e sincronizar alterações mais recentes">
+                <i class="fa-solid fa-rotate me-1 btn-atualizar-arvore-ico"></i> Atualizar
+              </button>
+              <span class="text-muted small"><i class="fa-solid fa-circle-info me-1 text-primary"></i> Estrutura hierárquica de depósitos, salas, armários e prateleiras.</span>
             </div>
 
             <!-- Ações do Modo Resumo em Colunas -->
@@ -10309,6 +10319,9 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
         return;
       }
 
+      const rotIcons = document.querySelectorAll('.btn-atualizar-arvore-ico');
+      rotIcons.forEach(ic => ic.classList.add('fa-spin'));
+
       if (arvoreContainer) {
         arvoreContainer.innerHTML = `<div class="text-center py-5">
                                        <i class="fa-solid fa-boxes-stacked fa-bounce fa-2x text-danger mb-3"></i>
@@ -10333,12 +10346,31 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
             cacheMateriaisAtrelados = res.vinculos || {};
             cacheLocaisArvore = res.locais || [];
 
+            const rotIconsEnd = document.querySelectorAll('.btn-atualizar-arvore-ico');
+            rotIconsEnd.forEach(ic => ic.classList.remove('fa-spin'));
+
             renderizarListaMateriaisLateral();
             if (typeof renderizarArvoreLocais === "function") {
               renderizarArvoreLocais();
             }
+
+            if (forcar && typeof Swal !== 'undefined' && typeof Swal.mixin === 'function') {
+              const Toast = Swal.mixin({
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 2000,
+                timerProgressBar: true
+              });
+              Toast.fire({
+                icon: 'success',
+                title: 'Árvore atualizada com sucesso!'
+              });
+            }
           })
           .withFailureHandler(err => {
+            const rotIconsEndErr = document.querySelectorAll('.btn-atualizar-arvore-ico');
+            rotIconsEndErr.forEach(ic => ic.classList.remove('fa-spin'));
             const msg = String(err && (err.message || err));
             if ((msg.includes("DEADLINE_EXCEEDED") || msg.includes("armazenamento") || msg.includes("ScriptError")) && tentativa <= 2) {
               console.warn("Aviso: Instabilidade temporária ao carregar dados consolidados da OME (" + omeEfetiva + "). Retentando em " + (tentativa * 1400) + "ms...");
@@ -10446,14 +10478,18 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
     const podeAtrelar = podeMoverArvore || podeGerenciarLocais;
 
     if (!locais || locais.length === 0) {
-      const btnAddRaiz = podeGerenciarLocais ? `<button class="btn btn-sm btn-primary" onclick="adicionarNoArvore('', '${ome}')"><i class="fa-solid fa-plus"></i> Adicionar Subunidade</button>` : '';
-      container.innerHTML = `<div class="text-center py-4"><p class="text-muted">Nenhum local cadastrado.</p>${btnAddRaiz}</div>`;
+      const btnAddRaiz = podeGerenciarLocais ? `<button class="btn btn-sm btn-primary me-2" onclick="adicionarNoArvore('', '${ome}')"><i class="fa-solid fa-plus me-1"></i> Adicionar Subunidade</button>` : '';
+      const btnAtualizar = `<button class="btn btn-sm btn-outline-primary fw-bold" onclick="carregarLocaisArvoreGeral(true)"><i class="fa-solid fa-rotate me-1 btn-atualizar-arvore-ico"></i> Atualizar Árvore</button>`;
+      container.innerHTML = `<div class="text-center py-4"><p class="text-muted">Nenhum local cadastrado.</p>${btnAddRaiz}${btnAtualizar}</div>`;
       return;
     }
     
     let html = '';
     html += `<div class="mb-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
-               <div class="d-flex gap-2">
+               <div class="d-flex gap-2 align-items-center flex-wrap">
+                 <button class="btn btn-sm btn-outline-primary fw-bold shadow-sm" onclick="carregarLocaisArvoreGeral(true)" title="Recarregar árvore e sincronizar alterações mais recentes">
+                   <i class="fa-solid fa-rotate me-1 btn-atualizar-arvore-ico"></i> Atualizar
+                 </button>
                  ${podeGerenciarLocais ? `<button class="btn btn-sm btn-primary" onclick="adicionarNoArvore('', '${ome}')"><i class="fa-solid fa-plus me-1"></i> Adicionar Subunidade</button>` : ''}
                  <button class="btn btn-sm btn-outline-secondary" onclick="alternarExpansaoArvore(true)" title="Expandir Todos os Locais"><i class="fa-solid fa-angles-down me-1"></i> Expandir Tudo</button>
                  <button class="btn btn-sm btn-outline-secondary" onclick="alternarExpansaoArvore(false)" title="Recolher Todos os Locais"><i class="fa-solid fa-angles-up me-1"></i> Recolher Tudo</button>
