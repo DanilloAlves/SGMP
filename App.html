@@ -4956,8 +4956,8 @@
     "9º GB Arcoverde", 
     "ABMG", "AECI", "AjG", "CAT/AG", "CAT/RMR", "CAT/SE", "CAT/ZM", 
     "CCS", "CEAO", "CEFD", "CI", "CINT", "CMAN", "CPO", "CPPA", "CPP", 
-    "DEIP", "DF", "DGO", "DIESP", "DIM", "DINTER I", "DINTER II", 
-    "DJD", "DLOG", "DGP", "DPLAG", "DTIC", "DVP", "GBAPH", "GBI", 
+    "DAS", "DEIP", "DF", "DGO", "DIESP", "DIM", "DINTER I", "DINTER II", 
+    "DJD", "DLOG", "DGP", "DPLAG", "DTIC", "DVP", "GBAPH", "GBI", "GBI - SBFN", 
     "GBMAR", "GBS", "GCG", "GSG"
   ];
 
@@ -4988,6 +4988,7 @@
     if (condensado.indexOf("GBAPH") !== -1 || condensado.indexOf("BAPH") !== -1 || semPont.indexOf("PRE HOSPITALAR") !== -1 || semPont.indexOf("PREHOSPITALAR") !== -1 || semPont.indexOf("APH") !== -1 || semPont.indexOf("RESGATE") !== -1) return "GBAPH";
     if (condensado.indexOf("GBMAR") !== -1 || condensado.indexOf("BMAR") !== -1 || semPont.indexOf("MARITIMO") !== -1 || semPont.indexOf("SALVAMAR") !== -1 || semPont.indexOf("GUARDA VIDAS") !== -1 || semPont.indexOf("PRAIAS") !== -1) return "GBMAR";
     if (condensado === "GBS" || condensado === "BS" || condensado === "BBS" || semPont.indexOf("BATALHAO DE SALVAMENTO") !== -1 || semPont.indexOf("GRUPAMENTO DE SALVAMENTO") !== -1 || /\b(GBS|BS|SALVAMENTO)\b/.test(semPont)) return "GBS";
+    if (condensado.indexOf("GBISBFN") !== -1 || condensado === "SBFN" || semPont.indexOf("SBFN") !== -1 || semPont.indexOf("NORONHA") !== -1) return "GBI - SBFN";
     if (condensado === "GBI" || condensado === "BI" || condensado === "BBI" || semPont.indexOf("BATALHAO DE INCENDIO") !== -1 || semPont.indexOf("GRUPAMENTO DE INCENDIO") !== -1 || /\b(GBI|BI|INCENDIO)\b/.test(semPont)) return "GBI";
 
     // 4. Centros de Atividades Técnicas (CAT)
@@ -4999,6 +5000,7 @@
     }
 
     // 5. Diretorias Centrais
+    if (condensado === "DAS" || semPont.indexOf("ASSISTENCIA A SAUDE") !== -1 || /\bDAS\b/.test(semPont)) return "DAS";
     if (condensado === "DLOG" || semPont.indexOf("LOGISTICA") !== -1 || /\bDLOG\b/.test(semPont)) return "DLOG";
     if (condensado === "DGP" || condensado === "DP" || semPont.indexOf("GESTAO DE PESSOAS") !== -1 || semPont.indexOf("PESSOAL") !== -1 || /\bDGP\b/.test(semPont)) return "DGP";
     if (condensado === "DEIP" || semPont.indexOf("ENSINO") !== -1 || semPont.indexOf("INSTRUCAO E PESQUISA") !== -1 || /\bDEIP\b/.test(semPont)) return "DEIP";

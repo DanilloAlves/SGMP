@@ -8325,10 +8325,12 @@ function extrairChaveCanonicaOme(str) {
   if ((s.indexOf("9") !== -1 && s.indexOf("GB") !== -1) || s.indexOf("ARCOVERDE") !== -1) return "9_GB";
 
   // 2. Grupamentos Especiais
+  if (s.indexOf("SBFN") !== -1 || s.indexOf("NORONHA") !== -1 || s === "GBI SBFN") return "GBI_SBFN";
   if (s === "GBAPH" || s.indexOf("GBAPH") !== -1) return "GBAPH";
   if (s === "GBMAR" || s.indexOf("GBMAR") !== -1) return "GBMAR";
   if (s === "GBI" || s.indexOf("GBI") !== -1) return "GBI";
   if (s === "GBS" || s.indexOf("GBS") !== -1) return "GBS";
+  if (s === "DAS" || s.indexOf("DAS") !== -1) return "DAS";
 
   // 3. Centros de Atividades Técnicas (CAT)
   if (s.indexOf("CAT") !== -1) {
@@ -9353,6 +9355,7 @@ function getOpcoesOrgDataPorOme(ome) {
     "DIESP": ["Diretoria","Secretaria e Apoio Administrativo - SAAdm","Núcleo de Assistência Social - NAS","Núcleo de Educação Física e Desportos - NEFD","Núcleo de Comunicação Social - NCS","Núcleo de Justiça e Disciplina - NJD","Secretaria da Comissão Interna de Atividades Técnicas - SCIATec","Divisão de Planejamento de Operações - DPO","Seção de Planejamento e Articulação Operacional - SPAO","Seção de Auditoria e Monitoramento - SAM","Seção de Estatística Operacional - SEO","Divisão de Normatização e Doutrina - DND","Divisão de Atendimento ao Público - DAP","Seçao de Isenção e Restituição - SIR","Divisão de Projetos Contra Incêndio e Pânico - DPCIP","Seção de Apoio"],
 
     "DAS": ["Diretoria","Secretaria e Apoio Administrativo - SAAdm","Núcleo de Assistência Social NAS","Núcleo de Educação Física e Desportos - NEFD","Núcleo de Comunicação Social - NCS","Núcleo de Justiça e Disciplina - NJD","Divisão de Programas Sociais - DPS","Seção de Orientação e Encaminhamento - SOE","Seção de Serviços Assistênciais - SSA","Seção de Administração da Casa de Trânsito - SACT","Seção de Projetos, Parcerias e Convênios","Divisão Administrativa","Seção de Pessoal","Seção de Tesouraria","Seção de Almoxarifado","Seção de Transportes, Serviços Gerais e Telemática"],
+    "GBI - SBFN": ["Comando","Subcomando","Secretaria e Apoio - SAC","1ª Seção de Bombeiros de Fernando de Noronha - 1ª SBFN","Seção de Bombeiros de Fernando de Noronha - SBFN/GBI","Divisão Administrativa - DA","Seção de Pessoal - SP","Seção de Almoxarifado - Almox","Seção de Material Operacional - SMO"],
 
     "DGP": ["Diretoria","Secretaria e Apoio Administrativo - SAAdm","Núcleo de Assistência Social - NAS","Núcleo de Educação Física e Desportos - NEFD","Núcleo de Comunicação Social - NCS","Núcleo de Justiça e Disciplina - NJD","Divisão de Ativos - DA","Seção de Planejamento e Desenvolvimento - SPD","Divisão de Direitos - DDIr","Seção de Legislação e Requerimento - SLR","Seção de Identificação - SI","Divisão de Movimentação e Controle de Pessoal - DMCP","Seção de Movimentação - SM","Seção de Cadastro - SCad","Seção de Controle de Pessoal - SCP","Divisão de Normatização e Programas - DNP"],
 
@@ -9525,9 +9528,9 @@ function getListaOmesOficiais() {
 
     "CCS", "CEAO", "CEFD", "CI", "CINT", "CMAN", "CPO", "CPPA", "CPP", 
 
-    "DEIP", "DF", "DGO", "DIESP", "DIM", "DINTER I", "DINTER II", 
+    "DAS", "DEIP", "DF", "DGO", "DIESP", "DIM", "DINTER I", "DINTER II", 
 
-    "DJD", "DLOG", "DGP", "DPLAG", "DTIC", "DVP", "GBAPH", "GBI", 
+    "DJD", "DLOG", "DGP", "DPLAG", "DTIC", "DVP", "GBAPH", "GBI", "GBI - SBFN", 
 
     "GBMAR", "GBS", "GCG", "GSG"
 
@@ -11618,6 +11621,7 @@ function obterOmePadronizada(ome) {
   if (condensado.indexOf("GBAPH") !== -1 || condensado.indexOf("BAPH") !== -1 || semPont.indexOf("PRE HOSPITALAR") !== -1 || semPont.indexOf("PREHOSPITALAR") !== -1 || semPont.indexOf("APH") !== -1 || semPont.indexOf("RESGATE") !== -1) return "GBAPH";
   if (condensado.indexOf("GBMAR") !== -1 || condensado.indexOf("BMAR") !== -1 || semPont.indexOf("MARITIMO") !== -1 || semPont.indexOf("SALVAMAR") !== -1 || semPont.indexOf("GUARDA VIDAS") !== -1 || semPont.indexOf("PRAIAS") !== -1) return "GBMAR";
   if (condensado === "GBS" || condensado === "BS" || condensado === "BBS" || semPont.indexOf("BATALHAO DE SALVAMENTO") !== -1 || semPont.indexOf("GRUPAMENTO DE SALVAMENTO") !== -1 || /\b(GBS|BS|SALVAMENTO)\b/.test(semPont)) return "GBS";
+  if (condensado.indexOf("GBISBFN") !== -1 || condensado === "SBFN" || semPont.indexOf("SBFN") !== -1 || semPont.indexOf("NORONHA") !== -1) return "GBI - SBFN";
   if (condensado === "GBI" || condensado === "BI" || condensado === "BBI" || semPont.indexOf("BATALHAO DE INCENDIO") !== -1 || semPont.indexOf("GRUPAMENTO DE INCENDIO") !== -1 || /\b(GBI|BI|INCENDIO)\b/.test(semPont)) return "GBI";
 
   // 4. Centros de Atividades Técnicas (CAT)
@@ -11629,6 +11633,7 @@ function obterOmePadronizada(ome) {
   }
 
   // 5. Diretorias Centrais
+  if (condensado === "DAS" || semPont.indexOf("ASSISTENCIA A SAUDE") !== -1 || /\bDAS\b/.test(semPont)) return "DAS";
   if (condensado === "DLOG" || semPont.indexOf("LOGISTICA") !== -1 || /\bDLOG\b/.test(semPont)) return "DLOG";
   if (condensado === "DGP" || condensado === "DP" || semPont.indexOf("GESTAO DE PESSOAS") !== -1 || semPont.indexOf("PESSOAL") !== -1 || /\bDGP\b/.test(semPont)) return "DGP";
   if (condensado === "DEIP" || semPont.indexOf("ENSINO") !== -1 || semPont.indexOf("INSTRUCAO E PESQUISA") !== -1 || /\bDEIP\b/.test(semPont)) return "DEIP";
@@ -11662,8 +11667,8 @@ function obterOmePadronizada(ome) {
     "5º GB Salgueiro", "6º GB Garanhuns", "7º GB Carpina", "9º GB Arcoverde",
     "ABMG", "AECI", "AjG", "CAT/AG", "CAT/RMR", "CAT/SE", "CAT/ZM",
     "CCS", "CEAO", "CEFD", "CI", "CINT", "CMAN", "CPO", "CPPA", "CPP",
-    "DEIP", "DF", "DGO", "DIESP", "DIM", "DINTER I", "DINTER II",
-    "DJD", "DLOG", "DGP", "DPLAG", "DTIC", "DVP", "GBAPH", "GBI",
+    "DAS", "DEIP", "DF", "DGO", "DIESP", "DIM", "DINTER I", "DINTER II",
+    "DJD", "DLOG", "DGP", "DPLAG", "DTIC", "DVP", "GBAPH", "GBI", "GBI - SBFN",
     "GBMAR", "GBS", "GCG", "GSG"
   ];
 
