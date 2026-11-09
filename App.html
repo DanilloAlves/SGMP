@@ -4301,11 +4301,6 @@
             </div>
           </div>
 
-          <!-- DATALISTS PARA SUGESTÕES DE AUTOCOMPLETE -->
-          <datalist id="datalistClasse1CadItens"></datalist>
-          <datalist id="datalistClasse2CadItens"></datalist>
-          <datalist id="datalistClasse3CadItens"></datalist>
-
           <div class="row g-3">
             
             <!-- 1. IDENTIFICAÇÃO E CLASSIFICAÇÃO -->
@@ -4332,16 +4327,22 @@
                   </div>
 
                   <div class="col-md-4 mt-2">
-                    <label class="form-label small fw-bold mb-1">Classe 1:</label>
-                    <input type="text" id="cadItens_inputClasse1" class="form-control form-control-sm text-uppercase" list="datalistClasse1CadItens" placeholder="OPERACIONAL, ADMINISTRATIVO...">
+                    <label class="form-label small fw-bold mb-1"><i class="fa-solid fa-layer-group text-primary me-1"></i>Classe 1:</label>
+                    <select id="cadItens_inputClasse1" class="form-select form-select-sm fw-semibold" onchange="verificarAdicionarNovaClasseCadItens(this, 1); aoMudarClasse1CadItens();">
+                      <option value="">Selecione a Classe 1...</option>
+                    </select>
                   </div>
                   <div class="col-md-4 mt-2">
-                    <label class="form-label small fw-bold mb-1">Classe 2:</label>
-                    <input type="text" id="cadItens_inputClasse2" class="form-control form-control-sm text-uppercase" list="datalistClasse2CadItens" placeholder="SALVAMENTO, INCÊNDIO, APH...">
+                    <label class="form-label small fw-bold mb-1"><i class="fa-solid fa-tags text-primary me-1"></i>Classe 2:</label>
+                    <select id="cadItens_inputClasse2" class="form-select form-select-sm fw-semibold" onchange="verificarAdicionarNovaClasseCadItens(this, 2);">
+                      <option value="">Selecione a Classe 2...</option>
+                    </select>
                   </div>
                   <div class="col-md-4 mt-2">
-                    <label class="form-label small fw-bold mb-1">Classe 3:</label>
-                    <input type="text" id="cadItens_inputClasse3" class="form-control form-control-sm text-uppercase" list="datalistClasse3CadItens" placeholder="EQUIPAMENTO, FERRAMENTA...">
+                    <label class="form-label small fw-bold mb-1"><i class="fa-solid fa-tag text-info me-1"></i>Classe 3:</label>
+                    <select id="cadItens_inputClasse3" class="form-select form-select-sm fw-semibold" onchange="verificarAdicionarNovaClasseCadItens(this, 3);">
+                      <option value="">Selecione a Classe 3...</option>
+                    </select>
                   </div>
                 </div>
               </div>
@@ -28958,8 +28959,8 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
 
         cacheDadosCadItens = resp;
 
-        // Popula datalists
-        popularDatalistsCadItens(resp);
+        // Popula listas suspensas (selects) de Classes 1, 2 e 3
+        popularSelectsClassesCadItens(resp);
 
         // Popula Select de Materiais
         popularSelectMateriaisCadItens(resp, materialParaSelecionar);
@@ -28971,14 +28972,137 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       .obterDadosGerenciamentoCadItens((typeof usuarioSessaoAtual !== 'undefined') ? usuarioSessaoAtual : null);
   }
 
-  function popularDatalistsCadItens(dados) {
-    const dl1 = document.getElementById('datalistClasse1CadItens');
-    const dl2 = document.getElementById('datalistClasse2CadItens');
-    const dl3 = document.getElementById('datalistClasse3CadItens');
+  const MAPA_CLASSES_PADRAO_C2_CAD_ITENS = {
+    "OPERACIONAL": ["VIATURA ATV FIM", "MATERIAL OPERACIONAL", "EPI", "TREINAMENTO", "APOIO OPERACIONAL"],
+    "ADMINISTRATIVO": ["VIATURA ATV MEIO", "BENS MATERIAIS"],
+    "SERVIÇO": ["OBRAS E ENGENHARIA", "SERVIÇO DE TIC", "MANUTENÇÃO DE BENS", "LOCAÇÃO", "COMPANHIAS", "SAÚDE"]
+  };
 
-    if (dl1 && dados.classes1) dl1.innerHTML = dados.classes1.map(c => `<option value="${c}">`).join('');
-    if (dl2 && dados.classes2) dl2.innerHTML = dados.classes2.map(c => `<option value="${c}">`).join('');
-    if (dl3 && dados.classes3) dl3.innerHTML = dados.classes3.map(c => `<option value="${c}">`).join('');
+  function popularSelectsClassesCadItens(dados) {
+    const sel1 = document.getElementById('cadItens_inputClasse1');
+    const sel3 = document.getElementById('cadItens_inputClasse3');
+
+    // Popula Classe 1
+    if (sel1) {
+      const valAtual1 = sel1.value;
+      let html1 = '<option value="">Selecione a Classe 1...</option>';
+      const c1List = (dados.classes1 && dados.classes1.length > 0) ? dados.classes1 : ["OPERACIONAL", "ADMINISTRATIVO", "SERVIÇO"];
+      c1List.forEach(c => {
+        if (c) html1 += `<option value="${escapeHtmlResumo(c)}">${escapeHtmlResumo(c)}</option>`;
+      });
+      html1 += '<option value="__NOVA__">+ Adicionar Outra Classe 1...</option>';
+      sel1.innerHTML = html1;
+      if (valAtual1) setSelectValueComFallback(sel1, valAtual1);
+    }
+
+    // Popula Classe 2 (baseado na seleção de Classe 1 se houver)
+    popularSelectClasse2CadItens(sel1 ? sel1.value : '');
+
+    // Popula Classe 3
+    if (sel3) {
+      const valAtual3 = sel3.value;
+      let html3 = '<option value="">Selecione a Classe 3...</option>';
+      const c3List = dados.classes3 || [];
+      c3List.forEach(c => {
+        if (c) html3 += `<option value="${escapeHtmlResumo(c)}">${escapeHtmlResumo(c)}</option>`;
+      });
+      html3 += '<option value="__NOVA__">+ Adicionar Outra Classe 3...</option>';
+      sel3.innerHTML = html3;
+      if (valAtual3) setSelectValueComFallback(sel3, valAtual3);
+    }
+  }
+
+  function popularSelectClasse2CadItens(valC1, valSelecionado) {
+    const sel2 = document.getElementById('cadItens_inputClasse2');
+    if (!sel2) return;
+
+    const valAtual2 = valSelecionado !== undefined ? valSelecionado : sel2.value;
+    let listaC2 = [];
+
+    if (valC1 && cacheDadosCadItens && cacheDadosCadItens.mapaClasses1Para2 && cacheDadosCadItens.mapaClasses1Para2[valC1]) {
+      listaC2 = [...cacheDadosCadItens.mapaClasses1Para2[valC1]];
+    }
+    if (valC1 && MAPA_CLASSES_PADRAO_C2_CAD_ITENS[valC1]) {
+      MAPA_CLASSES_PADRAO_C2_CAD_ITENS[valC1].forEach(opt => {
+        if (!listaC2.includes(opt)) listaC2.push(opt);
+      });
+    }
+
+    if (listaC2.length === 0) {
+      listaC2 = (cacheDadosCadItens && cacheDadosCadItens.classes2) ? [...cacheDadosCadItens.classes2] : [];
+    }
+
+    listaC2.sort();
+
+    let html2 = '<option value="">Selecione a Classe 2...</option>';
+    listaC2.forEach(c => {
+      if (c) html2 += `<option value="${escapeHtmlResumo(c)}">${escapeHtmlResumo(c)}</option>`;
+    });
+    html2 += '<option value="__NOVA__">+ Adicionar Outra Classe 2...</option>';
+    sel2.innerHTML = html2;
+
+    if (valAtual2) {
+      setSelectValueComFallback(sel2, valAtual2);
+    } else {
+      sel2.value = '';
+    }
+  }
+
+  function aoMudarClasse1CadItens() {
+    const sel1 = document.getElementById('cadItens_inputClasse1');
+    const sel2 = document.getElementById('cadItens_inputClasse2');
+    const valC1 = sel1 ? sel1.value : '';
+    const valC2Atual = sel2 ? sel2.value : '';
+    popularSelectClasse2CadItens(valC1, valC2Atual);
+  }
+
+  function setSelectValueComFallback(sel, val) {
+    if (!sel) return;
+    const valLimpo = (val || '').trim();
+    if (!valLimpo) {
+      sel.value = '';
+      return;
+    }
+    let opt = Array.from(sel.options).find(o => o.value.toUpperCase() === valLimpo.toUpperCase());
+    if (!opt) {
+      opt = document.createElement('option');
+      opt.value = valLimpo.toUpperCase();
+      opt.textContent = valLimpo.toUpperCase();
+      const optNova = sel.querySelector('option[value="__NOVA__"]');
+      if (optNova) {
+        sel.insertBefore(opt, optNova);
+      } else {
+        sel.appendChild(opt);
+      }
+    }
+    sel.value = opt.value;
+  }
+
+  function verificarAdicionarNovaClasseCadItens(selectEl, numClasse) {
+    if (!selectEl || selectEl.value !== '__NOVA__') return;
+
+    Swal.fire({
+      title: `Nova Classe ${numClasse}`,
+      text: `Informe a descrição da nova classificação (Classe ${numClasse}):`,
+      input: 'text',
+      inputPlaceholder: 'EX: NOVA CLASSIFICAÇÃO...',
+      showCancelButton: true,
+      confirmButtonText: 'Adicionar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#0d6efd',
+      inputValidator: (val) => {
+        if (!val || !val.trim()) return 'Por favor, informe a descrição da classe.';
+      }
+    }).then((res) => {
+      if (res.isConfirmed && res.value) {
+        const nova = res.value.trim().toUpperCase();
+        setSelectValueComFallback(selectEl, nova);
+        if (numClasse === 1) aoMudarClasse1CadItens();
+      } else {
+        selectEl.value = '';
+        if (numClasse === 1) aoMudarClasse1CadItens();
+      }
+    });
   }
 
   function popularSelectMateriaisCadItens(dados, materialParaSelecionar) {
@@ -29042,7 +29166,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       if (inputEFisco) inputEFisco.value = '';
       if (selConsumo) selConsumo.value = 'NÃO';
       if (inputC1) inputC1.value = '';
-      if (inputC2) inputC2.value = '';
+      popularSelectClasse2CadItens('', '');
       if (inputC3) inputC3.value = '';
       if (inputM1) inputM1.value = '';
       if (inputMod1) inputMod1.value = '';
@@ -29088,9 +29212,13 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     const vConsumo = buscarValor(k => k === 'CONSUMO' || k.includes('CONSUMO')).toUpperCase();
     if (selConsumo) selConsumo.value = (vConsumo === 'SIM' || vConsumo === 'S') ? 'SIM' : 'NÃO';
 
-    if (inputC1) inputC1.value = buscarValor(k => k === 'CLASSE 1' || (k.includes('CLASSE 1') && !k.includes('2') && !k.includes('3')));
-    if (inputC2) inputC2.value = buscarValor(k => k === 'CLASSE 2' || k.includes('CLASSE 2'));
-    if (inputC3) inputC3.value = buscarValor(k => k === 'CLASSE 3' || k.includes('CLASSE 3'));
+    const valC1 = buscarValor(k => k === 'CLASSE 1' || (k.includes('CLASSE 1') && !k.includes('2') && !k.includes('3')));
+    const valC2 = buscarValor(k => k === 'CLASSE 2' || k.includes('CLASSE 2'));
+    const valC3 = buscarValor(k => k === 'CLASSE 3' || k.includes('CLASSE 3'));
+
+    setSelectValueComFallback(inputC1, valC1);
+    popularSelectClasse2CadItens(inputC1 ? inputC1.value : '', valC2);
+    setSelectValueComFallback(inputC3, valC3);
 
     if (inputM1) inputM1.value = buscarValor(k => k.includes('MARCA') && k.includes('1'));
     if (inputMod1) inputMod1.value = buscarValor(k => k.includes('MODELO') && k.includes('1'));

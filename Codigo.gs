@@ -20492,6 +20492,28 @@ function obterDadosGerenciamentoCadItens(usuarioCliente) {
     var numLinhas = lastRow - (dataStartRow - 1);
     var materiais = [];
     var setsClasses = { classe1: {}, classe2: {}, classe3: {} };
+    var mapaClasses1Para2 = {};
+
+    var padraoC1 = ["OPERACIONAL", "ADMINISTRATIVO", "SERVIÇO"];
+    padraoC1.forEach(function(c) { setsClasses.classe1[c] = true; });
+
+    var padraoC2 = [
+      "VIATURA ATV FIM", "MATERIAL OPERACIONAL", "EPI", "TREINAMENTO", "APOIO OPERACIONAL",
+      "VIATURA ATV MEIO", "BENS MATERIAIS",
+      "OBRAS E ENGENHARIA", "SERVIÇO DE TIC", "MANUTENÇÃO DE BENS", "LOCAÇÃO", "COMPANHIAS", "SAÚDE"
+    ];
+    padraoC2.forEach(function(c) { setsClasses.classe2[c] = true; });
+
+    var padraoC3 = [
+      "ALIMENTAÇÃO", "AMBULÂNCIA", "ANIMAIS", "APH", "AUTOMÓVEL", "BÉLICO", "BENS IMÓVEIS", "BENS MÓVEIS",
+      "CAMINHÃO", "CAMINHONETE", "CONSTRUÇÃO", "CONSUMO", "CORRESPONDÊNCIA", "DESSEDENTAÇÃO", "EFETIVO",
+      "ELETRODOMÉSTICO", "ELETROELETRÔNICO", "FORNECIMENTO", "INCÊNDIO FLORESTAL", "INCÊNDIO URBANO", "LIMPEZA",
+      "MATERIAL DE EXPEDIENTE", "MATERIAL DE LIMPEZA", "MATERIAL DE TIC", "MERGULHO", "MICRO-ÔNIBUS", "MOBILIÁRIO",
+      "MULTIMISSÕES", "OBRAS E CONSTRUÇÃO", "ODONTO", "ÔNIBUS", "PRODUTOS PERIGOSOS", "REPAROS", "SALV. ALTURA",
+      "SALV. AQUÁTICO", "SALV. TERRESTRE", "SERVIÇO", "TECNOLOGIAS DIVERSAS", "TPEI", "TREINAMENTO", "UNIFORME",
+      "USO NO SERVIÇO"
+    ];
+    padraoC3.forEach(function(c) { setsClasses.classe3[c] = true; });
 
     if (numLinhas > 0) {
       var dadosMatriz = abaCad.getRange(dataStartRow, 1, numLinhas, lastCol).getValues();
@@ -20501,6 +20523,8 @@ function obterDadosGerenciamentoCadItens(usuarioCliente) {
         if (!nomeMat) continue;
 
         var valoresCampos = {};
+        var c1Linha = "";
+        var c2Linha = "";
         for (var k = 0; k < colunas.length; k++) {
           var colInfo = colunas[k];
           var rawVal = rData[colInfo.colIndex - 1];
@@ -20508,14 +20532,25 @@ function obterDadosGerenciamentoCadItens(usuarioCliente) {
 
           if (colInfo.nomeNorm.includes("CLASSE 1")) {
             var c1Val = valoresCampos[colInfo.nome];
-            if (c1Val) setsClasses.classe1[c1Val] = true;
+            if (c1Val) {
+              setsClasses.classe1[c1Val] = true;
+              c1Linha = c1Val;
+            }
           } else if (colInfo.nomeNorm.includes("CLASSE 2")) {
             var c2Val = valoresCampos[colInfo.nome];
-            if (c2Val) setsClasses.classe2[c2Val] = true;
+            if (c2Val) {
+              setsClasses.classe2[c2Val] = true;
+              c2Linha = c2Val;
+            }
           } else if (colInfo.nomeNorm.includes("CLASSE 3")) {
             var c3Val = valoresCampos[colInfo.nome];
             if (c3Val) setsClasses.classe3[c3Val] = true;
           }
+        }
+
+        if (c1Linha && c2Linha) {
+          if (!mapaClasses1Para2[c1Linha]) mapaClasses1Para2[c1Linha] = {};
+          mapaClasses1Para2[c1Linha][c2Linha] = true;
         }
 
         materiais.push({
@@ -20540,7 +20575,14 @@ function obterDadosGerenciamentoCadItens(usuarioCliente) {
       materiais: materiais,
       classes1: Object.keys(setsClasses.classe1).sort(),
       classes2: Object.keys(setsClasses.classe2).sort(),
-      classes3: Object.keys(setsClasses.classe3).sort()
+      classes3: Object.keys(setsClasses.classe3).sort(),
+      mapaClasses1Para2: (function() {
+        var res = {};
+        for (var c1 in mapaClasses1Para2) {
+          res[c1] = Object.keys(mapaClasses1Para2[c1]).sort();
+        }
+        return res;
+      })()
     };
   } catch (err) {
     console.error("Erro em obterDadosGerenciamentoCadItens: " + err.message);
