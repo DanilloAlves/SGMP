@@ -10063,6 +10063,35 @@ function gerarTicketDistribuicaoDpl(dadosTicket) {
       }
       var refCompletaTicket = "IDS_TICKET:" + JSON.stringify(itensDesteTicket) + infoSerieExtra + " | " + textoSeiBge;
 
+      var statusRemessa = "AGUARDANDO";
+      var recebedorNomeRemessa = "";
+      var recebedorCpfRemessa = "";
+
+      // REGRA: Se o material for distribuído para o próprio CINT, sai da SEDE (sem setor) e vai para SETOR = 'Estoque'
+      if (envio.ome === "CINT") {
+        statusRemessa = "ENTREGUE";
+        recebedorNomeRemessa = despachanteValido.nome;
+        recebedorCpfRemessa = cpfInformado;
+
+        try {
+          var listaSqlCint = itensDesteTicket.map(function(id) { return "'" + limparSQL(id) + "'"; }).join(",");
+          var sqlUpdateCint = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` SET " +
+                              "UNIDADE = 'CINT', " +
+                              "SUBUNIDADE = 'SEDE', " +
+                              "SETOR = 'Estoque', " +
+                              "LOCALIZACAO_ESPCIFICA_NA_OME_Se_Necessario = 'Estoque', " +
+                              "STATUS = 'ECD' " +
+                              "WHERE ITEM IN (" + listaSqlCint + ")";
+          executarEscritaBigQuerySegura(sqlUpdateCint);
+        } catch (eUpCint) {
+          console.error("Erro ao atualizar itens para o Estoque do CINT: " + eUpCint.message);
+        }
+
+        try {
+          garantirLocaisArvoreInterno_([{ ome: "CINT", subunidade: "SEDE", setor: "Estoque", local: "" }], { ome: "CINT" });
+        } catch (eGarantir) {}
+      }
+
       // Gravação estritamente alinhada às colunas A até K da planilha RemessasPendentes
       sheetRemessa.appendRow([
         idRemessa,               // Coluna A: ID_Remessa
@@ -10070,11 +10099,11 @@ function gerarTicketDistribuicaoDpl(dadosTicket) {
         envio.ome,               // Coluna C: OME_Destino
         descMaterialEnvio,       // Coluna D: Material
         envio.quantidade,        // Coluna E: Quantidade
-        "AGUARDANDO",            // Coluna F: Status
+        statusRemessa,           // Coluna F: Status (ENTREGUE para CINT, AGUARDANDO para as demais)
         "CINT",                  // Coluna G: Admin_Envio / OME de Envio (Todo material de ticket sai do estoque CINT)
         cpfInformado,            // Coluna H: Assinatura
-        "",                      // Coluna I: Recebedor_Nome
-        "",                      // Coluna J: Recebedor_CPF
+        recebedorNomeRemessa,    // Coluna I: Recebedor_Nome
+        recebedorCpfRemessa,     // Coluna J: Recebedor_CPF
         refCompletaTicket        // Coluna K: SEI com IDs únicos vinculados
       ]);
 
@@ -10101,13 +10130,15 @@ function gerarTicketDistribuicaoDpl(dadosTicket) {
             origemUnidade: "CINT",
             origemLocal: "SEDE",
             destinoUnidade: envio.ome,
-            destinoLocal: "SEDE",
+            destinoLocal: (envio.ome === "CINT") ? "SEDE > Estoque" : "SEDE",
             statusAnterior: "ECD",
-            statusNovo: "AGUARDANDO_RECEBIMENTO",
+            statusNovo: (envio.ome === "CINT") ? "ECD" : "AGUARDANDO_RECEBIMENTO",
             responsavelNome: despachanteValido.nome,
             responsavelCpf: cpfInformado,
             documentoRef: idRemessa + " (" + textoSeiBge + ")",
-            observacao: "Despachado via ticket de distribuição DPL para a OME " + envio.ome + (serieDoItem ? " (Série: " + serieDoItem + ")" : "")
+            observacao: (envio.ome === "CINT")
+              ? "Distribuído para o Estoque do CINT via ticket " + idRemessa + (serieDoItem ? " (Série: " + serieDoItem + ")" : "")
+              : "Despachado via ticket de distribuição DPL para a OME " + envio.ome + (serieDoItem ? " (Série: " + serieDoItem + ")" : "")
           });
         }
         registrarHistoricoMovimentacao(eventosTicket);
@@ -12676,8 +12707,10 @@ function confirmarRecebimentoRemessa(idRemessa, cpfRecebedor, nomeRecebedor, dad
 
         if (idsEcdT.length > 0) {
           var listaSqlEcdT = idsEcdT.map(function(id) { return "'" + limparSQL(id) + "'"; }).join(",");
+          var setorDestinoFinal = (omeDestClean === "CINT") ? "'Estoque'" : "NULL";
+          var locDestinoFinal = (omeDestClean === "CINT") ? "'Estoque'" : "NULL";
           var sqlUpdateTransfEcd = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` SET " +
-                                  "UNIDADE = '" + omeDestClean + "', SUBUNIDADE = 'SEDE', SETOR = NULL, LOCALIZACAO_ESPCIFICA_NA_OME_Se_Necessario = NULL, " +
+                                  "UNIDADE = '" + omeDestClean + "', SUBUNIDADE = 'SEDE', SETOR = " + setorDestinoFinal + ", LOCALIZACAO_ESPCIFICA_NA_OME_Se_Necessario = " + locDestinoFinal + ", " +
                                   "STATUS = 'ECD' " +
                                   "WHERE ITEM IN (" + listaSqlEcdT + ")";
           executarConsultaBigQuerySegura(sqlUpdateTransfEcd, true);
@@ -12695,8 +12728,10 @@ function confirmarRecebimentoRemessa(idRemessa, cpfRecebedor, nomeRecebedor, dad
 
         if (idsScdT.length > 0) {
           var listaSqlScdT = idsScdT.map(function(id) { return "'" + limparSQL(id) + "'"; }).join(",");
+          var setorDestinoScd = (omeDestClean === "CINT") ? "'Estoque'" : "NULL";
+          var locDestinoScd = (omeDestClean === "CINT") ? "'Estoque'" : "NULL";
           var sqlUpdateTransfScd = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` SET " +
-                                  "UNIDADE = '" + omeDestClean + "', SUBUNIDADE = 'SEDE', SETOR = NULL, LOCALIZACAO_ESPCIFICA_NA_OME_Se_Necessario = NULL, " +
+                                  "UNIDADE = '" + omeDestClean + "', SUBUNIDADE = 'SEDE', SETOR = " + setorDestinoScd + ", LOCALIZACAO_ESPCIFICA_NA_OME_Se_Necessario = " + locDestinoScd + ", " +
                                   "STATUS = 'SCD', " +
                                   "OBSERVACAO_Mais_detalhes_sobre_a_situacao_do_material = CONCAT(COALESCE(OBSERVACAO_Mais_detalhes_sobre_a_situacao_do_material, ''), ' | Recebido em SCD na remessa " + idRemessa + "') " +
                                   "WHERE ITEM IN (" + listaSqlScdT + ")";
@@ -12826,8 +12861,10 @@ function confirmarRecebimentoRemessa(idRemessa, cpfRecebedor, nomeRecebedor, dad
 
         if (idsEcdC.length > 0) {
           var listaSqlEcdC = idsEcdC.map(function(id) { return "'" + limparSQL(id) + "'"; }).join(",");
+          var setorDestinoFbEcd = (omeDestClean === "CINT") ? "'Estoque'" : "NULL";
+          var locDestinoFbEcd = (omeDestClean === "CINT") ? "'Estoque'" : "NULL";
           var sqlUpdateCintEcd = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` SET " +
-                                 "UNIDADE = '" + omeDestClean + "', SUBUNIDADE = 'SEDE', SETOR = NULL, LOCALIZACAO_ESPCIFICA_NA_OME_Se_Necessario = NULL, " +
+                                 "UNIDADE = '" + omeDestClean + "', SUBUNIDADE = 'SEDE', SETOR = " + setorDestinoFbEcd + ", LOCALIZACAO_ESPCIFICA_NA_OME_Se_Necessario = " + locDestinoFbEcd + ", " +
                                  "STATUS = 'ECD' " +
                                  "WHERE ITEM IN (" + listaSqlEcdC + ")";
           executarConsultaBigQuerySegura(sqlUpdateCintEcd, true);
@@ -12845,8 +12882,10 @@ function confirmarRecebimentoRemessa(idRemessa, cpfRecebedor, nomeRecebedor, dad
 
         if (idsScdC.length > 0) {
           var listaSqlScdC = idsScdC.map(function(id) { return "'" + limparSQL(id) + "'"; }).join(",");
+          var setorDestinoFbScd = (omeDestClean === "CINT") ? "'Estoque'" : "NULL";
+          var locDestinoFbScd = (omeDestClean === "CINT") ? "'Estoque'" : "NULL";
           var sqlUpdateCintScd = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` SET " +
-                                 "UNIDADE = '" + omeDestClean + "', SUBUNIDADE = 'SEDE', SETOR = NULL, LOCALIZACAO_ESPCIFICA_NA_OME_Se_Necessario = NULL, " +
+                                 "UNIDADE = '" + omeDestClean + "', SUBUNIDADE = 'SEDE', SETOR = " + setorDestinoFbScd + ", LOCALIZACAO_ESPCIFICA_NA_OME_Se_Necessario = " + locDestinoFbScd + ", " +
                                  "STATUS = 'SCD', " +
                                  "OBSERVACAO_Mais_detalhes_sobre_a_situacao_do_material = CONCAT(COALESCE(OBSERVACAO_Mais_detalhes_sobre_a_situacao_do_material, ''), ' | Recebido em SCD na remessa " + idRemessa + "') " +
                                  "WHERE ITEM IN (" + listaSqlScdC + ")";
