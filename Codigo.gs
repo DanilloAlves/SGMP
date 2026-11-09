@@ -2067,7 +2067,7 @@ function invalidarCacheArmazenamentoOme_(ome) {
   try {
     var omePadrao = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(ome) : (ome || "");
     if (!omePadrao) return;
-    var sufixos = ["", "_V3", "_V4", "_V5", "_V6", "_V7", "_V8", "_V9", "_V10"];
+    var sufixos = ["", "_V3", "_V4", "_V5", "_V6", "_V7", "_V8", "_V9", "_V10", "_V11"];
     var cache = CacheService.getScriptCache();
     sufixos.forEach(function(suf) {
       var chaveBase = "CACHE_ARM_COMPLETO" + suf + "_" + omePadrao.toUpperCase().replace(/[^A-Z0-9]/g, "_");
@@ -2093,7 +2093,7 @@ function carregarDadosArmazenamentoCompleto(unidadeOmega, forcarAtualizacao) {
     if (!omePadrao) return { locais: [], materiais: [], vinculos: {} };
 
     // Prefixo V5 para descarte absoluto de qualquer cache antigo e sincronização estrita BigQuery
-    var chaveBase = "CACHE_ARM_COMPLETO_V10_" + omePadrao.toUpperCase().replace(/[^A-Z0-9]/g, "_");
+    var chaveBase = "CACHE_ARM_COMPLETO_V11_" + omePadrao.toUpperCase().replace(/[^A-Z0-9]/g, "_");
     var cached = (!forcarAtualizacao && typeof lerDeCacheChunked_ === 'function') ? lerDeCacheChunked_(chaveBase) : null;
 
     // Se houver algum setor não identificado ou genérico (ex: "BIS"), bypass no cache
@@ -2107,7 +2107,7 @@ function carregarDadosArmazenamentoCompleto(unidadeOmega, forcarAtualizacao) {
     }
 
     var locais = getArvoreLocais(omePadrao);
-    var vinculos = getMateriaisAtreladosPorLocal(omePadrao);
+    var vinculos = getMateriaisAtreladosPorLocal(omePadrao, locais);
 
     // Derivação em memória ultrarrápida dos materiais da OME a partir dos vinculos
     var mapaTotaisMaterial = {};
@@ -3176,19 +3176,23 @@ function garantirSedePadraoOme(ome) {
 
 
 
-function getMateriaisAtreladosPorLocal(unidadeOmega) {
+function getMateriaisAtreladosPorLocal(unidadeOmega, locaisPreCarregados) {
   try {
-    var omePadrao = obterOmePadronizada(unidadeOmega);
+    var omePadrao = (typeof obterOmePadronizada === "function") ? obterOmePadronizada(unidadeOmega) : String(unidadeOmega || "").trim();
     if (!omePadrao) return {};
 
-    var idSedeOficial = garantirSedePadraoOme(omePadrao);
+    var idSedeOficial = (typeof garantirSedePadraoOme === "function") ? garantirSedePadraoOme(omePadrao) : "";
 
     var mapaNomesLocais = {}; 
     var mapaNos = {};
     var mapaCaminhos = {};
     var mapaGhostIds = {};
+    var mapaViaturasPorNum = {};
 
-    var dadosArvore = obterLocaisArvoreGeral_(omePadrao);
+    // Utiliza os locais completos já sincronizados com as viaturas operacionais (getArvoreLocais)
+    var dadosArvore = (locaisPreCarregados && Array.isArray(locaisPreCarregados) && locaisPreCarregados.length > 0)
+      ? locaisPreCarregados
+      : ((typeof getArvoreLocais === "function") ? getArvoreLocais(omePadrao) : obterLocaisArvoreGeral_(omePadrao));
 
     if (dadosArvore && dadosArvore.length > 0) {
       // 1ª passada: registra nós válidos e identifica nós raiz fantasmas que repetem a OME
@@ -3209,6 +3213,16 @@ function getMateriaisAtreladosPorLocal(unidadeOmega) {
 
           mapaNomesLocais[nomeUpper] = idLocal;
           mapaNos[idLocal] = { id: idLocal, nome: nomeUpper, idPai: idPai };
+
+          // Indexa variações de viaturas (sem espaços e por número de ordem)
+          if ((typeof ehViaturaLocalBackend_ === "function" && ehViaturaLocalBackend_(nomeUpper)) || linha.isViatura) {
+            var nomeSemEsp = nomeUpper.replace(/\s+/g, "");
+            mapaNomesLocais[nomeSemEsp] = idLocal;
+            var mNumVtr = nomeUpper.match(/\b(\d+)\b/);
+            if (mNumVtr && mNumVtr[1]) {
+              mapaViaturasPorNum[mNumVtr[1].replace(/^0+/, "")] = idLocal;
+            }
+          }
         }
       });
 
@@ -3305,27 +3319,57 @@ function getMateriaisAtreladosPorLocal(unidadeOmega) {
         var subEfetiva = ehSubSede ? "" : subRef;
         var idDestino = "";
 
+        // 1. Tenta correspondência precisa pelo caminho hierárquico na árvore
         if (subEfetiva) {
-          // É uma subunidade real cadastrada na árvore (ex: "1ª SB/1º GB", "2ª SB", etc.)
           var caminhoCompleto = [subEfetiva, setRef, locRef].filter(Boolean).join(" > ");
           var caminhoSubSet = [subEfetiva, setRef].filter(Boolean).join(" > ");
-          idDestino = mapaCaminhos[caminhoCompleto] || mapaCaminhos[caminhoSubSet] || mapaCaminhos[subEfetiva] || mapaNomesLocais[subEfetiva];
-        } else {
-          // Está na SEDE (subunidade vazia, "SEDE" ou repetição da OME)
-          if (locRef || setRef) {
-            var caminhoSedeLoc = [setRef, locRef].filter(Boolean).join(" > ");
-            idDestino = mapaCaminhos[caminhoSedeLoc] || mapaNomesLocais[locRef] || mapaNomesLocais[setRef];
-          }
-          if (!idDestino && setRef) {
-            for (var kNome in mapaNomesLocais) {
-              if (kNome === setRef || kNome.indexOf(setRef + " -") === 0 || kNome.indexOf(setRef + "-") === 0) {
-                idDestino = mapaNomesLocais[kNome];
-                break;
+          idDestino = mapaCaminhos[caminhoCompleto] || mapaCaminhos[caminhoSubSet];
+        } else if (locRef || setRef) {
+          var caminhoSedeLoc = [setRef, locRef].filter(Boolean).join(" > ");
+          idDestino = mapaCaminhos[caminhoSedeLoc];
+        }
+
+        // 2. Se não encontrou e o setor ou localização for uma viatura, atrela diretamente à viatura!
+        if (!idDestino && (setRef || locRef)) {
+          var alvosVtr = [setRef, locRef].filter(Boolean);
+          for (var iv = 0; iv < alvosVtr.length; iv++) {
+            var vCand = alvosVtr[iv];
+            if (mapaNomesLocais[vCand]) {
+              idDestino = mapaNomesLocais[vCand];
+              break;
+            }
+            var vCandSemEsp = vCand.replace(/\s+/g, "");
+            if (mapaNomesLocais[vCandSemEsp]) {
+              idDestino = mapaNomesLocais[vCandSemEsp];
+              break;
+            }
+            if (typeof ehViaturaLocalBackend_ === "function" && ehViaturaLocalBackend_(vCand)) {
+              var mNumCand = vCand.match(/\b(\d+)\b/);
+              if (mNumCand && mNumCand[1]) {
+                var numNormCand = mNumCand[1].replace(/^0+/, "");
+                if (mapaViaturasPorNum[numNormCand]) {
+                  idDestino = mapaViaturasPorNum[numNormCand];
+                  break;
+                }
               }
             }
           }
-          if (!idDestino) {
-            idDestino = idSedeOficial;
+        }
+
+        // 3. Fallback: se não caiu em viatura, vincula à subunidade ou local correspondente
+        if (!idDestino) {
+          if (subEfetiva) {
+            idDestino = mapaCaminhos[subEfetiva] || mapaNomesLocais[subEfetiva];
+          } else {
+            idDestino = (locRef && mapaNomesLocais[locRef]) || (setRef && mapaNomesLocais[setRef]);
+            if (!idDestino && setRef) {
+              for (var kNome in mapaNomesLocais) {
+                if (kNome === setRef || kNome.indexOf(setRef + " -") === 0 || kNome.indexOf(setRef + "-") === 0) {
+                  idDestino = mapaNomesLocais[kNome];
+                  break;
+                }
+              }
+            }
           }
         }
 
