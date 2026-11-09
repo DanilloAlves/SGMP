@@ -29599,7 +29599,7 @@ function alternarMenuFrotas(menu) {
 function sincronizarPeculioComBigQueryUI() {
   Swal.fire({
     title: 'Atualizando',
-    html: '<div class="text-center py-3"><i class="fa-solid fa-arrows-rotate fa-spin fa-2x text-danger mb-2"></i></div>',
+    html: '<div class="text-center py-3"><i class="fa-solid fa-arrows-rotate fa-spin fa-2x text-danger mb-2"></i><div class="mt-2 text-muted small">Limpando base e reconstruindo com os dados da planilha...</div></div>',
     allowOutsideClick: false,
     showConfirmButton: false
   });
@@ -29627,6 +29627,7 @@ function sincronizarPeculioComBigQueryUI() {
 }
 
 function carregarDadosFrotas(forcar) {
+  if (forcar) { cacheDadosFrotas = null; }
   if (cacheDadosFrotas && !forcar) {
     aplicarFiltrosFrotas();
     return;
@@ -29686,7 +29687,7 @@ function carregarDadosFrotas(forcar) {
         tbody.innerHTML = '<tr><td colspan="8" class="text-center py-5 text-danger"><i class="fa-solid fa-triangle-exclamation fa-2x mb-2"></i><br>Falha na comunicação com o servidor: ' + (err.message || err) + '</td></tr>';
       }
     })
-    .getDadosGestaoFrotas();
+    .getDadosGestaoFrotas(Boolean(forcar));
 }
 
 function alternarFiltroRapidoSituacao(situacaoAlvo) {

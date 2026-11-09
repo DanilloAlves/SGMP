@@ -12180,7 +12180,7 @@ function executarEscritaBigQuerySegura(sqlQuery) {
         method: "post",
         contentType: "application/json",
         headers: { "Authorization": "Bearer " + token },
-        payload: JSON.stringify({ query: sqlQuery, useLegacySql: false }),
+        payload: JSON.stringify({ query: sqlQuery, useLegacySql: false, timeoutMs: 30000 }),
         muteHttpExceptions: true
       };
       
@@ -12198,6 +12198,30 @@ function executarEscritaBigQuerySegura(sqlQuery) {
       if (result.error) {
         throw new Error("Erro de gravação no banco de dados: " + result.error.message);
       }
+
+      var jobId = (result.jobReference && result.jobReference.jobId) ? result.jobReference.jobId : null;
+      var jobLoc = (result.jobReference && result.jobReference.location) ? result.jobReference.location : null;
+
+      var maxPolls = 30;
+      while (result.jobComplete === false && jobId && maxPolls > 0) {
+        maxPolls--;
+        Utilities.sleep(1000);
+        var pollUrl = "https://bigquery.googleapis.com/bigquery/v2/projects/" + PROJECT_ID + "/queries/" + jobId + "?timeoutMs=10000" + (jobLoc ? "&location=" + encodeURIComponent(jobLoc) : "");
+        var pollRes = UrlFetchApp.fetch(pollUrl, {
+          method: "get",
+          headers: { "Authorization": "Bearer " + token },
+          muteHttpExceptions: true
+        });
+        if (pollRes.getResponseCode() === 200) {
+          result = JSON.parse(pollRes.getContentText());
+          if (result.error) {
+            throw new Error("Erro de gravação no banco de dados: " + result.error.message);
+          }
+        } else {
+          break;
+        }
+      }
+
       return {
         rows: result.rows || [],
         schema: result.schema || {},
@@ -20878,17 +20902,19 @@ function salvarCadastroMaterialCadItens(dados, usuarioCliente) {
 // MÓDULO DE GESTÃO DE FROTAS (Peculio_Viatura)
 // =========================================================================
 
-function getDadosGestaoFrotas() {
+function getDadosGestaoFrotas(forcar) {
   try {
     var cache = CacheService.getScriptCache();
-    var cachedJson = cache.get("CACHE_GESTAO_FROTAS_V3");
-    if (cachedJson) {
-      try {
-        var objCache = JSON.parse(cachedJson);
-        if (objCache && objCache.sucesso && objCache.viaturas && objCache.viaturas.length > 0) {
-          return objCache;
-        }
-      } catch(eJson) {}
+    if (!forcar) {
+      var cachedJson = cache.get("CACHE_GESTAO_FROTAS_V3");
+      if (cachedJson) {
+        try {
+          var objCache = JSON.parse(cachedJson);
+          if (objCache && objCache.sucesso && objCache.viaturas && objCache.viaturas.length > 0) {
+            return objCache;
+          }
+        } catch(eJson) {}
+      }
     }
 
     // 1. Consulta prioritária na tabela nativa do BigQuery (tb_Peculio_Viatura)
@@ -21483,19 +21509,37 @@ function sincronizarPeculioViaturaParaBigQuery(forcar) {
       return { sucesso: true, mensagem: "Nenhuma linha válida para sincronizar.", total: 0 };
     }
 
-    // Limpa a tabela atual e recarrega atomicamente
-    var sqlTruncate = "DELETE FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_PECULIO_VIATURA + "` WHERE 1=1";
+    // 1. Limpa completamente a tabela tb_Peculio_Viatura no BigQuery antes de reconstruir
+    var tabelaCompleta = "`" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_PECULIO_VIATURA + "`";
+    var limpouTabela = false;
+    var erroLimpeza = "";
+
     try {
-      executarEscritaBigQuerySegura(sqlTruncate);
-    } catch(eDel) {
-      console.warn("Aviso ao limpar tb_Peculio_Viatura: " + eDel.message);
+      executarEscritaBigQuerySegura("TRUNCATE TABLE " + tabelaCompleta);
+      limpouTabela = true;
+      console.log("tb_Peculio_Viatura limpa com sucesso via TRUNCATE TABLE.");
+    } catch (eTrunc) {
+      erroLimpeza = eTrunc.message;
+      console.warn("TRUNCATE TABLE falhou: " + erroLimpeza + ". Tentando DELETE FROM ... WHERE true...");
     }
 
-    // Insere em lotes de 100
+    if (!limpouTabela) {
+      try {
+        executarEscritaBigQuerySegura("DELETE FROM " + tabelaCompleta + " WHERE true");
+        limpouTabela = true;
+        console.log("tb_Peculio_Viatura limpa com sucesso via DELETE WHERE true.");
+      } catch (eDel) {
+        erroLimpeza = eDel.message;
+        console.error("Erro crítico: Falha ao limpar tb_Peculio_Viatura: " + erroLimpeza);
+        throw new Error("Não foi possível limpar a tabela " + TABELA_PECULIO_VIATURA + " no BigQuery antes da recarga. Operação abortada para evitar duplicidade de dados: " + erroLimpeza);
+      }
+    }
+
+    // 2. Insere os novos dados da planilha em lotes de 50
     var batchSize = 50;
     for (var b = 0; b < linhasSql.length; b += batchSize) {
       var batch = linhasSql.slice(b, b + batchSize);
-      var sqlBatch = "INSERT INTO `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_PECULIO_VIATURA + "` (" +
+      var sqlBatch = "INSERT INTO " + tabelaCompleta + " (" +
         "ID_VIATURA, LINHA_PLANILHA, PLACA, TIPO, N_DE_ORDEM, NOME, N_PATRIMONIO, OME, SITUACAO, " +
         "MARCA, MODELO, MARCA_MODELO, ANO, CHASSI, RENAVAM, COMBUSTIVEL, POSSE, DESTINACAO, " +
         "RASTREADO, CARACTERIZADO, CONDUTORES, CATEGORIA_CNH, ODOMETRO, ULTIMO_ABASTECIMENTO, " +
