@@ -15126,6 +15126,15 @@ function getItensParaChecklist(omeUsuario, perfilUsuario, omeFiltroAdmin, subuni
 
     rows.forEach(function(r) {
       if (!r || !r.f) return;
+      var obj = String((r.f[1] && r.f[1].v) || "").trim();
+
+      // REGRA: A viatura em si é um SETOR (onde materiais são acondicionados), NÃO um MATERIAL a ser inspecionado por avaria na lista de itens
+      if ((typeof identificarSeObjetoEhViatura_ === 'function' && identificarSeObjetoEhViatura_(obj)) ||
+          (typeof ehViaturaMaterialBackend_ === 'function' && ehViaturaMaterialBackend_(obj)) ||
+          (typeof obterSiglaViaturaBackend_ === 'function' && obterSiglaViaturaBackend_(obj))) {
+        return;
+      }
+
       var unidadeMat = String((r.f[2] && r.f[2].v) || "").trim();
       var sub = String((r.f[3] && r.f[3].v) || "").trim();
       var set = String((r.f[4] && r.f[4].v) || "").trim();
@@ -15273,7 +15282,14 @@ function getDadosChecklistPublico(omeParam, subParam, setorParam) {
     rows.forEach(function(r) {
       if (!r || !r.f) return;
       var itemCod = String((r.f[0] && r.f[0].v) || "");
-      var obj = String((r.f[1] && r.f[1].v) || "");
+      var obj = String((r.f[1] && r.f[1].v) || "").trim();
+
+      // REGRA: A viatura em si é um SETOR, NÃO um MATERIAL da lista de checklist
+      if ((typeof identificarSeObjetoEhViatura_ === 'function' && identificarSeObjetoEhViatura_(obj)) ||
+          (typeof ehViaturaMaterialBackend_ === 'function' && ehViaturaMaterialBackend_(obj)) ||
+          (typeof obterSiglaViaturaBackend_ === 'function' && obterSiglaViaturaBackend_(obj))) {
+        return;
+      }
       var unid = String((r.f[2] && r.f[2].v) || "");
       var sub = String((r.f[3] && r.f[3].v) || "");
       var set = String((r.f[4] && r.f[4].v) || "");

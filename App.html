@@ -12917,7 +12917,8 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
   function ehViaturaMaterial(nome) {
     if (!nome) return false;
     const n = String(nome).trim();
-    return CONFIG_VIATURAS_CBMPE.some(cfg => cfg.regex.test(n));
+    if (/^(?:VTR|ABTF|ABTS|ABT|ABSL|ABSM|ABSC|AR|AT\/1|AT|ASE|AE|AEM|BIS|MSA|MR|AP|ATM|AC|ACA|UR|UTI)(?:\b|[-_ ])/i.test(n)) return true;
+    return (typeof CONFIG_VIATURAS_CBMPE !== 'undefined') && CONFIG_VIATURAS_CBMPE.some(cfg => cfg.regex.test(n));
   }
 
   function formatarBadgeStatusBase(status) {
@@ -20309,6 +20310,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
 
     // 2. Complementa a partir dos itens carregados
     (itens || []).forEach(i => {
+      if (typeof ehViaturaMaterial === 'function' && ehViaturaMaterial(i.objeto)) return;
       let sTrim = String(i.subunidade || '').trim();
       let uniMat = String(i.unidade || '').trim().toUpperCase();
       if (!sTrim || sTrim === '-' || sTrim.toUpperCase() === 'GERAL' || (uniMat && sTrim.toUpperCase() === uniMat)) {
@@ -20383,6 +20385,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       const itens = window.ITENS_CHECKLIST_ATUAL || [];
 
       itens.forEach(i => {
+        if (typeof ehViaturaMaterial === 'function' && ehViaturaMaterial(i.objeto)) return;
         let sTrim = String(i.subunidade || '').trim();
         let uniMat = String(i.unidade || '').trim().toUpperCase();
         if (!sTrim || sTrim === '-' || sTrim.toUpperCase() === 'GERAL' || (uniMat && sTrim.toUpperCase() === uniMat)) {
@@ -20437,6 +20440,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       const itens = window.ITENS_CHECKLIST_ATUAL || [];
 
       itens.forEach(i => {
+        if (typeof ehViaturaMaterial === 'function' && ehViaturaMaterial(i.objeto)) return;
         let sTrim = String(i.subunidade || '').trim();
         let uniMat = String(i.unidade || '').trim().toUpperCase();
         if (!sTrim || sTrim === '-' || sTrim.toUpperCase() === 'GERAL' || (uniMat && sTrim.toUpperCase() === uniMat)) {
@@ -21059,6 +21063,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     // Mapa de itens agrupados por subunidade e setor
     let mapaItens = {};
     itens.forEach(i => {
+      if (typeof ehViaturaMaterial === 'function' && ehViaturaMaterial(i.objeto)) return;
       let subRes = resumirSubunidade(i.subunidade || "SEDE");
       if (!subRes || subRes === "-") subRes = "SEDE";
       let setKey = i.setor || "__SEM_SETOR__";
