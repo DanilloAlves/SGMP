@@ -1,7 +1,11 @@
-$pythonExe = (Get-Command python).Source
+$pythonDir = Split-Path (Get-Command python).Source
+$pythonwExe = Join-Path $pythonDir "pythonw.exe"
+if (-not (Test-Path $pythonwExe)) {
+    $pythonwExe = (Get-Command python).Source
+}
 $scriptPath = Join-Path $PSScriptRoot "robo_sei.py"
 
-Write-Host "Python encontrado em: $pythonExe"
+Write-Host "Python (sem janela CMD) encontrado em: $pythonwExe"
 Write-Host "Script do robo em: $scriptPath"
 
 $regPath = "HKCU:\Software\Classes\sgmp-sei"
@@ -11,7 +15,7 @@ Set-ItemProperty -Path $regPath -Name "URL Protocol" -Value ""
 
 $cmdPath = "HKCU:\Software\Classes\sgmp-sei\shell\open\command"
 New-Item -Path $cmdPath -Force | Out-Null
-$commandValue = "`"$pythonExe`" `"$scriptPath`" `"%1`""
+$commandValue = "`"$pythonwExe`" `"$scriptPath`" `"%1`""
 Set-ItemProperty -Path $cmdPath -Name "(default)" -Value $commandValue
 
-Write-Host "Protocolo sgmp-sei:// registrado com sucesso no Windows!" -ForegroundColor Green
+Write-Host "Protocolo sgmp-sei:// registrado com sucesso no Windows sem abrir CMD!" -ForegroundColor Green

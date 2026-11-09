@@ -9,6 +9,28 @@ import time
 import urllib.parse
 from playwright.sync_api import sync_playwright
 
+# Garante que sob pythonw.exe (sem janela CMD) a execução ocorra 100% silenciosa
+# e registre saídas em arquivo de log local para diagnóstico
+DIR_ATUAL = os.path.dirname(os.path.abspath(__file__))
+ARQUIVO_LOG = os.path.join(DIR_ATUAL, "robo_sei.log")
+
+class LoggerSilencioso:
+    def __init__(self, caminho_log):
+        self.caminho_log = caminho_log
+    def write(self, message):
+        try:
+            with open(self.caminho_log, "a", encoding="utf-8") as f:
+                f.write(message)
+        except Exception:
+            pass
+    def flush(self):
+        pass
+
+if sys.stdout is None or not sys.stdout.isatty():
+    sys.stdout = LoggerSilencioso(ARQUIVO_LOG)
+if sys.stderr is None or not sys.stderr.isatty():
+    sys.stderr = LoggerSilencioso(ARQUIVO_LOG)
+
 # Configurações de Acesso ao SEI
 SEI_URL = "https://sei.pe.gov.br/sip/login.php?sigla_orgao_sistema=GOVPE&sigla_sistema=SEI"
 USUARIO_SEI = "07400344480"
