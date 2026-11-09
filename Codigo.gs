@@ -1903,11 +1903,8 @@ function sincronizarViaturasInventarioNaArvore_(omePadrao, idSedeOficial, locais
       var sei = String(r.f[7] && r.f[7].v ? r.f[7].v : '').trim();
       var st = String(r.f[8] && r.f[8].v ? r.f[8].v : '').trim();
 
-      // Identifica a sigla da viatura
+      // Identifica a sigla da viatura estritamente a partir do objeto/material
       var sigla = (typeof obterSiglaViaturaBackend_ === 'function') ? obterSiglaViaturaBackend_(objeto) : '';
-      if (!sigla && setRef) {
-        sigla = (typeof obterSiglaViaturaBackend_ === 'function') ? obterSiglaViaturaBackend_(setRef) : '';
-      }
       if (!sigla && (typeof ehViaturaMaterialBackend_ === 'function') && ehViaturaMaterialBackend_(objeto)) {
         sigla = 'VTR';
       }
@@ -2126,13 +2123,23 @@ function sincronizarViaturasInventarioNaArvore_(omePadrao, idSedeOficial, locais
       }
     }
 
-    // 4. Limpeza no BigQuery tb_Arvore: remove nós genéricos (ex: "BIS" sem número) ou viaturas fantasmas não inventariadas
+    // 4. Limpeza no BigQuery tb_Arvore: remove nós genéricos sem número E purga qualquer viatura não inventariada
     try {
-      var sqlLimpeza = "DELETE FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` " +
-                       "WHERE UPPER(TRIM(Unidade_OME)) IN (" + inSqlOme + ") " +
-                       "  AND UPPER(TRIM(Nome_Local)) IN ('BIS', 'AR', 'ABT', 'ABTS', 'VTR', 'AT', 'ASE', 'AE', 'AEM', 'ABTF', 'ABSL', 'ABSM', 'ABSC', 'MSA', 'MR', 'UR', 'UTI')";
+      var condicaoExclusaoVtrs = "WHERE UPPER(TRIM(Unidade_OME)) IN (" + inSqlOme + ") " +
+        "AND (ID_Local LIKE 'vtr_%' OR ID_Local LIKE 'loc_vtr_%' OR " +
+        "REGEXP_CONTAINS(UPPER(TRIM(Nome_Local)), r'^(?:BIS|AR|ABTS|ABTF|ABSL|ABSM|ABSC|ABT|AT|ASE|AE|AEM|MSA|MR|UR|UTI|VTR|ATM|AC|ACA)(?:\b|[-_ ])') OR " +
+        "UPPER(TRIM(Nome_Local)) IN ('BIS', 'AR', 'ABT', 'ABTS', 'VTR', 'AT', 'ASE', 'AE', 'AEM', 'ABTF', 'ABSL', 'ABSM', 'ABSC', 'MSA', 'MR', 'UR', 'UTI', 'ATM'))";
+
+      var vtrsValidas = Object.keys(mapaSetoresViaturaAlvo);
+      if (vtrsValidas.length > 0) {
+        var listaValidasSql = vtrsValidas.map(function(v) { return sqlLiteralChamado_(v); }).join(", ");
+        condicaoExclusaoVtrs += " AND UPPER(TRIM(Nome_Local)) NOT IN (" + listaValidasSql + ")";
+      }
+      var sqlLimpeza = "DELETE FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` " + condicaoExclusaoVtrs;
       executarEscritaBigQuerySegura(sqlLimpeza);
-    } catch(eLimp) {}
+    } catch(eLimp) {
+      console.warn("Aviso ao limpar viaturas órfãs da tb_Arvore: " + eLimp.message);
+    }
 
     if (alterouAlgumLocal && typeof invalidarCacheArmazenamentoOme_ === 'function') {
       invalidarCacheArmazenamentoOme_(omePadrao);
@@ -2145,7 +2152,7 @@ function invalidarCacheArmazenamentoOme_(ome) {
   try {
     var omePadrao = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(ome) : (ome || "");
     if (!omePadrao) return;
-    var sufixos = ["", "_V3", "_V4", "_V5", "_V6", "_V7", "_V8", "_V9"];
+    var sufixos = ["", "_V3", "_V4", "_V5", "_V6", "_V7", "_V8", "_V9", "_V10"];
     var cache = CacheService.getScriptCache();
     sufixos.forEach(function(suf) {
       var chaveBase = "CACHE_ARM_COMPLETO" + suf + "_" + omePadrao.toUpperCase().replace(/[^A-Z0-9]/g, "_");
@@ -2171,7 +2178,7 @@ function carregarDadosArmazenamentoCompleto(unidadeOmega, forcarAtualizacao) {
     if (!omePadrao) return { locais: [], materiais: [], vinculos: {} };
 
     // Prefixo V5 para descarte absoluto de qualquer cache antigo e sincronização estrita BigQuery
-    var chaveBase = "CACHE_ARM_COMPLETO_V9_" + omePadrao.toUpperCase().replace(/[^A-Z0-9]/g, "_");
+    var chaveBase = "CACHE_ARM_COMPLETO_V10_" + omePadrao.toUpperCase().replace(/[^A-Z0-9]/g, "_");
     var cached = (!forcarAtualizacao && typeof lerDeCacheChunked_ === 'function') ? lerDeCacheChunked_(chaveBase) : null;
 
     // Se houver algum setor não identificado ou genérico (ex: "BIS"), bypass no cache
@@ -2640,15 +2647,22 @@ function getArvoreLocais(unidadeOmega) {
     });
 
     // 2ª passada: inclui APENAS nós legítimos não-viaturas (Subunidades e setores físicos normais)
-    // Qualquer setor de viatura antigo/legado em tb_Arvore (como "BIS" genérico, ou viaturas desatualizadas)
-    // é ignorado aqui e será recriado/sincronizado a partir do inventário oficial
+    // Viaturas NÃO entram na 2ª passada: são gerenciadas exclusivamente na 3ª passada a partir de tb_Inventario
     dadosLocais.forEach(function(item) {
       if (mapaGhostIds[item.id]) return;
 
       var nomeU = String(item.nome || "").trim().toUpperCase();
-      var siglasPurasDescartar = ["BIS", "AR", "ABT", "ABTS", "AT", "ASE", "AE", "AEM", "ABTF", "ABSL", "ABSM", "ABSC", "MSA", "MR", "UR", "UTI", "VTR"];
-      if (siglasPurasDescartar.indexOf(nomeU) !== -1 || /^(?:BIS|AR|ABT|ABTS|AT|ASE|AE|AEM|ABTF|ABSL|ABSM|ABSC|MSA|MR|UR|UTI|VTR)[\s\-_]*$/i.test(nomeU)) {
+      var siglasPurasDescartar = ["BIS", "AR", "ABT", "ABTS", "AT", "ASE", "AE", "AEM", "ABTF", "ABSL", "ABSM", "ABSC", "MSA", "MR", "UR", "UTI", "VTR", "ATM", "AC", "ACA"];
+      if (siglasPurasDescartar.indexOf(nomeU) !== -1 || /^(?:BIS|AR|ABT|ABTS|AT|ASE|AE|AEM|ABTF|ABSL|ABSM|ABSC|MSA|MR|UR|UTI|VTR|ATM|AC|ACA)[\s\-_]*$/i.test(nomeU)) {
         return; // Descarta nós genéricos antigos sem número (ex: "AR", "ABT", "BIS")
+      }
+
+      // Descarta qualquer registro de viatura remanescente em tb_Arvore na 2ª passada
+      if (typeof ehViaturaLocalBackend_ === 'function' && ehViaturaLocalBackend_(item.nome)) {
+        return;
+      }
+      if (String(item.id || '').indexOf('vtr_') === 0 || String(item.id || '').indexOf('loc_vtr_') === 0) {
+        return;
       }
 
       var idPaiEfetivo = item.idPai;
@@ -3624,7 +3638,15 @@ function transferirMaterialEntreLocais(dadosTransferencia) {
 
 
       if (nivelDestino === "SUBUNIDADE" && (ehViaturaMaterialBackend_(material) || (typeof identificarSeObjetoEhViatura_ === 'function' && identificarSeObjetoEhViatura_(material)))) {
-        var infoSetorVtr = garantirSetorViaturaNaSubunidade_(unidade, novoLocalDestinoId || nomeDestinoTexto, material, "");
+        var serieVtrTr = '';
+        try {
+          var sqlVtrSer = "SELECT COALESCE(N_SERIE, '') FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` WHERE ITEM IN (" + idsParaAtualizar.join(",") + ") AND N_SERIE IS NOT NULL AND N_SERIE != '-' LIMIT 1";
+          var resVtrSer = executarConsultaBigQuerySegura(sqlVtrSer);
+          if (resVtrSer && resVtrSer.rows && resVtrSer.rows[0] && resVtrSer.rows[0].f && resVtrSer.rows[0].f[0] && resVtrSer.rows[0].f[0].v) {
+            serieVtrTr = String(resVtrSer.rows[0].f[0].v).trim();
+          }
+        } catch(eVs) {}
+        var infoSetorVtr = garantirSetorViaturaNaSubunidade_(unidade, novoLocalDestinoId || nomeDestinoTexto, material, serieVtrTr);
         if (infoSetorVtr && infoSetorVtr.nomeSetor) {
           var sqlUpdate = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
                           "SET SUBUNIDADE = '" + nomeDestinoTexto.replace(/'/g, "\\'") + "', " +
@@ -12047,33 +12069,36 @@ function executarEscritaBigQuerySegura(sqlQuery) {
 function getItensDisponiveisParaTransferenciaOme(omeUsuario, perfilUsuario) {
   try {
     var ehAdmin = (String(perfilUsuario || "").trim() === "Administrador");
-    var omeStr = String(omeUsuario || "").trim().toUpperCase();
-    var omeClean = (omeStr && omeStr !== "TODAS") ? obterOmePadronizada(omeUsuario).toUpperCase() : "TODAS";
+    var omeStr = String(omeUsuario || "").trim();
+    var omeClean = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(omeStr) : omeStr;
 
-    // Se NÃO for Administrador, exige obrigatoriamente uma OME válida
-    if (!ehAdmin && (!omeClean || omeClean === "TODAS")) {
-      throw new Error("OME do usuário inválida para transferência.");
+    // Se NÃO for informada OME válida, default para a OME informada ou fallback
+    if (!omeClean || omeClean === "TODAS") {
+      omeClean = String(omeUsuario || "").trim();
+    }
+    if (!omeClean || omeClean === "TODAS") {
+      throw new Error("Selecione uma OME específica para carregar os itens.");
     }
 
     function limparSQL(t) { return String(t || '').replace(/'/g, "\\'"); }
 
     var sql = "SELECT ITEM, OBJETO, UNIDADE, SUBUNIDADE, SETOR, LOCALIZACAO_ESPCIFICA_NA_OME_Se_Necessario, STATUS, N_PATRIMONIO, SEI_COMPRA_RECEBIMENTO, N_SERIE, OBSERVACAO_Mais_detalhes_sobre_a_situacao_do_material " +
-              "FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` ";
-
-    // Se houver OME especificada (e não for TODAS), filtra por ela; caso contrário se não for admin filtra pela ome do usuário
-    if (omeClean && omeClean !== "TODAS") {
-      sql += "WHERE UPPER(TRIM(UNIDADE)) = '" + limparSQL(omeClean) + "' ";
-    } else if (!ehAdmin) {
-      sql += "WHERE UPPER(TRIM(UNIDADE)) = '" + limparSQL(omeClean) + "' ";
-    }
-
-    sql += "ORDER BY UNIDADE ASC, OBJETO ASC, SUBUNIDADE ASC";
+              "FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
+              "WHERE UPPER(TRIM(UNIDADE)) = '" + limparSQL(omeClean.toUpperCase()) + "' " +
+              "  AND (STATUS IS NULL OR UPPER(TRIM(STATUS)) NOT IN ('BAIXADO', 'EXCLUIDO', 'EXTRAVIADO')) " +
+              "ORDER BY OBJETO ASC, SUBUNIDADE ASC, SETOR ASC";
 
     var res = executarConsultaBigQuerySegura(sql);
     var rows = res.rows || [];
     var itens = [];
 
     rows.forEach(function(r) {
+      var objVal = (r.f[1] && r.f[1].v) ? String(r.f[1].v).trim() : "";
+
+      // Viaturas são locais/setores físicos de armazenamento, não materiais a serem remanejados internamente
+      if (typeof ehViaturaMaterialBackend_ === 'function' && ehViaturaMaterialBackend_(objVal)) return;
+      if (typeof obterSiglaViaturaBackend_ === 'function' && obterSiglaViaturaBackend_(objVal)) return;
+
       var nSerieVal = (r.f[9] && r.f[9].v && String(r.f[9].v).trim() !== '-' && String(r.f[9].v).trim() !== 'null') ? String(r.f[9].v).trim() : "";
       var obsVal = (r.f[10] && r.f[10].v) ? String(r.f[10].v).trim() : "";
       if (!nSerieVal && obsVal) {
@@ -12083,7 +12108,7 @@ function getItensDisponiveisParaTransferenciaOme(omeUsuario, perfilUsuario) {
 
       itens.push({
         item: r.f[0].v || "",
-        objeto: r.f[1].v || "",
+        objeto: objVal,
         unidade: r.f[2].v || "",
         subunidade: r.f[3].v || "",
         setor: r.f[4].v || "",
@@ -13162,6 +13187,12 @@ function transferirItensDiretoPorIds(dados) {
         userLogadoDir
       );
     } catch(eLogMv) {}
+
+    try {
+      if (typeof invalidarCacheArmazenamentoOme_ === 'function') {
+        invalidarCacheArmazenamentoOme_(unidade);
+      }
+    } catch(eInvC) {}
 
     return "Itens transferidos com sucesso para " + caminhoTexto + "!";
   } catch (err) {
@@ -21828,15 +21859,18 @@ function garantirSetorViaturaNaSubunidade_(unidadeOme, idSubunidadeOuNome, nomeV
       nomeSubunidadeAlvo = "SEDE";
     }
 
-    // 2. Monta o nome padronizado do setor da viatura: [SIGLA] (ou [SIGLA] - [N_SERIE / N_ORDEM])
+    // 2. Monta o nome padronizado do setor da viatura: [SIGLA] - [N_SERIE / N_ORDEM]
     var siglaVtr = (typeof obterSiglaViaturaBackend_ === 'function') ? obterSiglaViaturaBackend_(nomeViatura) : "";
-    var nomeSetor = siglaVtr || String(nomeViatura || "").trim();
     var serieTrim = String(nSerieOuOrdem || "").trim();
-    if (serieTrim && serieTrim !== "-" && serieTrim !== "null" && serieTrim !== "undefined") {
-      if (nomeSetor.indexOf(serieTrim) === -1) {
-        nomeSetor = nomeSetor + " - " + serieTrim;
-      }
+    if (!serieTrim || serieTrim === "-" || serieTrim === "null" || serieTrim === "undefined" || serieTrim === "0") {
+      var mExt = String(nomeViatura || "").match(/\b(?:BIS|AR|ABTS|ABTF|ABSL|ABSM|ABSC|ABT|AT|ASE|AE|AEM|MSA|MR|UR|UTI|ATM|VTR)[\s-_]+(\d+)\b/i);
+      if (mExt && mExt[1]) serieTrim = mExt[1].trim();
     }
+    // Viatura operacional EXIGE número de ordem/série para possuir setor na árvore!
+    if (!serieTrim || serieTrim === "-" || serieTrim === "null" || serieTrim === "undefined" || serieTrim === "0") {
+      return null;
+    }
+    var nomeSetor = (siglaVtr || "VTR") + " - " + serieTrim;
 
     // 3. Verifica se o setor da viatura já existe sob essa subunidade
     if (dadosLocais && dadosLocais.length > 0) {

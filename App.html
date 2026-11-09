@@ -26857,7 +26857,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       });
   }
 
-  // Blinda e agiliza também a movimentação interna em massa feita na aba Movimentação
+  // Blinda e agiliza a movimentação interna direta na aba Movimentação
   function abrirModalMovimentacaoInterna() {
     if (typeof temPermissao === 'function' && !temPermissao('movimentacao_estoque')) {
       Swal.fire('Acesso Restrito', 'Você não possui permissão para realizar movimentações de estoque.', 'error');
@@ -26865,14 +26865,18 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     }
 
     const ehAdmin = (PERFIL_GLOBAL === "Administrador");
-    const omeInicial = ehAdmin ? "TODAS" : OME_GLOBAL;
+    let omeAtiva = (OME_GLOBAL && OME_GLOBAL !== "TODAS") ? OME_GLOBAL : "1º GB";
 
     Swal.fire({
       title: 'Carregando dados...',
-      text: 'Buscando árvore de locais e materiais disponíveis...',
+      text: 'Buscando árvore de locais e materiais disponíveis de ' + omeAtiva + '...',
       allowOutsideClick: false,
       didOpen: () => Swal.showLoading()
     });
+
+    window.itensRemanejamentoAtuais = [];
+    window.itensSelecionadosRemanejamento = new Set();
+    window.locaisRemanejamentoCache = {};
 
     function gerarOptionsLocaisArvore(locaisArray) {
       if (!locaisArray || locaisArray.length === 0) {
@@ -26887,161 +26891,186 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
         }
         return caminho.join(' > ');
       }
-      let opts = '<option value="" disabled selected>Selecione o local de destino...</option>';
+      let opts = '<option value="" disabled selected>Selecione o local de destino na árvore...</option>';
       locaisArray.forEach(loc => {
         let caminhoFormatado = obterCaminhoCompleto(loc.id);
-        opts += `<option value="${loc.id}" data-caminho="${caminhoFormatado}">${caminhoFormatado}</option>`;
+        opts += `<option value="${loc.id}" data-caminho="${escapeHtmlResumo(caminhoFormatado)}">${escapeHtmlResumo(caminhoFormatado)}</option>`;
       });
       return opts;
     }
 
-    window.aoMudarOmeRemanejamentoInterno = function() {
-      const selOme = document.getElementById('swalFiltroOmeRemanejamento');
-      if (!selOme) return;
-      const omeEscolhida = selOme.value;
-      const selectDestino = document.getElementById('swalDestinoInt');
-
-      if (omeEscolhida && omeEscolhida !== 'TODAS') {
-        if (selectDestino) {
-          selectDestino.disabled = true;
-          selectDestino.innerHTML = '<option value="" disabled selected>Carregando locais da árvore de ' + omeEscolhida + '...</option>';
-        }
-
-        function aplicarLocais(locaisNovos) {
-          if (selectDestino) {
-            selectDestino.innerHTML = gerarOptionsLocaisArvore(locaisNovos);
-            selectDestino.disabled = false;
-          }
-        }
-
-        if (window.locaisRemanejamentoCache && window.locaisRemanejamentoCache[omeEscolhida]) {
-          aplicarLocais(window.locaisRemanejamentoCache[omeEscolhida]);
-        } else {
-          google.script.run
-            .withSuccessHandler(locaisNovos => {
-              if (!window.locaisRemanejamentoCache) window.locaisRemanejamentoCache = {};
-              window.locaisRemanejamentoCache[omeEscolhida] = locaisNovos || [];
-              aplicarLocais(locaisNovos);
-            })
-            .withFailureHandler(err => {
-              if (selectDestino) {
-                selectDestino.innerHTML = '<option value="" disabled selected>Erro ao carregar locais</option>';
-                selectDestino.disabled = false;
-              }
-            })
-            .getArvoreLocais(omeEscolhida);
-        }
+    window.aoAlternarItemRemanejamento = function(chk) {
+      if (!chk) return;
+      if (chk.checked) {
+        window.itensSelecionadosRemanejamento.add(chk.value);
       } else {
-        if (selectDestino) {
-          selectDestino.innerHTML = '<option value="" disabled selected>Selecione a OME no filtro acima ou marque um material...</option>';
-          selectDestino.disabled = false;
+        window.itensSelecionadosRemanejamento.delete(chk.value);
+      }
+      const lblSel = document.getElementById('lblContadorSelecionadosRemanejamento');
+      if (lblSel) lblSel.textContent = window.itensSelecionadosRemanejamento.size + ' selecionado(s)';
+    };
+
+    window.toggleTodosInt = function(master) {
+      const checks = document.querySelectorAll('#corpoTabelaRemanejamentoModal .check-item-int');
+      checks.forEach(c => {
+        c.checked = master.checked;
+        if (master.checked) {
+          window.itensSelecionadosRemanejamento.add(c.value);
+        } else {
+          window.itensSelecionadosRemanejamento.delete(c.value);
         }
+      });
+      const lblSel = document.getElementById('lblContadorSelecionadosRemanejamento');
+      if (lblSel) lblSel.textContent = window.itensSelecionadosRemanejamento.size + ' selecionado(s)';
+    };
+
+    window.renderizarLinhasRemanejamento = function(termo) {
+      const tbody = document.getElementById('corpoTabelaRemanejamentoModal');
+      if (!tbody) return;
+
+      const t = String(termo || '').trim().toLowerCase();
+      let filtrados = window.itensRemanejamentoAtuais || [];
+      if (t) {
+        filtrados = filtrados.filter(i => {
+          return (i.objeto && i.objeto.toLowerCase().includes(t)) ||
+                 (i.item && i.item.toLowerCase().includes(t)) ||
+                 (i.nPatrimonio && i.nPatrimonio.toLowerCase().includes(t)) ||
+                 (i.nSerie && i.nSerie.toLowerCase().includes(t)) ||
+                 (i.subunidade && i.subunidade.toLowerCase().includes(t)) ||
+                 (i.setor && i.setor.toLowerCase().includes(t)) ||
+                 (i.local && i.local.toLowerCase().includes(t));
+        });
       }
 
-      if (typeof window.filtrarItensRemanejamentoModal === 'function') {
-        window.filtrarItensRemanejamentoModal();
+      const maxExibir = 120;
+      const amostra = filtrados.slice(0, maxExibir);
+      let html = '';
+
+      amostra.forEach(i => {
+        const isChecked = window.itensSelecionadosRemanejamento.has(i.item) ? 'checked' : '';
+        const localAtual = [i.subunidade, i.setor, i.local].filter(Boolean).join(' > ') || 'Sede';
+
+        html += `<tr>
+          <td class="text-center">
+            <input type="checkbox" class="check-item-int" value="${escapeHtmlResumo(i.item)}" ${isChecked} onchange="window.aoAlternarItemRemanejamento(this)">
+          </td>
+          <td>
+            <span class="fw-bold">${escapeHtmlResumo(i.objeto)}</span>
+            ${i.nPatrimonio ? `<span class="badge bg-light text-dark border ms-1">Pat: ${escapeHtmlResumo(i.nPatrimonio)}</span>` : ''}
+            ${i.nSerie ? `<span class="badge bg-light text-dark border ms-1">Série: ${escapeHtmlResumo(i.nSerie)}</span>` : ''}
+            <div class="text-muted" style="font-size: 0.72rem;">Cód: ${escapeHtmlResumo(i.item)}</div>
+          </td>
+          <td><small class="text-secondary">${escapeHtmlResumo(localAtual)}</small></td>
+        </tr>`;
+      });
+
+      if (amostra.length === 0) {
+        html = '<tr><td colspan="3" class="text-center text-muted py-3">Nenhum item encontrado nesta OME.</td></tr>';
+      }
+
+      tbody.innerHTML = html;
+
+      const lblContador = document.getElementById('lblContadorItensRemanejamento');
+      if (lblContador) {
+        lblContador.textContent = (filtrados.length > maxExibir) 
+          ? ('Exibindo ' + maxExibir + ' de ' + filtrados.length + ' itens')
+          : (filtrados.length + ' item(ns) disponível(is)');
+      }
+      const lblSel = document.getElementById('lblContadorSelecionadosRemanejamento');
+      if (lblSel) {
+        lblSel.textContent = window.itensSelecionadosRemanejamento.size + ' selecionado(s)';
       }
     };
 
     window.filtrarItensRemanejamentoModal = function() {
-      const selOme = document.getElementById('swalFiltroOmeRemanejamento');
-      const omeAlvo = selOme ? selOme.value.trim().toUpperCase() : '';
       const inputBusca = document.getElementById('buscaRapidaRemanejamento');
-      const termoBusca = inputBusca ? inputBusca.value.trim().toLowerCase() : '';
-
-      const linhas = document.querySelectorAll('#tabelaItensRemanejamentoModal tbody tr');
-      linhas.forEach(linha => {
-        const omeLinha = (linha.getAttribute('data-ome') || '').trim().toUpperCase();
-        const matLinha = (linha.getAttribute('data-material') || '').toLowerCase();
-        const itemLinha = (linha.getAttribute('data-item') || '').toLowerCase();
-        const patLinha = (linha.getAttribute('data-pat') || '').toLowerCase();
-
-        const bateuOme = (!omeAlvo || omeAlvo === 'TODAS' || omeLinha === omeAlvo);
-        const bateuTexto = (!termoBusca || matLinha.indexOf(termoBusca) !== -1 || itemLinha.indexOf(termoBusca) !== -1 || patLinha.indexOf(termoBusca) !== -1 || omeLinha.toLowerCase().indexOf(termoBusca) !== -1);
-
-        if (bateuOme && bateuTexto) {
-          linha.style.display = '';
-        } else {
-          linha.style.display = 'none';
-          const chk = linha.querySelector('.check-item-int');
-          if (chk && !chk.checked) chk.checked = false;
-        }
-      });
+      const termoBusca = inputBusca ? inputBusca.value : '';
+      window.renderizarLinhasRemanejamento(termoBusca);
     };
 
-    window.aoSelecionarItemRemanejamento = function(chk) {
-      if (!ehAdmin) return;
+    window.aoMudarOmeRemanejamentoInterno = function() {
       const selOme = document.getElementById('swalFiltroOmeRemanejamento');
-      if (selOme && selOme.value === 'TODAS') {
-        const checkboxes = document.querySelectorAll('.check-item-int:checked');
-        const omesSel = new Set();
-        checkboxes.forEach(c => {
-          const tr = c.closest('tr');
-          if (tr && tr.getAttribute('data-ome')) omesSel.add(tr.getAttribute('data-ome'));
-        });
-        if (omesSel.size === 1) {
-          const omeItem = Array.from(omesSel)[0];
-          const selectDestino = document.getElementById('swalDestinoInt');
-          if (selectDestino && (!window.locaisRemanejamentoCache || !window.locaisRemanejamentoCache[omeItem])) {
-            selectDestino.disabled = true;
-            selectDestino.innerHTML = '<option value="" disabled selected>Carregando locais da árvore de ' + omeItem + '...</option>';
-            google.script.run
-              .withSuccessHandler(locais => {
-                if (!window.locaisRemanejamentoCache) window.locaisRemanejamentoCache = {};
-                window.locaisRemanejamentoCache[omeItem] = locais || [];
-                selectDestino.innerHTML = gerarOptionsLocaisArvore(locais);
-                selectDestino.disabled = false;
-              })
-              .withFailureHandler(() => { selectDestino.disabled = false; })
-              .getArvoreLocais(omeItem);
-          } else if (selectDestino && window.locaisRemanejamentoCache && window.locaisRemanejamentoCache[omeItem]) {
-            selectDestino.innerHTML = gerarOptionsLocaisArvore(window.locaisRemanejamentoCache[omeItem]);
-            selectDestino.disabled = false;
-          }
-        }
+      if (!selOme) return;
+      const novaOme = selOme.value;
+      if (!novaOme) return;
+      omeAtiva = novaOme;
+
+      window.itensSelecionadosRemanejamento.clear();
+      const selectDestino = document.getElementById('swalDestinoInt');
+      if (selectDestino) {
+        selectDestino.disabled = true;
+        selectDestino.innerHTML = '<option value="" disabled selected>Carregando locais da árvore de ' + novaOme + '...</option>';
       }
+      const tbody = document.getElementById('corpoTabelaRemanejamentoModal');
+      if (tbody) {
+        tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-3"><i class="fa-solid fa-spinner fa-spin me-2"></i>Carregando materiais de ' + novaOme + '...</td></tr>';
+      }
+
+      const p1 = new Promise((res, rej) => {
+        google.script.run.withSuccessHandler(res).withFailureHandler(rej).getItensDisponiveisParaTransferenciaOme(novaOme, PERFIL_GLOBAL);
+      });
+      const p2 = new Promise((res, rej) => {
+        if (window.locaisRemanejamentoCache && window.locaisRemanejamentoCache[novaOme]) {
+          res(window.locaisRemanejamentoCache[novaOme]);
+        } else {
+          google.script.run.withSuccessHandler(locs => {
+            if (!window.locaisRemanejamentoCache) window.locaisRemanejamentoCache = {};
+            window.locaisRemanejamentoCache[novaOme] = locs || [];
+            res(locs);
+          }).withFailureHandler(rej).getArvoreLocais(novaOme);
+        }
+      });
+
+      Promise.all([p1, p2]).then(([itensNovos, locaisNovos]) => {
+        window.itensRemanejamentoAtuais = itensNovos || [];
+        if (selectDestino) {
+          selectDestino.innerHTML = gerarOptionsLocaisArvore(locaisNovos);
+          selectDestino.disabled = false;
+        }
+        const inputBusca = document.getElementById('buscaRapidaRemanejamento');
+        if (inputBusca) inputBusca.value = '';
+        window.renderizarLinhasRemanejamento('');
+      }).catch(err => {
+        if (tbody) tbody.innerHTML = '<tr><td colspan="3" class="text-center text-danger py-3">Erro: ' + (err.message || 'Falha ao buscar dados') + '</td></tr>';
+        if (selectDestino) {
+          selectDestino.innerHTML = '<option value="" disabled selected>Erro ao carregar locais</option>';
+          selectDestino.disabled = false;
+        }
+      });
     };
 
     const pItens = new Promise((resolve, reject) => {
       google.script.run
         .withSuccessHandler(resolve)
         .withFailureHandler(reject)
-        .getItensDisponiveisParaTransferenciaOme(ehAdmin ? "TODAS" : omeInicial, PERFIL_GLOBAL);
+        .getItensDisponiveisParaTransferenciaOme(omeAtiva, PERFIL_GLOBAL);
     });
 
     const pLocais = new Promise((resolve, reject) => {
       google.script.run
         .withSuccessHandler(resolve)
         .withFailureHandler(reject)
-        .getArvoreLocais(OME_GLOBAL || '1º GB');
+        .getArvoreLocais(omeAtiva);
     });
 
     Promise.all([pItens, pLocais])
       .then(([itens, locaisIniciais]) => {
-        if (!itens || itens.length === 0) {
-          Swal.fire('Atenção', 'Não há itens disponíveis para movimentação.', 'warning');
-          return;
-        }
-
-        window.itensRemanejamentoAtuais = itens;
-        window.locaisRemanejamentoCache = {};
-        if (OME_GLOBAL) {
-          window.locaisRemanejamentoCache[OME_GLOBAL] = locaisIniciais || [];
-        }
+        window.itensRemanejamentoAtuais = itens || [];
+        if (!window.locaisRemanejamentoCache) window.locaisRemanejamentoCache = {};
+        window.locaisRemanejamentoCache[omeAtiva] = locaisIniciais || [];
 
         let optionsLocais = gerarOptionsLocaisArvore(locaisIniciais);
 
         let blocoControlesHtml = '';
         if (ehAdmin) {
-          let omesNoInventario = [...new Set(itens.map(i => i.unidade).filter(Boolean))].sort();
-          let todasOmesUnicas = [...new Set([...listaOficialOmes, ...omesNoInventario])].sort();
-          let optionsOmes = `<option value="TODAS" selected>Todas as OMEs (Todos os Materiais)</option>` +
-            todasOmesUnicas.map(u => `<option value="${u}">${u}</option>`).join('');
+          let listaOmesOrdenada = [...new Set(typeof listaOficialOmes !== 'undefined' ? listaOficialOmes : [])].sort();
+          if (listaOmesOrdenada.length === 0) listaOmesOrdenada = [omeAtiva];
+          let optionsOmes = listaOmesOrdenada.map(u => `<option value="${u}" ${u === omeAtiva ? 'selected' : ''}>${u}</option>`).join('');
 
           blocoControlesHtml = `
             <div class="row g-2 mb-2">
               <div class="col-md-6">
-                <label class="form-label small fw-bold mb-1"><i class="fa-solid fa-building me-1 text-primary"></i> Filtrar por OME:</label>
+                <label class="form-label small fw-bold mb-1"><i class="fa-solid fa-building me-1 text-primary"></i> Selecionar OME:</label>
                 <select class="form-select form-select-sm" id="swalFiltroOmeRemanejamento" onchange="aoMudarOmeRemanejamentoInterno()">
                   ${optionsOmes}
                 </select>
@@ -27049,12 +27078,12 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
               <div class="col-md-6">
                 <label class="form-label small fw-bold mb-1"><i class="fa-solid fa-sitemap me-1 text-warning"></i> Local de Destino na Árvore:</label>
                 <select class="form-select form-select-sm" id="swalDestinoInt">
-                  <option value="" disabled selected>Selecione a OME no filtro acima ou marque um material...</option>
+                  ${optionsLocais}
                 </select>
               </div>
             </div>
             <div class="mb-2">
-              <input type="text" class="form-control form-control-sm" id="buscaRapidaRemanejamento" placeholder="🔍 Filtrar por material, código ITEM, patrimônio ou local..." oninput="filtrarItensRemanejamentoModal()">
+              <input type="text" class="form-control form-control-sm" id="buscaRapidaRemanejamento" placeholder="🔍 Filtrar por material, código ITEM, patrimônio ou série..." oninput="filtrarItensRemanejamentoModal()">
             </div>`;
         } else {
           blocoControlesHtml = `
@@ -27065,44 +27094,30 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
               </select>
             </div>
             <div class="mb-2">
-              <input type="text" class="form-control form-control-sm" id="buscaRapidaRemanejamento" placeholder="🔍 Filtrar por material, código ITEM, patrimônio..." oninput="filtrarItensRemanejamentoModal()">
+              <input type="text" class="form-control form-control-sm" id="buscaRapidaRemanejamento" placeholder="🔍 Filtrar por material, código ITEM, patrimônio ou série..." oninput="filtrarItensRemanejamentoModal()">
             </div>`;
         }
 
         let htmlTabelaItens = `
           <div class="text-start p-2">
             ${blocoControlesHtml}
-            <div class="table-responsive border rounded bg-white mb-3" style="max-height: 250px;">
+            <div class="d-flex justify-content-between align-items-center mb-1 text-muted small px-1">
+              <span id="lblContadorItensRemanejamento">${window.itensRemanejamentoAtuais.length} itens disponíveis</span>
+              <span id="lblContadorSelecionadosRemanejamento" class="fw-bold text-primary">0 selecionado(s)</span>
+            </div>
+            <div class="table-responsive border rounded bg-white mb-2" style="max-height: 250px;">
               <table class="table table-sm table-hover mb-0 small align-middle" id="tabelaItensRemanejamentoModal">
                 <thead class="table-light sticky-top">
                   <tr>
-                    <th class="text-center" style="width: 40px;"><input type="checkbox" onclick="toggleTodosInt(this)"></th>
+                    <th class="text-center" style="width: 40px;"><input type="checkbox" id="checkMasterRemanejamento" onclick="toggleTodosInt(this)"></th>
                     <th>Material</th>
-                    ${ehAdmin ? '<th style="width: 140px;">OME</th>' : ''}
                     <th>Local Atual</th>
                   </tr>
                 </thead>
-                <tbody>`;
-
-        itens.forEach(i => {
-          let localAtual = [i.subunidade, i.setor, i.local].filter(Boolean).join(' > ') || 'Sede';
-          const omeItem = (i.unidade || '').trim().toUpperCase();
-
-          htmlTabelaItens += `
-            <tr data-material="${escapeHtmlResumo(i.objeto)}" data-item="${escapeHtmlResumo(i.item)}" data-pat="${escapeHtmlResumo(i.nPatrimonio || '')}" data-ome="${omeItem}">
-              <td class="text-center"><input type="checkbox" class="check-item-int" value="${i.item}" onchange="aoSelecionarItemRemanejamento(this)"></td>
-              <td>
-                <span class="fw-bold">${i.objeto}</span>
-                ${i.nPatrimonio ? `<span class="badge bg-light text-dark border ms-1">Pat: ${i.nPatrimonio}</span>` : ''}
-                <div class="text-muted" style="font-size: 0.72rem;">Cód: ${i.item}</div>
-              </td>
-              ${ehAdmin ? `<td><span class="badge bg-secondary-subtle text-secondary border">${i.unidade || 'Sem OME'}</span></td>` : ''}
-              <td><small>${localAtual}</small></td>
-            </tr>`;
-        });
-
-        htmlTabelaItens += `</tbody></table></div>
-            <div class="row g-2 mt-3 border-top pt-3">
+                <tbody id="corpoTabelaRemanejamentoModal"></tbody>
+              </table>
+            </div>
+            <div class="row g-2 mt-2 border-top pt-2">
               <div class="col-md-6"><label class="form-label small fw-bold">Seu CPF:</label><input type="text" id="swalCpf" class="form-control form-control-sm" placeholder="Apenas números"></div>
               <div class="col-md-6"><label class="form-label small fw-bold">PIN (Senha):</label><input type="password" id="swalPin" class="form-control form-control-sm" placeholder="****"></div>
             </div>
@@ -27111,34 +27126,20 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
         Swal.fire({
           title: '<i class="fa-solid fa-arrows-split-up-and-left text-warning me-2"></i> Remanejamento Interno Direto',
           html: htmlTabelaItens,
-          width: ehAdmin ? '850px' : '750px',
+          width: ehAdmin ? '820px' : '720px',
           showCancelButton: true,
           confirmButtonText: 'Assinar e Mover',
           confirmButtonColor: '#ffc107',
+          didOpen: () => {
+            window.renderizarLinhasRemanejamento('');
+          },
           preConfirm: async () => {
-            const checkboxes = document.querySelectorAll('.check-item-int:checked');
-            let itensIds = [];
-            let omesSelecionadas = new Set();
-            checkboxes.forEach(cb => {
-              itensIds.push(cb.value);
-              const tr = cb.closest('tr');
-              if (tr && tr.getAttribute('data-ome')) omesSelecionadas.add(tr.getAttribute('data-ome'));
-            });
+            let itensIds = Array.from(window.itensSelecionadosRemanejamento);
 
             if (itensIds.length === 0) {
               Swal.showValidationMessage('Selecione ao menos um item para remanejamento.');
               return false;
             }
-
-            if (omesSelecionadas.size > 1) {
-              Swal.showValidationMessage('Os materiais selecionados pertencem a OMEs distintas. Selecione itens de uma única OME por remanejamento.');
-              return false;
-            }
-
-            const selOme = document.getElementById('swalFiltroOmeRemanejamento');
-            let omeEfetiva = omesSelecionadas.size === 1 
-              ? Array.from(omesSelecionadas)[0] 
-              : ((selOme && selOme.value && selOme.value !== 'TODAS') ? selOme.value : OME_GLOBAL);
 
             const selectDestino = document.getElementById('swalDestinoInt');
             const destinoId = selectDestino ? selectDestino.value : "";
@@ -27157,7 +27158,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
             const resPin = await validarPinAssinatura(cpf, pin);
             if (!resPin.valido) { Swal.showValidationMessage(resPin.mensagem || 'PIN Inválido'); return false; }
             
-            return { destinoId, caminhoTexto, itensIds, omeEfetiva };
+            return { destinoId, caminhoTexto, itensIds, omeEfetiva: omeAtiva };
           }
         }).then(res => {
           if (res.isConfirmed && res.value) {
