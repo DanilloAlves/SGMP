@@ -20121,7 +20121,7 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao, omeCliente, perfilClie
     var perfilNorm = (perfilUsuario || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
     var ehAdmin = (perfilNorm === "administrador" || perfilNorm.indexOf("admin") !== -1);
 
-    var chaveCacheDash = "DASH_VISAO_GERAL_V5_" + (ehAdmin ? "ADMIN" : (omeUsuario || "USER").toUpperCase().replace(/[^A-Z0-9]/g, "_"));
+    var chaveCacheDash = "DASH_VISAO_GERAL_V7_" + (ehAdmin ? "ADMIN" : (omeUsuario || "USER").toUpperCase().replace(/[^A-Z0-9]/g, "_"));
     if (!forcarAtualizacao) {
       var dashCached = lerDeCacheChunked_(chaveCacheDash);
       if (dashCached && dashCached.sucesso && dashCached.dados && dashCached.dados.length > 0) {
@@ -20134,7 +20134,8 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao, omeCliente, perfilClie
     var mapaCat = catDados.mapa || {};
 
     // 2. Lê Cargas Padrão (Quantidade Ideal) da base centralizada (BigQuery tb_Carga_Padrao)
-    var mapaCargas = {}; // chave: "OME___MATERIAIS_NORM" -> soma das cotas
+    var mapaCargas = {};    // chave: "OME___SUBUNIDADE___MATERIAIS_NORM" -> cota
+    var mapaCargasOme = {}; // chave: "OME___MATERIAIS_NORM" -> soma das cotas
     try {
       var dadosCargas = (typeof obterCargasPadraoBanco_ === 'function')
         ? obterCargasPadraoBanco_(ehAdmin ? "" : omeUsuario)
@@ -20142,19 +20143,22 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao, omeCliente, perfilClie
       for (var c = 0; c < dadosCargas.length; c++) {
         var cRow = dadosCargas[c];
         var cOme = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(cRow.ome) : String(cRow.ome || '').trim();
+        var cSub = String(cRow.subunidade || 'SEDE').trim().toUpperCase() || 'SEDE';
         var cMat = String(cRow.material || '').trim();
         var cVal = parseInt(cRow.cargaPadrao, 10) || 0;
         if (!cOme || !cMat || cVal <= 0) continue;
         
+        var normOmeSubMat = (cOme || '').toUpperCase() + "___" + cSub + "___" + (cMat || '').toUpperCase();
+        mapaCargas[normOmeSubMat] = (mapaCargas[normOmeSubMat] || 0) + cVal;
+
         var normOmeMat = (cOme || '').toUpperCase() + "___" + (cMat || '').toUpperCase();
-        mapaCargas[normOmeMat] = (mapaCargas[normOmeMat] || 0) + cVal;
+        mapaCargasOme[normOmeMat] = (mapaCargasOme[normOmeMat] || 0) + cVal;
       }
     } catch (eCarg) {
       console.warn("Aviso ao ler Cargas Padrão no Dashboard: " + eCarg.message);
     }
 
-    // 3. Consulta agregada no BigQuery agrupando por UNIDADE, OBJETO e STATUS
-    // Se for Comandante de Unidade ou Chefe de Setor (não-Administrador), restringe os dados estritamente à sua OME
+    // 3. Consulta agregada no BigQuery agrupando por UNIDADE, SUBUNIDADE, OBJETO e STATUS
     var filtroOmeSql = "";
     if (!ehAdmin && omeUsuario) {
       var omeSanitizada = String(omeUsuario).trim().toUpperCase().replace(/['"\\]/g, "");
@@ -20163,6 +20167,7 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao, omeCliente, perfilClie
 
     var sql = "SELECT " +
               "  TRIM(UNIDADE) as OME, " +
+              "  UPPER(TRIM(COALESCE(NULLIF(TRIM(SUBUNIDADE), ''), 'SEDE'))) as SUBUNIDADE, " +
               "  UPPER(TRIM(OBJETO)) as OBJETO, " +
               "  UPPER(TRIM(COALESCE(STATUS, 'ECD'))) as STATUS, " +
               "  COUNT(1) as QTD " +
@@ -20170,22 +20175,24 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao, omeCliente, perfilClie
               "WHERE OBJETO IS NOT NULL AND TRIM(OBJETO) != '' " +
               "  AND (STATUS IS NULL OR UPPER(TRIM(STATUS)) NOT IN ('BAIXADO', 'DESCARREGADO')) " +
               filtroOmeSql +
-              "GROUP BY 1, 2, 3 " +
-              "ORDER BY OME ASC, OBJETO ASC";
+              "GROUP BY 1, 2, 3, 4 " +
+              "ORDER BY OME ASC, SUBUNIDADE ASC, OBJETO ASC";
 
     var queryRes = executarConsultaBigQuerySegura(sql);
     var rows = queryRes.rows || [];
 
     var mapaOmes = {};
+    var mapaSubunidadesPorOme = {};
+    var mapaTodasSubunidadesGeral = {};
     var mapaClasses1Encontradas = {};
     var mapaClasses2Encontradas = {};
     var mapaClasses3Encontradas = {};
-    var dadosAgrupados = {}; // Chave: "OME||CLASSE1||CLASSE2||CLASSE3"
+    var dadosAgrupados = {}; // Chave: "OME||SUBUNIDADE||CLASSE1||CLASSE2||CLASSE3"
 
     var detectouOmeNaoPadronizada = false;
     for (var i = 0; i < rows.length; i++) {
       var r = rows[i].f;
-      if (!r || r.length < 4) continue;
+      if (!r || r.length < 5) continue;
       
       var omeRaw = (r[0] && r[0].v) ? String(r[0].v).trim() : "SEM OME";
       var ome = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(omeRaw) : omeRaw;
@@ -20195,12 +20202,18 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao, omeCliente, perfilClie
         detectouOmeNaoPadronizada = true;
       }
 
-      var objNome = (r[1] && r[1].v) ? String(r[1].v).trim() : "";
-      var rawStatus = (r[2] && r[2].v) ? String(r[2].v).trim().toUpperCase() : "ECD";
-      var qtd = (r[3] && r[3].v) ? parseInt(r[3].v, 10) : 0;
+      var subRaw = (r[1] && r[1].v) ? String(r[1].v).trim() : "SEDE";
+      var subunidade = subRaw || "SEDE";
+
+      var objNome = (r[2] && r[2].v) ? String(r[2].v).trim() : "";
+      var rawStatus = (r[3] && r[3].v) ? String(r[3].v).trim().toUpperCase() : "ECD";
+      var qtd = (r[4] && r[4].v) ? parseInt(r[4].v, 10) : 0;
       if (qtd <= 0 || !objNome) continue;
 
       mapaOmes[ome] = true;
+      if (!mapaSubunidadesPorOme[ome]) mapaSubunidadesPorOme[ome] = {};
+      mapaSubunidadesPorOme[ome][subunidade] = true;
+      mapaTodasSubunidadesGeral[subunidade] = true;
 
       // Padroniza status rigorosamente nas 4 categorias
       var statusNorm = "ECD";
@@ -20228,10 +20241,11 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao, omeCliente, perfilClie
       mapaClasses2Encontradas[classe2] = true;
       mapaClasses3Encontradas[classe3] = true;
 
-      var chaveAgrup = ome + "||" + classe1 + "||" + classe2 + "||" + classe3;
+      var chaveAgrup = ome + "||" + subunidade + "||" + classe1 + "||" + classe2 + "||" + classe3;
       if (!dadosAgrupados[chaveAgrup]) {
         dadosAgrupados[chaveAgrup] = {
           ome: ome,
+          subunidade: subunidade,
           classe1: classe1,
           classe2: classe2,
           classe3: classe3,
@@ -20252,13 +20266,17 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao, omeCliente, perfilClie
       else if (statusNorm === "EXTRAVIADO") grupo.extraviado += qtd;
 
       if (!grupo.materiais[objNome]) {
-        var chCargaItem = (ome || '').toUpperCase() + "___" + (objNome || '').toUpperCase();
+        var chCargaSub = (ome || '').toUpperCase() + "___" + (subunidade || '').toUpperCase() + "___" + (objNome || '').toUpperCase();
+        var chCargaOme = (ome || '').toUpperCase() + "___" + (objNome || '').toUpperCase();
+        var cotaItem = mapaCargas[chCargaSub] !== undefined ? mapaCargas[chCargaSub] : (mapaCargasOme[chCargaOme] || 0);
+
         grupo.materiais[objNome] = {
           nome: objNome,
           classe1: classe1,
           classe2: classe2,
           classe3: classe3,
-          cargaPadrao: mapaCargas[chCargaItem] || 0,
+          subunidade: subunidade,
+          cargaPadrao: cotaItem,
           ecd: 0,
           scd: 0,
           acautelado: 0,
@@ -20278,9 +20296,10 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao, omeCliente, perfilClie
     for (var chCarga in mapaCargas) {
       var partes = chCarga.split("___");
       var cOme = partes[0];
-      var cMat = partes[1];
+      var cSub = partes[1] || "SEDE";
+      var cMat = partes[2];
       var cVal = mapaCargas[chCarga];
-      if (!cVal || cVal <= 0) continue;
+      if (!cVal || cVal <= 0 || !cMat) continue;
       if (!ehAdmin && omeUsuario && cOme !== (typeof obterOmePadronizada === 'function' ? obterOmePadronizada(omeUsuario) : omeUsuario).toUpperCase()) continue;
 
       var catInfo = mapaCat[cMat];
@@ -20293,14 +20312,18 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao, omeCliente, perfilClie
       var cl3 = (catInfo && catInfo.classe3) ? catInfo.classe3 : "OUTROS";
 
       mapaOmes[cOme] = true;
+      if (!mapaSubunidadesPorOme[cOme]) mapaSubunidadesPorOme[cOme] = {};
+      mapaSubunidadesPorOme[cOme][cSub] = true;
+      mapaTodasSubunidadesGeral[cSub] = true;
       mapaClasses1Encontradas[cl1] = true;
       mapaClasses2Encontradas[cl2] = true;
       mapaClasses3Encontradas[cl3] = true;
 
-      var chaveAgrup = cOme + "||" + cl1 + "||" + cl2 + "||" + cl3;
+      var chaveAgrup = cOme + "||" + cSub + "||" + cl1 + "||" + cl2 + "||" + cl3;
       if (!dadosAgrupados[chaveAgrup]) {
         dadosAgrupados[chaveAgrup] = {
           ome: cOme,
+          subunidade: cSub,
           classe1: cl1,
           classe2: cl2,
           classe3: cl3,
@@ -20319,6 +20342,7 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao, omeCliente, perfilClie
           classe1: cl1,
           classe2: cl2,
           classe3: cl3,
+          subunidade: cSub,
           cargaPadrao: cVal,
           ecd: 0,
           scd: 0,
@@ -20331,7 +20355,6 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao, omeCliente, perfilClie
       }
     }
 
-    // Auto-correção DML pesada desativada durante requisições de leitura do Dashboard para evitar travamentos
     if (detectouOmeNaoPadronizada && ehAdmin) {
       console.info("Detectadas OMEs não padronizadas no BigQuery. Execução manual recomendada.");
     }
@@ -20365,6 +20388,34 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao, omeCliente, perfilClie
       listaOmesFinal = omePad ? [omePad] : Object.keys(mapaOmes);
     }
 
+    // Mapa de subunidades por OME
+    var mapaTodasSubs = {};
+    try {
+      if (typeof getMapaTodasSubunidadesPorOme === 'function') {
+        mapaTodasSubs = getMapaTodasSubunidadesPorOme();
+      }
+    } catch (eSubs) {
+      console.warn("Aviso ao ler mapa de subunidades: " + eSubs.message);
+    }
+
+    var mapaSubunidadesFinal = {};
+    for (var o in mapaSubunidadesPorOme) {
+      var setSubs = new Set(Object.keys(mapaSubunidadesPorOme[o]));
+      if (mapaTodasSubs[o] && Array.isArray(mapaTodasSubs[o])) {
+        mapaTodasSubs[o].forEach(function(s) { if (s) setSubs.add(s); });
+      }
+      mapaSubunidadesFinal[o] = Array.from(setSubs).sort(function(a, b) {
+        if (a === "SEDE") return -1;
+        if (b === "SEDE") return 1;
+        return a.localeCompare(b);
+      });
+    }
+    for (var oOficial in mapaTodasSubs) {
+      if (!mapaSubunidadesFinal[oOficial] && Array.isArray(mapaTodasSubs[oOficial])) {
+        mapaSubunidadesFinal[oOficial] = mapaTodasSubs[oOficial];
+      }
+    }
+
     var setClasses1 = new Set([...(catDados.listaClasses1 || []), ...Object.keys(mapaClasses1Encontradas)]);
     var listaClasses1Final = Array.from(setClasses1).filter(function(x) { return !ehTextoTituloClasse_(x); }).sort();
 
@@ -20373,12 +20424,19 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao, omeCliente, perfilClie
 
     var setClasses3 = new Set([...(catDados.listaClasses3 || []), ...Object.keys(mapaClasses3Encontradas)]);
     var listaClasses3Final = Array.from(setClasses3).filter(function(x) { return !ehTextoTituloClasse_(x); }).sort();
+
     var respFinalDash = {
       sucesso: true,
       ehAdmin: ehAdmin,
       omeUsuario: omeUsuario,
       perfilUsuario: perfilUsuario,
       listaOmes: listaOmesFinal,
+      mapaSubunidadesPorOme: mapaSubunidadesFinal,
+      listaTodasSubunidades: Object.keys(mapaTodasSubunidadesGeral).sort(function(a, b) {
+        if (a === "SEDE") return -1;
+        if (b === "SEDE") return 1;
+        return a.localeCompare(b);
+      }),
       listaClasses1: listaClasses1Final,
       listaClasses2: listaClasses2Final,
       listaClasses3: listaClasses3Final,

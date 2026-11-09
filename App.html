@@ -965,15 +965,25 @@
           </div>
         </div>
 
-        <!-- BARRA DE FILTROS DO DASHBOARD (4 FILTROS + BOTÃO RESET) -->
+        <!-- BARRA DE FILTROS DO DASHBOARD (5 FILTROS + BOTÃO RESET) -->
         <div class="row g-2 mb-3 p-2 bg-light bg-opacity-50 rounded border align-items-end" style="font-size: 0.8rem;">
           <!-- Filtro OME -->
           <div class="col-lg-3 col-md-6 col-sm-12">
             <label class="form-label fw-bold text-secondary mb-1" style="font-size: 0.73rem;">
               <i class="fa-solid fa-building-shield me-1 text-danger"></i> Unidade / OME
             </label>
-            <select id="filtroDashOme" class="form-select form-select-sm shadow-none" onchange="aplicarFiltrosDashboard()" style="font-size: 0.78rem;">
+            <select id="filtroDashOme" class="form-select form-select-sm shadow-none" onchange="aoMudarOmeDashboard()" style="font-size: 0.78rem;">
               <option value="TODAS">TODAS AS OMEs (CBMPE)</option>
+            </select>
+          </div>
+
+          <!-- Filtro Subunidade -->
+          <div class="col-lg-2 col-md-6 col-sm-12">
+            <label class="form-label fw-bold text-secondary mb-1" style="font-size: 0.73rem;">
+              <i class="fa-solid fa-sitemap me-1 text-danger"></i> Subunidade
+            </label>
+            <select id="filtroDashSubunidade" class="form-select form-select-sm shadow-none" onchange="aplicarFiltrosDashboard()" style="font-size: 0.78rem;">
+              <option value="TODAS">TODAS (Subunidades)</option>
             </select>
           </div>
 
@@ -988,7 +998,7 @@
           </div>
 
           <!-- Filtro Classe 2 -->
-          <div class="col-lg-3 col-md-6 col-sm-12">
+          <div class="col-lg-2 col-md-6 col-sm-12">
             <label class="form-label fw-bold text-secondary mb-1" style="font-size: 0.73rem;">
               <i class="fa-solid fa-tags me-1 text-primary"></i> Classe 2
             </label>
@@ -1008,9 +1018,9 @@
           </div>
 
           <!-- Botão Reset -->
-          <div class="col-lg-2 col-md-12 col-sm-12">
-            <button class="btn btn-outline-secondary btn-sm w-100" onclick="resetarFiltrosDashboard()" title="Restaurar filtros padrão" style="font-size: 0.78rem; padding: 0.28rem 0.4rem;">
-              <i class="fa-solid fa-filter-circle-xmark me-1"></i> Limpar Filtros
+          <div class="col-lg-1 col-md-12 col-sm-12">
+            <button class="btn btn-outline-secondary btn-sm w-100" onclick="resetarFiltrosDashboard()" title="Restaurar filtros padrão" style="font-size: 0.78rem; padding: 0.28rem 0.2rem;">
+              <i class="fa-solid fa-filter-circle-xmark me-1"></i> Limpar
             </button>
           </div>
         </div>
@@ -28184,9 +28194,10 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       .obterDadosDashboardVisaoGeral(forcar === true, (typeof OME_GLOBAL !== 'undefined' ? OME_GLOBAL : ''), (typeof PERFIL_GLOBAL !== 'undefined' ? PERFIL_GLOBAL : ''));
   }
 
-  // Preenche as opções de OME e das 3 Classes nos selects
+  // Preenche as opções de OME, Subunidade e das 3 Classes nos selects
   function popularFiltrosDashboard(resp) {
     const selOme = document.getElementById('filtroDashOme');
+    const selSub = document.getElementById('filtroDashSubunidade');
     const selCl1 = document.getElementById('filtroDashClasse1');
     const selCl2 = document.getElementById('filtroDashClasse2');
     const selCl3 = document.getElementById('filtroDashClasse3');
@@ -28196,6 +28207,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
 
     // Preserva seleção anterior se houver
     const valOmeAnt = selOme ? selOme.value : '';
+    const valSubAnt = selSub ? selSub.value : '';
     const valCl1Ant = selCl1 ? selCl1.value : '';
     const valCl2Ant = selCl2 ? selCl2.value : '';
     const valCl3Ant = selCl3 ? selCl3.value : '';
@@ -28238,13 +28250,16 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       }
     }
 
+    // 2. Subunidade (atualiza de acordo com a OME selecionada)
+    popularSubunidadesDashboard(selOme ? selOme.value : 'TODAS', valSubAnt);
+
     const ehTituloInvalido = function(c) {
       if (!c) return true;
       const cu = String(c).trim().toUpperCase();
       return cu === 'CLASSE 1' || cu === 'CLASSE 2' || cu === 'CLASSE 3' || cu === 'CLASSE' || cu === 'CLASSES' || cu === 'OUTROS';
     };
 
-    // 2. Classe 1
+    // 3. Classe 1
     if (selCl1) {
       let htmlCl1 = '<option value="TODAS">TODAS (Classe 1)</option>';
       const classes1 = (resp.listaClasses1 || []).filter(c => !ehTituloInvalido(c));
@@ -28259,7 +28274,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       }
     }
 
-    // 3. Classe 2
+    // 4. Classe 2
     if (selCl2) {
       let htmlCl2 = '<option value="TODAS">TODAS (Classe 2)</option>';
       const classes2 = (resp.listaClasses2 || []).filter(c => !ehTituloInvalido(c));
@@ -28274,7 +28289,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       }
     }
 
-    // 4. Classe 3
+    // 5. Classe 3
     if (selCl3) {
       let htmlCl3 = '<option value="TODAS">TODAS (Classe 3)</option>';
       const classes3 = (resp.listaClasses3 || []).filter(c => !ehTituloInvalido(c));
@@ -28290,16 +28305,88 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     }
   }
 
+  // Preenche o select de Subunidades com base na OME selecionada
+  function popularSubunidadesDashboard(omeSelecionado, subParaSelecionar) {
+    const selSub = document.getElementById('filtroDashSubunidade');
+    if (!selSub) return;
+
+    const valSubAnt = subParaSelecionar !== undefined ? subParaSelecionar : selSub.value;
+    let listaSubs = [];
+
+    const normComp = function(s) {
+      return String(s || '').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    };
+
+    if (cacheDadosDashboard) {
+      const mapa = cacheDadosDashboard.mapaSubunidadesPorOme || {};
+      if (omeSelecionado && omeSelecionado !== 'TODAS') {
+        for (const o in mapa) {
+          if (normComp(o) === normComp(omeSelecionado)) {
+            listaSubs = [...mapa[o]];
+            break;
+          }
+        }
+        if (listaSubs.length === 0 && cacheDadosDashboard.dados) {
+          const setS = new Set();
+          cacheDadosDashboard.dados.forEach(d => {
+            if (normComp(d.ome) === normComp(omeSelecionado) && d.subunidade) {
+              setS.add(d.subunidade);
+            }
+          });
+          listaSubs = Array.from(setS);
+        }
+      } else {
+        if (cacheDadosDashboard.listaTodasSubunidades && cacheDadosDashboard.listaTodasSubunidades.length > 0) {
+          listaSubs = [...cacheDadosDashboard.listaTodasSubunidades];
+        } else if (cacheDadosDashboard.dados) {
+          const setS = new Set();
+          cacheDadosDashboard.dados.forEach(d => {
+            if (d.subunidade) setS.add(d.subunidade);
+          });
+          listaSubs = Array.from(setS);
+        }
+      }
+    }
+
+    listaSubs.sort(function(a, b) {
+      if (a.toUpperCase() === 'SEDE') return -1;
+      if (b.toUpperCase() === 'SEDE') return 1;
+      return a.localeCompare(b);
+    });
+
+    let htmlSub = '<option value="TODAS">TODAS (Subunidades)</option>';
+    listaSubs.forEach(function(s) {
+      if (s) htmlSub += '<option value="' + escapeHtmlResumo(s) + '">' + escapeHtmlResumo(s) + '</option>';
+    });
+    selSub.innerHTML = htmlSub;
+
+    if (valSubAnt && selSub.querySelector('option[value="' + valSubAnt + '"]')) {
+      selSub.value = valSubAnt;
+    } else {
+      selSub.value = 'TODAS';
+    }
+  }
+
+  // Evento acionado ao alterar a OME no Dashboard
+  function aoMudarOmeDashboard() {
+    const selOme = document.getElementById('filtroDashOme');
+    const omeVal = selOme ? selOme.value : 'TODAS';
+    popularSubunidadesDashboard(omeVal, 'TODAS');
+    aplicarFiltrosDashboard();
+  }
+
   // Aplica os filtros selecionados, atualiza os KPIs, Gráficos e Tabela
   function aplicarFiltrosDashboard() {
     if (!cacheDadosDashboard || !cacheDadosDashboard.dados) return;
 
     const selOme = document.getElementById('filtroDashOme');
+    const selSub = document.getElementById('filtroDashSubunidade');
     const selCl1 = document.getElementById('filtroDashClasse1');
     const selCl2 = document.getElementById('filtroDashClasse2');
     const selCl3 = document.getElementById('filtroDashClasse3');
 
     const omeFiltro = selOme ? selOme.value : 'TODAS';
+    const subFiltro = selSub ? selSub.value : 'TODAS';
     const cl1Filtro = selCl1 ? selCl1.value : 'TODAS';
     const cl2Filtro = selCl2 ? selCl2.value : 'TODAS';
     const cl3Filtro = selCl3 ? selCl3.value : 'TODAS';
@@ -28316,6 +28403,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     dados.forEach(function(item) {
       const normCompOme = function(s) { return String(s || '').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); };
       if (omeFiltro !== 'TODAS' && normCompOme(item.ome) !== normCompOme(omeFiltro)) return;
+      if (subFiltro !== 'TODAS' && normCompOme(item.subunidade) !== normCompOme(subFiltro)) return;
       if (cl1Filtro !== 'TODAS' && item.classe1 !== cl1Filtro) return;
       if (cl2Filtro !== 'TODAS' && item.classe2 !== cl2Filtro) return;
       if (cl3Filtro !== 'TODAS' && item.classe3 !== cl3Filtro) return;
@@ -28377,6 +28465,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
 
     const filtrosAtivos = [];
     if (omeFiltro !== 'TODAS') filtrosAtivos.push(omeFiltro);
+    if (subFiltro !== 'TODAS') filtrosAtivos.push(subFiltro);
     if (cl1Filtro !== 'TODAS') filtrosAtivos.push(cl1Filtro);
     if (cl2Filtro !== 'TODAS') filtrosAtivos.push(cl2Filtro);
     if (cl3Filtro !== 'TODAS') filtrosAtivos.push(cl3Filtro);
@@ -28688,11 +28777,13 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     }
 
     const selOme = document.getElementById('filtroDashOme');
+    const selSub = document.getElementById('filtroDashSubunidade');
     const selCl1 = document.getElementById('filtroDashClasse1');
     const selCl2 = document.getElementById('filtroDashClasse2');
     const selCl3 = document.getElementById('filtroDashClasse3');
 
     const omeTexto = selOme ? (selOme.options[selOme.selectedIndex] ? selOme.options[selOme.selectedIndex].text : selOme.value) : 'TODAS';
+    const subTexto = selSub ? (selSub.options[selSub.selectedIndex] ? selSub.options[selSub.selectedIndex].text : selSub.value) : 'TODAS';
     const cl1Texto = selCl1 ? (selCl1.options[selCl1.selectedIndex] ? selCl1.options[selCl1.selectedIndex].text : selCl1.value) : 'TODAS';
     const cl2Texto = selCl2 ? (selCl2.options[selCl2.selectedIndex] ? selCl2.options[selCl2.selectedIndex].text : selCl2.value) : 'TODAS';
     const cl3Texto = selCl3 ? (selCl3.options[selCl3.selectedIndex] ? selCl3.options[selCl3.selectedIndex].text : selCl3.value) : 'TODAS';
@@ -28802,7 +28893,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
         </div>
 
         <div class="info-bar">
-          <div><strong>Unidade / OME:</strong> ${omeTexto} | <strong>Classe 1:</strong> ${cl1Texto} | <strong>Classe 2:</strong> ${cl2Texto} | <strong>Classe 3:</strong> ${cl3Texto}</div>
+          <div><strong>Unidade / OME:</strong> ${omeTexto} | <strong>Subunidade:</strong> ${subTexto} | <strong>Classe 1:</strong> ${cl1Texto} | <strong>Classe 2:</strong> ${cl2Texto} | <strong>Classe 3:</strong> ${cl3Texto}</div>
           <div><strong>Emissão:</strong> ${dataHoraEmissao} | <strong>Responsável:</strong> ${militarNome} (${militarOme})</div>
         </div>
 
@@ -29384,6 +29475,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
   // Restaura os filtros para visão geral
   function resetarFiltrosDashboard() {
     const selOme = document.getElementById('filtroDashOme');
+    const selSub = document.getElementById('filtroDashSubunidade');
     const selCl1 = document.getElementById('filtroDashClasse1');
     const selCl2 = document.getElementById('filtroDashClasse2');
     const selCl3 = document.getElementById('filtroDashClasse3');
@@ -29398,6 +29490,10 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       } else {
         selOme.value = 'TODAS';
       }
+    }
+    if (selSub) {
+      popularSubunidadesDashboard(selOme ? selOme.value : 'TODAS', 'TODAS');
+      selSub.value = 'TODAS';
     }
     if (selCl1) selCl1.value = 'TODAS';
     if (selCl2) selCl2.value = 'TODAS';
