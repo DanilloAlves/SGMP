@@ -1971,14 +1971,10 @@ function sincronizarViaturasInventarioNaArvore_(omePadrao, idSedeOficial, locais
       mapaSetoresViaturaAlvo[nomeSetorAlvo.toUpperCase()] = true;
     });
 
-    // 3. Distribui cada viatura encontrada na árvore abaixo de sua Subunidade correspondente
-    var alterouAlgumLocal = false;
-
+    // 3. Montagem instantânea em memória dos nós de viatura a partir do inventário oficial
     viaturasInventario.forEach(function(vtr) {
-      var itemBq = vtr.itemBq;
       var subRef = vtr.subRef;
       var nomeSetorAlvo = vtr.nomeSetor;
-      var serieExtraida = vtr.nSerie;
       var numNorm = vtr.numNorm;
 
       // Determina a Subunidade Pai (SEDE inicialmente, ou Subunidade específica cadastrada no BigQuery)
@@ -1995,26 +1991,17 @@ function sincronizarViaturasInventarioNaArvore_(omePadrao, idSedeOficial, locais
         if (noSub) {
           idPaiAlvo = noSub.id;
         } else {
-          // Cria a subunidade específica na árvore caso ainda não exista
-          var idNovaSub = 'sub_' + new Date().getTime() + '_' + Math.floor(Math.random() * 1000);
-          var novaSubObj = { id: idNovaSub, ome: omePadrao, nome: subRef, idPai: '' };
-          locais.push(novaSubObj);
+          // Cria a subunidade em memória se ainda não existir
+          var idNovaSub = 'sub_' + omePadrao.replace(/[^A-Z0-9]/gi, '_') + '_' + subRef.replace(/[^A-Z0-9]/gi, '_');
+          locais.push({ id: idNovaSub, ome: omePadrao, nome: subRef, idPai: '' });
           idPaiAlvo = idNovaSub;
-          try {
-            var sqlInsSub = 'INSERT INTO `' + PROJECT_ID + '.' + DATASET_ID + '.' + TABELA_ARVORE + '` (ID_Local, Unidade_OME, Nome_Local, ID_Pai) VALUES (' +
-              sqlLiteralChamado_(idNovaSub) + ', ' +
-              sqlLiteralChamado_(omePadrao) + ', ' +
-              sqlLiteralChamado_(subRef) + ', \'\')';
-            executarEscritaBigQuerySegura(sqlInsSub);
-          } catch(eSubIns) {}
         }
       }
 
-      // Procura se o setor desta viatura já existe na lista locais (mesmo nome OU sigla anterior como ABT vs ABTS)
+      // Procura se o setor desta viatura já existe na lista locais
       var setorExistente = locais.find(function(l) {
         var nU = String(l.nome || '').trim().toUpperCase();
         if (nU === nomeSetorAlvo.toUpperCase()) return true;
-        // Se mudou de ABT - [num] para ABTS - [num] (ou vice-versa) com o mesmo número de ordem
         if (numNorm) {
           var mNum = nU.match(/\b(\d+)\b/);
           if (mNum && mNum[1].replace(/^0+/, '') === numNorm) {
@@ -2027,82 +2014,23 @@ function sincronizarViaturasInventarioNaArvore_(omePadrao, idSedeOficial, locais
       });
 
       if (setorExistente) {
-        // Se o setor já existia com o nome antigo (ex: ABT - 1133 em vez de ABTS - 1133), atualiza na árvore e no BigQuery!
-        if (String(setorExistente.nome).trim().toUpperCase() !== nomeSetorAlvo.toUpperCase()) {
-          var nomeAntigo = setorExistente.nome;
-          setorExistente.nome = nomeSetorAlvo;
-          alterouAlgumLocal = true;
-          try {
-            var sqlUpNome = 'UPDATE `' + PROJECT_ID + '.' + DATASET_ID + '.' + TABELA_ARVORE + '` ' +
-                            'SET Nome_Local = ' + sqlLiteralChamado_(nomeSetorAlvo) + ' ' +
-                            'WHERE ID_Local = \'' + limparSQLChamado_(setorExistente.id) + '\'';
-            executarEscritaBigQuerySegura(sqlUpNome);
-          } catch(eUpNome) {}
-
-          // Se existia outro registro em tb_Arvore com o nome antigo ou duplicado, remove para não deixar lixo
-          try {
-            var sqlDelAntigo = 'DELETE FROM `' + PROJECT_ID + '.' + DATASET_ID + '.' + TABELA_ARVORE + '` ' +
-                               'WHERE UPPER(TRIM(Unidade_OME)) IN (' + inSqlOme + ') ' +
-                               '  AND UPPER(TRIM(Nome_Local)) = ' + sqlLiteralChamado_(nomeAntigo.toUpperCase()) + ' ' +
-                               '  AND ID_Local != \'' + limparSQLChamado_(setorExistente.id) + '\'';
-            executarEscritaBigQuerySegura(sqlDelAntigo);
-          } catch(eDelAnt) {}
-        }
-        // Atualiza subunidade pai se necessário
+        setorExistente.nome = nomeSetorAlvo;
         if (idPaiAlvo && String(setorExistente.idPai) !== String(idPaiAlvo)) {
           setorExistente.idPai = idPaiAlvo;
-          alterouAlgumLocal = true;
-          try {
-            var sqlUpPai = 'UPDATE `' + PROJECT_ID + '.' + DATASET_ID + '.' + TABELA_ARVORE + '` ' +
-                           'SET ID_Pai = ' + sqlLiteralChamado_(idPaiAlvo) + ' ' +
-                           'WHERE ID_Local = \'' + limparSQLChamado_(setorExistente.id) + '\'';
-            executarEscritaBigQuerySegura(sqlUpPai);
-          } catch(eUpPai) {}
         }
       } else {
         var idVtr = 'vtr_' + omePadrao.replace(/[^A-Z0-9]/gi, '_') + '_' + nomeSetorAlvo.replace(/[^A-Z0-9]/gi, '_');
-        var novoLocal = {
+        locais.push({
           id: idVtr,
           ome: omePadrao,
           nome: nomeSetorAlvo,
           idPai: idPaiAlvo,
           isViatura: true
-        };
-        locais.push(novoLocal);
-        alterouAlgumLocal = true;
-
-        try {
-          var sqlIns = 'INSERT INTO `' + PROJECT_ID + '.' + DATASET_ID + '.' + TABELA_ARVORE + '` (ID_Local, Unidade_OME, Nome_Local, ID_Pai) VALUES (' +
-            sqlLiteralChamado_(idVtr) + ', ' +
-            sqlLiteralChamado_(omePadrao) + ', ' +
-            sqlLiteralChamado_(nomeSetorAlvo) + ', ' +
-            sqlLiteralChamado_(idPaiAlvo) + ')';
-          executarEscritaBigQuerySegura(sqlIns);
-        } catch(eInsArv) {}
-      }
-
-      // Sincroniza o campo SETOR na tb_Inventario para o nome oficial da viatura (ex: 'ABTS - 1133')
-      if (itemBq) {
-        try {
-          var sqlUpInv = 'UPDATE `' + PROJECT_ID + '.' + DATASET_ID + '.' + TABELA_ID + '` ' +
-                         'SET SETOR = ' + sqlLiteralChamado_(nomeSetorAlvo) + ' ' +
-                         'WHERE ITEM = \'' + limparSQLChamado_(itemBq) + '\' ' +
-                         'AND (SETOR IS NULL OR SETOR != ' + sqlLiteralChamado_(nomeSetorAlvo) + ')';
-          executarEscritaBigQuerySegura(sqlUpInv);
-        } catch(eUpInv) {}
-      }
-      if (numNorm) {
-        try {
-          var sqlUpAntigo = 'UPDATE `' + PROJECT_ID + '.' + DATASET_ID + '.' + TABELA_ID + '` ' +
-                            'SET SETOR = ' + sqlLiteralChamado_(nomeSetorAlvo) + ' ' +
-                            'WHERE UPPER(TRIM(UNIDADE)) IN (' + inSqlOme + ') ' +
-                            '  AND UPPER(TRIM(SETOR)) = \'ABT - ' + numNorm + '\'';
-          executarEscritaBigQuerySegura(sqlUpAntigo);
-        } catch(eUpAnt) {}
+        });
       }
     });
 
-    // Remove viaturas genéricas sem número ou que não estejam no inventário oficial desta OME
+    // Remove em memória viaturas genéricas sem número ou que não estejam no inventário
     var siglasPurasLista = ["BIS", "AR", "ABT", "ABTS", "AT", "ASE", "AE", "AEM", "ABTF", "ABSL", "ABSM", "ABSC", "MSA", "MR", "UR", "UTI", "VTR"];
     for (var i = locais.length - 1; i >= 0; i--) {
       var loc = locais[i];
@@ -2111,34 +2039,14 @@ function sincronizarViaturasInventarioNaArvore_(omePadrao, idSedeOficial, locais
       var nUpper = String(loc.nome || "").trim().toUpperCase();
       if (siglasPurasLista.indexOf(nUpper) !== -1) {
         locais.splice(i, 1);
-        alterouAlgumLocal = true;
         continue;
       }
 
       if (typeof ehViaturaLocalBackend_ === 'function' && ehViaturaLocalBackend_(loc.nome)) {
         if (!mapaSetoresViaturaAlvo[nUpper]) {
           locais.splice(i, 1);
-          alterouAlgumLocal = true;
         }
       }
-    }
-
-    // 4. Limpeza no BigQuery tb_Arvore: remove nós genéricos sem número E purga qualquer viatura não inventariada
-    try {
-      var condicaoExclusaoVtrs = "WHERE UPPER(TRIM(Unidade_OME)) IN (" + inSqlOme + ") " +
-        "AND (ID_Local LIKE 'vtr_%' OR ID_Local LIKE 'loc_vtr_%' OR " +
-        "REGEXP_CONTAINS(UPPER(TRIM(Nome_Local)), r'^(?:BIS|AR|ABTS|ABTF|ABSL|ABSM|ABSC|ABT|AT|ASE|AE|AEM|MSA|MR|UR|UTI|VTR|ATM|AC|ACA)(?:\b|[-_ ])') OR " +
-        "UPPER(TRIM(Nome_Local)) IN ('BIS', 'AR', 'ABT', 'ABTS', 'VTR', 'AT', 'ASE', 'AE', 'AEM', 'ABTF', 'ABSL', 'ABSM', 'ABSC', 'MSA', 'MR', 'UR', 'UTI', 'ATM'))";
-
-      var vtrsValidas = Object.keys(mapaSetoresViaturaAlvo);
-      if (vtrsValidas.length > 0) {
-        var listaValidasSql = vtrsValidas.map(function(v) { return sqlLiteralChamado_(v); }).join(", ");
-        condicaoExclusaoVtrs += " AND UPPER(TRIM(Nome_Local)) NOT IN (" + listaValidasSql + ")";
-      }
-      var sqlLimpeza = "DELETE FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` " + condicaoExclusaoVtrs;
-      executarEscritaBigQuerySegura(sqlLimpeza);
-    } catch(eLimp) {
-      console.warn("Aviso ao limpar viaturas órfãs da tb_Arvore: " + eLimp.message);
     }
 
     if (alterouAlgumLocal && typeof invalidarCacheArmazenamentoOme_ === 'function') {
@@ -2192,8 +2100,28 @@ function carregarDadosArmazenamentoCompleto(unidadeOmega, forcarAtualizacao) {
     }
 
     var locais = getArvoreLocais(omePadrao);
-    var materiais = getMateriaisDaOme(omePadrao);
     var vinculos = getMateriaisAtreladosPorLocal(omePadrao);
+
+    // Derivação em memória ultrarrápida dos materiais da OME a partir dos vinculos
+    var mapaTotaisMaterial = {};
+    for (var locId in vinculos) {
+      if (Array.isArray(vinculos[locId])) {
+        vinculos[locId].forEach(function(m) {
+          var nomeMat = String(m.nome || "").trim();
+          if (nomeMat) {
+            mapaTotaisMaterial[nomeMat] = (mapaTotaisMaterial[nomeMat] || 0) + (parseInt(m.qtd) || 0);
+          }
+        });
+      }
+    }
+    var materiais = [];
+    for (var matNome in mapaTotaisMaterial) {
+      materiais.push({
+        nome: matNome,
+        total: mapaTotaisMaterial[matNome]
+      });
+    }
+    materiais.sort(function(a, b) { return a.nome.localeCompare(b.nome); });
 
     var resultado = {
       locais: locais || [],
@@ -3170,14 +3098,19 @@ function atualizarPaiLocalArvore(idLocal, novoIdPai) {
 
 
 
+var MAPA_SEDE_OME_CACHE_ = {};
+
 function garantirSedePadraoOme(ome) {
   try {
     var omePadrao = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(ome) : String(ome || "").trim();
     if (!omePadrao) return null;
 
-    garantirTabelaArvore_();
-
     var omeTrim = omePadrao.toUpperCase();
+    if (MAPA_SEDE_OME_CACHE_[omeTrim]) {
+      return MAPA_SEDE_OME_CACHE_[omeTrim];
+    }
+
+    garantirTabelaArvore_();
 
     // Consulta rápida no banco centralizado
     try {
@@ -3190,7 +3123,9 @@ function garantirSedePadraoOme(ome) {
       
       var res = executarConsultaBigQuerySegura(sqlBusca);
       if (res && res.rows && res.rows.length > 0 && res.rows[0].f && res.rows[0].f[0].v) {
-        return String(res.rows[0].f[0].v).trim();
+        var idEncontrado = String(res.rows[0].f[0].v).trim();
+        MAPA_SEDE_OME_CACHE_[omeTrim] = idEncontrado;
+        return idEncontrado;
       }
 
       var idSedeNovo = "SEDE_" + omeTrim.replace(/[^A-Z0-9]/g, "_") + "_" + new Date().getTime();

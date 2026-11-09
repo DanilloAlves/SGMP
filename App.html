@@ -10680,7 +10680,7 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
   }
 
   function moverOrdemRaiz(indexAtual, direcao) {
-    const raizes = cacheLocaisArvore.filter(l => !l.idPai);
+    const raizes = (cacheLocaisArvore || []).filter(l => !l.idPai);
     const novoIndex = indexAtual + direcao;
 
     if (novoIndex < 0 || novoIndex >= raizes.length) return;
@@ -10695,15 +10695,20 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
       adicionarFilhosRecursivos(raiz.id, cacheLocaisArvore, novaListaOrdenada);
     });
 
+    // ATUALIZAÇÃO OTIMISTA INSTANTÂNEA: Renderiza na tela sem esperar requisição de rede (0ms)
+    cacheLocaisArvore = novaListaOrdenada;
+    renderizarArvoreLocais();
+
     const idsOrdenados = novaListaOrdenada.map(l => l.id);
     const selOme = document.getElementById('selectOmeArvore');
     const omeAtual = selOme ? (selOme.value || selOme.getAttribute('data-value') || '') : (OME_GLOBAL || '');
 
+    // Salva em segundo plano de forma silenciosa
     google.script.run
-      .withSuccessHandler(() => {
+      .withFailureHandler(err => {
+        Swal.fire('Erro ao salvar ordem', err.message, 'error');
         carregarLocaisArvoreGeral(true);
       })
-      .withFailureHandler(err => Swal.fire('Erro', err.message, 'error'))
       .salvarNovaOrdemLocais(idsOrdenados, omeAtual);
   }
 
@@ -12555,7 +12560,11 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
                   return;
                 }
                 google.script.run
-                  .withSuccessHandler(() => carregarLocaisArvoreGeral())
+                  .withSuccessHandler(res => {
+                    const idNovo = (res && res.id) ? res.id : ('loc_' + new Date().getTime());
+                    cacheLocaisArvore.push({ id: idNovo, ome: ome, nome: nomeNovo, idPai: "" });
+                    renderizarArvoreLocais();
+                  })
                   .withFailureHandler(err => Swal.fire('Atenção', err.message, 'warning'))
                   .adicionarLocalNaArvore({ ome: ome, nome: nomeNovo, idPai: "" });
               }
@@ -12591,7 +12600,11 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
                 return;
               }
               google.script.run
-                .withSuccessHandler(() => carregarLocaisArvoreGeral())
+                .withSuccessHandler(res => {
+                  const idNovo = (res && res.id) ? res.id : ('loc_' + new Date().getTime());
+                  cacheLocaisArvore.push({ id: idNovo, ome: ome, nome: nomeNovo, idPai: "" });
+                  renderizarArvoreLocais();
+                })
                 .withFailureHandler(err => Swal.fire('Atenção', err.message, 'warning'))
                 .adicionarLocalNaArvore({ ome: ome, nome: nomeNovo, idPai: "" });
             }
@@ -12614,7 +12627,11 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
             return;
           }
           google.script.run
-            .withSuccessHandler(() => carregarLocaisArvoreGeral())
+            .withSuccessHandler(res => {
+              const idNovo = (res && res.id) ? res.id : ('loc_' + new Date().getTime());
+              cacheLocaisArvore.push({ id: idNovo, ome: ome, nome: nomeNovo, idPai: idPai });
+              renderizarArvoreLocais();
+            })
             .withFailureHandler(err => Swal.fire('Atenção', err.message, 'warning'))
             .adicionarLocalNaArvore({ ome: ome, nome: nomeNovo, idPai: idPai });
         }
@@ -12628,8 +12645,32 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
       Swal.fire('Acesso Restrito', 'Você não possui permissão para excluir locais.', 'warning');
       return;
     }
-    Swal.fire({ title: 'Excluir?', icon: 'warning', showCancelButton: true }).then(r => {
-      if (r.isConfirmed) google.script.run.withSuccessHandler(() => carregarLocaisArvoreGeral()).excluirLocalDaArvore(id);
+    Swal.fire({ 
+      title: 'Excluir Local?', 
+      text: 'Tem certeza de que deseja excluir este local da árvore?', 
+      icon: 'warning', 
+      showCancelButton: true,
+      confirmButtonColor: '#dc3545',
+      confirmButtonText: 'Sim, Excluir',
+      cancelButtonText: 'Cancelar'
+    }).then(r => {
+      if (r.isConfirmed) {
+        // ATUALIZAÇÃO OTIMISTA: Remove o nó e seus filhos da tela imediatamente (0ms)
+        function removerRecursivo(idAlvo) {
+          const filhos = (cacheLocaisArvore || []).filter(l => String(l.idPai) === String(idAlvo));
+          filhos.forEach(f => removerRecursivo(f.id));
+          cacheLocaisArvore = (cacheLocaisArvore || []).filter(l => String(l.id) !== String(idAlvo));
+        }
+        removerRecursivo(id);
+        renderizarArvoreLocais();
+
+        google.script.run
+          .withFailureHandler(err => {
+            Swal.fire('Erro ao Excluir', err.message, 'error');
+            carregarLocaisArvoreGeral(true);
+          })
+          .excluirLocalDaArvore(id);
+      }
     });
   }
 
