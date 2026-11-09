@@ -1842,7 +1842,7 @@ function sincronizarViaturasInventarioNaArvore_(omePadrao, idSedeOficial, locais
 
     var inSqlOme = (typeof obterVariacoesOmeParaSql_ === 'function') 
       ? obterVariacoesOmeParaSql_(omePadrao) 
-      : ("'" + omePadrao.toUpperCase().replace(/'/g, "\'") + "'");
+      : ("'" + omePadrao.toUpperCase().replace(/'/g, "\\'") + "'");
 
     // 1. Busca todos os materiais da OME diretamente na tb_Inventario (fonte primária de viaturas)
     var sql = "SELECT ITEM, UPPER(TRIM(OBJETO)) as objeto, " +
@@ -21385,7 +21385,8 @@ function sincronizarPeculioViaturaParaBigQuery(forcar) {
 
     function sqlStr(val) {
       if (val === undefined || val === null) return "''";
-      return "'" + String(val).trim().replace(/'/g, "\'") + "'";
+      var str = String(val).trim();
+      return "'" + str.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\r\n/g, '\\n').replace(/\r/g, '\\n').replace(/\n/g, '\\n') + "'";
     }
 
     for (var r = 1; r < dados.length; r++) {
@@ -21491,7 +21492,7 @@ function sincronizarPeculioViaturaParaBigQuery(forcar) {
     }
 
     // Insere em lotes de 100
-    var batchSize = 100;
+    var batchSize = 50;
     for (var b = 0; b < linhasSql.length; b += batchSize) {
       var batch = linhasSql.slice(b, b + batchSize);
       var sqlBatch = "INSERT INTO `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_PECULIO_VIATURA + "` (" +
@@ -22308,7 +22309,7 @@ function getDadosViaturaPorSetor(nomeSetor, ome) {
 
     if (omePadrao) {
       try {
-        var inOmeSql = (typeof obterVariacoesOmeParaSql_ === 'function') ? obterVariacoesOmeParaSql_(omePadrao) : ("'" + omePadrao.toUpperCase().replace(/'/g, "\'") + "'");
+        var inOmeSql = (typeof obterVariacoesOmeParaSql_ === 'function') ? obterVariacoesOmeParaSql_(omePadrao) : ("'" + omePadrao.toUpperCase().replace(/'/g, "\\'") + "'");
         var condsBuscaInv = [];
         if (numSetor) {
           condsBuscaInv.push("UPPER(TRIM(COALESCE(N_SERIE, ''))) = '" + numSetor + "'");
@@ -22399,23 +22400,23 @@ function getDadosViaturaPorSetor(nomeSetor, ome) {
 
       var whereParts = [];
       if (itemRef) {
-        whereParts.push("UPPER(TRIM(ITEM)) = UPPER('" + itemRef.replace(/'/g, "\'") + "')");
+        whereParts.push("UPPER(TRIM(ITEM)) = UPPER('" + itemRef.replace(/'/g, "\\'") + "')");
       }
       if (placaRef && placaRef !== "N/I" && placaRef !== "-") {
-        whereParts.push("UPPER(TRIM(ITEM)) = UPPER('VTR-" + placaRef.replace(/'/g, "\'") + "')");
+        whereParts.push("UPPER(TRIM(ITEM)) = UPPER('VTR-" + placaRef.replace(/'/g, "\\'") + "')");
       }
       if (patRef && patRef !== "N/I" && patRef !== "-") {
-        whereParts.push("UPPER(TRIM(N_PATRIMONIO)) = UPPER('" + patRef.replace(/'/g, "\'") + "')");
+        whereParts.push("UPPER(TRIM(N_PATRIMONIO)) = UPPER('" + patRef.replace(/'/g, "\\'") + "')");
       }
       if (nOrdemRef && nOrdemRef !== "NI" && nOrdemRef !== "-") {
-        whereParts.push("UPPER(TRIM(ITEM)) = UPPER('VTR-" + nOrdemRef.replace(/'/g, "\'") + "')");
-        whereParts.push("UPPER(TRIM(DOCUMENTO_REF)) LIKE '%" + nOrdemRef.replace(/'/g, "\'") + "%'");
+        whereParts.push("UPPER(TRIM(ITEM)) = UPPER('VTR-" + nOrdemRef.replace(/'/g, "\\'") + "')");
+        whereParts.push("UPPER(TRIM(DOCUMENTO_REF)) LIKE '%" + nOrdemRef.replace(/'/g, "\\'") + "%'");
       }
       if (nomeRef) {
-        whereParts.push("UPPER(TRIM(OBJETO)) LIKE '%" + nomeRef.replace(/'/g, "\'") + "%'");
+        whereParts.push("UPPER(TRIM(OBJETO)) LIKE '%" + nomeRef.replace(/'/g, "\\'") + "%'");
       }
       if (setorRef && setorRef.indexOf("-") !== -1) {
-        whereParts.push("UPPER(TRIM(DESTINO_LOCAL)) LIKE '%" + setorRef.replace(/'/g, "\'") + "%'");
+        whereParts.push("UPPER(TRIM(DESTINO_LOCAL)) LIKE '%" + setorRef.replace(/'/g, "\\'") + "%'");
       }
 
       if (whereParts.length > 0) {
