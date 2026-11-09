@@ -1135,12 +1135,18 @@ function registrarEntradaEstoque(dados) {
       var eventosCad = [];
       var codigosCriadosCad = [];
       var localFormatadoCad = [dados.subunidade, dados.setor, localArmazenamentoFinal].filter(Boolean).join(" > ");
+      var respNomeCad = dados.responsavelNome || (typeof Session !== "undefined" && Session.getActiveUser().getEmail()) || "Recebimento";
+      var respCpfCad = dados.responsavelCpf || "-";
+      var origUndCad = dados.fornecedor ? ("Fornecedor: " + dados.fornecedor) : "Recebimento (Aba Inclusão)";
+      var origLocCad = dados.seiCompra ? ("Processo SEI: " + dados.seiCompra) : "Aba Inclusão";
+      var tipoEventoCad = (dados.origemAcao === "INCLUSAO_RECEBIMENTO" || dados.seiCompra) ? "RECEBIMENTO" : "CADASTRO";
+
       for (var iCad = 0; iCad < quantidade; iCad++) {
         var codItemCad = prefixo + (proximoNumero + iCad);
         codigosCriadosCad.push(codItemCad);
         var serieCad = (numerosSerie[iCad] !== undefined && numerosSerie[iCad] !== null) ? String(numerosSerie[iCad]).trim() : "";
         var patCad = (numerosPatrimonio[iCad] !== undefined && numerosPatrimonio[iCad] !== null && String(numerosPatrimonio[iCad]).trim() !== "") ? String(numerosPatrimonio[iCad]).trim() : (dados.nPatrimonio || "");
-        var obsCad = dados.observacao || "Entrada no estoque registrada via sistema.";
+        var obsCad = dados.observacao || "Recebimento de material registrado na aba Inclusão.";
         if (serieCad) {
           obsCad += " (Série: " + serieCad + ")";
         }
@@ -1148,16 +1154,16 @@ function registrarEntradaEstoque(dados) {
           item: codItemCad,
           objeto: dados.material || "",
           nPatrimonio: patCad,
-          tipoEvento: "CADASTRO",
-          origemUnidade: "-",
-          origemLocal: "-",
+          tipoEvento: tipoEventoCad,
+          origemUnidade: origUndCad,
+          origemLocal: origLocCad,
           destinoUnidade: unidadePadronizada || "",
           destinoLocal: localFormatadoCad,
           statusAnterior: "-",
           statusNovo: dados.statusConservacao || "ECD",
-          responsavelNome: (typeof Session !== "undefined" && Session.getActiveUser().getEmail()) || "Recebimento",
-          responsavelCpf: "-",
-          documentoRef: dados.seiCompra || "",
+          responsavelNome: respNomeCad,
+          responsavelCpf: respCpfCad,
+          documentoRef: dados.seiCompra || "-",
           observacao: obsCad
         });
       }
@@ -1170,7 +1176,8 @@ function registrarEntradaEstoque(dados) {
       var itensCadTxt = codigosCriadosCad.length <= 10 ? codigosCriadosCad.join(", ") : (codigosCriadosCad.slice(0, 10).join(", ") + " e mais " + (codigosCriadosCad.length - 10) + " itens");
       registrarLogAuditoria(
         "ENTRADA_ESTOQUE", 
-        "Cadastrou " + quantidade + " un(s) do material '" + (dados.material || "") + "'. Código(s) ITEM: [" + itensCadTxt + "] na OME " + (unidadePadronizada || "")
+        "Recebeu e cadastrou " + quantidade + " un(s) do material '" + (dados.material || "") + "' (Processo: " + (dados.seiCompra || "-") + "). Código(s) ITEM: [" + itensCadTxt + "] na OME " + (unidadePadronizada || ""),
+        { nome: respNomeCad, cpf: respCpfCad }
       );
     } catch(eLogCad) {}
 
@@ -7004,7 +7011,11 @@ function confirmarRecebimentoCINT(dadosRecebimento) {
       nPatrimonio: dadosRecebimento.nPatrimonio || "",
       numerosSerie: numerosSerie,
       numerosPatrimonio: (Array.isArray(dadosRecebimento.numerosPatrimonio) ? dadosRecebimento.numerosPatrimonio : []),
-      observacao: dadosRecebimento.observacao || ""
+      observacao: dadosRecebimento.observacao || "",
+      responsavelNome: usuario.nome || usuario.email,
+      responsavelCpf: usuario.cpf || "-",
+      origemAcao: "INCLUSAO_RECEBIMENTO",
+      fornecedor: dadosRecebimento.fornecedor || ""
     };
 
     // Primeiro confirma a escrita no BigQuery. Só depois grava o espelho na planilha,
@@ -18622,10 +18633,10 @@ function getHistoricoMovimentacaoItem(codigoOuPatrimonio) {
 
       var dataHoraImportacao = "";
 
-      // 2. Se não achou na observação, consulta o tb_Log para o usuário e data/hora do último lote de importação
+      // 2. Se não achou na observação, consulta o tb_Log para o usuário e data/hora da ação de inclusão/recebimento
       if (!nomeImportador) {
         try {
-          var sqlLog = "SELECT FORMAT_TIMESTAMP('%d/%m/%Y %H:%M:%S', DATA_HORA, 'America/Recife') as DATA_FORMATADA, NOME, CPF FROM `" + PROJECT_ID + "." + DATASET_ID + ".tb_Log` WHERE ACAO = 'IMPORTACAO_EXCEL' ORDER BY DATA_HORA DESC LIMIT 1";
+          var sqlLog = "SELECT FORMAT_TIMESTAMP('%d/%m/%Y %H:%M:%S', DATA_HORA, 'America/Recife') as DATA_FORMATADA, NOME, CPF FROM `" + PROJECT_ID + "." + DATASET_ID + ".tb_Log` WHERE ACAO IN ('RECEBIMENTO_ALMOXARIFADO', 'ENTRADA_ESTOQUE', 'NOVO_CADASTRO', 'IMPORTACAO_EXCEL') ORDER BY DATA_HORA DESC LIMIT 1";
           var resLog = executarConsultaBigQuerySegura(sqlLog);
           if (resLog.rows && resLog.rows.length > 0) {
             dataHoraImportacao = String(resLog.rows[0].f[0].v || "").trim();
@@ -18638,7 +18649,7 @@ function getHistoricoMovimentacaoItem(codigoOuPatrimonio) {
       // Se ainda não tiver a data do log de importação, busca do último log registrado
       if (!dataHoraImportacao) {
         try {
-          var sqlDataLog = "SELECT FORMAT_TIMESTAMP('%d/%m/%Y %H:%M:%S', DATA_HORA, 'America/Recife') FROM `" + PROJECT_ID + "." + DATASET_ID + ".tb_Log` WHERE ACAO = 'IMPORTACAO_EXCEL' ORDER BY DATA_HORA DESC LIMIT 1";
+          var sqlDataLog = "SELECT FORMAT_TIMESTAMP('%d/%m/%Y %H:%M:%S', DATA_HORA, 'America/Recife') FROM `" + PROJECT_ID + "." + DATASET_ID + ".tb_Log` WHERE ACAO IN ('RECEBIMENTO_ALMOXARIFADO', 'ENTRADA_ESTOQUE', 'NOVO_CADASTRO', 'IMPORTACAO_EXCEL') ORDER BY DATA_HORA DESC LIMIT 1";
           var resDataLog = executarConsultaBigQuerySegura(sqlDataLog);
           if (resDataLog.rows && resDataLog.rows.length > 0 && resDataLog.rows[0].f[0].v) {
             dataHoraImportacao = String(resDataLog.rows[0].f[0].v).trim();
@@ -18689,15 +18700,31 @@ function getHistoricoMovimentacaoItem(codigoOuPatrimonio) {
         }
       }
 
+      var ehImportacaoPlanilha = (itemAtual.observacao && itemAtual.observacao.toLowerCase().indexOf("planilha") !== -1);
+      var ehRecebimentoCompra = (!ehImportacaoPlanilha && itemAtual.seiCompra && itemAtual.seiCompra !== "Sem SEI" && itemAtual.seiCompra !== "-" && itemAtual.seiCompra !== "N/I");
+
+      var tipoEvBaseline = ehRecebimentoCompra ? "RECEBIMENTO" : "CADASTRO";
+      var origUndBaseline = ehImportacaoPlanilha
+        ? "Importação em lote via Planilha"
+        : (ehRecebimentoCompra ? "Recebimento (Aba Inclusão)" : "Cadastro no Sistema");
+      var origLocBaseline = ehRecebimentoCompra
+        ? ("Processo SEI: " + itemAtual.seiCompra)
+        : (nomeImportador || "-");
+      var obsBaseline = ehImportacaoPlanilha
+        ? ("Importação em lote via Planilha por " + respFinal)
+        : (ehRecebimentoCompra 
+            ? ("Recebimento de material por processo de compra (" + itemAtual.seiCompra + ") por " + respFinal) 
+            : ("Cadastro de material no sistema por " + respFinal));
+
       var eventoBaseline = {
         idHistorico: "BASELINE",
         dataHora: dataHoraImportacao,
         item: itemAtual.item,
         objeto: itemAtual.objeto,
         nPatrimonio: itemAtual.nPatrimonio,
-        tipoEvento: "CADASTRO",
-        origemUnidade: "Carregamento em lote via Planilha",
-        origemLocal: nomeImportador,
+        tipoEvento: tipoEvBaseline,
+        origemUnidade: origUndBaseline,
+        origemLocal: origLocBaseline,
         destinoUnidade: itemAtual.unidade,
         destinoLocal: [itemAtual.subunidade, itemAtual.setor, itemAtual.local].filter(Boolean).join(" > "),
         statusAnterior: "-",
@@ -18705,7 +18732,7 @@ function getHistoricoMovimentacaoItem(codigoOuPatrimonio) {
         responsavelNome: respFinal,
         responsavelCpf: cpfImportador,
         documentoRef: itemAtual.seiCompra || "-",
-        observacao: "Carregamento em lote via Planilha por " + respFinal
+        observacao: obsBaseline
       };
 
       listaEventos.push(eventoBaseline);

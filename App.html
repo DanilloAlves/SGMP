@@ -13457,6 +13457,11 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
           tituloAmigavel = 'Descarregamento Definitivo (Baixa Patrimonial)';
           badgeCor = 'danger';
           break;
+        case 'RECEBIMENTO':
+          icon = 'fa-truck-ramp-box';
+          tituloAmigavel = 'Recebimento de Material (Aba Inclusão)';
+          badgeCor = 'success';
+          break;
         case 'CADASTRO':
           icon = 'fa-plus-circle';
           tituloAmigavel = 'Entrada no Estoque / Cadastro Inicial';
@@ -13527,11 +13532,14 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
       let rotaHtml = '';
       if ((ev.origemUnidade && ev.origemUnidade !== '-') || (ev.destinoUnidade && ev.destinoUnidade !== '-')) {
         let orig = [ev.origemUnidade, ev.origemLocal].filter(p => p && p !== '-').join(' > ') || '-';
-        if (orig === '-' && (tipo === 'CADASTRO' || (ev.observacao && ev.observacao.indexOf('Planilha') !== -1))) {
-          const userLog = (typeof usuarioSessaoAtual !== 'undefined' && usuarioSessaoAtual && (usuarioSessaoAtual.nome || usuarioSessaoAtual.email))
-            ? (usuarioSessaoAtual.nome || usuarioSessaoAtual.email)
-            : '';
-          orig = 'Carregamento em lote via Planilha' + (userLog ? ' > ' + userLog : '');
+        if (orig === '-') {
+          if (ev.observacao && ev.observacao.toLowerCase().includes('planilha')) {
+            orig = 'Importação em Lote via Planilha';
+          } else if (tipo === 'RECEBIMENTO' || (ev.documentoRef && ev.documentoRef !== '-')) {
+            orig = 'Recebimento de Material (Aba Inclusão)';
+          } else {
+            orig = 'Inclusão / Cadastro no Sistema';
+          }
         }
         let dest = [ev.destinoUnidade, ev.destinoLocal].filter(p => p && p !== '-').join(' > ') || '-';
         rotaHtml = `
