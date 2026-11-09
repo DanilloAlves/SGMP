@@ -1978,12 +1978,31 @@ function sincronizarViaturasInventarioNaArvore_(omePadrao, idSedeOficial, locais
         }
       }
 
-      // Procura se o setor desta viatura já existe na lista locais
+      // Procura se o setor desta viatura já existe na lista locais (ou com sigla equivalente ex: ABT vs ABTS)
       var setorExistente = locais.find(function(l) {
-        return String(l.nome || "").trim().toUpperCase() === nomeSetorAlvo.toUpperCase() && String(l.idPai) === String(idPaiAlvo);
+        if (String(l.idPai) !== String(idPaiAlvo)) return false;
+        var nU = String(l.nome || "").trim().toUpperCase();
+        if (nU === nomeSetorAlvo.toUpperCase()) return true;
+        // Se mudou de ABT - [num] para ABTS - [num] (ou vice-versa) com o mesmo número de ordem
+        if (serieExtraida && (nU === ("ABT - " + serieExtraida) || nU === ("ABTS - " + serieExtraida))) {
+          return true;
+        }
+        return false;
       });
 
-      if (!setorExistente) {
+      if (setorExistente) {
+        // Se o setor já existia com o nome antigo (ex: ABT - 297 em vez de ABTS - 297), atualiza na árvore e no BigQuery!
+        if (String(setorExistente.nome).trim().toUpperCase() !== nomeSetorAlvo.toUpperCase()) {
+          setorExistente.nome = nomeSetorAlvo;
+          alterouAlgumLocal = true;
+          try {
+            var sqlUpNome = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` " +
+                            "SET Nome_Local = " + sqlLiteralChamado_(nomeSetorAlvo) + " " +
+                            "WHERE ID_Local = '" + limparSQLChamado_(setorExistente.id) + "'";
+            executarEscritaBigQuerySegura(sqlUpNome);
+          } catch(eUpNome) {}
+        }
+      } else {
         var idVtr = "vtr_" + omePadrao.replace(/[^A-Z0-9]/gi, '_') + "_" + nomeSetorAlvo.replace(/[^A-Z0-9]/gi, '_');
         var novoLocal = {
           id: idVtr,
@@ -2057,7 +2076,7 @@ function invalidarCacheArmazenamentoOme_(ome) {
   try {
     var omePadrao = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(ome) : (ome || "");
     if (!omePadrao) return;
-    var sufixos = ["", "_V3", "_V4", "_V5", "_V6", "_V7"];
+    var sufixos = ["", "_V3", "_V4", "_V5", "_V6", "_V7", "_V8"];
     var cache = CacheService.getScriptCache();
     sufixos.forEach(function(suf) {
       var chaveBase = "CACHE_ARM_COMPLETO" + suf + "_" + omePadrao.toUpperCase().replace(/[^A-Z0-9]/g, "_");
@@ -2083,7 +2102,7 @@ function carregarDadosArmazenamentoCompleto(unidadeOmega, forcarAtualizacao) {
     if (!omePadrao) return { locais: [], materiais: [], vinculos: {} };
 
     // Prefixo V5 para descarte absoluto de qualquer cache antigo e sincronização estrita BigQuery
-    var chaveBase = "CACHE_ARM_COMPLETO_V7_" + omePadrao.toUpperCase().replace(/[^A-Z0-9]/g, "_");
+    var chaveBase = "CACHE_ARM_COMPLETO_V8_" + omePadrao.toUpperCase().replace(/[^A-Z0-9]/g, "_");
     var cached = (!forcarAtualizacao && typeof lerDeCacheChunked_ === 'function') ? lerDeCacheChunked_(chaveBase) : null;
 
     // Se houver algum setor não identificado ou genérico (ex: "BIS"), bypass no cache
@@ -9354,6 +9373,7 @@ var CONFIG_VIATURAS_CBMPE_BACKEND = [
   { regex: /^AUTO\s+SALVAMENTO\s+PESADO\s+ESPECIAL(?:\s*\([^)]*\))?(?:\s*-\s*ABS\s+COM\s+MUNK\s+E\s+GUICHO)?/i, sigla: 'ASE', base: 'AUTO SALVAMENTO PESADO ESPECIAL', sufixo: ' - ABS COM MUNK E GUICHO' },
   { regex: /^AUTO\s+BOMBA\s+TANQUE\s+SALVAMENTO(?:\s*\([^)]*\))?\s*-\s*TIPO\s+1/i, sigla: 'ABTS', base: 'AUTO BOMBA TANQUE SALVAMENTO', sufixo: ' - TIPO 1' },
   { regex: /^AUTO\s+BOMBA\s+TANQUE\s+SALVAMENTO(?:\s*\([^)]*\))?\s*-\s*TIPO\s+2/i, sigla: 'ABTS', base: 'AUTO BOMBA TANQUE SALVAMENTO', sufixo: ' - TIPO 2' },
+  { regex: /^AUTO\s+BOMBA\s+TANQUE\s+SALVAMENTO(?:\s*\([^)]*\))?/i, sigla: 'ABTS', base: 'AUTO BOMBA TANQUE SALVAMENTO', sufixo: '' },
   { regex: /^AUTO\s+BUSCA\s+E\s+SALVAMENTO\s+LEVE(?:\s*\([^)]*\))?/i, sigla: 'ABSL', base: 'AUTO BUSCA E SALVAMENTO LEVE', sufixo: '' },
   { regex: /^AUTO\s+BUSCA\s+SALVAMENTO\s+M[EÉ]DIO(?:\s*\([^)]*\))?/i, sigla: 'ABSM', base: 'AUTO BUSCA SALVAMENTO MÉDIO', sufixo: '' },
   { regex: /^AUTO\s+BUSCA\s+E\s+SALVAMENTO\s+PARA\s+C[AÃ]ES(?:\s*\([^)]*\))?/i, sigla: 'ABSC', base: 'AUTO BUSCA E SALVAMENTO PARA CÃES', sufixo: '' },
@@ -9370,12 +9390,22 @@ var CONFIG_VIATURAS_CBMPE_BACKEND = [
 function obterSiglaViaturaBackend_(nome) {
   if (!nome) return '';
   var n = String(nome).trim().toUpperCase();
-  var mDireto = n.match(/^(ABT|ABTS|AR|AT|ABTF|ABSL|ABSM|ABSC|ASE|AE|AEM|BIS|MSA|MR|AP|ATM|AC|ACA|UR|UTI)(?:\b|[-_ ])/i);
+
+  // 1. Sigla direta no início da string (ABTS, ABTF, ABSL antes de ABT para não colidir prefixo)
+  var mDireto = n.match(/^(ABTS|ABTF|ABSL|ABSM|ABSC|ABT|AR|AT|ASE|AE|AEM|BIS|MSA|MR|AP|ATM|AC|ACA|UR|UTI)(?:\b|[-_ ])/i);
   if (mDireto) {
-    var siglaNorm = mDireto[1].toUpperCase();
-    return siglaNorm;
+    return mDireto[1].toUpperCase();
   }
-  if (/AUTO\s+BOMBA\s+TANQUE\s+FLORESTAL/i.test(n)) return 'ABTF';
+
+  // 1.1 Sigla entre parênteses em qualquer parte do texto (ex: "AUTO BOMBA TANQUE SALVAMENTO (ABTS - 297)")
+  var mParenteses = n.match(/\((ABTS|ABTF|ABSL|ABSM|ABSC|ABT|AR|AT|ASE|AE|AEM|BIS|MSA|MR|AP|ATM|AC|ACA|UR|UTI)[\s-_]+/i);
+  if (mParenteses) {
+    return mParenteses[1].toUpperCase();
+  }
+
+  // 2. Nomes por extenso (SALVAMENTO e FLORESTAL têm precedência absoluta sobre ABT puro)
+  if (/AUTO\s+BOMBA\s+TANQUE\s+FLORESTAL|\(ABTF\)/i.test(n)) return 'ABTF';
+  if (/AUTO\s+BOMBA\s+TANQUE.*SALVAMENTO|\bABTS\b/i.test(n)) return 'ABTS';
   if (/AUTO\s+BOMBA\s+TANQUE/i.test(n)) return 'ABT';
   if (/AUTO\s+BUSCA.*C[AÃ]ES/i.test(n)) return 'ABSC';
   if (/AUTO\s+BUSCA.*M[EÉ]DIO/i.test(n)) return 'ABSM';
