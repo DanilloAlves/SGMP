@@ -7179,6 +7179,12 @@ function getProcessosAbertosPlan() {
     var mapDgcVencPorCtrlProcNum = {};
     var mapDgcVencPorCtrlProcEObjeto = {};
     var mapDgcVencPorControleObj = {};
+    var mapDgcVencPorCodProc = {};
+    var mapDgcTemEntradaVencPorCodProc = {};
+    var mapDgcVencPorSeiECodProc = {};
+    var mapDgcTemEntradaVencPorSeiECodProc = {};
+    var mapDgcVencPorSeiEObjeto = {};
+    var mapDgcTemEntradaVencPorSeiEObjeto = {};
     var mapDgcVencPorSei = {};
     var mapDgcVencPorLinha = {};
 
@@ -7186,9 +7192,17 @@ function getProcessosAbertosPlan() {
     var mapDgcPrevPorCtrlProcNum = {};
     var mapDgcPrevPorCtrlProcEObjeto = {};
     var mapDgcPrevPorControleObj = {};
+    var mapDgcPrevPorCodProc = {};
+    var mapDgcTemEntradaPrevPorCodProc = {};
+    var mapDgcPrevPorSeiECodProc = {};
+    var mapDgcTemEntradaPrevPorSeiECodProc = {};
+    var mapDgcPrevPorSeiEObjeto = {};
+    var mapDgcTemEntradaPrevPorSeiEObjeto = {};
     var mapDgcPrevPorSei = {};
     var mapDgcPrevPorLinha = {};
 
+    var contadorSeiDgc = {};
+    var mapDgcDistinctCodProcPorSei = {};
     var mapDgcTipoProcesso = {};
 
     try {
@@ -7215,6 +7229,7 @@ function getProcessosAbertosPlan() {
         var colKeyDgcIdx = (lastColDgc >= 6) ? 5 : 0;
         var colTipoDgcIdx = (lastColDgc >= 7) ? 6 : -1; // Padrão: Coluna G (índice 6)
         var colSeiDgcIdx = (lastColDgc >= 4) ? 3 : -1;
+        var colCodProcDgcIdx = (lastColDgc >= 5) ? 4 : -1; // Padrão: Coluna E (índice 4: Cod. Processo, ex: A191, A262)
         var colObjDgcIdx = (lastColDgc >= 9) ? 8 : -1;
         var colCtrlObjDgcIdx = (lastColDgc >= 2) ? 1 : -1;
         var linhaCabecalhoDgc = -1;
@@ -7247,6 +7262,18 @@ function getProcessosAbertosPlan() {
                      hdNorm === "PRAZO DE ENTREGA" ||
                      hdNorm === "VENCIMENTO") {
               colVencEntregaIdx = cd;
+              linhaCabecalhoDgc = Math.max(linhaCabecalhoDgc, rD);
+            }
+
+            // Cod. Processo (Coluna E da DGC / #PLAN, ex: A191, A262)
+            if ((hdNorm.indexOf("COD") !== -1 && (hdNorm.indexOf("PROC") !== -1 || hdNorm.indexOf("PROCESSO") !== -1)) ||
+                hdNorm === "COD. PROCESSO" ||
+                hdNorm === "COD PROCESSO" ||
+                hdNorm === "CODIGO PROCESSO" ||
+                hdNorm === "CODIGO DO PROCESSO" ||
+                hdNorm === "COD. PROC." ||
+                hdNorm === "COD PROC") {
+              colCodProcDgcIdx = cd;
               linhaCabecalhoDgc = Math.max(linhaCabecalhoDgc, rD);
             }
 
@@ -7296,16 +7323,87 @@ function getProcessosAbertosPlan() {
           var seiD = (colSeiDgcIdx !== -1 && colSeiDgcIdx < rowD.length) ? String(rowD[colSeiDgcIdx] || "").trim() : "";
           var objD = (colObjDgcIdx !== -1 && colObjDgcIdx < rowD.length) ? String(rowD[colObjDgcIdx] || "").trim() : "";
 
+          // Identifica Cod. Processo (ex: A191, A262)
+          var codProcDgc = (colCodProcDgcIdx !== -1 && colCodProcDgcIdx < rowD.length) ? String(rowD[colCodProcDgcIdx] || "").trim() : "";
+          if (!codProcDgc && rowD.length > 4) {
+            var valCol4 = String(rowD[4] || "").trim();
+            if (valCol4 && /^[A-Z0-9\-_./]+$/i.test(valCol4) && valCol4.length <= 15) {
+              codProcDgc = valCol4;
+            }
+          }
+          if (!codProcDgc) {
+            for (var cScan = 0; cScan < Math.min(10, rowD.length); cScan++) {
+              var valScan = String(rowD[cScan] || "").trim();
+              if (/^[A-Z]\d{2,5}$/i.test(valScan)) {
+                codProcDgc = valScan;
+                break;
+              }
+            }
+          }
+
           var kNorm = normalizarChaveControle(ctrlProcDgc);
           var kNum = extrairChaveNumericaControle(ctrlProcDgc);
 
           var temDataVenc = ehValorPreenchidoGeral(valVenc);
           var temDataPrev = ehValorPreenchidoGeral(valPrev);
 
-          // Armazenamento de Venc Entrega (Coluna EB - Numérico / Dias)
+          var codProcDgcUpper = codProcDgc ? codProcDgc.toUpperCase() : "";
+          var seiKey = seiD ? seiD.toUpperCase() : "";
+
+          if (seiKey) {
+            contadorSeiDgc[seiKey] = (contadorSeiDgc[seiKey] || 0) + 1;
+            if (codProcDgcUpper) {
+              if (!mapDgcDistinctCodProcPorSei[seiKey]) mapDgcDistinctCodProcPorSei[seiKey] = {};
+              mapDgcDistinctCodProcPorSei[seiKey][codProcDgcUpper] = true;
+            }
+          }
+
+          // 1. Chaves prioritárias com Cod. Processo (evita colisão quando mesmo SEI tem múltiplos processos)
+          if (codProcDgcUpper) {
+            mapDgcTemEntradaPrevPorCodProc[codProcDgcUpper] = true;
+            if (temDataPrev || !mapDgcPrevPorCodProc[codProcDgcUpper]) {
+              mapDgcPrevPorCodProc[codProcDgcUpper] = valPrev;
+            }
+            mapDgcTemEntradaVencPorCodProc[codProcDgcUpper] = true;
+            if (temDataVenc || !mapDgcVencPorCodProc[codProcDgcUpper]) {
+              mapDgcVencPorCodProc[codProcDgcUpper] = valVenc;
+            }
+            if (valTipoDgc) mapDgcTipoProcesso[codProcDgcUpper] = valTipoDgc;
+
+            if (seiKey) {
+              var seiCodKey = seiKey + "_" + codProcDgcUpper;
+              mapDgcTemEntradaPrevPorSeiECodProc[seiCodKey] = true;
+              if (temDataPrev || !mapDgcPrevPorSeiECodProc[seiCodKey]) {
+                mapDgcPrevPorSeiECodProc[seiCodKey] = valPrev;
+              }
+              mapDgcTemEntradaVencPorSeiECodProc[seiCodKey] = true;
+              if (temDataVenc || !mapDgcVencPorSeiECodProc[seiCodKey]) {
+                mapDgcVencPorSeiECodProc[seiCodKey] = valVenc;
+              }
+              if (valTipoDgc) mapDgcTipoProcesso[seiCodKey] = valTipoDgc;
+            }
+          }
+
+          // 2. Chaves compostas com SEI + Objeto
+          if (seiKey && objD) {
+            var seiObjKey = seiKey + "_" + normalizarChaveControle(objD);
+            mapDgcTemEntradaPrevPorSeiEObjeto[seiObjKey] = true;
+            if (temDataPrev || !mapDgcPrevPorSeiEObjeto[seiObjKey]) {
+              mapDgcPrevPorSeiEObjeto[seiObjKey] = valPrev;
+            }
+            mapDgcTemEntradaVencPorSeiEObjeto[seiObjKey] = true;
+            if (temDataVenc || !mapDgcVencPorSeiEObjeto[seiObjKey]) {
+              mapDgcVencPorSeiEObjeto[seiObjKey] = valVenc;
+            }
+          }
+
+          // 3. Chaves por Controle Processo
           if (kNorm) {
             if (!mapDgcVencPorCtrlProc[kNorm] || temDataVenc) mapDgcVencPorCtrlProc[kNorm] = valVenc;
             if (kNum && (!mapDgcVencPorCtrlProcNum[kNum] || temDataVenc)) mapDgcVencPorCtrlProcNum[kNum] = valVenc;
+            if (!mapDgcPrevPorCtrlProc[kNorm] || temDataPrev) mapDgcPrevPorCtrlProc[kNorm] = valPrev;
+            if (kNum && (!mapDgcPrevPorCtrlProcNum[kNum] || temDataPrev)) mapDgcPrevPorCtrlProcNum[kNum] = valPrev;
+
             if (valTipoDgc) {
               mapDgcTipoProcesso[kNorm] = valTipoDgc;
               if (kNum) mapDgcTipoProcesso[kNum] = valTipoDgc;
@@ -7313,30 +7411,24 @@ function getProcessosAbertosPlan() {
             if (objD) {
               var kObj = kNorm + "_" + normalizarChaveControle(objD);
               if (!mapDgcVencPorCtrlProcEObjeto[kObj] || temDataVenc) mapDgcVencPorCtrlProcEObjeto[kObj] = valVenc;
+              if (!mapDgcPrevPorCtrlProcEObjeto[kObj] || temDataPrev) mapDgcPrevPorCtrlProcEObjeto[kObj] = valPrev;
             }
           }
-          if (ctrlObjDgc && (!mapDgcVencPorControleObj[ctrlObjDgc] || temDataVenc)) mapDgcVencPorControleObj[ctrlObjDgc] = valVenc;
-          if (seiD) {
-            var seiKey = seiD.toUpperCase();
-            if (!mapDgcVencPorSei[seiKey] || temDataVenc) mapDgcVencPorSei[seiKey] = valVenc;
-            if (valTipoDgc) mapDgcTipoProcesso[seiKey] = valTipoDgc;
-          }
-          if (temDataVenc) mapDgcVencPorLinha[numLinhaReal] = valVenc;
 
-          // Armazenamento de Previsão De Entrega (Coluna EC - Data)
-          if (kNorm) {
-            if (!mapDgcPrevPorCtrlProc[kNorm] || temDataPrev) mapDgcPrevPorCtrlProc[kNorm] = valPrev;
-            if (kNum && (!mapDgcPrevPorCtrlProcNum[kNum] || temDataPrev)) mapDgcPrevPorCtrlProcNum[kNum] = valPrev;
-            if (objD) {
-              var kObjP = kNorm + "_" + normalizarChaveControle(objD);
-              if (!mapDgcPrevPorCtrlProcEObjeto[kObjP] || temDataPrev) mapDgcPrevPorCtrlProcEObjeto[kObjP] = valPrev;
-            }
+          // 4. Chaves por Controle Objeto
+          if (ctrlObjDgc) {
+            if (!mapDgcVencPorControleObj[ctrlObjDgc] || temDataVenc) mapDgcVencPorControleObj[ctrlObjDgc] = valVenc;
+            if (!mapDgcPrevPorControleObj[ctrlObjDgc] || temDataPrev) mapDgcPrevPorControleObj[ctrlObjDgc] = valPrev;
           }
-          if (ctrlObjDgc && (!mapDgcPrevPorControleObj[ctrlObjDgc] || temDataPrev)) mapDgcPrevPorControleObj[ctrlObjDgc] = valPrev;
-          if (seiD) {
-            var seiKeyP = seiD.toUpperCase();
-            if (!mapDgcPrevPorSei[seiKeyP] || temDataPrev) mapDgcPrevPorSei[seiKeyP] = valPrev;
+
+          // 5. Chaves por SEI Genérico
+          if (seiKey) {
+            if (!mapDgcVencPorSei[seiKey] || temDataVenc) mapDgcVencPorSei[seiKey] = valVenc;
+            if (!mapDgcPrevPorSei[seiKey] || temDataPrev) mapDgcPrevPorSei[seiKey] = valPrev;
+            if (valTipoDgc && !mapDgcTipoProcesso[seiKey]) mapDgcTipoProcesso[seiKey] = valTipoDgc;
           }
+
+          if (temDataVenc) mapDgcVencPorLinha[numLinhaReal] = valVenc;
           if (temDataPrev) mapDgcPrevPorLinha[numLinhaReal] = valPrev;
         }
       }
@@ -7547,6 +7639,7 @@ function getProcessosAbertosPlan() {
     var colStatusIdxPlan = 36;                                  // Coluna AK (índice 36: Status oficial do processo em #PLAN)
     var colTipoProcessoIdxPlan = (ultCol >= 7) ? 6 : -1;        // Padrão oficial: Coluna G (índice 6: TIPO DE PROCESSO)
     var colCtrlProcIdxPlan = 0;                                 // Padrão: Coluna A (índice 0: Nº CONTROLE (PROC.))
+    var colCodProcIdxPlan = (ultCol >= 5) ? 4 : -1;             // Padrão: Coluna E (índice 4: Cod. Processo, ex: A191, A262)
     var colVencEntregaIdxPlan = -1;                              // Coluna própria de Venc. Entrega na #PLAN se houver
     var colPrevisaoEntregaIdxPlan = -1;                          // Coluna própria de Previsão na #PLAN se houver
     var linhaCabecalhoPlan = -1;
@@ -7572,6 +7665,17 @@ function getProcessosAbertosPlan() {
             hNorm.indexOf("CONTROLE DO PROCESSO") !== -1 || 
             hNorm.indexOf("CONTROLE PROCESSO") !== -1)) {
           colCtrlProcIdxPlan = c;
+          linhaCabecalhoPlan = Math.max(linhaCabecalhoPlan, rP);
+        }
+        if (colCodProcIdxPlan === -1 && (
+            (hNorm.indexOf("COD") !== -1 && (hNorm.indexOf("PROC") !== -1 || hNorm.indexOf("PROCESSO") !== -1)) ||
+            hNorm === "COD. PROCESSO" ||
+            hNorm === "COD PROCESSO" ||
+            hNorm === "CODIGO PROCESSO" ||
+            hNorm === "CODIGO DO PROCESSO" ||
+            hNorm === "COD. PROC." ||
+            hNorm === "COD PROC")) {
+          colCodProcIdxPlan = c;
           linhaCabecalhoPlan = Math.max(linhaCabecalhoPlan, rP);
         }
         if (colPrevisaoEntregaIdxPlan === -1 && (
@@ -7605,7 +7709,16 @@ function getProcessosAbertosPlan() {
       var colunaA = String(linha[colCtrlProcIdxPlan] || "").trim();               // Coluna A / Identificada: Nº CONTROLE (PROC.)
       var colunaB = String(linha[1] || "").trim();                                 // Coluna B: Nº CONTROLE (OBJ.)
       var colunaD = String(linha[3] || "").trim();                                 // Coluna D: Processo / SEI
-      var colunaE = String(linha[4] || "").trim();                                 // Coluna E: Cod. Processo
+      var colunaE = (colCodProcIdxPlan !== -1 && colCodProcIdxPlan < linha.length) ? String(linha[colCodProcIdxPlan] || "").trim() : String(linha[4] || "").trim(); // Coluna E: Cod. Processo (ex: A191, A262)
+      if (!colunaE) {
+        for (var cScanP = 0; cScanP < Math.min(10, linha.length); cScanP++) {
+          var valScanP = String(linha[cScanP] || "").trim();
+          if (/^[A-Z]\d{2,5}$/i.test(valScanP)) {
+            colunaE = valScanP;
+            break;
+          }
+        }
+      }
       var colunaG = (linha.length > 6) ? String(linha[6] || "").trim() : "";       // Coluna G: TIPO DE PROCESSO
       var colunaI = String(linha[8] || "").trim();                                 // Coluna I: Objeto / Descrição do Material
       var colunaJ = (linha[9] !== undefined && linha[9] !== null) ? linha[9] : ""; // Coluna J: Qtd Total Planejada
@@ -7632,6 +7745,27 @@ function getProcessosAbertosPlan() {
         continue;
       }
 
+      var ctrlProcPlan = colunaA;
+      var kPlanNorm = normalizarChaveControle(ctrlProcPlan);
+      var kPlanNum = extrairChaveNumericaControle(ctrlProcPlan);
+      var objPlanNorm = normalizarChaveControle(colunaI);
+      var codProcPlanUpper = colunaE ? colunaE.toUpperCase() : "";
+      var seiPlanUpper = colunaD ? colunaD.toUpperCase() : "";
+      var seiCodPlanKey = (seiPlanUpper && codProcPlanUpper) ? (seiPlanUpper + "_" + codProcPlanUpper) : "";
+      var seiObjPlanKey = (seiPlanUpper && objPlanNorm) ? (seiPlanUpper + "_" + objPlanNorm) : "";
+
+      // Verifica se o SEI tem múltiplos códigos de processo ou registros distintos na DGC
+      var seiPossuiMultiplosCodigos = false;
+      if (seiPlanUpper && mapDgcDistinctCodProcPorSei[seiPlanUpper]) {
+        var chavesDist = Object.keys(mapDgcDistinctCodProcPorSei[seiPlanUpper]);
+        if (chavesDist.length > 1) {
+          seiPossuiMultiplosCodigos = true;
+        }
+      }
+      if (seiPlanUpper && (contadorSeiDgc[seiPlanUpper] || 0) > 1) {
+        seiPossuiMultiplosCodigos = true;
+      }
+
       // 4. Identifica e exclui "PREGÃO COM SRP" (especialmente da Coluna G "TIPO DE PROCESSO")
       var tipoProcesso = "";
       if (colTipoProcessoIdxPlan !== -1 && colTipoProcessoIdxPlan < linha.length) {
@@ -7645,9 +7779,11 @@ function getProcessosAbertosPlan() {
         var candidataF = String(linha[5] || "").trim();
         if (ehPregaoComSrp(candidataC)) tipoProcesso = candidataC;
         else if (ehPregaoComSrp(candidataF)) tipoProcesso = candidataF;
+        else if (seiCodPlanKey && mapDgcTipoProcesso[seiCodPlanKey]) tipoProcesso = mapDgcTipoProcesso[seiCodPlanKey];
+        else if (codProcPlanUpper && mapDgcTipoProcesso[codProcPlanUpper]) tipoProcesso = mapDgcTipoProcesso[codProcPlanUpper];
         else if (colunaA && mapDgcTipoProcesso[normalizarChaveControle(colunaA)]) tipoProcesso = mapDgcTipoProcesso[normalizarChaveControle(colunaA)];
         else if (colunaB && mapDgcTipoProcesso[normalizarChaveControle(colunaB)]) tipoProcesso = mapDgcTipoProcesso[normalizarChaveControle(colunaB)];
-        else if (colunaD && mapDgcTipoProcesso[colunaD.toUpperCase()]) tipoProcesso = mapDgcTipoProcesso[colunaD.toUpperCase()];
+        else if (seiPlanUpper && !seiPossuiMultiplosCodigos && mapDgcTipoProcesso[seiPlanUpper]) tipoProcesso = mapDgcTipoProcesso[seiPlanUpper];
       }
 
       // Elimina se o tipoProcesso identificado ou a Coluna G for "PREGÃO COM SRP"
@@ -7668,52 +7804,97 @@ function getProcessosAbertosPlan() {
         continue;
       }
 
-      var ctrlProcPlan = colunaA;
-      var kPlanNorm = normalizarChaveControle(ctrlProcPlan);
-      var kPlanNum = extrairChaveNumericaControle(ctrlProcPlan);
-      var objPlanNorm = normalizarChaveControle(colunaI);
-
       // 5. Obtenção do Vencimento de Entrega (Coluna EB da #DGC - NUMÉRICO / DIAS - BASE DO ORDENAMENTO):
+      // Cruza preferencialmente pelo par exato SEI + Cod. Processo para evitar contaminação cruzada quando um mesmo SEI possui vários códigos.
       var vencRaw = null;
+      var dataVencDefinidaExplicitamente = false;
+
       if (colVencEntregaIdxPlan !== -1 && colVencEntregaIdxPlan < linha.length && ehValorPreenchidoGeral(linha[colVencEntregaIdxPlan])) {
         vencRaw = linha[colVencEntregaIdxPlan];
+        dataVencDefinidaExplicitamente = true;
       }
-      if (!ehValorPreenchidoGeral(vencRaw)) {
-        if (kPlanNorm && objPlanNorm && ehValorPreenchidoGeral(mapDgcVencPorCtrlProcEObjeto[kPlanNorm + "_" + objPlanNorm])) {
-          vencRaw = mapDgcVencPorCtrlProcEObjeto[kPlanNorm + "_" + objPlanNorm];
-        } else if (kPlanNorm && ehValorPreenchidoGeral(mapDgcVencPorCtrlProc[kPlanNorm])) {
-          vencRaw = mapDgcVencPorCtrlProc[kPlanNorm];
-        } else if (kPlanNum && ehValorPreenchidoGeral(mapDgcVencPorCtrlProcNum[kPlanNum])) {
-          vencRaw = mapDgcVencPorCtrlProcNum[kPlanNum];
-        } else if (colunaB && ehValorPreenchidoGeral(mapDgcVencPorControleObj[colunaB])) {
-          vencRaw = mapDgcVencPorControleObj[colunaB];
-        } else if (colunaD && ehValorPreenchidoGeral(mapDgcVencPorSei[colunaD.toUpperCase()])) {
-          vencRaw = mapDgcVencPorSei[colunaD.toUpperCase()];
-        } else if (ehValorPreenchidoGeral(mapDgcVencPorLinha[numLinhaRealPlan])) {
-          vencRaw = mapDgcVencPorLinha[numLinhaRealPlan];
+      if (!dataVencDefinidaExplicitamente && seiCodPlanKey && mapDgcTemEntradaVencPorSeiECodProc[seiCodPlanKey]) {
+        vencRaw = mapDgcVencPorSeiECodProc[seiCodPlanKey];
+        dataVencDefinidaExplicitamente = true;
+      }
+      if (!dataVencDefinidaExplicitamente && codProcPlanUpper && mapDgcTemEntradaVencPorCodProc[codProcPlanUpper]) {
+        vencRaw = mapDgcVencPorCodProc[codProcPlanUpper];
+        dataVencDefinidaExplicitamente = true;
+      }
+      if (!dataVencDefinidaExplicitamente && seiObjPlanKey && mapDgcTemEntradaVencPorSeiEObjeto[seiObjPlanKey]) {
+        vencRaw = mapDgcVencPorSeiEObjeto[seiObjPlanKey];
+        dataVencDefinidaExplicitamente = true;
+      }
+      if (!dataVencDefinidaExplicitamente && kPlanNorm && objPlanNorm && ehValorPreenchidoGeral(mapDgcVencPorCtrlProcEObjeto[kPlanNorm + "_" + objPlanNorm])) {
+        vencRaw = mapDgcVencPorCtrlProcEObjeto[kPlanNorm + "_" + objPlanNorm];
+        dataVencDefinidaExplicitamente = true;
+      }
+      if (!dataVencDefinidaExplicitamente && colunaB && ehValorPreenchidoGeral(mapDgcVencPorControleObj[colunaB])) {
+        vencRaw = mapDgcVencPorControleObj[colunaB];
+        dataVencDefinidaExplicitamente = true;
+      }
+      if (!dataVencDefinidaExplicitamente && kPlanNorm && ehValorPreenchidoGeral(mapDgcVencPorCtrlProc[kPlanNorm])) {
+        vencRaw = mapDgcVencPorCtrlProc[kPlanNorm];
+        dataVencDefinidaExplicitamente = true;
+      } else if (!dataVencDefinidaExplicitamente && kPlanNum && ehValorPreenchidoGeral(mapDgcVencPorCtrlProcNum[kPlanNum])) {
+        vencRaw = mapDgcVencPorCtrlProcNum[kPlanNum];
+        dataVencDefinidaExplicitamente = true;
+      }
+      if (!dataVencDefinidaExplicitamente && seiPlanUpper && !seiPossuiMultiplosCodigos) {
+        if (ehValorPreenchidoGeral(mapDgcVencPorSei[seiPlanUpper])) {
+          vencRaw = mapDgcVencPorSei[seiPlanUpper];
+          dataVencDefinidaExplicitamente = true;
         }
+      }
+      if (!dataVencDefinidaExplicitamente && !seiPossuiMultiplosCodigos && ehValorPreenchidoGeral(mapDgcVencPorLinha[numLinhaRealPlan])) {
+        vencRaw = mapDgcVencPorLinha[numLinhaRealPlan];
       }
       var vencObj = formatarVencEntregaEB(vencRaw);
 
       // 6. Obtenção da Previsão De Entrega (Coluna EC da #DGC - DATA):
+      // Cruza preferencialmente por SEI + Cod. Processo (ex: A191 vs A262). Se o processo existir na DGC mas ainda não tiver data, NÃO herda data de outro processo do mesmo SEI.
       var prevRaw = null;
+      var dataPrevDefinidaExplicitamente = false;
+
       if (colPrevisaoEntregaIdxPlan !== -1 && colPrevisaoEntregaIdxPlan < linha.length && ehValorPreenchidoGeral(linha[colPrevisaoEntregaIdxPlan])) {
         prevRaw = linha[colPrevisaoEntregaIdxPlan];
+        dataPrevDefinidaExplicitamente = true;
       }
-      if (!ehValorPreenchidoGeral(prevRaw)) {
-        if (kPlanNorm && objPlanNorm && ehValorPreenchidoGeral(mapDgcPrevPorCtrlProcEObjeto[kPlanNorm + "_" + objPlanNorm])) {
-          prevRaw = mapDgcPrevPorCtrlProcEObjeto[kPlanNorm + "_" + objPlanNorm];
-        } else if (kPlanNorm && ehValorPreenchidoGeral(mapDgcPrevPorCtrlProc[kPlanNorm])) {
-          prevRaw = mapDgcPrevPorCtrlProc[kPlanNorm];
-        } else if (kPlanNum && ehValorPreenchidoGeral(mapDgcPrevPorCtrlProcNum[kPlanNum])) {
-          prevRaw = mapDgcPrevPorCtrlProcNum[kPlanNum];
-        } else if (colunaB && ehValorPreenchidoGeral(mapDgcPrevPorControleObj[colunaB])) {
-          prevRaw = mapDgcPrevPorControleObj[colunaB];
-        } else if (colunaD && ehValorPreenchidoGeral(mapDgcPrevPorSei[colunaD.toUpperCase()])) {
-          prevRaw = mapDgcPrevPorSei[colunaD.toUpperCase()];
-        } else if (ehValorPreenchidoGeral(mapDgcPrevPorLinha[numLinhaRealPlan])) {
-          prevRaw = mapDgcPrevPorLinha[numLinhaRealPlan];
+      if (!dataPrevDefinidaExplicitamente && seiCodPlanKey && mapDgcTemEntradaPrevPorSeiECodProc[seiCodPlanKey]) {
+        prevRaw = mapDgcPrevPorSeiECodProc[seiCodPlanKey];
+        dataPrevDefinidaExplicitamente = true;
+      }
+      if (!dataPrevDefinidaExplicitamente && codProcPlanUpper && mapDgcTemEntradaPrevPorCodProc[codProcPlanUpper]) {
+        prevRaw = mapDgcPrevPorCodProc[codProcPlanUpper];
+        dataPrevDefinidaExplicitamente = true;
+      }
+      if (!dataPrevDefinidaExplicitamente && seiObjPlanKey && mapDgcTemEntradaPrevPorSeiEObjeto[seiObjPlanKey]) {
+        prevRaw = mapDgcPrevPorSeiEObjeto[seiObjPlanKey];
+        dataPrevDefinidaExplicitamente = true;
+      }
+      if (!dataPrevDefinidaExplicitamente && kPlanNorm && objPlanNorm && ehValorPreenchidoGeral(mapDgcPrevPorCtrlProcEObjeto[kPlanNorm + "_" + objPlanNorm])) {
+        prevRaw = mapDgcPrevPorCtrlProcEObjeto[kPlanNorm + "_" + objPlanNorm];
+        dataPrevDefinidaExplicitamente = true;
+      }
+      if (!dataPrevDefinidaExplicitamente && colunaB && ehValorPreenchidoGeral(mapDgcPrevPorControleObj[colunaB])) {
+        prevRaw = mapDgcPrevPorControleObj[colunaB];
+        dataPrevDefinidaExplicitamente = true;
+      }
+      if (!dataPrevDefinidaExplicitamente && kPlanNorm && ehValorPreenchidoGeral(mapDgcPrevPorCtrlProc[kPlanNorm])) {
+        prevRaw = mapDgcPrevPorCtrlProc[kPlanNorm];
+        dataPrevDefinidaExplicitamente = true;
+      } else if (!dataPrevDefinidaExplicitamente && kPlanNum && ehValorPreenchidoGeral(mapDgcPrevPorCtrlProcNum[kPlanNum])) {
+        prevRaw = mapDgcPrevPorCtrlProcNum[kPlanNum];
+        dataPrevDefinidaExplicitamente = true;
+      }
+      if (!dataPrevDefinidaExplicitamente && seiPlanUpper && !seiPossuiMultiplosCodigos) {
+        if (ehValorPreenchidoGeral(mapDgcPrevPorSei[seiPlanUpper])) {
+          prevRaw = mapDgcPrevPorSei[seiPlanUpper];
+          dataPrevDefinidaExplicitamente = true;
         }
+      }
+      if (!dataPrevDefinidaExplicitamente && !seiPossuiMultiplosCodigos && ehValorPreenchidoGeral(mapDgcPrevPorLinha[numLinhaRealPlan])) {
+        prevRaw = mapDgcPrevPorLinha[numLinhaRealPlan];
       }
       var prevObj = formatarDataPrevisaoEC(prevRaw);
 
