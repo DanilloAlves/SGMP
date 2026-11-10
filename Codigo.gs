@@ -2067,7 +2067,7 @@ function invalidarCacheArmazenamentoOme_(ome) {
   try {
     var omePadrao = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(ome) : (ome || "");
     if (!omePadrao) return;
-    var sufixos = ["", "_V3", "_V4", "_V5", "_V6", "_V7", "_V8", "_V9", "_V10", "_V11"];
+    var sufixos = ["", "_V3", "_V4", "_V5", "_V6", "_V7", "_V8", "_V9", "_V10", "_V11", "_V12"];
     var cache = CacheService.getScriptCache();
     sufixos.forEach(function(suf) {
       var chaveBase = "CACHE_ARM_COMPLETO" + suf + "_" + omePadrao.toUpperCase().replace(/[^A-Z0-9]/g, "_");
@@ -2093,7 +2093,7 @@ function carregarDadosArmazenamentoCompleto(unidadeOmega, forcarAtualizacao) {
     if (!omePadrao) return { locais: [], materiais: [], vinculos: {} };
 
     // Prefixo V5 para descarte absoluto de qualquer cache antigo e sincronização estrita BigQuery
-    var chaveBase = "CACHE_ARM_COMPLETO_V11_" + omePadrao.toUpperCase().replace(/[^A-Z0-9]/g, "_");
+    var chaveBase = "CACHE_ARM_COMPLETO_V12_" + omePadrao.toUpperCase().replace(/[^A-Z0-9]/g, "_");
     var cached = (!forcarAtualizacao && typeof lerDeCacheChunked_ === 'function') ? lerDeCacheChunked_(chaveBase) : null;
 
     // Se houver algum setor não identificado ou genérico (ex: "BIS"), bypass no cache
@@ -3463,6 +3463,7 @@ function getMateriaisAtreladosPorLocal(unidadeOmega, locaisPreCarregados) {
     var mapaCaminhos = {};
     var mapaGhostIds = {};
     var mapaViaturasPorNum = {};
+    var mapaFilhosPorPaiENome = {};
 
     // Utiliza os locais completos já sincronizados com as viaturas operacionais (getArvoreLocais)
     var dadosArvore = (locaisPreCarregados && Array.isArray(locaisPreCarregados) && locaisPreCarregados.length > 0)
@@ -3514,6 +3515,35 @@ function getMateriaisAtreladosPorLocal(unidadeOmega, locaisPreCarregados) {
         mapaNos[idSedeOficial] = { id: idSedeOficial, nome: "SEDE", idPai: "" };
       }
 
+      // Indexa relacoes Pai -> Filho por ID e Nome para resolucao precisa de compartimentos sob viaturas/setores
+      for (var nId in mapaNos) {
+        var node = mapaNos[nId];
+        if (node.idPai) {
+          var pId = String(node.idPai).trim();
+          var pNode = mapaNos[pId];
+          var nNome = String(node.nome).trim().toUpperCase();
+          var nNomeNormNum = nNome.replace(/\b0+(\d+)\b/g, '$1');
+
+          mapaFilhosPorPaiENome[pId + "_" + nNome] = nId;
+          mapaFilhosPorPaiENome[pId + "_" + nNome.replace(/\s+/g, "")] = nId;
+          mapaFilhosPorPaiENome[pId + "_" + nNomeNormNum] = nId;
+
+          if (pNode) {
+            var pNome = String(pNode.nome).trim().toUpperCase();
+            mapaFilhosPorPaiENome[pNome + "_" + nNome] = nId;
+            mapaFilhosPorPaiENome[pNome.replace(/\s+/g, "") + "_" + nNome] = nId;
+            mapaFilhosPorPaiENome[pNome + "_" + nNomeNormNum] = nId;
+            mapaCaminhos[pNome + " > " + nNome] = nId;
+
+            var mPNum = pNome.match(/\b(\d+)\b/);
+            if (mPNum && mPNum[1]) {
+              var pNumNorm = mPNum[1].replace(/^0+/, "");
+              mapaFilhosPorPaiENome[pNumNorm + "_" + nNome] = nId;
+            }
+          }
+        }
+      }
+
       // Mapeamento dos caminhos completos da árvore para busca hierárquica precisa
       for (var nId in mapaNos) {
         var partesCaminho = [];
@@ -3525,7 +3555,24 @@ function getMateriaisAtreladosPorLocal(unidadeOmega, locaisPreCarregados) {
           cId = mapaNos[cId].idPai;
         }
         if (partesCaminho.length > 0) {
-          mapaCaminhos[partesCaminho.join(" > ")] = nId;
+          var camFull = partesCaminho.join(" > ");
+          mapaCaminhos[camFull] = nId;
+
+          if (partesCaminho.length > 1 && partesCaminho[0] === "SEDE") {
+            mapaCaminhos[partesCaminho.slice(1).join(" > ")] = nId;
+          }
+
+          if (partesCaminho.length >= 2) {
+            mapaCaminhos[partesCaminho.slice(-2).join(" > ")] = nId;
+          }
+
+          var raizNome = partesCaminho[0];
+          var mSiglaSub = raizNome.match(/(?:^|\s|-)([1-9][ªa]?\s*S[Bb](?:\/[0-9]+[º°]?\s*[A-Za-z]+)?)/i);
+          if (mSiglaSub && mSiglaSub[1]) {
+            var siglaSubCurta = mSiglaSub[1].trim().toUpperCase();
+            var partesComSigla = [siglaSubCurta].concat(partesCaminho.slice(1));
+            mapaCaminhos[partesComSigla.join(" > ")] = nId;
+          }
         }
       }
     }
@@ -3594,50 +3641,71 @@ function getMateriaisAtreladosPorLocal(unidadeOmega, locaisPreCarregados) {
         var subEfetiva = ehSubSede ? "" : subRef;
         var idDestino = "";
 
-        // 1. Tenta correspondência precisa pelo caminho hierárquico na árvore
-        if (subEfetiva) {
-          var caminhoCompleto = [subEfetiva, setRef, locRef].filter(Boolean).join(" > ");
-          var caminhoSubSet = [subEfetiva, setRef].filter(Boolean).join(" > ");
-          idDestino = mapaCaminhos[caminhoCompleto] || mapaCaminhos[caminhoSubSet];
-        } else if (locRef || setRef) {
-          var caminhoSedeLoc = [setRef, locRef].filter(Boolean).join(" > ");
-          idDestino = mapaCaminhos[caminhoSedeLoc];
-        }
-
-        // 2. Se não encontrou e o setor ou localização for uma viatura, atrela diretamente à viatura!
-        if (!idDestino && (setRef || locRef)) {
-          var alvosVtr = [setRef, locRef].filter(Boolean);
-          for (var iv = 0; iv < alvosVtr.length; iv++) {
-            var vCand = alvosVtr[iv];
-            if (mapaNomesLocais[vCand]) {
-              idDestino = mapaNomesLocais[vCand];
-              break;
-            }
-            var vCandSemEsp = vCand.replace(/\s+/g, "");
-            if (mapaNomesLocais[vCandSemEsp]) {
-              idDestino = mapaNomesLocais[vCandSemEsp];
-              break;
-            }
-            if (typeof ehViaturaLocalBackend_ === "function" && ehViaturaLocalBackend_(vCand)) {
-              var mNumCand = vCand.match(/\b(\d+)\b/);
-              if (mNumCand && mNumCand[1]) {
-                var numNormCand = mNumCand[1].replace(/^0+/, "");
-                if (mapaViaturasPorNum[numNormCand]) {
-                  idDestino = mapaViaturasPorNum[numNormCand];
-                  break;
-                }
+        // 1. SE locRef ESTIVER PREENCHIDO (Compartimento, Gaveta, Bau, Porta, etc.):
+        // Tem prioridade maxima ser alocado no no filho sob a viatura ou setor pai!
+        if (locRef) {
+          // 1.1 Tenta achar o ID do setor/viatura pai
+          var idSetorPai = "";
+          if (setRef) {
+            idSetorPai = mapaNomesLocais[setRef] || mapaNomesLocais[setRef.replace(/\s+/g, "")];
+            if (!idSetorPai && typeof ehViaturaLocalBackend_ === "function" && ehViaturaLocalBackend_(setRef)) {
+              var mNumSet = setRef.match(/\b(\d+)\b/);
+              if (mNumSet && mNumSet[1]) {
+                idSetorPai = mapaViaturasPorNum[mNumSet[1].replace(/^0+/, "")];
               }
+            }
+          }
+
+          var locRefSemEsp = locRef.replace(/\s+/g, "");
+          var locRefNormNum = locRef.replace(/\b0+(\d+)\b/g, '$1');
+
+          // Busca compartimento sob o setor pai identificado
+          if (idSetorPai) {
+            idDestino = mapaFilhosPorPaiENome[idSetorPai + "_" + locRef] ||
+                        mapaFilhosPorPaiENome[idSetorPai + "_" + locRefSemEsp] ||
+                        mapaFilhosPorPaiENome[idSetorPai + "_" + locRefNormNum];
+          }
+
+          // Se nao encontrou pelo id do setor pai, busca por nome do setor pai + nome do compartimento
+          if (!idDestino && setRef) {
+            idDestino = mapaFilhosPorPaiENome[setRef + "_" + locRef] ||
+                        mapaFilhosPorPaiENome[setRef.replace(/\s+/g, "") + "_" + locRef] ||
+                        mapaFilhosPorPaiENome[setRef + "_" + locRefNormNum] ||
+                        mapaCaminhos[setRef + " > " + locRef];
+          }
+
+          // 1.2 Tenta pelo caminho hierarquico completo
+          if (!idDestino) {
+            if (subEfetiva && setRef) {
+              idDestino = mapaCaminhos[[subEfetiva, setRef, locRef].join(" > ")] ||
+                          mapaCaminhos[[subEfetiva, setRef, locRefNormNum].join(" > ")];
+            }
+            if (!idDestino && setRef) {
+              idDestino = mapaCaminhos[[setRef, locRef].join(" > ")] ||
+                          mapaCaminhos[[setRef, locRefNormNum].join(" > ")];
+            }
+            if (!idDestino) {
+              idDestino = mapaCaminhos[locRef] || mapaNomesLocais[locRef] || mapaNomesLocais[locRefNormNum];
             }
           }
         }
 
-        // 3. Fallback: se não caiu em viatura, vincula à subunidade ou local correspondente
-        if (!idDestino) {
+        // 2. SE NAO TEM locRef (ou locRef nao foi encontrado como sublocal), ATRELA AO SETOR OU VIATURA
+        if (!idDestino && setRef) {
+          // 2.1 Tenta correspondencia precisa pelo caminho Subunidade > Setor
           if (subEfetiva) {
-            idDestino = mapaCaminhos[subEfetiva] || mapaNomesLocais[subEfetiva];
-          } else {
-            idDestino = (locRef && mapaNomesLocais[locRef]) || (setRef && mapaNomesLocais[setRef]);
-            if (!idDestino && setRef) {
+            idDestino = mapaCaminhos[[subEfetiva, setRef].join(" > ")];
+          }
+          // 2.2 Tenta direto pelo nome do setor ou viatura
+          if (!idDestino) {
+            idDestino = mapaNomesLocais[setRef] || mapaNomesLocais[setRef.replace(/\s+/g, "")];
+            if (!idDestino && typeof ehViaturaLocalBackend_ === "function" && ehViaturaLocalBackend_(setRef)) {
+              var mNumSet2 = setRef.match(/\b(\d+)\b/);
+              if (mNumSet2 && mNumSet2[1]) {
+                idDestino = mapaViaturasPorNum[mNumSet2[1].replace(/^0+/, "")];
+              }
+            }
+            if (!idDestino) {
               for (var kNome in mapaNomesLocais) {
                 if (kNome === setRef || kNome.indexOf(setRef + " -") === 0 || kNome.indexOf(setRef + "-") === 0) {
                   idDestino = mapaNomesLocais[kNome];
@@ -3648,7 +3716,12 @@ function getMateriaisAtreladosPorLocal(unidadeOmega, locaisPreCarregados) {
           }
         }
 
-        // Se ainda não encontrou ou caiu num nó fantasma, direciona com 100% de garantia para a SEDE oficial
+        // 3. Fallback: se nao caiu em compartimento nem em setor/viatura, vincula a subunidade
+        if (!idDestino && subEfetiva) {
+          idDestino = mapaCaminhos[subEfetiva] || mapaNomesLocais[subEfetiva];
+        }
+
+        // 4. Fallback final: SEDE oficial
         if (!idDestino || mapaGhostIds[idDestino]) {
           idDestino = idSedeOficial;
         }
