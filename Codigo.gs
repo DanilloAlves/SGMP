@@ -2734,6 +2734,189 @@ function adicionarLocalNaArvore(dadosLocal) {
 
 
 
+
+/**
+ * Migra de forma completa e instantânea todos os compartimentos (Gavetas, Baús, etc.)
+ * e materiais atribuídos a uma viatura de origem para uma viatura de destino na mesma OME.
+ * Utilizado para substituição operacional de viaturas em manutenção/oficina.
+ */
+function migrarEstruturaEMateriaisViatura(dados) {
+  try {
+    var idOrigem = String(dados.idOrigem || "").trim();
+    var nomeOrigem = String(dados.nomeOrigem || "").trim();
+    var idDestino = String(dados.idDestino || "").trim();
+    var nomeDestino = String(dados.nomeDestino || "").trim();
+    var unidade = String(dados.unidade || "").trim();
+    var migrarLocais = dados.migrarLocais !== false;
+    var motivo = String(dados.motivo || "Substituição Operacional / Manutenção").trim();
+    var cpf = String(dados.cpf || "").trim();
+
+    var omePadrao = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(unidade) : unidade;
+    if (!omePadrao) throw new Error("OME não identificada.");
+    if (!idOrigem || !nomeOrigem) throw new Error("Viatura de origem não informada.");
+    if (!idDestino || !nomeDestino) throw new Error("Viatura de destino não informada.");
+    if (idOrigem === idDestino || nomeOrigem.toUpperCase() === nomeDestino.toUpperCase()) {
+      throw new Error("A viatura de destino não pode ser igual à viatura de origem.");
+    }
+
+    garantirTabelaArvore_();
+    function limparSQL(t) { return String(t || '').replace(/'/g, "\\'"); }
+
+    var inSqlOme = (typeof obterVariacoesOmeParaSql_ === 'function') 
+      ? obterVariacoesOmeParaSql_(omePadrao) 
+      : ("'" + limparSQL(omePadrao.toUpperCase()) + "'");
+
+    // 1. Resolve a hierarquia da viatura de destino (Subunidade onde ela está alocada)
+    var hierarquiaDestino = resolverCaminhoCompletoLocal(idDestino, omePadrao);
+    var subunidadeDestino = (hierarquiaDestino && hierarquiaDestino.subunidade) ? hierarquiaDestino.subunidade : "SEDE";
+
+    var locaisMigradosCount = 0;
+    var nomesLocaisMigrados = [];
+
+    // 2. MIGRAR SUBLOCAIS (Gavetas, Baús, etc.) na tb_Arvore e na Planilha
+    if (migrarLocais) {
+      // Identifica nós cujo idPai seja o idOrigem ou o nomeOrigem
+      var sqlBuscaFilhos = "SELECT ID_Local, Nome_Local FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` " +
+                           "WHERE UPPER(TRIM(Unidade_OME)) IN (" + inSqlOme + ") " +
+                           "  AND (ID_Pai = '" + limparSQL(idOrigem) + "' OR ID_Pai = '" + limparSQL(nomeOrigem) + "')";
+      try {
+        var resFilhos = executarConsultaBigQuerySegura(sqlBuscaFilhos);
+        if (resFilhos && resFilhos.rows && resFilhos.rows.length > 0) {
+          locaisMigradosCount = resFilhos.rows.length;
+          resFilhos.rows.forEach(function(r) {
+            nomesLocaisMigrados.push(String(r.f[1].v || ""));
+          });
+
+          // Atualiza o ID_Pai para idDestino na base BigQuery
+          var sqlUpdateArvore = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` " +
+                                "SET ID_Pai = '" + limparSQL(idDestino) + "' " +
+                                "WHERE UPPER(TRIM(Unidade_OME)) IN (" + inSqlOme + ") " +
+                                "  AND (ID_Pai = '" + limparSQL(idOrigem) + "' OR ID_Pai = '" + limparSQL(nomeOrigem) + "')";
+          executarConsultaBigQuerySegura(sqlUpdateArvore, true);
+        }
+      } catch (eFilhos) {
+        console.warn("Aviso ao migrar sublocais da viatura em tb_Arvore: " + eFilhos.message);
+      }
+
+      // Atualiza na planilha auxiliar para redundância
+      try {
+        var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
+        var sheet = ss.getSheetByName(ABA_LOCAIS_ARMAZENAMENTO);
+        if (sheet && sheet.getLastRow() > 1) {
+          var dadosSheet = sheet.getRange(2, 1, sheet.getLastRow() - 1, 4).getValues();
+          for (var i = 0; i < dadosSheet.length; i++) {
+            var omeSh = String(dadosSheet[i][1] || "").trim().toUpperCase();
+            var idPaiSh = String(dadosSheet[i][3] || "").trim();
+            if (omeSh === omePadrao.toUpperCase() && (idPaiSh === idOrigem || idPaiSh === nomeOrigem)) {
+              sheet.getRange(i + 2, 4).setValue(idDestino);
+              if (locaisMigradosCount === 0) {
+                locaisMigradosCount++;
+                nomesLocaisMigrados.push(String(dadosSheet[i][2] || ""));
+              }
+            }
+          }
+        }
+      } catch (eSh) {
+        console.warn("Aviso ao atualizar sublocais na planilha auxiliar: " + eSh.message);
+      }
+    }
+
+    // 3. MIGRAR TODOS OS MATERIAIS ATRIBUÍDOS À VIATURA DE ORIGEM (tb_Inventario)
+    var nomeOrigemSemEsp = nomeOrigem.replace(/\s+/g, '');
+    var sqlBuscaItens = "SELECT ITEM, OBJETO, COALESCE(LOCALIZACAO_ESPCIFICA_NA_OME_Se_Necessario, '') as local_esp, STATUS " +
+                        "FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
+                        "WHERE UPPER(TRIM(UNIDADE)) IN (" + inSqlOme + ") " +
+                        "  AND (STATUS IS NULL OR UPPER(TRIM(STATUS)) NOT IN ('BAIXADO', 'EXCLUIDO')) " +
+                        "  AND (UPPER(TRIM(SETOR)) = UPPER(TRIM('" + limparSQL(nomeOrigem) + "')) " +
+                        "       OR REPLACE(UPPER(TRIM(SETOR)), ' ', '') = UPPER(TRIM('" + limparSQL(nomeOrigemSemEsp) + "')))";
+
+    var itensMigradosCount = 0;
+    var eventosHistorico = [];
+    var emailUser = "";
+    try { emailUser = Session.getActiveUser().getEmail(); } catch(eU) {}
+    var userLogado = emailUser ? verificarPermissaoUsuario(emailUser) : null;
+    var respNome = (userLogado && userLogado.nome) || "Operador OME";
+    var respCpf = cpf || (userLogado && userLogado.cpf) || "-";
+
+    try {
+      var resItens = executarConsultaBigQuerySegura(sqlBuscaItens);
+      if (resItens && resItens.rows && resItens.rows.length > 0) {
+        itensMigradosCount = resItens.rows.length;
+        resItens.rows.forEach(function(r) {
+          var codItem = String(r.f[0].v || "");
+          var objNome = String(r.f[1].v || "");
+          var locEsp = String(r.f[2].v || "");
+          var stItem = String(r.f[3].v || "-");
+
+          var origemTxt = nomeOrigem + (locEsp ? " > " + locEsp : "");
+          var destinoTxt = nomeDestino + (locEsp ? " > " + locEsp : "");
+
+          eventosHistorico.push({
+            item: codItem,
+            objeto: objNome,
+            nPatrimonio: "",
+            tipoEvento: "SUBSTITUICAO_VIATURA",
+            origemUnidade: omePadrao,
+            origemLocal: origemTxt,
+            destinoUnidade: omePadrao,
+            destinoLocal: destinoTxt,
+            statusAnterior: stItem,
+            statusNovo: stItem,
+            responsavelNome: respNome,
+            responsavelCpf: respCpf,
+            documentoRef: motivo,
+            observacao: "Migração completa de materiais por substituição de viatura: " + nomeOrigem + " -> " + nomeDestino + (locEsp ? " (Compartimento: " + locEsp + ")" : "")
+          });
+        });
+
+        // Atualiza SETOR = nomeDestino e SUBUNIDADE = subunidadeDestino, PRESERVANDO a LOCALIZACAO_ESPECIFICA
+        var sqlUpdateItens = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
+                             "SET SETOR = '" + limparSQL(nomeDestino) + "', " +
+                             "    SUBUNIDADE = '" + limparSQL(subunidadeDestino) + "' " +
+                             "WHERE UPPER(TRIM(UNIDADE)) IN (" + inSqlOme + ") " +
+                             "  AND (STATUS IS NULL OR UPPER(TRIM(STATUS)) NOT IN ('BAIXADO', 'EXCLUIDO')) " +
+                             "  AND (UPPER(TRIM(SETOR)) = UPPER(TRIM('" + limparSQL(nomeOrigem) + "')) " +
+                             "       OR REPLACE(UPPER(TRIM(SETOR)), ' ', '') = UPPER(TRIM('" + limparSQL(nomeOrigemSemEsp) + "')))";
+        executarConsultaBigQuerySegura(sqlUpdateItens, true);
+      }
+    } catch (eItens) {
+      console.warn("Aviso ao migrar itens da viatura em tb_Inventario: " + eItens.message);
+    }
+
+    // 4. REGISTRAR HISTÓRICO E AUDITORIA
+    if (eventosHistorico.length > 0) {
+      try {
+        registrarHistoricoMovimentacao(eventosHistorico);
+      } catch (eHist) {
+        console.warn("Aviso ao registrar histórico de migração: " + eHist.message);
+      }
+    }
+
+    var detalheLocaisTxt = nomesLocaisMigrados.length > 0 ? " [" + nomesLocaisMigrados.join(", ") + "]" : "";
+    var logTexto = "Substituição/Migração de Viatura: de '" + nomeOrigem + "' para '" + nomeDestino + "' na OME " + omePadrao + ". " +
+                   "Locais/Compartimentos migrados: " + locaisMigradosCount + detalheLocaisTxt + ". " +
+                   "Materiais físicos transferidos: " + itensMigradosCount + " item(ns). Motivo: " + motivo;
+    registrarLogAuditoria("MIGRACAO_TOTAL_VIATURA", logTexto, userLogado);
+
+    // 5. INVALIDA O CACHE PARA ATUALIZAÇÃO IMEDIATA DA ÁRVORE
+    if (typeof invalidarCacheArmazenamentoOme_ === 'function') {
+      invalidarCacheArmazenamentoOme_(omePadrao);
+    }
+
+    return {
+      sucesso: true,
+      locaisMigrados: locaisMigradosCount,
+      itensMigrados: itensMigradosCount,
+      mensagem: "Migração concluída com sucesso! " + locaisMigradosCount + " local(is) e " + itensMigradosCount + " material(is) foram transferidos de " + nomeOrigem + " para " + nomeDestino + "."
+    };
+
+  } catch (err) {
+    console.error("Erro em migrarEstruturaEMateriaisViatura: " + err.message);
+    throw new Error(err.message);
+  }
+}
+
+
 function excluirLocalDaArvore(idLocal) {
   try {
     var usuarioSessao = null;

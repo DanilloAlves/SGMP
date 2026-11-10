@@ -10531,6 +10531,7 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
           let htmlFilhoBtns = '';
           const ehVtrFilho = (typeof ehViaturaLocal === 'function') && ehViaturaLocal(f.nome);
           if (ehVtrFilho) {
+            htmlFilhoBtns += `<button class="btn btn-sm btn-outline-warning text-dark me-1" title="Migrar Locais e Materiais para outra Viatura (Substituição Operacional)" onclick="abrirModalMigrarViatura('${f.id}', '${f.nome.replace(/'/g, "\\'")}', '${ome}')"><i class="fa-solid fa-arrow-right-arrow-left"></i></button>`;
             htmlFilhoBtns += `<button class="btn btn-sm btn-outline-danger me-1" title="Gerenciar Viatura (Detalhes, Status e Histórico)" onclick="abrirModalViaturaHibrida('${f.id}', '${f.nome.replace(/'/g, "\\'")}', '${ome}')"><i class="fa-solid fa-truck-monster"></i></button>`;
           }
           if (podeAtrelar) {
@@ -10864,6 +10865,231 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
     return (typeof CONFIG_VIATURAS_CBMPE !== 'undefined') && CONFIG_VIATURAS_CBMPE.some(cfg => cfg.regex.test(n));
   }
 
+  
+  window.abrirModalMigrarViatura = function(idVtrOrigem, nomeVtrOrigem, ome) {
+    const podeMover = (typeof temPermissao === 'function' && (temPermissao('movimentar_arvore') || temPermissao('gerenciar_locais'))) || (typeof ehAdminOuChefeGlobal === 'function' && ehAdminOuChefeGlobal());
+    if (!podeMover) {
+      Swal.fire('Acesso Restrito', 'Você não possui permissão para migrar locais ou movimentar materiais na árvore.', 'warning');
+      return;
+    }
+
+    const selOme = document.getElementById('selectOmeArvore');
+    const omeAtual = ome || (selOme ? (selOme.value || selOme.getAttribute('data-value') || OME_GLOBAL) : OME_GLOBAL);
+
+    // 1. Identifica sublocais / compartimentos filhos da viatura de origem
+    const locaisFilhos = (cacheLocaisArvore || []).filter(l => String(l.idPai) === String(idVtrOrigem));
+
+    // 2. Calcula total de materiais atribuídos à viatura e aos compartimentos filhos
+    const matsDiretos = (cacheMateriaisAtrelados && cacheMateriaisAtrelados[idVtrOrigem]) || [];
+    let totalItensDiretos = matsDiretos.reduce((acc, m) => acc + (parseInt(m.qtd) || 0), 0);
+    let totalItensFilhos = 0;
+    locaisFilhos.forEach(filho => {
+      const mf = (cacheMateriaisAtrelados && cacheMateriaisAtrelados[filho.id]) || [];
+      totalItensFilhos += mf.reduce((acc, m) => acc + (parseInt(m.qtd) || 0), 0);
+    });
+    const totalItensTotal = totalItensDiretos + totalItensFilhos;
+
+    // 3. Busca as demais viaturas cadastradas nesta mesma OME
+    const viaturasDisponiveis = (cacheLocaisArvore || []).filter(l => {
+      if (String(l.id) === String(idVtrOrigem)) return false;
+      if (String(l.nome).toUpperCase().trim() === String(nomeVtrOrigem).toUpperCase().trim()) return false;
+      return (typeof ehViaturaLocal === 'function' && ehViaturaLocal(l.nome)) || l.isViatura;
+    });
+
+    if (viaturasDisponiveis.length === 0) {
+      Swal.fire({
+        icon: 'info',
+        title: 'Nenhuma outra viatura encontrada',
+        text: 'Não foram encontradas outras viaturas na OME para receber a carga de ' + nomeVtrOrigem + '. Certifique-se de que a viatura de destino está cadastrada na árvore.',
+        confirmButtonColor: '#0d6efd'
+      });
+      return;
+    }
+
+    // Ordena alfabeticamente as viaturas de destino
+    viaturasDisponiveis.sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
+
+    let optionsVtr = '<option value="" disabled selected>Selecione a viatura de destino...</option>';
+    viaturasDisponiveis.forEach(v => {
+      let paiNome = '';
+      if (v.idPai) {
+        const noPai = (cacheLocaisArvore || []).find(p => String(p.id) === String(v.idPai));
+        if (noPai) paiNome = ' (' + noPai.nome + ')';
+      }
+      optionsVtr += '<option value="' + v.id + '" data-nome="' + v.nome + '">' + v.nome + paiNome + '</option>';
+    });
+
+    const listaCompartimentosTxt = locaisFilhos.length > 0 
+      ? locaisFilhos.map(lf => '<span class="badge bg-light text-dark border me-1 mb-1">' + lf.nome + '</span>').join('') 
+      : '<span class="text-muted fst-italic">Nenhum compartimento/gaveta cadastrado nesta viatura</span>';
+
+    const cpfPadrao = (typeof USUARIO_INJETADO !== 'undefined' && USUARIO_INJETADO && USUARIO_INJETADO.cpf) ? USUARIO_INJETADO.cpf : '';
+
+    Swal.fire({
+      title: 'Migração Rápida entre Viaturas',
+      html: `
+        <div class="text-start">
+          <div class="alert alert-warning py-2 px-3 mb-3 d-flex align-items-center shadow-sm border-0" style="background-color: #fff3cd; color: #664d03;">
+            <i class="fa-solid fa-triangle-exclamation fs-4 me-2"></i>
+            <small>Transfira de forma rápida e completa todos os compartimentos (gavetas/baús) e materiais da viatura em manutenção para a viatura substituta.</small>
+          </div>
+
+          <!-- RESUMO DA VIATURA DE ORIGEM -->
+          <div class="card mb-3 border-danger shadow-sm">
+            <div class="card-header bg-danger text-white py-1 px-3 d-flex justify-content-between align-items-center">
+              <span class="small fw-bold"><i class="fa-solid fa-truck-fire me-1"></i> Viatura de Origem (Saindo)</span>
+              <span class="badge bg-white text-danger fw-bold">${nomeVtrOrigem}</span>
+            </div>
+            <div class="card-body p-2 small">
+              <div class="row g-2">
+                <div class="col-6">
+                  <strong>Total de Materiais:</strong> <span class="badge bg-primary">${totalItensTotal} un(s)</span>
+                </div>
+                <div class="col-6">
+                  <strong>Compartimentos:</strong> <span class="badge bg-secondary">${locaisFilhos.length} local(is)</span>
+                </div>
+                <div class="col-12 mt-1">
+                  <div class="small fw-bold text-muted mb-1">Locais / Gavetas que serão migrados:</div>
+                  <div class="p-1 bg-light border rounded" style="max-height: 80px; overflow-y: auto;">
+                    ${listaCompartimentosTxt}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- SELEÇÃO DA VIATURA DE DESTINO -->
+          <div class="mb-3">
+            <label class="form-label small fw-bold mb-1"><i class="fa-solid fa-truck-arrow-right text-success me-1"></i> Selecione a Viatura de Destino (Receberá a carga):</label>
+            <select id="swalVtrDestino" class="form-select form-select-sm text-uppercase">
+              ${optionsVtr}
+            </select>
+          </div>
+
+          <!-- OPÇÕES DA MIGRAÇÃO -->
+          <div class="mb-3 p-2 bg-light border rounded">
+            <div class="form-check mb-1">
+              <input class="form-check-input" type="checkbox" id="swalMigrarLocais" checked>
+              <label class="form-check-label small fw-bold" for="swalMigrarLocais">
+                Migrar estrutura de compartimentos (Gavetas, Baús, etc.)
+              </label>
+            </div>
+            <small class="text-muted d-block ms-4" style="font-size: 0.75rem;">
+              Os compartimentos e gavetas passarão a pertencer à nova viatura, mantendo os materiais alocados exatamente na mesma disposição.
+            </small>
+          </div>
+
+          <!-- MOTIVO DA OPERAÇÃO -->
+          <div class="mb-3">
+            <label class="form-label small fw-bold mb-1">Motivo da Substituição / Observação:</label>
+            <select id="swalMotivoMigracao" class="form-select form-select-sm mb-1">
+              <option value="Manutenção Mecânica / Oficina">Manutenção Mecânica / Oficina</option>
+              <option value="Substituição Operacional Temporária">Substituição Operacional Temporária</option>
+              <option value="Avaria / Sinistro">Avaria / Sinistro</option>
+              <option value="Troca Definitiva de Carga">Troca Definitiva de Carga</option>
+            </select>
+          </div>
+
+          <!-- ASSINATURA ELETRÔNICA (CPF + PIN) -->
+          <div class="row g-2 p-2 bg-light border rounded">
+            <div class="col-6">
+              <label class="form-label small fw-bold mb-1">Seu CPF:</label>
+              <input type="text" id="swalCpfMigracao" class="form-control form-control-sm" placeholder="Apenas números" value="${cpfPadrao}">
+            </div>
+            <div class="col-6">
+              <label class="form-label small fw-bold mb-1">PIN (Senha 4 dígitos):</label>
+              <input type="password" id="swalPinMigracao" class="form-control form-control-sm" maxlength="8" placeholder="****">
+            </div>
+          </div>
+        </div>
+      `,
+      width: '680px',
+      showCancelButton: true,
+      confirmButtonText: '<i class="fa-solid fa-arrow-right-arrow-left me-1"></i> Confirmar Migração',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#198754',
+      preConfirm: async () => {
+        const selDest = document.getElementById('swalVtrDestino');
+        const idDest = selDest ? selDest.value : '';
+        const optSelected = selDest ? selDest.options[selDest.selectedIndex] : null;
+        const nomeDest = optSelected ? optSelected.getAttribute('data-nome') : '';
+
+        if (!idDest || !nomeDest) {
+          Swal.showValidationMessage('Selecione a viatura de destino.');
+          return false;
+        }
+
+        const cpf = document.getElementById('swalCpfMigracao').value.trim();
+        const pin = document.getElementById('swalPinMigracao').value.trim();
+        if (!cpf || !pin) {
+          Swal.showValidationMessage('Preencha seu CPF e PIN de autorização.');
+          return false;
+        }
+
+        Swal.showLoading();
+        const resPin = await validarPinAssinatura(cpf, pin);
+        if (!resPin || !resPin.valido) {
+          Swal.showValidationMessage((resPin && resPin.mensagem) || 'PIN de autorização inválido.');
+          return false;
+        }
+
+        const migrarLocais = document.getElementById('swalMigrarLocais').checked;
+        const motivo = document.getElementById('swalMotivoMigracao').value;
+
+        return {
+          idOrigem: idVtrOrigem,
+          nomeOrigem: nomeVtrOrigem,
+          idDestino: idDest,
+          nomeDestino: nomeDest,
+          unidade: omeAtual,
+          migrarLocais: migrarLocais,
+          motivo: motivo,
+          cpf: cpf
+        };
+      }
+    }).then(res => {
+      if (res.isConfirmed && res.value) {
+        Swal.fire({
+          title: 'Migrando Estrutura e Carga...',
+          html: '<div class="py-3 text-center">' +
+                '  <div class="spinner-border text-primary mb-3" role="status"></div>' +
+                '  <p class="fw-bold mb-1">Transferindo de <strong>' + res.value.nomeOrigem + '</strong> para <strong>' + res.value.nomeDestino + '</strong></p>' +
+                '  <p class="small text-muted mb-0">Reorganizando compartimentos, atualizando registros no banco e registrando histórico...</p>' +
+                '</div>',
+          allowOutsideClick: false,
+          showConfirmButton: false
+        });
+
+        google.script.run
+          .withSuccessHandler(ret => {
+            Swal.fire({
+              icon: 'success',
+              title: 'Migração Concluída!',
+              html: '<div class="text-start small">' +
+                    '  <p class="mb-2 fs-6 fw-bold text-success"><i class="fa-solid fa-circle-check me-1"></i> A carga foi transferida com êxito!</p>' +
+                    '  <ul class="list-group list-group-flush border rounded mb-3">' +
+                    '    <li class="list-group-item d-flex justify-content-between"><span>Viatura Anterior:</span> <strong class="text-danger">' + res.value.nomeOrigem + '</strong></li>' +
+                    '    <li class="list-group-item d-flex justify-content-between"><span>Viatura Nova:</span> <strong class="text-success">' + res.value.nomeDestino + '</strong></li>' +
+                    '    <li class="list-group-item d-flex justify-content-between"><span>Locais/Compartimentos Migrados:</span> <strong>' + (ret.locaisMigrados || 0) + '</strong></li>' +
+                    '    <li class="list-group-item d-flex justify-content-between"><span>Materiais Físicos Transferidos:</span> <strong>' + (ret.itensMigrados || 0) + ' item(ns)</strong></li>' +
+                    '  </ul>' +
+                    '  <p class="text-muted mb-0 small">A árvore de locais foi atualizada com a nova disposição.</p>' +
+                    '</div>',
+              confirmButtonColor: '#198754'
+            });
+            if (typeof carregarLocaisArvoreGeral === 'function') {
+              carregarLocaisArvoreGeral(true);
+            }
+          })
+          .withFailureHandler(err => {
+            Swal.fire('Erro na Migração', err.message || err, 'error');
+          })
+          .migrarEstruturaEMateriaisViatura(res.value);
+      }
+    });
+  };
+
+
   function abrirModalViaturaHibrida(idLocal, nomeLocal, ome) {
     Swal.fire({
       title: 'Carregando Viatura...',
@@ -10900,6 +11126,7 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
     }
 
     const seiExibido = seiCompra || v.seiCompra || 'Não localizado';
+    const nomeVtrSeguro = String(v.nome || nomeLocal || '').replace(/'/g, '');
 
     // Monta o historico no padrao dos demais materiais
     let histHtml = '';
@@ -10944,6 +11171,7 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
             </div>
           </div>
           <div>
+            <button type="button" class="btn btn-sm btn-outline-warning text-dark fw-bold px-3 py-1 me-2 shadow-sm" onclick="Swal.close(); abrirModalMigrarViatura('${idLocal}', '${nomeVtrSeguro}', '${v.ome || ome}');" title="Migrar compartimentos e materiais para outra viatura"><i class="fa-solid fa-arrow-right-arrow-left me-1"></i>Migrar Materiais/Locais</button>
             <span class="badge ${badgeClass} fs-6 px-3 py-2 shadow-sm">● ${sitTexto}</span>
           </div>
         </div>
