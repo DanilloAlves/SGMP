@@ -524,7 +524,8 @@
         align-items: stretch !important;
         gap: 8px !important;
       }
-      .botoes-remessas-container {
+      .botoes-remessas-container,
+      .botoes-remessas-container.d-flex {
         display: grid !important;
         grid-template-columns: repeat(3, 1fr) !important;
         gap: 6px !important;
@@ -618,7 +619,11 @@
         padding: 6px 4px !important;
         text-align: center !important;
       }
-      #acoesBarraModoArvore {
+      #acoesBarraModoArvore,
+      #acoesBarraModoArvore.d-flex {
+        display: none !important;
+      }
+      .btn-assinar-checklist-desktop {
         display: none !important;
       }
 
@@ -627,7 +632,8 @@
         align-items: stretch !important;
         gap: 6px !important;
       }
-      .toolbar-arvore-btns {
+      .toolbar-arvore-btns,
+      .toolbar-arvore-btns.d-flex {
         display: grid !important;
         grid-template-columns: 1fr 1fr !important;
         gap: 6px !important;
@@ -662,10 +668,12 @@
         margin-bottom: 5px !important;
         border-radius: 8px !important;
       }
-      .node-header-content {
+      .node-header-content,
+      .node-header-content.d-flex {
         flex-direction: column !important;
         align-items: stretch !important;
-        gap: 5px !important;
+        justify-content: flex-start !important;
+        gap: 6px !important;
       }
       .node-title-box {
         width: 100% !important;
@@ -673,7 +681,7 @@
         display: flex !important;
         align-items: center !important;
         flex-wrap: wrap !important;
-        gap: 3px 5px !important;
+        gap: 4px 6px !important;
       }
       .node-title-box strong {
         font-size: 0.86rem !important;
@@ -681,14 +689,16 @@
       .node-actions-box {
         width: 100% !important;
         justify-content: flex-end !important;
-        padding-top: 4px !important;
-        border-top: 1px dashed #e2e8f0 !important;
+        padding-top: 5px !important;
+        border-top: 1px solid #e2e8f0 !important;
         gap: 4px !important;
         display: flex !important;
+        flex-wrap: wrap !important;
       }
       .node-actions-box .btn {
         width: 30px !important;
         height: 30px !important;
+        min-width: 30px !important;
         padding: 0 !important;
         display: inline-flex !important;
         align-items: center !important;
@@ -2696,7 +2706,7 @@
                 <small class="text-muted d-block mt-1">Identificação automática obtida a partir da sua conta de acesso autenticada.</small>
               </div>
               <div class="col-md-5 col-12 text-md-end text-center mt-3 mt-md-0 d-none d-md-block">
-                <button class="btn btn-primary fw-bold px-4 py-2 w-100 shadow-sm" onclick="enviarChecklistInconsistencias()">
+                <button class="btn btn-primary fw-bold px-4 py-2 w-100 shadow-sm btn-assinar-checklist-desktop" onclick="enviarChecklistInconsistencias()">
                   <i class="fa-solid fa-paper-plane me-1"></i> Assinar e Enviar Checklist
                 </button>
               </div>
@@ -10801,7 +10811,16 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
     html += `<div class="tree-root-container" id="sortableRaizes">`;
     
     function gerarGalho(idPai) {
-        const filhos = locais.filter(l => String(l.idPai) === String(idPai));
+        const parentNode = locais.find(p => String(p.id) === String(idPai));
+        const parentNome = parentNode ? String(parentNode.nome || '').trim().toUpperCase() : '';
+        const parentNomeSemEsp = parentNome.replace(/\s+/g, '');
+
+        const filhos = locais.filter(l => {
+          const pId = String(l.idPai || '').trim();
+          if (pId === String(idPai)) return true;
+          if (parentNome && (pId.toUpperCase() === parentNome || pId.replace(/\s+/g, '').toUpperCase() === parentNomeSemEsp)) return true;
+          return false;
+        });
         if (filhos.length === 0) return '';
         
         let subHtml = `<div class="tree-node">`;
