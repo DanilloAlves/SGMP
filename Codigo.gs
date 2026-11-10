@@ -142,6 +142,12 @@ function doGet(e) {
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
   }
 
+  // ROTA ADMINISTRATIVA: Forçar sincronização imediata do Pecúlio de Viaturas
+  if (e && e.parameter && (e.parameter.sync_frotas === "true" || e.parameter.sync_peculio === "true")) {
+    var resultadoSync = sincronizarPeculioViaturaParaBigQuery(true);
+    return ContentService.createTextOutput(JSON.stringify(resultadoSync)).setMimeType(ContentService.MimeType.JSON);
+  }
+
   var paramLogin = e && e.parameter && e.parameter.auth === "true";
 
   if (!paramLogin) {
@@ -21527,7 +21533,7 @@ function getDadosGestaoFrotas(forcar) {
           var ano = val(12) || "-";
           var chassi = val(13);
           var renavam = val(14);
-          var combustivel = val(15) || "Diesel";
+          var combustivel = val(15) || "-";
           var posse = val(16) || "Próprio";
           var destinacao = val(17) || "Operacional";
           var rastreado = val(18) || "Sim";
@@ -21545,7 +21551,7 @@ function getDadosGestaoFrotas(forcar) {
           var sitNorm = situacao.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
           if (sitNorm.indexOf("MANUTEN") !== -1 || sitNorm.indexOf("OFICINA") !== -1 || sitNorm.indexOf("REPARO") !== -1) {
             manutencaoCount++;
-          } else if (sitNorm.indexOf("DESFAZ") !== -1 || sitNorm.indexOf("BAIXA") !== -1 || sitNorm.indexOf("INSERVIV") !== -1 || sitNorm.indexOf("DESATIV") !== -1) {
+          } else if (sitNorm.indexOf("DESFAZ") !== -1 || sitNorm.indexOf("BAIXA") !== -1 || sitNorm.indexOf("INSERVIV") !== -1 || sitNorm.indexOf("DESATIV") !== -1 || sitNorm.indexOf("DESCARREG") !== -1) {
             desfazimentoCount++;
           } else {
             ativasCount++;
@@ -21713,7 +21719,7 @@ function getDadosGestaoFrotasPlanilhaFallback_() {
       return -1;
     }
 
-    var idxSituacao = findCol(["SITUACAO", "STATUS", "CONDICAO", "ESTADO"]);
+    var idxSituacao = findCol(["SITUACAO", "SITUACAO_", "SIT", "SIT_", "STATUS", "CONDICAO", "ESTADO"]);
     var idxNome = findCol(["NOME", "PREFIXO", "VIATURA", "DESIGNACAO", "IDENTIFICACAO", "CODIGO"]);
     var idxOme = findCol(["OME", "UNIDADE", "LOTACAO", "DESTINO"]);
     var idxPlaca = findCol(["PLACA", "PLACAS"]);
@@ -21727,7 +21733,7 @@ function getDadosGestaoFrotasPlanilhaFallback_() {
     var idxSaldo = findCol(["SALDO", "SALDO_COMBUSTIVEL", "VALOR", "COTA"]);
     var idxChassi = findCol(["CHASSIS", "CHASSI"]);
     var idxRenavam = findCol(["RENAVAM"]);
-    var idxCombustivel = findCol(["TIPO_DE_COMBUSTIVEL", "TIPO_COMBUSTIVEL", "COMBUSTIVEL"]);
+    var idxCombustivel = findCol(["COMB", "COMB_", "TIPO_DE_COMBUSTIVEL", "TIPO_COMBUSTIVEL", "COMBUSTIVEL", "COMBUST", "TIPO_COMB"]);
     var idxPosse = findCol(["POSSE", "VINCULO", "TIPO_POSSE"]);
     var idxTipo = findCol(["TIPO", "TIPO_VIATURA", "CLASSIFICACAO"]);
     if (idxTipo === -1 && rawHeaders.length > 2) idxTipo = 2;
@@ -21784,7 +21790,20 @@ function getDadosGestaoFrotasPlanilhaFallback_() {
         if (!temAlgumaCoisa) continue;
       }
 
-      var situacao = idxSituacao !== -1 ? String(row[idxSituacao] || "").trim() : "Ativa";
+      var rawSituacao = idxSituacao !== -1 ? String(row[idxSituacao] || "").trim() : "";
+      var situacao = "Ativa";
+      if (rawSituacao) {
+        var sitUpper = rawSituacao.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        if (sitUpper.indexOf("DESCARREG") !== -1 || sitUpper.indexOf("DESATIV") !== -1 || sitUpper.indexOf("BAIXA") !== -1 || sitUpper.indexOf("DESFAZ") !== -1 || sitUpper.indexOf("INSERVIV") !== -1) {
+          situacao = (sitUpper.indexOf("DESCARREG") !== -1) ? "Descarregada" : (sitUpper.indexOf("DESATIV") !== -1 ? "Desativada" : "Processo de Desfazimento");
+        } else if (sitUpper.indexOf("MANUTEN") !== -1 || sitUpper.indexOf("OFICINA") !== -1 || sitUpper.indexOf("REPARO") !== -1) {
+          situacao = "Manutenção";
+        } else if (sitUpper.indexOf("ATIV") !== -1) {
+          situacao = "Ativa";
+        } else {
+          situacao = rawSituacao;
+        }
+      }
       var ome = idxOme !== -1 ? String(row[idxOme] || "").trim() : "";
       if (ome) omesSet[ome] = true;
 
@@ -21806,7 +21825,7 @@ function getDadosGestaoFrotasPlanilhaFallback_() {
       var sitNorm = situacao.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
       if (sitNorm.indexOf("MANUTEN") !== -1 || sitNorm.indexOf("OFICINA") !== -1 || sitNorm.indexOf("REPARO") !== -1) {
         manutencaoCount++;
-      } else if (sitNorm.indexOf("DESFAZ") !== -1 || sitNorm.indexOf("BAIXA") !== -1 || sitNorm.indexOf("INSERVIV") !== -1 || sitNorm.indexOf("DESATIV") !== -1) {
+      } else if (sitNorm.indexOf("DESFAZ") !== -1 || sitNorm.indexOf("BAIXA") !== -1 || sitNorm.indexOf("INSERVIV") !== -1 || sitNorm.indexOf("DESATIV") !== -1 || sitNorm.indexOf("DESCARREG") !== -1) {
         desfazimentoCount++;
       } else {
         ativasCount++;
@@ -21949,7 +21968,7 @@ function sincronizarPeculioViaturaParaBigQuery(forcar) {
       return -1;
     }
 
-    var idxSituacao = findCol(["SITUACAO", "STATUS", "CONDICAO", "ESTADO"]);
+    var idxSituacao = findCol(["SITUACAO", "SITUACAO_", "SIT", "SIT_", "STATUS", "CONDICAO", "ESTADO"]);
     var idxNome = findCol(["NOME", "PREFIXO", "VIATURA", "DESIGNACAO", "IDENTIFICACAO", "CODIGO"]);
     var idxOme = findCol(["OME", "UNIDADE", "LOTACAO", "DESTINO"]);
     var idxPlaca = findCol(["PLACA", "PLACAS"]);
@@ -21962,7 +21981,7 @@ function sincronizarPeculioViaturaParaBigQuery(forcar) {
     var idxAno = findCol(["ANO", "ANO_FABRICACAO", "ANO_MODELO", "FABRICACAO"]);
     var idxChassi = findCol(["CHASSIS", "CHASSI"]);
     var idxRenavam = findCol(["RENAVAM"]);
-    var idxCombustivel = findCol(["TIPO_DE_COMBUSTIVEL", "TIPO_COMBUSTIVEL", "COMBUSTIVEL"]);
+    var idxCombustivel = findCol(["COMB", "COMB_", "TIPO_DE_COMBUSTIVEL", "TIPO_COMBUSTIVEL", "COMBUSTIVEL", "COMBUST", "TIPO_COMB"]);
     var idxPosse = findCol(["POSSE", "VINCULO", "TIPO_POSSE"]);
     var idxTipo = findCol(["TIPO", "TIPO_VIATURA", "CLASSIFICACAO"]);
     if (idxTipo === -1 && rawHeaders.length > 2) idxTipo = 2;
@@ -22023,7 +22042,20 @@ function sincronizarPeculioViaturaParaBigQuery(forcar) {
         if (!temAlgumaCoisa) continue;
       }
 
-      var situacao = idxSituacao !== -1 ? String(row[idxSituacao] || "Ativa").trim() : "Ativa";
+      var rawSituacao = idxSituacao !== -1 ? String(row[idxSituacao] || "").trim() : "";
+      var situacao = "Ativa";
+      if (rawSituacao) {
+        var sitUpper = rawSituacao.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        if (sitUpper.indexOf("DESCARREG") !== -1 || sitUpper.indexOf("DESATIV") !== -1 || sitUpper.indexOf("BAIXA") !== -1 || sitUpper.indexOf("DESFAZ") !== -1 || sitUpper.indexOf("INSERVIV") !== -1) {
+          situacao = (sitUpper.indexOf("DESCARREG") !== -1) ? "Descarregada" : (sitUpper.indexOf("DESATIV") !== -1 ? "Desativada" : "Processo de Desfazimento");
+        } else if (sitUpper.indexOf("MANUTEN") !== -1 || sitUpper.indexOf("OFICINA") !== -1 || sitUpper.indexOf("REPARO") !== -1) {
+          situacao = "Manutenção";
+        } else if (sitUpper.indexOf("ATIV") !== -1) {
+          situacao = "Ativa";
+        } else {
+          situacao = rawSituacao;
+        }
+      }
       var ome = idxOme !== -1 ? String(row[idxOme] || "").trim() : "";
       var marca = idxMarca !== -1 ? String(row[idxMarca] || "").trim() : "";
       var modelo = idxModelo !== -1 ? String(row[idxModelo] || "").trim() : "";
@@ -22034,7 +22066,10 @@ function sincronizarPeculioViaturaParaBigQuery(forcar) {
       var ano = idxAno !== -1 ? String(row[idxAno] || "").trim() : "";
       var chassi = idxChassi !== -1 ? String(row[idxChassi] || "").trim() : "";
       var renavam = idxRenavam !== -1 ? String(row[idxRenavam] || "").trim() : "";
-      var combustivel = idxCombustivel !== -1 ? String(row[idxCombustivel] || "Diesel").trim() : "Diesel";
+      var combustivel = (idxCombustivel !== -1 && row[idxCombustivel] !== undefined && row[idxCombustivel] !== null)
+        ? String(row[idxCombustivel]).trim()
+        : "";
+      if (!combustivel) combustivel = "-";
       var posse = idxPosse !== -1 ? String(row[idxPosse] || "Próprio").trim() : "Próprio";
       var destinacao = idxDestinacao !== -1 ? String(row[idxDestinacao] || "Operacional").trim() : "Operacional";
       var rastreado = idxRastreado !== -1 ? String(row[idxRastreado] || "Sim").trim() : "Sim";
@@ -22266,13 +22301,13 @@ function salvarEdicaoViatura(dados) {
       }
     }
 
-    setValCol(["SITUACAO", "STATUS"], dados.situacao);
+    setValCol(["SITUACAO", "SITUACAO_", "SIT", "SIT_", "STATUS"], dados.situacao);
     setValCol(["NOME", "PREFIXO", "VIATURA"], dados.nome);
     setValCol(["OME", "UNIDADE", "LOTACAO"], dados.ome);
     setValCol(["POSSE"], dados.posse);
     setValCol(["TIPO"], dados.tipo);
     setValCol(["N_DE_ORDEM", "N_ORDEM", "ORDEM", "NUMERO_ORDEM"], dados.nOrdem);
-    setValCol(["TIPO_DE_COMBUSTIVEL", "TIPO_COMBUSTIVEL", "COMBUSTIVEL"], dados.combustivel);
+    setValCol(["COMB", "COMB_", "TIPO_DE_COMBUSTIVEL", "TIPO_COMBUSTIVEL", "COMBUSTIVEL", "TIPO_COMB"], dados.combustivel);
     setValCol(["ANO", "ANO_FABRICACAO", "ANO_MODELO"], dados.ano);
     setValCol(["MARCA"], dados.marca);
     setValCol(["MODELO"], dados.modelo);

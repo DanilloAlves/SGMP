@@ -3864,6 +3864,7 @@
                         <option value="Manutenção">Manutenção</option>
                         <option value="Processo de Desfazimento">Processo de Desfazimento</option>
                         <option value="Desativada">Desativada</option>
+                        <option value="Descarregada">Descarregada</option>
                         <option value="Baixada">Baixada</option>
                       </select>
                     </div>
@@ -11457,9 +11458,9 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
     if (sitNorm.indexOf('MANUTEN') !== -1 || sitNorm.indexOf('OFICINA') !== -1 || sitNorm.indexOf('REPARO') !== -1) {
       badgeClass = 'bg-danger';
       sitTexto = 'Manutenção';
-    } else if (sitNorm.indexOf('DESFAZ') !== -1 || sitNorm.indexOf('BAIXA') !== -1) {
+    } else if (sitNorm.indexOf('DESFAZ') !== -1 || sitNorm.indexOf('BAIXA') !== -1 || sitNorm.indexOf('INSERVIV') !== -1 || sitNorm.indexOf('DESATIV') !== -1 || sitNorm.indexOf('DESCARREG') !== -1) {
       badgeClass = 'bg-warning text-dark';
-      sitTexto = 'Processo de Desfazimento';
+      sitTexto = (sitNorm.indexOf('DESCARREG') !== -1) ? 'Descarregada' : (sitNorm.indexOf('DESATIV') !== -1 ? 'Desativada' : 'Processo de Desfazimento');
     }
 
     const seiExibido = seiCompra || v.seiCompra || 'Não localizado';
@@ -30326,7 +30327,7 @@ function aplicarFiltrosFrotas() {
     var categoriaSit = 'Ativa';
     if (sitNorm.indexOf('MANUTEN') !== -1 || sitNorm.indexOf('OFICINA') !== -1 || sitNorm.indexOf('REPARO') !== -1) {
       categoriaSit = 'Manutenção';
-    } else if (sitNorm.indexOf('DESFAZ') !== -1 || sitNorm.indexOf('BAIXA') !== -1 || sitNorm.indexOf('INSERVIV') !== -1 || sitNorm.indexOf('DESATIV') !== -1) {
+    } else if (sitNorm.indexOf('DESFAZ') !== -1 || sitNorm.indexOf('BAIXA') !== -1 || sitNorm.indexOf('INSERVIV') !== -1 || sitNorm.indexOf('DESATIV') !== -1 || sitNorm.indexOf('DESCARREG') !== -1) {
       categoriaSit = 'Processo de Desfazimento';
     }
 
@@ -30390,9 +30391,9 @@ function renderizarTabelaFrotas() {
     if (sitNorm.indexOf('MANUTEN') !== -1 || sitNorm.indexOf('OFICINA') !== -1 || sitNorm.indexOf('REPARO') !== -1) {
       badgeClass = 'badge-frotas-manutencao';
       sitExibida = 'Manutenção';
-    } else if (sitNorm.indexOf('DESFAZ') !== -1 || sitNorm.indexOf('BAIXA') !== -1 || sitNorm.indexOf('INSERVIV') !== -1 || sitNorm.indexOf('DESATIV') !== -1) {
+    } else if (sitNorm.indexOf('DESFAZ') !== -1 || sitNorm.indexOf('BAIXA') !== -1 || sitNorm.indexOf('INSERVIV') !== -1 || sitNorm.indexOf('DESATIV') !== -1 || sitNorm.indexOf('DESCARREG') !== -1) {
       badgeClass = 'badge-frotas-desfazimento';
-      sitExibida = 'Processo de Desfazimento';
+      sitExibida = (sitNorm.indexOf('DESCARREG') !== -1) ? 'Descarregada' : (sitNorm.indexOf('DESATIV') !== -1 ? 'Desativada' : (sitNorm.indexOf('BAIXA') !== -1 ? 'Baixada' : 'Processo de Desfazimento'));
     } else {
       badgeClass = 'badge-frotas-ativa';
       sitExibida = 'Ativa';
@@ -30521,7 +30522,7 @@ function renderizarRelatorioFrotas() {
     const sitNorm = String(v.situacao || '').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     if (sitNorm.indexOf('MANUTEN') !== -1 || sitNorm.indexOf('OFICINA') !== -1 || sitNorm.indexOf('REPARO') !== -1) {
       mapaOme[o].manut++;
-    } else if (sitNorm.indexOf('DESFAZ') !== -1 || sitNorm.indexOf('BAIXA') !== -1 || sitNorm.indexOf('INSERVIV') !== -1 || sitNorm.indexOf('DESATIV') !== -1) {
+    } else if (sitNorm.indexOf('DESFAZ') !== -1 || sitNorm.indexOf('BAIXA') !== -1 || sitNorm.indexOf('INSERVIV') !== -1 || sitNorm.indexOf('DESATIV') !== -1 || sitNorm.indexOf('DESCARREG') !== -1) {
       mapaOme[o].desfaz++;
     } else {
       mapaOme[o].ativas++;
@@ -30645,7 +30646,7 @@ function abrirPainelEdicaoViatura(vEncoded) {
   setVal('formViatPosse', v.posse || 'Próprio');
   setVal('formViatTipo', v.tipo || (v.nome ? v.nome.split('-')[0] : ''));
   setVal('formViatNOrdem', v.nOrdem || (v.nome && v.nome.indexOf('-') !== -1 ? v.nome.split('-')[1] : ''));
-  setVal('formViatCombustivel', v.combustivel || 'Diesel');
+  setVal('formViatCombustivel', v.combustivel || '-');
   setVal('formViatAno', v.ano || '');
   setVal('formViatMarca', v.marca || (v.marcaModelo ? v.marcaModelo.split(' ')[0] : ''));
   setVal('formViatPlaca', v.placa || '');
@@ -30690,9 +30691,9 @@ function atualizarBadgesEdicaoViatura(sit) {
   if (sitNorm.indexOf('MANUTEN') !== -1 || sitNorm.indexOf('OFICINA') !== -1 || sitNorm.indexOf('REPARO') !== -1) {
     badgeClass = 'badge-frotas-manutencao';
     texto = '● Manutenção';
-  } else if (sitNorm.indexOf('DESFAZ') !== -1 || sitNorm.indexOf('BAIXA') !== -1 || sitNorm.indexOf('INSERVIV') !== -1 || sitNorm.indexOf('DESATIV') !== -1) {
+  } else if (sitNorm.indexOf('DESFAZ') !== -1 || sitNorm.indexOf('BAIXA') !== -1 || sitNorm.indexOf('INSERVIV') !== -1 || sitNorm.indexOf('DESATIV') !== -1 || sitNorm.indexOf('DESCARREG') !== -1) {
     badgeClass = 'badge-frotas-desfazimento';
-    texto = '● Processo de Desfazimento';
+    texto = '● ' + ((sitNorm.indexOf('DESCARREG') !== -1) ? 'Descarregada' : (sitNorm.indexOf('DESATIV') !== -1 ? 'Desativada' : (sitNorm.indexOf('BAIXA') !== -1 ? 'Baixada' : 'Processo de Desfazimento')));
   } else {
     badgeClass = 'badge-frotas-ativa';
     texto = '● Ativa';
