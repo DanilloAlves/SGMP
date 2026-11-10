@@ -10876,10 +10876,20 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
     const selOme = document.getElementById('selectOmeArvore');
     const omeAtual = ome || (selOme ? (selOme.value || selOme.getAttribute('data-value') || OME_GLOBAL) : OME_GLOBAL);
 
-    // 1. Identifica sublocais / compartimentos filhos da viatura de origem
+    // 1. Identifica a Subunidade da viatura de origem (ex: 1ª SB)
+    let subOrigemNome = 'SEDE';
+    if (cacheLocaisArvore) {
+      const noOrigem = cacheLocaisArvore.find(l => String(l.id) === String(idVtrOrigem));
+      if (noOrigem && noOrigem.idPai) {
+        const noPai = cacheLocaisArvore.find(p => String(p.id) === String(noOrigem.idPai));
+        if (noPai) subOrigemNome = noPai.nome;
+      }
+    }
+
+    // 2. Identifica sublocais / compartimentos filhos da viatura de origem
     const locaisFilhos = (cacheLocaisArvore || []).filter(l => String(l.idPai) === String(idVtrOrigem));
 
-    // 2. Calcula total de materiais atribuídos à viatura e aos compartimentos filhos
+    // 3. Calcula total de materiais atribuídos à viatura e aos compartimentos filhos
     const matsDiretos = (cacheMateriaisAtrelados && cacheMateriaisAtrelados[idVtrOrigem]) || [];
     let totalItensDiretos = matsDiretos.reduce((acc, m) => acc + (parseInt(m.qtd) || 0), 0);
     let totalItensFilhos = 0;
@@ -10889,7 +10899,7 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
     });
     const totalItensTotal = totalItensDiretos + totalItensFilhos;
 
-    // 3. Busca as demais viaturas cadastradas nesta mesma OME
+    // 4. Busca as demais viaturas cadastradas nesta mesma OME
     const viaturasDisponiveis = (cacheLocaisArvore || []).filter(l => {
       if (String(l.id) === String(idVtrOrigem)) return false;
       if (String(l.nome).toUpperCase().trim() === String(nomeVtrOrigem).toUpperCase().trim()) return false;
@@ -10926,31 +10936,31 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
     const cpfPadrao = (typeof USUARIO_INJETADO !== 'undefined' && USUARIO_INJETADO && USUARIO_INJETADO.cpf) ? USUARIO_INJETADO.cpf : '';
 
     Swal.fire({
-      title: 'Migração Rápida entre Viaturas',
+      title: 'Substituição Operacional de Viatura',
       html: `
         <div class="text-start">
           <div class="alert alert-warning py-2 px-3 mb-3 d-flex align-items-center shadow-sm border-0" style="background-color: #fff3cd; color: #664d03;">
             <i class="fa-solid fa-triangle-exclamation fs-4 me-2"></i>
-            <small>Transfira de forma rápida e completa todos os compartimentos (gavetas/baús) e materiais da viatura em manutenção para a viatura substituta.</small>
+            <small>Transfira a carga, compartimentos e aloque a nova viatura no posto operacional da viatura que foi para manutenção.</small>
           </div>
 
           <!-- RESUMO DA VIATURA DE ORIGEM -->
           <div class="card mb-3 border-danger shadow-sm">
             <div class="card-header bg-danger text-white py-1 px-3 d-flex justify-content-between align-items-center">
-              <span class="small fw-bold"><i class="fa-solid fa-truck-fire me-1"></i> Viatura de Origem (Saindo)</span>
+              <span class="small fw-bold"><i class="fa-solid fa-truck-fire me-1"></i> Viatura que Sai (Manutenção)</span>
               <span class="badge bg-white text-danger fw-bold">${nomeVtrOrigem}</span>
             </div>
             <div class="card-body p-2 small">
               <div class="row g-2">
                 <div class="col-6">
-                  <strong>Total de Materiais:</strong> <span class="badge bg-primary">${totalItensTotal} un(s)</span>
+                  <strong>Subunidade Atual:</strong> <span class="badge bg-dark">${subOrigemNome}</span>
                 </div>
                 <div class="col-6">
-                  <strong>Compartimentos:</strong> <span class="badge bg-secondary">${locaisFilhos.length} local(is)</span>
+                  <strong>Total de Materiais:</strong> <span class="badge bg-primary">${totalItensTotal} un(s)</span>
                 </div>
                 <div class="col-12 mt-1">
-                  <div class="small fw-bold text-muted mb-1">Locais / Gavetas que serão migrados:</div>
-                  <div class="p-1 bg-light border rounded" style="max-height: 80px; overflow-y: auto;">
+                  <strong>Compartimentos:</strong> <span class="badge bg-secondary me-2">${locaisFilhos.length} local(is)</span>
+                  <div class="p-1 mt-1 bg-light border rounded" style="max-height: 70px; overflow-y: auto;">
                     ${listaCompartimentosTxt}
                   </div>
                 </div>
@@ -10960,7 +10970,7 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
 
           <!-- SELEÇÃO DA VIATURA DE DESTINO -->
           <div class="mb-3">
-            <label class="form-label small fw-bold mb-1"><i class="fa-solid fa-truck-arrow-right text-success me-1"></i> Selecione a Viatura de Destino (Receberá a carga):</label>
+            <label class="form-label small fw-bold mb-1"><i class="fa-solid fa-truck-arrow-right text-success me-1"></i> Selecione a Viatura Substituta (Assumirá a carga):</label>
             <select id="swalVtrDestino" class="form-select form-select-sm text-uppercase">
               ${optionsVtr}
             </select>
@@ -10968,15 +10978,30 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
 
           <!-- OPÇÕES DA MIGRAÇÃO -->
           <div class="mb-3 p-2 bg-light border rounded">
-            <div class="form-check mb-1">
+            <div class="form-check mb-2">
+              <input class="form-check-input" type="checkbox" id="swalMigrarSubunidade" checked>
+              <label class="form-check-label small fw-bold text-primary" for="swalMigrarSubunidade">
+                <i class="fa-solid fa-arrows-down-to-people me-1"></i> Migrar viatura substituta para a Subunidade da anterior (${subOrigemNome})
+              </label>
+              <small class="text-muted d-block ms-4" style="font-size: 0.75rem;">
+                A nova viatura e sua carga passarão a integrar oficialmente a Subunidade <strong>${subOrigemNome}</strong>.
+              </small>
+            </div>
+            <div class="form-check mb-2">
               <input class="form-check-input" type="checkbox" id="swalMigrarLocais" checked>
               <label class="form-check-label small fw-bold" for="swalMigrarLocais">
-                Migrar estrutura de compartimentos (Gavetas, Baús, etc.)
+                <i class="fa-solid fa-layer-group me-1"></i> Migrar estrutura de compartimentos (Gavetas, Baús, etc.)
+              </label>
+              <small class="text-muted d-block ms-4" style="font-size: 0.75rem;">
+                Os compartimentos e gavetas passarão a pertencer à nova viatura, mantendo os materiais alocados na mesma disposição.
+              </small>
+            </div>
+            <div class="form-check mb-1">
+              <input class="form-check-input" type="checkbox" id="swalMarcarManutencao" checked>
+              <label class="form-check-label small fw-bold text-danger" for="swalMarcarManutencao">
+                <i class="fa-solid fa-wrench me-1"></i> Marcar situação da viatura anterior (${nomeVtrOrigem}) como 'Manutenção'
               </label>
             </div>
-            <small class="text-muted d-block ms-4" style="font-size: 0.75rem;">
-              Os compartimentos e gavetas passarão a pertencer à nova viatura, mantendo os materiais alocados exatamente na mesma disposição.
-            </small>
           </div>
 
           <!-- MOTIVO DA OPERAÇÃO -->
@@ -11005,7 +11030,7 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
       `,
       width: '680px',
       showCancelButton: true,
-      confirmButtonText: '<i class="fa-solid fa-arrow-right-arrow-left me-1"></i> Confirmar Migração',
+      confirmButtonText: '<i class="fa-solid fa-arrow-right-arrow-left me-1"></i> Confirmar Substituição',
       cancelButtonText: 'Cancelar',
       confirmButtonColor: '#198754',
       preConfirm: async () => {
@@ -11034,6 +11059,8 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
         }
 
         const migrarLocais = document.getElementById('swalMigrarLocais').checked;
+        const migrarSubunidade = document.getElementById('swalMigrarSubunidade').checked;
+        const marcarManutencao = document.getElementById('swalMarcarManutencao').checked;
         const motivo = document.getElementById('swalMotivoMigracao').value;
 
         return {
@@ -11043,6 +11070,8 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
           nomeDestino: nomeDest,
           unidade: omeAtual,
           migrarLocais: migrarLocais,
+          migrarSubunidade: migrarSubunidade,
+          marcarManutencao: marcarManutencao,
           motivo: motivo,
           cpf: cpf
         };
@@ -11050,11 +11079,11 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
     }).then(res => {
       if (res.isConfirmed && res.value) {
         Swal.fire({
-          title: 'Migrando Estrutura e Carga...',
+          title: 'Realizando Substituição Operacional...',
           html: '<div class="py-3 text-center">' +
                 '  <div class="spinner-border text-primary mb-3" role="status"></div>' +
-                '  <p class="fw-bold mb-1">Transferindo de <strong>' + res.value.nomeOrigem + '</strong> para <strong>' + res.value.nomeDestino + '</strong></p>' +
-                '  <p class="small text-muted mb-0">Reorganizando compartimentos, atualizando registros no banco e registrando histórico...</p>' +
+                '  <p class="fw-bold mb-1">Transferindo posto de <strong>' + res.value.nomeOrigem + '</strong> para <strong>' + res.value.nomeDestino + '</strong></p>' +
+                '  <p class="small text-muted mb-0">Alocando viatura na Subunidade, reorganizando compartimentos e atualizando inventário...</p>' +
                 '</div>',
           allowOutsideClick: false,
           showConfirmButton: false
@@ -11064,12 +11093,13 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
           .withSuccessHandler(ret => {
             Swal.fire({
               icon: 'success',
-              title: 'Migração Concluída!',
+              title: 'Substituição Concluída!',
               html: '<div class="text-start small">' +
-                    '  <p class="mb-2 fs-6 fw-bold text-success"><i class="fa-solid fa-circle-check me-1"></i> A carga foi transferida com êxito!</p>' +
+                    '  <p class="mb-2 fs-6 fw-bold text-success"><i class="fa-solid fa-circle-check me-1"></i> A substituição foi realizada com êxito!</p>' +
                     '  <ul class="list-group list-group-flush border rounded mb-3">' +
-                    '    <li class="list-group-item d-flex justify-content-between"><span>Viatura Anterior:</span> <strong class="text-danger">' + res.value.nomeOrigem + '</strong></li>' +
-                    '    <li class="list-group-item d-flex justify-content-between"><span>Viatura Nova:</span> <strong class="text-success">' + res.value.nomeDestino + '</strong></li>' +
+                    '    <li class="list-group-item d-flex justify-content-between"><span>Viatura que Saiu:</span> <strong class="text-danger">' + res.value.nomeOrigem + '</strong></li>' +
+                    '    <li class="list-group-item d-flex justify-content-between"><span>Viatura Substituta:</span> <strong class="text-success">' + res.value.nomeDestino + '</strong></li>' +
+                    '    <li class="list-group-item d-flex justify-content-between"><span>Subunidade Assumida:</span> <strong class="text-primary">' + (ret.subunidadeAlvo || subOrigemNome) + '</strong></li>' +
                     '    <li class="list-group-item d-flex justify-content-between"><span>Locais/Compartimentos Migrados:</span> <strong>' + (ret.locaisMigrados || 0) + '</strong></li>' +
                     '    <li class="list-group-item d-flex justify-content-between"><span>Materiais Físicos Transferidos:</span> <strong>' + (ret.itensMigrados || 0) + ' item(ns)</strong></li>' +
                     '  </ul>' +
