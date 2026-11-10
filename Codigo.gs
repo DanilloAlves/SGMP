@@ -3173,7 +3173,7 @@ function vistarEAtrelarMateriaisAoLocal(idLocal, nomeLocal, itensDistribuicao) {
 
 
 
-function atualizarPaiLocalArvore(idLocal, novoIdPai) {
+function atualizarPaiLocalArvore(idLocal, novoIdPai, nomeLocalOpcional) {
   try {
     var usuarioSessao = null;
     try {
@@ -3189,10 +3189,12 @@ function atualizarPaiLocalArvore(idLocal, novoIdPai) {
 
     var idLocalStr = String(idLocal || "").trim();
     var novoIdPaiStr = String(novoIdPai || "").trim();
+    var nomeLocalAlvo = String(nomeLocalOpcional || "").trim();
+    var omeLocalAlvo = "";
 
     garantirTabelaArvore_();
 
-    // Atualiza na base centralizada
+    // 1. Atualiza na base centralizada (tb_Arvore)
     try {
       var sqlUpPai = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` SET ID_Pai = " + sqlLiteralChamado_(novoIdPaiStr) + " WHERE ID_Local = '" + limparSQLChamado_(idLocalStr) + "'";
       executarEscritaBigQuerySegura(sqlUpPai);
@@ -3201,33 +3203,41 @@ function atualizarPaiLocalArvore(idLocal, novoIdPai) {
     }
 
     var mapaNos = {};
-    var nomeLocalAlvo = "";
-    var omeLocalAlvo = "";
-    var todosLocais = obterLocaisArvoreGeral_();
+    var todosLocais = (typeof getArvoreLocais === 'function') ? getArvoreLocais() : obterLocaisArvoreGeral_();
     todosLocais.forEach(function(l) {
       mapaNos[l.id] = l;
       if (l.id === idLocalStr) {
-        nomeLocalAlvo = l.nome;
+        if (!nomeLocalAlvo) nomeLocalAlvo = l.nome;
         omeLocalAlvo = l.ome;
       }
     });
 
-    // Atualiza na planilha auxiliar para redundância
+    if (!omeLocalAlvo && usuarioSessao && usuarioSessao.unidade) {
+      omeLocalAlvo = usuarioSessao.unidade;
+    }
+
+    // 2. Atualiza na planilha auxiliar para redundância com proteção estrita de escopo
+    var linhaAlvoIdx = -1;
+    var sheet = null;
+    var dados = null;
     try {
       var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
-      var sheet = ss.getSheetByName(ABA_LOCAIS_ARMAZENAMENTO);
-      if (sheet) {
-        var dados = sheet.getDataRange().getValues();
+      sheet = ss.getSheetByName(ABA_LOCAIS_ARMAZENAMENTO);
+      if (sheet && sheet.getLastRow() > 1) {
+        dados = sheet.getDataRange().getValues();
         for (var k = 1; k < dados.length; k++) {
           if (String(dados[k][0] || "").trim() === idLocalStr) {
             sheet.getRange(k + 1, 4).setValue(novoIdPaiStr);
+            linhaAlvoIdx = k + 1;
             break;
           }
         }
       }
-    } catch(eSheet) {}
+    } catch(eSheet) {
+      console.warn("Aviso ao atualizar planilha auxiliar: " + eSheet.message);
+    }
 
-    // 2. Identifica a Subunidade Raiz resultante do novo local pai
+    // 3. Identifica a Subunidade Raiz resultante do novo local pai
     var novaSubunidade = "SEDE";
     if (novoIdPaiStr) {
       var curId = novoIdPaiStr;
@@ -3247,14 +3257,14 @@ function atualizarPaiLocalArvore(idLocal, novoIdPai) {
       }
     }
 
-    // 3. Sincroniza a movimentação no inventário (BigQuery)
+    // 4. Sincroniza a movimentação no inventário (BigQuery)
     var siglaVtr = (typeof obterSiglaViaturaBackend_ === 'function') ? obterSiglaViaturaBackend_(nomeLocalAlvo) : "";
-    var ehVtr = !!siglaVtr || idLocalStr.indexOf("loc_vtr_") === 0 || /^(?:AR|ABT|ABTS|AT|ASE|BIS)[ -]/i.test(nomeLocalAlvo);
+    var ehVtr = !!siglaVtr || idLocalStr.indexOf("loc_vtr_") === 0 || idLocalStr.indexOf("vtr_") === 0 || /^(?:AR|ABT|ABTS|AT|ASE|BIS)[ -]/i.test(nomeLocalAlvo);
 
     var omePadrao = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(omeLocalAlvo) : omeLocalAlvo;
     var inSqlOme = (typeof obterVariacoesOmeParaSql_ === 'function') 
       ? obterVariacoesOmeParaSql_(omePadrao) 
-      : ("'" + omePadrao.toUpperCase().replace(/'/g, "\\'") + "'");
+      : ("'" + String(omePadrao || '').toUpperCase().replace(/'/g, "\\'") + "'");
 
     function limparSql(t) { return String(t || '').replace(/'/g, "\\'"); }
 
@@ -3299,23 +3309,29 @@ function atualizarPaiLocalArvore(idLocal, novoIdPai) {
       }
 
       // Deduplica preventivamente na planilha Arvore se já existir nó fantasma com a mesma viatura
-      var nomeAlvoClean = nomeLocalAlvo.replace(/[^A-Z0-9]/gi, "").toUpperCase();
-      for (var dIdx = dados.length - 1; dIdx >= 1; dIdx--) {
-        if (dIdx + 1 === linhaAlvoIdx) continue;
-        var dOme = String(dados[dIdx][1] || "").trim();
-        var dNome = String(dados[dIdx][2] || "").trim();
-        var dClean = dNome.replace(/[^A-Z0-9]/gi, "").toUpperCase();
-        var ehMesmaVtr = (dClean === nomeAlvoClean) || 
-                         (siglaVtr && nOrdemOuSerie && dClean.indexOf(siglaVtr.toUpperCase()) !== -1 && dClean.indexOf(nOrdemOuSerie) !== -1);
-        if (ehMesmaVtr && (dOme.toUpperCase() === omeLocalAlvo.toUpperCase() || !dOme)) {
-          var idDup = String(dados[dIdx][0] || "").trim();
-          for (var fRow = 1; fRow < dados.length; fRow++) {
-            if (String(dados[fRow][3] || "").trim() === idDup) {
-              sheet.getRange(fRow + 1, 4).setValue(idLocalStr);
+      try {
+        if (sheet && dados && Array.isArray(dados)) {
+          var nomeAlvoClean = nomeLocalAlvo.replace(/[^A-Z0-9]/gi, "").toUpperCase();
+          for (var dIdx = dados.length - 1; dIdx >= 1; dIdx--) {
+            if (linhaAlvoIdx !== -1 && (dIdx + 1 === linhaAlvoIdx)) continue;
+            var dOme = String(dados[dIdx][1] || "").trim();
+            var dNome = String(dados[dIdx][2] || "").trim();
+            var dClean = dNome.replace(/[^A-Z0-9]/gi, "").toUpperCase();
+            var ehMesmaVtr = (dClean === nomeAlvoClean) || 
+                             (siglaVtr && nOrdemOuSerie && dClean.indexOf(siglaVtr.toUpperCase()) !== -1 && dClean.indexOf(nOrdemOuSerie) !== -1);
+            if (ehMesmaVtr && (dOme.toUpperCase() === (omeLocalAlvo || "").toUpperCase() || !dOme)) {
+              var idDup = String(dados[dIdx][0] || "").trim();
+              for (var fRow = 1; fRow < dados.length; fRow++) {
+                if (String(dados[fRow][3] || "").trim() === idDup) {
+                  sheet.getRange(fRow + 1, 4).setValue(idLocalStr);
+                }
+              }
+              sheet.deleteRow(dIdx + 1);
             }
           }
-          sheet.deleteRow(dIdx + 1);
         }
+      } catch(eDedup) {
+        console.warn("Aviso na deduplicação da planilha: " + eDedup.message);
       }
     } else {
       try {
@@ -3362,7 +3378,6 @@ function atualizarPaiLocalArvore(idLocal, novoIdPai) {
     throw new Error("Erro ao atualizar hierarquia: " + err.message);
   }
 }
-
 
 
 var MAPA_SEDE_OME_CACHE_ = {};

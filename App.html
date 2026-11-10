@@ -10838,7 +10838,7 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
           .withFailureHandler(err => {
             Swal.fire('Erro ao Mover', err.message || 'Falha na comunicação com o servidor.', 'error');
           })
-          .atualizarPaiLocalArvore(idLocal, res.value);
+          .atualizarPaiLocalArvore(idLocal, res.value, nomeLocal);
       }
     });
   }
