@@ -3173,7 +3173,7 @@ function vistarEAtrelarMateriaisAoLocal(idLocal, nomeLocal, itensDistribuicao) {
 
 
 
-function atualizarPaiLocalArvore(idLocal, novoIdPai, nomeLocalOpcional) {
+function atualizarPaiLocalArvore(idLocal, novoIdPai, nomeLocalOpcional, omeOpcional, nomeNovoPaiOpcional) {
   try {
     var usuarioSessao = null;
     try {
@@ -3187,58 +3187,81 @@ function atualizarPaiLocalArvore(idLocal, novoIdPai, nomeLocalOpcional) {
       }
     }
 
-    var idLocalStr = String(idLocal || "").trim();
-    var novoIdPaiStr = String(novoIdPai || "").trim();
-    var nomeLocalAlvo = String(nomeLocalOpcional || "").trim();
+    var idLocalStr = "";
+    var novoIdPaiStr = "";
+    var nomeLocalAlvo = "";
     var omeLocalAlvo = "";
+    var nomeNovoPaiAlvo = "";
+
+    if (idLocal && typeof idLocal === 'object') {
+      idLocalStr = String(idLocal.idLocal || "").trim();
+      novoIdPaiStr = String(idLocal.novoIdPai || "").trim();
+      nomeLocalAlvo = String(idLocal.nomeLocal || "").trim();
+      omeLocalAlvo = String(idLocal.ome || "").trim();
+      nomeNovoPaiAlvo = String(idLocal.nomeNovoPai || "").trim();
+    } else {
+      idLocalStr = String(idLocal || "").trim();
+      novoIdPaiStr = String(novoIdPai || "").trim();
+      nomeLocalAlvo = String(nomeLocalOpcional || "").trim();
+      omeLocalAlvo = String(omeOpcional || "").trim();
+      nomeNovoPaiAlvo = String(nomeNovoPaiOpcional || "").trim();
+    }
 
     garantirTabelaArvore_();
 
-    // 1. Atualiza na base centralizada (tb_Arvore)
-    try {
-      var sqlUpPai = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` SET ID_Pai = " + sqlLiteralChamado_(novoIdPaiStr) + " WHERE ID_Local = '" + limparSQLChamado_(idLocalStr) + "'";
-      executarEscritaBigQuerySegura(sqlUpPai);
-    } catch(eBq) {
-      console.warn("Aviso ao atualizar pai na base centralizada: " + eBq.message);
+    // 1. Resolve a OME alvo
+    var omePadrao = (typeof obterOmePadronizada === 'function') 
+      ? obterOmePadronizada(omeLocalAlvo || (usuarioSessao && usuarioSessao.unidade) || "") 
+      : String(omeLocalAlvo || (usuarioSessao && usuarioSessao.unidade) || "").trim();
+
+    function limparSql(t) { return String(t || '').replace(/'/g, "\'"); }
+
+    if (!omePadrao && (idLocalStr || nomeLocalAlvo)) {
+      try {
+        var sqlOme = "SELECT Unidade_OME FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` " +
+                     "WHERE ID_Local = '" + limparSql(idLocalStr) + "' OR UPPER(TRIM(Nome_Local)) = '" + limparSql(nomeLocalAlvo.toUpperCase()) + "' LIMIT 1";
+        var resOme = executarConsultaBigQuerySegura(sqlOme);
+        if (resOme && resOme.rows && resOme.rows.length > 0 && resOme.rows[0].f && resOme.rows[0].f[0].v) {
+          omePadrao = String(resOme.rows[0].f[0].v).trim();
+        }
+      } catch(eOme) {}
     }
 
+    if (!omePadrao && nomeLocalAlvo) {
+      try {
+        var sqlOmeInv = "SELECT UNIDADE FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
+                        "WHERE (UPPER(TRIM(SETOR)) = '" + limparSql(nomeLocalAlvo.toUpperCase()) + "' " +
+                        "       OR UPPER(TRIM(OBJETO)) LIKE '%" + limparSql(nomeLocalAlvo.toUpperCase()) + "%') LIMIT 1";
+        var resOmeInv = executarConsultaBigQuerySegura(sqlOmeInv);
+        if (resOmeInv && resOmeInv.rows && resOmeInv.rows.length > 0 && resOmeInv.rows[0].f && resOmeInv.rows[0].f[0].v) {
+          omePadrao = String(resOmeInv.rows[0].f[0].v).trim();
+        }
+      } catch(eOmeInv) {}
+    }
+
+    if (!omePadrao) {
+      throw new Error("Não foi possível identificar a OME correspondente para alteração de hierarquia.");
+    }
+
+    var inSqlOme = (typeof obterVariacoesOmeParaSql_ === 'function') 
+      ? obterVariacoesOmeParaSql_(omePadrao) 
+      : ("'" + String(omePadrao || '').toUpperCase().replace(/'/g, "\'") + "'");
+
+    // 2. Carrega todos os locais da OME para mapeamento hierárquico preciso
+    var todosLocais = (typeof getArvoreLocais === 'function') ? getArvoreLocais(omePadrao) : obterLocaisArvoreGeral_(omePadrao);
     var mapaNos = {};
-    var todosLocais = (typeof getArvoreLocais === 'function') ? getArvoreLocais() : obterLocaisArvoreGeral_();
-    todosLocais.forEach(function(l) {
-      mapaNos[l.id] = l;
-      if (l.id === idLocalStr) {
-        if (!nomeLocalAlvo) nomeLocalAlvo = l.nome;
-        omeLocalAlvo = l.ome;
+    (todosLocais || []).forEach(function(l) {
+      mapaNos[String(l.id)] = l;
+      if (String(l.id) === idLocalStr && !nomeLocalAlvo) {
+        nomeLocalAlvo = l.nome;
       }
     });
 
-    if (!omeLocalAlvo && usuarioSessao && usuarioSessao.unidade) {
-      omeLocalAlvo = usuarioSessao.unidade;
-    }
-
-    // 2. Atualiza na planilha auxiliar para redundância com proteção estrita de escopo
-    var linhaAlvoIdx = -1;
-    var sheet = null;
-    var dados = null;
-    try {
-      var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
-      sheet = ss.getSheetByName(ABA_LOCAIS_ARMAZENAMENTO);
-      if (sheet && sheet.getLastRow() > 1) {
-        dados = sheet.getDataRange().getValues();
-        for (var k = 1; k < dados.length; k++) {
-          if (String(dados[k][0] || "").trim() === idLocalStr) {
-            sheet.getRange(k + 1, 4).setValue(novoIdPaiStr);
-            linhaAlvoIdx = k + 1;
-            break;
-          }
-        }
-      }
-    } catch(eSheet) {
-      console.warn("Aviso ao atualizar planilha auxiliar: " + eSheet.message);
-    }
-
     // 3. Identifica a Subunidade Raiz resultante do novo local pai
     var novaSubunidade = "SEDE";
+    if (nomeNovoPaiAlvo) {
+      novaSubunidade = nomeNovoPaiAlvo;
+    }
     if (novoIdPaiStr) {
       var curId = novoIdPaiStr;
       var visitados = {};
@@ -3248,42 +3271,88 @@ function atualizarPaiLocalArvore(idLocal, novoIdPai, nomeLocalOpcional) {
         if (!noPaiObj.idPai || String(noPaiObj.idPai).trim() === "") {
           var nomeRaiz = String(noPaiObj.nome || "").trim();
           var ehSede = (typeof ehSubunidadeEquivalenteOme_ === 'function') 
-            ? ehSubunidadeEquivalenteOme_(nomeRaiz, omeLocalAlvo) 
+            ? ehSubunidadeEquivalenteOme_(nomeRaiz, omePadrao) 
             : (nomeRaiz.toUpperCase() === "SEDE");
           novaSubunidade = ehSede ? "SEDE" : nomeRaiz;
           break;
         }
-        curId = noPaiObj.idPai;
+        curId = String(noPaiObj.idPai).trim();
       }
     }
 
-    // 4. Sincroniza a movimentação no inventário (BigQuery)
+    if ((typeof ehSubunidadeEquivalenteOme_ === 'function') && ehSubunidadeEquivalenteOme_(novaSubunidade, omePadrao)) {
+      novaSubunidade = "SEDE";
+    }
+
+    // 4. Atualiza ou insere na tabela centralizada tb_Arvore
+    try {
+      var sqlUpPai = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` " +
+                     "SET ID_Pai = " + sqlLiteralChamado_(novoIdPaiStr) + " " +
+                     "WHERE (ID_Local = '" + limparSQLChamado_(idLocalStr) + "' " +
+                     "       OR (UPPER(TRIM(Nome_Local)) = '" + limparSQLChamado_(nomeLocalAlvo.toUpperCase()) + "' AND UPPER(TRIM(Unidade_OME)) IN (" + inSqlOme + ")))";
+      executarEscritaBigQuerySegura(sqlUpPai);
+
+      // Se for viatura ou nó novo não existente em tb_Arvore, insere para persistência
+      var sqlCheck = "SELECT ID_Local FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` " +
+                     "WHERE ID_Local = '" + limparSQLChamado_(idLocalStr) + "' OR (UPPER(TRIM(Nome_Local)) = '" + limparSQLChamado_(nomeLocalAlvo.toUpperCase()) + "' AND UPPER(TRIM(Unidade_OME)) IN (" + inSqlOme + "))";
+      var resCheck = executarConsultaBigQuerySegura(sqlCheck);
+      if (!resCheck || !resCheck.rows || resCheck.rows.length === 0) {
+        var sqlIns = "INSERT INTO `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` (ID_Local, Unidade_OME, Nome_Local, ID_Pai) VALUES (" +
+                     "'" + limparSQLChamado_(idLocalStr) + "', '" + limparSQLChamado_(omePadrao) + "', '" + limparSQLChamado_(nomeLocalAlvo) + "', " + sqlLiteralChamado_(novoIdPaiStr) + ")";
+        executarEscritaBigQuerySegura(sqlIns);
+      }
+    } catch(eBq) {
+      console.warn("Aviso ao atualizar pai na base centralizada: " + eBq.message);
+    }
+
+    // 5. Atualiza na planilha auxiliar para redundância
+    var linhaAlvoIdx = -1;
+    var sheet = null;
+    var dados = null;
+    try {
+      var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
+      sheet = ss.getSheetByName(ABA_LOCAIS_ARMAZENAMENTO);
+      if (sheet && sheet.getLastRow() > 1) {
+        dados = sheet.getDataRange().getValues();
+        var achouNaPlanilha = false;
+        for (var k = 1; k < dados.length; k++) {
+          var omeRow = String(dados[k][1] || "").trim().toUpperCase();
+          var idRow = String(dados[k][0] || "").trim();
+          var nomeRow = String(dados[k][2] || "").trim().toUpperCase();
+          if (idRow === idLocalStr || (nomeRow === nomeLocalAlvo.toUpperCase() && (!omeRow || omeRow === omePadrao.toUpperCase()))) {
+            sheet.getRange(k + 1, 4).setValue(novoIdPaiStr);
+            linhaAlvoIdx = k + 1;
+            achouNaPlanilha = true;
+            break;
+          }
+        }
+        if (!achouNaPlanilha && idLocalStr && nomeLocalAlvo) {
+          sheet.appendRow([idLocalStr, omePadrao, nomeLocalAlvo, novoIdPaiStr]);
+        }
+      }
+    } catch(eSheet) {
+      console.warn("Aviso ao atualizar planilha auxiliar: " + eSheet.message);
+    }
+
+    // 6. Sincroniza a movimentação no inventário (BigQuery)
     var siglaVtr = (typeof obterSiglaViaturaBackend_ === 'function') ? obterSiglaViaturaBackend_(nomeLocalAlvo) : "";
-    var ehVtr = !!siglaVtr || idLocalStr.indexOf("loc_vtr_") === 0 || idLocalStr.indexOf("vtr_") === 0 || /^(?:AR|ABT|ABTS|AT|ASE|BIS)[ -]/i.test(nomeLocalAlvo);
-
-    var omePadrao = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(omeLocalAlvo) : omeLocalAlvo;
-    var inSqlOme = (typeof obterVariacoesOmeParaSql_ === 'function') 
-      ? obterVariacoesOmeParaSql_(omePadrao) 
-      : ("'" + String(omePadrao || '').toUpperCase().replace(/'/g, "\\'") + "'");
-
-    function limparSql(t) { return String(t || '').replace(/'/g, "\\'"); }
+    var ehVtr = !!siglaVtr || idLocalStr.indexOf("loc_vtr_") === 0 || idLocalStr.indexOf("vtr_") === 0 || /^(?:AR|ABT|ABTS|AT|ASE|BIS|MSA|MR|UR)[ -]/i.test(nomeLocalAlvo);
 
     var nOrdemOuSerie = "";
     var matchNum = nomeLocalAlvo.match(/\b\d+\b/);
     if (matchNum) {
-      nOrdemOuSerie = matchNum[0].trim();
+      nOrdemOuSerie = matchNum[0].replace(/^0+/, "");
     }
 
     if (ehVtr) {
+      // 6.1 Atualiza a Viatura em si no inventário
       var whereVtr = "UPPER(TRIM(UNIDADE)) IN (" + inSqlOme + ") AND (";
       whereVtr += "UPPER(TRIM(SETOR)) = '" + limparSql(nomeLocalAlvo.toUpperCase()) + "' ";
+      whereVtr += "OR UPPER(TRIM(SETOR)) = '" + limparSql(nomeLocalAlvo.replace(/\s+/g, "").toUpperCase()) + "' ";
       whereVtr += "OR UPPER(TRIM(SETOR)) = '" + limparSql(nomeLocalAlvo.replace(/\s*-\s*/g, " ").toUpperCase()) + "' ";
-      whereVtr += "OR UPPER(TRIM(SETOR)) = '" + limparSql(nomeLocalAlvo.replace(/\s+/g, " - ").toUpperCase()) + "' ";
       if (nOrdemOuSerie) {
-        whereVtr += "OR UPPER(TRIM(COALESCE(N_SERIE, ''))) = '" + limparSql(nOrdemOuSerie.toUpperCase()) + "' ";
-      }
-      if (siglaVtr && nOrdemOuSerie) {
-        whereVtr += "OR (UPPER(TRIM(OBJETO)) LIKE '%" + limparSql(siglaVtr) + "%' AND UPPER(TRIM(COALESCE(N_SERIE, ''))) = '" + limparSql(nOrdemOuSerie.toUpperCase()) + "') ";
+        whereVtr += "OR REPLACE(UPPER(TRIM(COALESCE(N_SERIE, ''))), ' ', '') = '" + limparSql(nOrdemOuSerie) + "' ";
+        whereVtr += "OR (UPPER(OBJETO) LIKE '%" + limparSql(nOrdemOuSerie) + "%' AND (identificarSeObjetoEhViatura_(OBJETO) = TRUE OR ehViaturaMaterialBackend_(OBJETO) = TRUE)) ";
       }
       whereVtr += ")";
 
@@ -3297,54 +3366,35 @@ function atualizarPaiLocalArvore(idLocal, novoIdPai, nomeLocalOpcional) {
         console.warn("Aviso ao atualizar viatura no inventário: " + eBqVtr.message);
       }
 
+      // 6.2 Atualiza todos os materiais atribuídos a esta viatura
       try {
         var sqlUpMats = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
                         "SET SUBUNIDADE = '" + limparSql(novaSubunidade) + "' " +
                         "WHERE UPPER(TRIM(UNIDADE)) IN (" + inSqlOme + ") " +
-                        "AND UPPER(TRIM(SETOR)) = '" + limparSql(nomeLocalAlvo.toUpperCase()) + "' " +
-                        (nOrdemOuSerie ? ("AND (N_SERIE IS NULL OR UPPER(TRIM(N_SERIE)) != '" + limparSql(nOrdemOuSerie.toUpperCase()) + "')") : "");
+                        "  AND (UPPER(TRIM(SETOR)) = '" + limparSql(nomeLocalAlvo.toUpperCase()) + "' " +
+                        "       OR UPPER(TRIM(SETOR)) = '" + limparSql(nomeLocalAlvo.replace(/\s+/g, "").toUpperCase()) + "' " +
+                        "       OR UPPER(TRIM(SETOR)) = '" + limparSql(nomeLocalAlvo.replace(/\s*-\s*/g, " ").toUpperCase()) + "') " +
+                        (nOrdemOuSerie ? ("AND (N_SERIE IS NULL OR REPLACE(UPPER(TRIM(N_SERIE)), ' ', '') != '" + limparSql(nOrdemOuSerie) + "')") : "");
         executarConsultaBigQuerySegura(sqlUpMats, true);
       } catch(eBqMats) {
         console.warn("Aviso ao atualizar materiais da viatura: " + eBqMats.message);
       }
-
-      // Deduplica preventivamente na planilha Arvore se já existir nó fantasma com a mesma viatura
-      try {
-        if (sheet && dados && Array.isArray(dados)) {
-          var nomeAlvoClean = nomeLocalAlvo.replace(/[^A-Z0-9]/gi, "").toUpperCase();
-          for (var dIdx = dados.length - 1; dIdx >= 1; dIdx--) {
-            if (linhaAlvoIdx !== -1 && (dIdx + 1 === linhaAlvoIdx)) continue;
-            var dOme = String(dados[dIdx][1] || "").trim();
-            var dNome = String(dados[dIdx][2] || "").trim();
-            var dClean = dNome.replace(/[^A-Z0-9]/gi, "").toUpperCase();
-            var ehMesmaVtr = (dClean === nomeAlvoClean) || 
-                             (siglaVtr && nOrdemOuSerie && dClean.indexOf(siglaVtr.toUpperCase()) !== -1 && dClean.indexOf(nOrdemOuSerie) !== -1);
-            if (ehMesmaVtr && (dOme.toUpperCase() === (omeLocalAlvo || "").toUpperCase() || !dOme)) {
-              var idDup = String(dados[dIdx][0] || "").trim();
-              for (var fRow = 1; fRow < dados.length; fRow++) {
-                if (String(dados[fRow][3] || "").trim() === idDup) {
-                  sheet.getRange(fRow + 1, 4).setValue(idLocalStr);
-                }
-              }
-              sheet.deleteRow(dIdx + 1);
-            }
-          }
-        }
-      } catch(eDedup) {
-        console.warn("Aviso na deduplicação da planilha: " + eDedup.message);
-      }
     } else {
+      // 6.3 Setor físico normal (Almoxarifado, Sala, etc.)
       try {
         var sqlUpGeral = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
                          "SET SUBUNIDADE = '" + limparSql(novaSubunidade) + "' " +
                          "WHERE UPPER(TRIM(UNIDADE)) IN (" + inSqlOme + ") " +
-                         "AND (UPPER(TRIM(SETOR)) = '" + limparSql(nomeLocalAlvo.toUpperCase()) + "' OR UPPER(TRIM(LOCALIZACAO_ESPCIFICA_NA_OME_Se_Necessario)) = '" + limparSql(nomeLocalAlvo.toUpperCase()) + "')";
+                         "  AND (UPPER(TRIM(SETOR)) = '" + limparSql(nomeLocalAlvo.toUpperCase()) + "' " +
+                         "       OR UPPER(TRIM(SETOR)) = '" + limparSql(nomeLocalAlvo.replace(/\s+/g, "").toUpperCase()) + "' " +
+                         "       OR UPPER(TRIM(LOCALIZACAO_ESPCIFICA_NA_OME_Se_Necessario)) = '" + limparSql(nomeLocalAlvo.toUpperCase()) + "')";
         executarConsultaBigQuerySegura(sqlUpGeral, true);
       } catch(eBqGeral) {
         console.warn("Aviso ao atualizar setor geral: " + eBqGeral.message);
       }
     }
 
+    // 7. Registra auditoria e histórico de movimentação
     try {
       registrarLogAuditoria("ALTERACAO_PAI_LOCAL_ARVORE", "Alterou hierarquia do local '" + nomeLocalAlvo + "' (ID: " + idLocalStr + ") para novo pai: " + novoIdPaiStr + " (Subunidade: " + novaSubunidade + ")");
     } catch(eLogPai) {}
@@ -3355,30 +3405,30 @@ function atualizarPaiLocalArvore(idLocal, novoIdPai, nomeLocalOpcional) {
         objeto: nomeLocalAlvo,
         nPatrimonio: "-",
         tipoEvento: "TRANSFERENCIA_SETOR",
-        origemUnidade: omeLocalAlvo || "-",
+        origemUnidade: omePadrao,
         origemLocal: (mapaNos[idLocalStr] && mapaNos[idLocalStr].idPai && mapaNos[mapaNos[idLocalStr].idPai] ? mapaNos[mapaNos[idLocalStr].idPai].nome : "SEDE"),
-        destinoUnidade: omeLocalAlvo || "-",
+        destinoUnidade: omePadrao,
         destinoLocal: novaSubunidade,
         statusAnterior: "-",
         statusNovo: "ECD",
-        responsavelNome: (usuarioSessao && (usuarioSessao.nome || usuarioSessao.email)) || "Gestor de Frotas",
+        responsavelNome: (usuarioSessao && (usuarioSessao.nome || usuarioSessao.email)) || "Gestor de Estoque",
         responsavelCpf: (usuarioSessao && usuarioSessao.cpf) || "-",
         documentoRef: "-",
         observacao: "Remanejamento de nível/hierarquia na Árvore de Locais para " + novaSubunidade
       }]);
-    } catch(eHistMov) {
-      console.warn("Aviso ao registrar histórico de movimentação na árvore: " + eHistMov.message);
+    } catch(eHistMov) {}
+
+    // 8. Invalida o cache
+    if (typeof invalidarCacheArmazenamentoOme_ === 'function' && omePadrao) {
+      invalidarCacheArmazenamentoOme_(omePadrao);
     }
 
-    if (typeof invalidarCacheArmazenamentoOme_ === 'function' && omeLocalAlvo) invalidarCacheArmazenamentoOme_(omeLocalAlvo);
-
-    return "Hierarquia atualizada com sucesso!";
+    return "Hierarquia atualizada com sucesso! O setor '" + nomeLocalAlvo + "' foi transferido para '" + novaSubunidade + "'.";
 
   } catch (err) {
     throw new Error("Erro ao atualizar hierarquia: " + err.message);
   }
 }
-
 
 var MAPA_SEDE_OME_CACHE_ = {};
 

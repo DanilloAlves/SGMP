@@ -10745,6 +10745,9 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
       return;
     }
 
+    const selOme = document.getElementById('selectOmeArvore');
+    const omeAtual = selOme ? (selOme.value || selOme.getAttribute('data-value') || OME_GLOBAL) : OME_GLOBAL;
+
     const ehVtr = (typeof ehViaturaLocal === 'function') && ehViaturaLocal(nomeLocal);
     const locAtual = (cacheLocaisArvore || []).find(l => String(l.id) === String(idLocal));
     const idPaiAtual = locAtual ? String(locAtual.idPai || '').trim() : '';
@@ -10761,18 +10764,18 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
         optionsPai = '<option value="" disabled ' + (!idPaiAtual ? 'selected' : '') + '>Selecione a Subunidade de destino...</option>';
         subunidades.forEach(sub => {
           const isSelected = (idPaiAtual && String(sub.id) === idPaiAtual) ? 'selected' : '';
-          optionsPai += `<option value="${sub.id}" ${isSelected}>🏢 ${sub.nome}</option>`;
+          optionsPai += `<option value="${sub.id}" data-nome="${encodeURIComponent(sub.nome)}" ${isSelected}>🏢 ${sub.nome}</option>`;
         });
       }
     } else {
       // Para os DEMAIS MATERIAIS / LOCAIS: continuam aparecendo todos os níveis da árvore
-      optionsPai = `<option value="" ${!idPaiAtual ? 'selected' : ''}>(Tornar Nível Raiz Principal)</option>`;
+      optionsPai = `<option value="" data-nome="SEDE" ${!idPaiAtual ? 'selected' : ''}>(Tornar Nível Raiz Principal / SEDE)</option>`;
       if (cacheLocaisArvore && cacheLocaisArvore.length > 0) {
         cacheLocaisArvore.forEach(loc => {
           if (String(loc.id) !== String(idLocal)) {
             const isSelected = (idPaiAtual && String(loc.id) === idPaiAtual) ? 'selected' : '';
             const prefixoIcone = (!loc.idPai || String(loc.idPai).trim() === '') ? '🏢 ' : '📁 ';
-            optionsPai += `<option value="${loc.id}" ${isSelected}>${prefixoIcone}${loc.nome}</option>`;
+            optionsPai += `<option value="${loc.id}" data-nome="${encodeURIComponent(loc.nome)}" ${isSelected}>${prefixoIcone}${loc.nome}</option>`;
           }
         });
       }
@@ -10800,12 +10803,23 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
       cancelButtonText: 'Cancelar',
       confirmButtonColor: '#0d6efd',
       preConfirm: () => {
-        const val = document.getElementById('swalNovoPai').value;
+        const selectEl = document.getElementById('swalNovoPai');
+        const val = selectEl ? selectEl.value : '';
         if (ehVtr && (!val || val.trim() === '')) {
           Swal.showValidationMessage('Selecione uma Subunidade de destino para a viatura!');
           return false;
         }
-        return val;
+        const selectedOption = selectEl && selectEl.selectedIndex >= 0 ? selectEl.options[selectEl.selectedIndex] : null;
+        let nomeNovoPai = '';
+        if (selectedOption) {
+          const rawDataNome = selectedOption.getAttribute('data-nome');
+          if (rawDataNome) {
+            nomeNovoPai = decodeURIComponent(rawDataNome);
+          } else {
+            nomeNovoPai = selectedOption.text.replace(/^[🏢📁\s]+/, '').trim();
+          }
+        }
+        return { novoIdPai: val, nomeNovoPai: nomeNovoPai };
       }
     }).then(res => {
       if (res.isConfirmed && res.value !== undefined) {
@@ -10833,17 +10847,23 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
               timer: 2000,
               showConfirmButton: false
             });
-            carregarLocaisArvoreGeral();
+            carregarLocaisArvoreGeral(true, omeAtual);
           })
           .withFailureHandler(err => {
             Swal.fire('Erro ao Mover', err.message || 'Falha na comunicação com o servidor.', 'error');
           })
-          .atualizarPaiLocalArvore(idLocal, res.value, nomeLocal);
+          .atualizarPaiLocalArvore({
+            idLocal: idLocal,
+            novoIdPai: res.value.novoIdPai,
+            nomeLocal: nomeLocal,
+            nomeNovoPai: res.value.nomeNovoPai,
+            ome: omeAtual
+          });
       }
     });
   }
 
-    // =========================================================================
+  // =========================================================================
   // GESTÃO HÍBRIDA DE VIATURAS & ESTUDO DE CRUZAMENTO SEI (Pecúlio x BigQuery)
   // =========================================================================
 
