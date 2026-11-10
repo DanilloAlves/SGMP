@@ -24053,7 +24053,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     const tituloAba = document.querySelector('#aba-gerenciar-usuarios h4');
     if (tituloAba) {
       if (ehAdminGlobal()) {
-        tituloAba.innerHTML = '<i class="fa-solid fa-users-gear me-2"></i> Gerenciamento de Usuários (Geral / Estadual)';
+        tituloAba.innerHTML = '<i class="fa-solid fa-users-gear me-2"></i> Gerenciamento de Usuários';
       } else {
         const omeExib = (typeof obterNomeOficialOme === 'function') ? obterNomeOficialOme(OME_GLOBAL) : OME_GLOBAL;
         tituloAba.innerHTML = `<i class="fa-solid fa-users-gear me-2"></i> Gerenciamento de Usuários — ${omeExib}`;
