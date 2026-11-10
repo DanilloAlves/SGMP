@@ -2405,6 +2405,7 @@ function obterLocaisArvoreGeral_(unidadeOmega) {
 
       var lista = [];
       var rows = res.rows || [];
+      var mapaIdsExistentes = {};
       for (var i = 0; i < rows.length; i++) {
         var f = rows[i].f || [];
         var idLoc = String(f[0] && f[0].v ? f[0].v : "").trim();
@@ -2418,8 +2419,23 @@ function obterLocaisArvoreGeral_(unidadeOmega) {
             nome: nomeLoc,
             idPai: idPaiLoc
           });
+          mapaIdsExistentes[idLoc] = true;
         }
       }
+
+      // Mescla com dados da planilha auxiliar para garantir que nós filhos (ex: Porta 01, Porta 02) nunca sejam perdidos
+      try {
+        var listaPlanilha = obterLocaisArvorePlanilhaFallback_(omePadrao);
+        if (listaPlanilha && listaPlanilha.length > 0) {
+          listaPlanilha.forEach(function(pItem) {
+            if (!mapaIdsExistentes[pItem.id]) {
+              lista.push(pItem);
+              mapaIdsExistentes[pItem.id] = true;
+            }
+          });
+        }
+      } catch(eMerge) {}
+
       if (lista.length > 0) return lista;
     }
   } catch (errBq) {
@@ -2690,12 +2706,6 @@ function garantirConsistenciaArvoreLocais_(omePadrao) {
     var ome = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(omePadrao) : String(omePadrao || "").trim();
     if (!ome) return;
 
-    var cacheKey = "CONSISTENCIA_ARVORE_" + ome.toUpperCase().replace(/[^A-Z0-9]/g, "_");
-    var cache = CacheService.getScriptCache();
-    if (cache && cache.get(cacheKey)) {
-      return;
-    }
-
     // 1. Corrige Unidade_OME e ID_Pai da viatura AR - 1164 na tb_Arvore no BigQuery
     try {
       var sqlFixBq = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` " +
@@ -2704,6 +2714,24 @@ function garantirConsistenciaArvoreLocais_(omePadrao) {
                      "WHERE ID_Local = 'vtr_1__GB_Vitoria_St__Ant_o_AR___1164' " +
                      "   OR (UPPER(TRIM(Nome_Local)) = 'AR - 1164' AND (UPPER(TRIM(Unidade_OME)) = 'DLOG' OR UPPER(TRIM(Unidade_OME)) LIKE '%VITORIA%'))";
       executarEscritaBigQuerySegura(sqlFixBq);
+
+      // Garante Porta 01 e Porta 02 na tb_Arvore vinculadas à AR - 1164
+      var sqlUpPortasBq = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` " +
+                          "SET Unidade_OME = '1º GB Vitoria Stº Antão', " +
+                          "    ID_Pai = 'vtr_1__GB_Vitoria_St__Ant_o_AR___1164' " +
+                          "WHERE ID_Local IN ('loc_1794309618424', 'loc_1794309632986') " +
+                          "   OR (UPPER(TRIM(Nome_Local)) IN ('PORTA 01', 'PORTA 02') AND UPPER(TRIM(ID_Pai)) LIKE '%1164%')";
+      executarEscritaBigQuerySegura(sqlUpPortasBq);
+
+      var sqlInsP1 = "INSERT INTO `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` (ID_Local, Unidade_OME, Nome_Local, ID_Pai) " +
+                     "SELECT 'loc_1794309618424', '1º GB Vitoria Stº Antão', 'Porta 01', 'vtr_1__GB_Vitoria_St__Ant_o_AR___1164' " +
+                     "WHERE NOT EXISTS (SELECT 1 FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` WHERE ID_Local = 'loc_1794309618424')";
+      executarEscritaBigQuerySegura(sqlInsP1);
+
+      var sqlInsP2 = "INSERT INTO `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` (ID_Local, Unidade_OME, Nome_Local, ID_Pai) " +
+                     "SELECT 'loc_1794309632986', '1º GB Vitoria Stº Antão', 'Porta 02', 'vtr_1__GB_Vitoria_St__Ant_o_AR___1164' " +
+                     "WHERE NOT EXISTS (SELECT 1 FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` WHERE ID_Local = 'loc_1794309632986')";
+      executarEscritaBigQuerySegura(sqlInsP2);
     } catch(eBq) {
       console.warn("Aviso ao corrigir tb_Arvore no BigQuery: " + eBq.message);
     }
@@ -2755,7 +2783,6 @@ function garantirConsistenciaArvoreLocais_(omePadrao) {
       console.warn("Aviso ao sincronizar materiais de AR - 1164 nas Portas: " + eMat.message);
     }
 
-    if (cache) cache.put(cacheKey, "OK", 300);
   } catch(eGeral) {
     console.warn("Aviso em garantirConsistenciaArvoreLocais_: " + eGeral.message);
   }

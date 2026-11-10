@@ -10831,7 +10831,16 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
             matsDoLocal = matsDoLocal.filter(m => filtrosAtivos.includes(m.nome.toUpperCase()));
           }
 
-          const totalItens = matsDoLocal.reduce((acc, m) => acc + (parseInt(m.qtd) || 0), 0);
+          function obterTotalItensSubarvore(noId) {
+            let total = (cacheMateriaisAtrelados[noId] || []).reduce((acc, m) => {
+              if (filtrosAtivos.length > 0 && !filtrosAtivos.includes(m.nome.toUpperCase())) return acc;
+              return acc + (parseInt(m.qtd) || 0);
+            }, 0);
+            const filhosDoNo = locais.filter(l => String(l.idPai) === String(noId));
+            filhosDoNo.forEach(fn => { total += obterTotalItensSubarvore(fn.id); });
+            return total;
+          }
+          const totalItens = obterTotalItensSubarvore(f.id);
           const temMateriais = matsDoLocal.length > 0;
 
           let botoesAcaoFilho = '';
@@ -10926,7 +10935,16 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
           matsDoLocal = matsDoLocal.filter(m => filtrosAtivos.includes(m.nome.toUpperCase()));
         }
 
-        const totalItens = matsDoLocal.reduce((acc, m) => acc + (parseInt(m.qtd) || 0), 0);
+        function obterTotalItensRaiz(noId) {
+          let total = (cacheMateriaisAtrelados[noId] || []).reduce((acc, m) => {
+            if (filtrosAtivos.length > 0 && !filtrosAtivos.includes(m.nome.toUpperCase())) return acc;
+            return acc + (parseInt(m.qtd) || 0);
+          }, 0);
+          const filhosDoNo = locais.filter(l => String(l.idPai) === String(noId));
+          filhosDoNo.forEach(fn => { total += obterTotalItensRaiz(fn.id); });
+          return total;
+        }
+        const totalItens = obterTotalItensRaiz(l.id);
         const temMateriais = matsDoLocal.length > 0;
 
         const btnSubir = idx > 0 ? `<button class="btn btn-sm btn-outline-secondary me-1 py-0 px-1" title="Mover para Cima" onclick="moverOrdemRaiz(${idx}, -1)"><i class="fa-solid fa-arrow-up"></i></button>` : '';
