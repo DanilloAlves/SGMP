@@ -1779,6 +1779,9 @@
           </div>
         </div>
 
+
+        <!-- POSIÇÃO DO DASHBOARD EXECUTIVO PARA USUÁRIO COM PERMISSÃO -->
+        <div id="posicaoDashboardUsuario" class="mb-4"></div>
         <!-- CARDS DE INDICADORES RÁPIDOS -->
         <div class="row g-3 mb-4">
           <div class="col-md-4">
@@ -5002,6 +5005,14 @@
       cor: "primary"
     },
     {
+      id: "visualizar_dashboard",
+      nome: "Visualização do Dashboard Executivo",
+      descricao: "Visualizar o painel executivo com gráficos estatísticos, KPIs e detalhamento de materiais na Visão Geral",
+      icone: "fa-solid fa-chart-column",
+      badgeTexto: "Dashboard",
+      cor: "danger"
+    },
+    {
       id: "aba_logs",
       nome: "Acesso à Aba Logs de Auditoria",
       descricao: "Visualizar a aba de Logs e auditoria geral de todas as movimentações e acessos no sistema",
@@ -6049,21 +6060,30 @@
     const ehChefe = perfilNorm === "chefe de setor" || perfilNorm.includes("chefe") || perfilNorm.includes("comandante");
 
     const podeVerDistribuicao = ehAdmin || (typeof temPermissao === 'function' && temPermissao('tickets_distribuicao'));
+    const podeVerDashboard = ehAdmin || ehChefe || (typeof temPermissao === 'function' && temPermissao('visualizar_dashboard'));
 
-    // Posiciona o Dashboard sempre abaixo do Banner do Perfil (Administrador ou Chefe)
+    // Posiciona o Dashboard sempre abaixo do Banner do Perfil (Administrador, Chefe ou Usuário autorizado)
     const dashEl = document.getElementById('painelDashboardVisaoGeral');
     if (dashEl) {
-      if (ehAdmin || podeVerDistribuicao) {
-        const dest = document.getElementById('posicaoDashboardAdmin');
-        if (dest && dashEl.parentElement !== dest) dest.appendChild(dashEl);
-      } else if (ehChefe) {
-        const dest = document.getElementById('posicaoDashboardChefe');
-        if (dest && dashEl.parentElement !== dest) dest.appendChild(dashEl);
+      if (!podeVerDashboard) {
+        dashEl.style.display = 'none';
+      } else {
+        dashEl.style.display = 'block';
+        if (ehAdmin || podeVerDistribuicao) {
+          const dest = document.getElementById('posicaoDashboardAdmin');
+          if (dest && dashEl.parentElement !== dest) dest.appendChild(dashEl);
+        } else if (ehChefe) {
+          const dest = document.getElementById('posicaoDashboardChefe');
+          if (dest && dashEl.parentElement !== dest) dest.appendChild(dashEl);
+        } else {
+          const dest = document.getElementById('posicaoDashboardUsuario');
+          if (dest && dashEl.parentElement !== dest) dest.appendChild(dashEl);
+        }
       }
     }
 
-    // Inicializa o Dashboard Executivo de Materiais
-    if (typeof carregarDadosDashboardVisaoGeral === 'function') {
+    // Inicializa o Dashboard Executivo de Materiais se tiver permissão
+    if (podeVerDashboard && typeof carregarDadosDashboardVisaoGeral === 'function') {
       carregarDadosDashboardVisaoGeral();
     }
 
@@ -28356,6 +28376,12 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       const podeBase = ehAdmin || (typeof temPermissao === 'function' && temPermissao('base_dados'));
       const podeLogs = ehAdmin || (typeof temPermissao === 'function' && temPermissao('aba_logs'));
       const podeAberturaChamados = typeof temPermissao === 'function' ? temPermissao('abertura_chamados') : false;
+    const podeVerDashboard = ehAdmin || (typeof ehChefeGlobal === 'function' && ehChefeGlobal()) || (typeof temPermissao === 'function' && temPermissao('visualizar_dashboard'));
+
+    const elDashVisao = document.getElementById('painelDashboardVisaoGeral');
+    if (elDashVisao && !podeVerDashboard) {
+      elDashVisao.style.display = 'none';
+    }
 
       if (menuInv) menuInv.style.display = podeMovimentacao ? 'flex' : 'none';
       if (menuCint) menuCint.style.display = podeCint ? 'flex' : 'none';

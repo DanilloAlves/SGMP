@@ -251,6 +251,7 @@ var LISTA_CHAVES_PERMISSOES = [
   "checklist_toda_ome",
   "importar_exportar_excel",
   "abertura_chamados",
+  "visualizar_dashboard",
   "aba_logs",
   "base_dados",
   "tickets_distribuicao",
@@ -272,7 +273,8 @@ var LISTA_PERMISSOES_COMANDANTE = [
   "validar_checklist",
   "checklist_toda_ome",
   "importar_exportar_excel",
-  "abertura_chamados"
+  "abertura_chamados",
+  "visualizar_dashboard"
 ];
 
 function padronizarPermissoesUsuario_(permRaw, perfil) {
@@ -21158,8 +21160,9 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao, omeCliente, perfilClie
     var perfilUsuario = usuario ? padronizarPerfilUsuario_(usuario.perfil) : (perfilCliente || "Usuário");
     var perfilNorm = (perfilUsuario || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
     var ehAdmin = (perfilNorm === "administrador" || perfilNorm.indexOf("admin") !== -1);
+    var temVisaoTodasOmes = ehAdmin || (usuario && Array.isArray(usuario.permissoes) && usuario.permissoes.indexOf("selecionar_todas_omes") !== -1);
 
-    var chaveCacheDash = "DASH_VISAO_GERAL_V9_" + (ehAdmin ? "ADMIN" : (omeUsuario || "USER").toUpperCase().replace(/[^A-Z0-9]/g, "_"));
+    var chaveCacheDash = "DASH_VISAO_GERAL_V9_" + (temVisaoTodasOmes ? "ADMIN" : (omeUsuario || "USER").toUpperCase().replace(/[^A-Z0-9]/g, "_"));
     if (!forcarAtualizacao) {
       var dashCached = lerDeCacheChunked_(chaveCacheDash);
       if (dashCached && dashCached.sucesso && dashCached.dados && dashCached.dados.length > 0) {
@@ -21198,7 +21201,7 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao, omeCliente, perfilClie
 
     // 3. Consulta agregada no BigQuery agrupando por UNIDADE, SUBUNIDADE, OBJETO e STATUS
     var filtroOmeSql = "";
-    if (!ehAdmin && omeUsuario) {
+    if (!temVisaoTodasOmes && omeUsuario) {
       var omeSanitizada = String(omeUsuario).trim().toUpperCase().replace(/['"\\]/g, "");
       filtroOmeSql = "  AND UPPER(TRIM(UNIDADE)) = '" + omeSanitizada + "' ";
     }
@@ -21411,7 +21414,7 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao, omeCliente, perfilClie
     }
 
     var listaOmesFinal = [];
-    if (ehAdmin) {
+    if (temVisaoTodasOmes) {
       var omesOficiais = (typeof getListaOmesOficiais === 'function') ? getListaOmesOficiais() : [];
       var mapaOmesNorm = {};
       omesOficiais.forEach(function(o) {
@@ -21469,7 +21472,7 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao, omeCliente, perfilClie
 
     var respFinalDash = {
       sucesso: true,
-      ehAdmin: ehAdmin,
+      ehAdmin: temVisaoTodasOmes,
       omeUsuario: omeUsuario,
       perfilUsuario: perfilUsuario,
       listaOmes: listaOmesFinal,
