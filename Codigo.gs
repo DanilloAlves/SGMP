@@ -2921,6 +2921,23 @@ function getArvoreLocais(unidadeOmega) {
       console.warn("Aviso ao sincronizar viaturas do inventário na árvore: " + eVtrArvore.message);
     }
 
+    // Garante que a SEDE seja sempre a primeira raiz no topo da árvore
+    locais.sort(function(a, b) {
+      var aPai = a.idPai ? String(a.idPai).trim() : '';
+      var bPai = b.idPai ? String(b.idPai).trim() : '';
+      if (!aPai && !bPai) {
+        var aNome = String(a.nome || '').trim().toUpperCase();
+        var bNome = String(b.nome || '').trim().toUpperCase();
+        if (aNome === 'SEDE') return -1;
+        if (bNome === 'SEDE') return 1;
+        var aOrd = (a.ordem !== undefined && a.ordem !== null && a.ordem !== '') ? parseInt(a.ordem) : 999999;
+        var bOrd = (b.ordem !== undefined && b.ordem !== null && b.ordem !== '') ? parseInt(b.ordem) : 999999;
+        if (aOrd !== bOrd) return aOrd - bOrd;
+        return aNome.localeCompare(bNome);
+      }
+      return 0;
+    });
+
     return locais;
   } catch (err) {
     console.error("Erro em getArvoreLocais: " + err.message);
@@ -3052,78 +3069,125 @@ function migrarEstruturaEMateriaisViatura(dados) {
       ? obterVariacoesOmeParaSql_(omePadrao) 
       : ("'" + limparSQL(omePadrao.toUpperCase()) + "'");
 
-    // 1. Resolve a Subunidade da viatura de ORIGEM (onde a viatura que sai está alocada, ex: "1ª SB")
-    var hierarquiaOrigem = resolverCaminhoCompletoLocal(idOrigem, omePadrao);
-    var subunidadeAlvo = (hierarquiaOrigem && hierarquiaOrigem.subunidade) ? hierarquiaOrigem.subunidade : "SEDE";
+    var numOrigLimpo = nomeOrigem.replace(/[^0-9]/g, '').replace(/^0+/, '');
+    var nomeOrigemSemEsp = nomeOrigem.replace(/\s+/g, '');
+    var numDestLimpo = nomeDestino.replace(/[^0-9]/g, '').replace(/^0+/, '');
+    var nomeDestinoSemEsp = nomeDestino.replace(/\s+/g, '');
 
-    // Busca o idPai da viatura de origem na árvore
-    var idPaiOrigem = "";
-    try {
-      var todosLocaisOme = getArvoreLocais(omePadrao);
-      var noOrigem = (todosLocaisOme || []).find(function(l) { return String(l.id) === String(idOrigem); });
-      if (noOrigem && noOrigem.idPai) {
-        idPaiOrigem = String(noOrigem.idPai);
+    // 1. IDENTIFICA A POSIÇÃO EXATA DA VIATURA SUBSTITUÍDA NA ÁRVORE (ID_Pai e Subunidade Raiz)
+    var todosLocaisOme = (typeof getArvoreLocais === 'function') ? (getArvoreLocais(omePadrao) || []) : [];
+    var noOrigem = todosLocaisOme.find(function(l) { 
+      if (idOrigem && String(l.id) === String(idOrigem)) return true;
+      if (nomeOrigem && String(l.nome).toUpperCase().trim() === String(nomeOrigem).toUpperCase().trim()) return true;
+      if (nomeOrigemSemEsp && String(l.nome).replace(/\s+/g, '').toUpperCase() === nomeOrigemSemEsp.toUpperCase()) return true;
+      return false;
+    });
+
+    var idPaiOrigem = (noOrigem && noOrigem.idPai) ? String(noOrigem.idPai).trim() : "";
+    var subunidadeAlvo = "SEDE";
+
+    if (idPaiOrigem) {
+      var noPai = todosLocaisOme.find(function(l) { return String(l.id) === String(idPaiOrigem); });
+      if (noPai) {
+        var cur = noPai;
+        var vis = {};
+        while (cur && !vis[cur.id]) {
+          vis[cur.id] = true;
+          if (!cur.idPai || String(cur.idPai).trim() === "") {
+            subunidadeAlvo = String(cur.nome || "").trim();
+            break;
+          }
+          cur = todosLocaisOme.find(function(l) { return String(l.id) === String(cur.idPai); });
+        }
       }
-    } catch(eNo) {}
+    }
+
+    if (!subunidadeAlvo || (typeof ehSubunidadeEquivalenteOme_ === 'function' && ehSubunidadeEquivalenteOme_(subunidadeAlvo, omePadrao))) {
+      subunidadeAlvo = "SEDE";
+    }
+
+    if (!idPaiOrigem) {
+      idPaiOrigem = (typeof garantirSedePadraoOme === 'function') ? garantirSedePadraoOme(omePadrao) : "";
+    }
+
+    // 2. REMANEJAR A VIATURA SUBSTITUTA PARA A MESMA POSIÇÃO DA ÁRVORE QUE A SUBSTITUÍDA
+    if (migrarSubunidade && idPaiOrigem) {
+      // 2.1 Garante que a viatura substituta esteja registrada na tb_Arvore com ID_Pai = idPaiOrigem
+      try {
+        var sqlCheckDest = "SELECT ID_Local FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` " +
+                           "WHERE UPPER(TRIM(Unidade_OME)) IN (" + inSqlOme + ") " +
+                           "  AND (ID_Local = '" + limparSQL(idDestino) + "' OR UPPER(TRIM(Nome_Local)) = '" + limparSQL(nomeDestino.toUpperCase()) + "') LIMIT 1";
+        var resCheckDest = executarConsultaBigQuerySegura(sqlCheckDest);
+        if (resCheckDest && resCheckDest.rows && resCheckDest.rows.length > 0) {
+          var sqlUpPaiDest = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` " +
+                             "SET ID_Pai = '" + limparSQL(idPaiOrigem) + "' " +
+                             "WHERE UPPER(TRIM(Unidade_OME)) IN (" + inSqlOme + ") " +
+                             "  AND (ID_Local = '" + limparSQL(idDestino) + "' OR UPPER(TRIM(Nome_Local)) = '" + limparSQL(nomeDestino.toUpperCase()) + "')";
+          executarEscritaBigQuerySegura(sqlUpPaiDest);
+        } else {
+          var sqlInsDest = "INSERT INTO `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` (ID_Local, Unidade_OME, Nome_Local, ID_Pai) " +
+                           "VALUES ('" + limparSQL(idDestino) + "', '" + limparSQL(omePadrao) + "', '" + limparSQL(nomeDestino) + "', '" + limparSQL(idPaiOrigem) + "')";
+          executarEscritaBigQuerySegura(sqlInsDest);
+        }
+      } catch(ePaiDest) {
+        console.warn("Aviso ao atualizar/inserir viatura substituta na tb_Arvore: " + ePaiDest.message);
+      }
+
+      // 2.2 Sincroniza na planilha auxiliar
+      try {
+        var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
+        var sheet = ss.getSheetByName(ABA_LOCAIS_ARMAZENAMENTO);
+        if (sheet && sheet.getLastRow() > 1) {
+          var dadosSheet = sheet.getDataRange().getValues();
+          var achouDestSheet = false;
+          for (var i = 1; i < dadosSheet.length; i++) {
+            var omeSh = String(dadosSheet[i][1] || "").trim().toUpperCase();
+            var idSh = String(dadosSheet[i][0] || "").trim();
+            var nomeSh = String(dadosSheet[i][2] || "").trim().toUpperCase();
+            if (omeSh === omePadrao.toUpperCase() && (idSh === idDestino || nomeSh === nomeDestino.toUpperCase())) {
+              sheet.getRange(i + 1, 4).setValue(idPaiOrigem);
+              achouDestSheet = true;
+              break;
+            }
+          }
+          if (!achouDestSheet) {
+            sheet.appendRow([idDestino, omePadrao, nomeDestino, idPaiOrigem]);
+          }
+        }
+      } catch(eShDest) {
+        console.warn("Aviso ao sincronizar viatura substituta na planilha: " + eShDest.message);
+      }
+
+      // 2.3 Atualiza a viatura substituta na tb_Inventario para SUBUNIDADE = subunidadeAlvo e STATUS = 'ECD'
+      try {
+        var sqlUpVtrDestInv = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
+                              "SET SUBUNIDADE = '" + limparSQL(subunidadeAlvo) + "', " +
+                              "    SETOR = '" + limparSQL(nomeDestino) + "', " +
+                              "    STATUS = 'ECD' " +
+                              "WHERE UPPER(TRIM(UNIDADE)) IN (" + inSqlOme + ") " +
+                              "  AND (STATUS IS NULL OR UPPER(TRIM(STATUS)) NOT IN ('BAIXADO', 'EXCLUIDO')) " +
+                              "  AND (REPLACE(UPPER(TRIM(COALESCE(N_SERIE, ''))), ' ', '') = '" + limparSQL(numDestLimpo) + "' " +
+                              "       OR (UPPER(OBJETO) LIKE '%" + limparSQL(numDestLimpo) + "%' AND REGEXP_CONTAINS(UPPER(OBJETO), r'\\b(AR|ABT|ABTS|AT|ASE|BIS|MSA|MR|UR|VIATURA|AUTO)\\b')))";
+        executarEscritaBigQuerySegura(sqlUpVtrDestInv);
+      } catch(eDestInv) {
+        console.warn("Aviso ao atualizar viatura substituta no inventário: " + eDestInv.message);
+      }
+    }
 
     var locaisMigradosCount = 0;
     var nomesLocaisMigrados = [];
 
-    // 2. MIGRAR A PRÓPRIA VIATURA SUBSTITUTA (AR - 1164) PARA A SUBUNIDADE DA VIATURA DE ORIGEM (1ª SB)
-    if (migrarSubunidade && subunidadeAlvo) {
-      // 2.1 Atualiza o registro da viatura de destino na tb_Inventario para a subunidade alvo
-      var numDestLimpo = nomeDestino.replace(/[^0-9]/g, '').replace(/^0+/, '');
-      var siglaDest = (typeof obterSiglaViaturaBackend_ === 'function') ? obterSiglaViaturaBackend_(nomeDestino) : '';
-
-      var sqlBuscaVtrDest = "SELECT ITEM, OBJETO, N_SERIE FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
-                            "WHERE UPPER(TRIM(UNIDADE)) IN (" + inSqlOme + ") " +
-                            "  AND (STATUS IS NULL OR UPPER(TRIM(STATUS)) NOT IN ('BAIXADO', 'EXCLUIDO'))";
-      try {
-        var resVtrs = executarConsultaBigQuerySegura(sqlBuscaVtrDest);
-        if (resVtrs && resVtrs.rows) {
-          for (var iv = 0; iv < resVtrs.rows.length; iv++) {
-            var itId = String(resVtrs.rows[iv].f[0].v || "");
-            var itObj = String(resVtrs.rows[iv].f[1].v || "");
-            var itSer = String(resVtrs.rows[iv].f[2].v || "");
-
-            var siglaIt = (typeof obterSiglaViaturaBackend_ === 'function') ? obterSiglaViaturaBackend_(itObj) : '';
-            var serIt = itSer.replace(/[^0-9]/g, '').replace(/^0+/, '');
-            if (!serIt && itObj) {
-              var mS = itObj.match(/\b\d+\b/);
-              if (mS) serIt = mS[0].replace(/^0+/, '');
-            }
-
-            if ((numDestLimpo && serIt === numDestLimpo) || (siglaDest && siglaIt === siglaDest && serIt === numDestLimpo)) {
-              var sqlUpVtrDest = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
-                                 "SET SUBUNIDADE = '" + limparSQL(subunidadeAlvo) + "' " +
-                                 "WHERE ITEM = '" + limparSQL(itId) + "'";
-              executarEscritaBigQuerySegura(sqlUpVtrDest);
-              break;
-            }
-          }
-        }
-      } catch(eVtrUp) {
-        console.warn("Aviso ao atualizar subunidade da viatura de destino no BigQuery: " + eVtrUp.message);
-      }
-
-      // 2.2 Se a viatura de destino estiver registrada na tb_Arvore, atualiza seu ID_Pai para idPaiOrigem
-      if (idPaiOrigem) {
-        try {
-          var sqlUpPaiDest = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` " +
-                             "SET ID_Pai = '" + limparSQL(idPaiOrigem) + "' " +
-                             "WHERE UPPER(TRIM(Unidade_OME)) IN (" + inSqlOme + ") " +
-                             "  AND (ID_Local = '" + limparSQL(idDestino) + "' OR Nome_Local = '" + limparSQL(nomeDestino) + "')";
-          executarEscritaBigQuerySegura(sqlUpPaiDest);
-        } catch(ePaiDest) {}
-      }
-    }
-
-    // 3. MIGRAR SUBLOCAIS (Gavetas, Baús, etc.) na tb_Arvore e na Planilha
+    // 3. TRANSFERIR TODOS OS LOCAIS (Compartimentos / Gavetas / Baús / Portas) PARA A VIATURA SUBSTITUTA
     if (migrarLocais) {
-      var sqlBuscaFilhos = "SELECT ID_Local, Nome_Local FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` " +
-                           "WHERE UPPER(TRIM(Unidade_OME)) IN (" + inSqlOme + ") " +
-                           "  AND (ID_Pai = '" + limparSQL(idOrigem) + "' OR ID_Pai = '" + limparSQL(nomeOrigem) + "')";
+      var whereFilhosArvore = "UPPER(TRIM(Unidade_OME)) IN (" + inSqlOme + ") AND (" +
+                              "ID_Pai = '" + limparSQL(idOrigem) + "' " +
+                              "OR UPPER(TRIM(ID_Pai)) = '" + limparSQL(nomeOrigem.toUpperCase()) + "' " +
+                              "OR REPLACE(UPPER(TRIM(ID_Pai)), ' ', '') = '" + limparSQL(nomeOrigemSemEsp.toUpperCase()) + "' " +
+                              (numOrigLimpo ? ("OR (ID_Pai LIKE '%" + numOrigLimpo + "%' AND REGEXP_CONTAINS(UPPER(ID_Pai), r'\\b(AR|ABT|ABTS|AT|ASE|BIS|MSA|MR|UR|VTR)\\b')) ") : "") +
+                              ")";
+
       try {
+        var sqlBuscaFilhos = "SELECT ID_Local, Nome_Local FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` WHERE " + whereFilhosArvore;
         var resFilhos = executarConsultaBigQuerySegura(sqlBuscaFilhos);
         if (resFilhos && resFilhos.rows && resFilhos.rows.length > 0) {
           locaisMigradosCount = resFilhos.rows.length;
@@ -3134,8 +3198,7 @@ function migrarEstruturaEMateriaisViatura(dados) {
           // Atualiza o ID_Pai para idDestino na base BigQuery
           var sqlUpdateArvore = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` " +
                                 "SET ID_Pai = '" + limparSQL(idDestino) + "' " +
-                                "WHERE UPPER(TRIM(Unidade_OME)) IN (" + inSqlOme + ") " +
-                                "  AND (ID_Pai = '" + limparSQL(idOrigem) + "' OR ID_Pai = '" + limparSQL(nomeOrigem) + "')";
+                                "WHERE " + whereFilhosArvore;
           executarEscritaBigQuerySegura(sqlUpdateArvore);
         }
       } catch (eFilhos) {
@@ -3151,11 +3214,18 @@ function migrarEstruturaEMateriaisViatura(dados) {
           for (var i = 0; i < dadosSheet.length; i++) {
             var omeSh = String(dadosSheet[i][1] || "").trim().toUpperCase();
             var idPaiSh = String(dadosSheet[i][3] || "").trim();
-            if (omeSh === omePadrao.toUpperCase() && (idPaiSh === idOrigem || idPaiSh === nomeOrigem)) {
+            var idPaiNorm = idPaiSh.replace(/\s+/g, '').toUpperCase();
+            if (omeSh === omePadrao.toUpperCase() && (
+                idPaiSh === idOrigem || 
+                idPaiSh.toUpperCase() === nomeOrigem.toUpperCase() || 
+                idPaiNorm === nomeOrigemSemEsp.toUpperCase() ||
+                (numOrigLimpo && idPaiSh.indexOf(numOrigLimpo) !== -1)
+            )) {
               sheet.getRange(i + 2, 4).setValue(idDestino);
-              if (locaisMigradosCount === 0) {
+              var nmComp = String(dadosSheet[i][2] || "");
+              if (nomesLocaisMigrados.indexOf(nmComp) === -1) {
                 locaisMigradosCount++;
-                nomesLocaisMigrados.push(String(dadosSheet[i][2] || ""));
+                nomesLocaisMigrados.push(nmComp);
               }
             }
           }
@@ -3165,20 +3235,32 @@ function migrarEstruturaEMateriaisViatura(dados) {
       }
     }
 
-    // 4. MIGRAR TODOS OS MATERIAIS ATRIBUÍDOS À VIATURA DE ORIGEM (tb_Inventario)
-    var nomeOrigemSemEsp = nomeOrigem.replace(/\s+/g, '');
+    // 4. TRANSFERIR TODOS OS MATERIAIS ATRIBUÍDOS À VIATURA DE ORIGEM PARA A SUBSTITUTA (tb_Inventario)
+    var whereMatsInventario = "UPPER(TRIM(UNIDADE)) IN (" + inSqlOme + ") " +
+                              "AND (STATUS IS NULL OR UPPER(TRIM(STATUS)) NOT IN ('BAIXADO', 'EXCLUIDO')) " +
+                              "AND (" +
+                              "  UPPER(TRIM(SETOR)) = '" + limparSQL(nomeOrigem.toUpperCase()) + "' " +
+                              "  OR REPLACE(UPPER(TRIM(SETOR)), ' ', '') = '" + limparSQL(nomeOrigemSemEsp.toUpperCase()) + "' " +
+                              (numOrigLimpo ? (" OR (REPLACE(UPPER(TRIM(SETOR)), ' ', '') LIKE '%" + limparSQL(numOrigLimpo) + "%' AND REGEXP_CONTAINS(UPPER(SETOR), r'\\b(AR|ABT|ABTS|AT|ASE|BIS|MSA|MR|UR|VTR)\\b')) ") : "") +
+                              ") " +
+                              // Exclui o bem patrimonial da própria viatura que está saindo!
+                              "AND NOT (" +
+                              "  REGEXP_CONTAINS(UPPER(OBJETO), r'\\b(VIATURA|AUTO|CAMINHAO|CAMINHONETE|MOTO|AMBULANCIA|RESGATE|ABT|ABTS|AR|AT|ASE|BIS|UR|MSA|MR)\\b') " +
+                              "  AND (" +
+                              "    REPLACE(UPPER(COALESCE(N_SERIE, '')), ' ', '') = '" + limparSQL(numOrigLimpo) + "' " +
+                              "    OR UPPER(OBJETO) LIKE '%" + limparSQL(numOrigLimpo) + "%'" +
+                              "  )" +
+                              ")";
+
     var sqlBuscaItens = "SELECT ITEM, OBJETO, COALESCE(LOCALIZACAO_ESPCIFICA_NA_OME_Se_Necessario, '') as local_esp, STATUS " +
                         "FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
-                        "WHERE UPPER(TRIM(UNIDADE)) IN (" + inSqlOme + ") " +
-                        "  AND (STATUS IS NULL OR UPPER(TRIM(STATUS)) NOT IN ('BAIXADO', 'EXCLUIDO')) " +
-                        "  AND (UPPER(TRIM(SETOR)) = UPPER(TRIM('" + limparSQL(nomeOrigem) + "')) " +
-                        "       OR REPLACE(UPPER(TRIM(SETOR)), ' ', '') = UPPER(TRIM('" + limparSQL(nomeOrigemSemEsp) + "')))";
+                        "WHERE " + whereMatsInventario;
 
     var itensMigradosCount = 0;
     var eventosHistorico = [];
     var emailUser = "";
     try { emailUser = Session.getActiveUser().getEmail(); } catch(eU) {}
-    var userLogado = emailUser ? verificarPermissaoUsuario(emailUser) : null;
+    var userLogado = emailUser ? (typeof verificarPermissaoUsuario === 'function' ? verificarPermissaoUsuario(emailUser) : null) : null;
     var respNome = (userLogado && userLogado.nome) || "Operador OME";
     var respCpf = cpf || (userLogado && userLogado.cpf) || "-";
 
@@ -3213,23 +3295,19 @@ function migrarEstruturaEMateriaisViatura(dados) {
           });
         });
 
-        // Atualiza SETOR = nomeDestino e SUBUNIDADE = subunidadeAlvo (a Subunidade da viatura que sai!), PRESERVANDO a LOCALIZACAO_ESPECIFICA
+        // Atualiza SETOR = nomeDestino e SUBUNIDADE = subunidadeAlvo, preservando rigorosamente a LOCALIZACAO_ESPECIFICA (ex: Porta 01, Porta 02)
         var sqlUpdateItens = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
                              "SET SETOR = '" + limparSQL(nomeDestino) + "', " +
                              "    SUBUNIDADE = '" + limparSQL(subunidadeAlvo) + "' " +
-                             "WHERE UPPER(TRIM(UNIDADE)) IN (" + inSqlOme + ") " +
-                             "  AND (STATUS IS NULL OR UPPER(TRIM(STATUS)) NOT IN ('BAIXADO', 'EXCLUIDO')) " +
-                             "  AND (UPPER(TRIM(SETOR)) = UPPER(TRIM('" + limparSQL(nomeOrigem) + "')) " +
-                             "       OR REPLACE(UPPER(TRIM(SETOR)), ' ', '') = UPPER(TRIM('" + limparSQL(nomeOrigemSemEsp) + "')))";
+                             "WHERE " + whereMatsInventario;
         executarEscritaBigQuerySegura(sqlUpdateItens);
       }
     } catch (eItens) {
       console.warn("Aviso ao migrar itens da viatura em tb_Inventario: " + eItens.message);
     }
 
-    // 5. ATUALIZAR STATUS DA VIATURA DE ORIGEM PARA 'MANUTENÇÃO' (SCD)
+    // 5. ATUALIZAR STATUS DA VIATURA SUBSTITUÍDA PARA 'MANUTENÇÃO' (SCD)
     if (marcarManutencao) {
-      var numOrigLimpo = nomeOrigem.replace(/[^0-9]/g, '').replace(/^0+/, '');
       var dataHoraHoje = Utilities.formatDate(new Date(), "America/Recife", "dd/MM/yyyy HH:mm");
       var sqlUpVtrOrig = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
                          "SET STATUS = 'SCD', " +
@@ -3256,7 +3334,9 @@ function migrarEstruturaEMateriaisViatura(dados) {
     var logTexto = "Substituição/Migração de Viatura: de '" + nomeOrigem + "' para '" + nomeDestino + "' na Subunidade '" + subunidadeAlvo + "' (OME " + omePadrao + "). " +
                    "Locais/Compartimentos migrados: " + locaisMigradosCount + detalheLocaisTxt + ". " +
                    "Materiais físicos transferidos: " + itensMigradosCount + " item(ns). Motivo: " + motivo;
-    registrarLogAuditoria("MIGRACAO_TOTAL_VIATURA", logTexto, userLogado);
+    if (typeof registrarLogAuditoria === 'function') {
+      registrarLogAuditoria("MIGRACAO_TOTAL_VIATURA", logTexto, userLogado);
+    }
 
     // 7. INVALIDA O CACHE PARA ATUALIZAÇÃO IMEDIATA DA ÁRVORE
     if (typeof invalidarCacheArmazenamentoOme_ === 'function') {
@@ -3276,7 +3356,6 @@ function migrarEstruturaEMateriaisViatura(dados) {
     throw new Error(err.message);
   }
 }
-
 
 function excluirLocalDaArvore(idLocal) {
   try {

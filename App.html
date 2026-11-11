@@ -10936,6 +10936,16 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
     }
 
     const raizes = locais.filter(l => !l.idPai);
+    raizes.sort((a, b) => {
+      const aNome = String(a.nome || '').trim().toUpperCase();
+      const bNome = String(b.nome || '').trim().toUpperCase();
+      if (aNome === 'SEDE') return -1;
+      if (bNome === 'SEDE') return 1;
+      const aOrd = (a.ordem !== undefined && a.ordem !== null && a.ordem !== '') ? parseInt(a.ordem) : 999999;
+      const bOrd = (b.ordem !== undefined && b.ordem !== null && b.ordem !== '') ? parseInt(b.ordem) : 999999;
+      if (aOrd !== bOrd) return aOrd - bOrd;
+      return aNome.localeCompare(bNome);
+    });
     raizes.forEach((l, idx) => {
         let matsDoLocal = cacheMateriaisAtrelados[l.id] || [];
         
