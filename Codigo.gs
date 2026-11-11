@@ -2175,7 +2175,7 @@ function invalidarCacheArmazenamentoOme_(ome) {
   try {
     var omePadrao = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(ome) : (ome || "");
     if (!omePadrao) return;
-    var sufixos = ["", "_V3", "_V4", "_V5", "_V6", "_V7", "_V8", "_V9", "_V10", "_V11", "_V12", "_V13", "_V14", "_V15", "_V16", "_V17", "_V18", "_V19", "_V20", "_V21"];
+    var sufixos = ["", "_V3", "_V4", "_V5", "_V6", "_V7", "_V8", "_V9", "_V10", "_V11", "_V12", "_V13", "_V14", "_V15", "_V16", "_V17", "_V18", "_V19", "_V20", "_V21", "_V22", "_V23"];
     var cache = CacheService.getScriptCache();
     sufixos.forEach(function(suf) {
       var chaveBase = "CACHE_ARM_COMPLETO" + suf + "_" + omePadrao.toUpperCase().replace(/[^A-Z0-9]/g, "_");
@@ -2201,7 +2201,7 @@ function carregarDadosArmazenamentoCompleto(unidadeOmega, forcarAtualizacao) {
     if (!omePadrao) return { locais: [], materiais: [], vinculos: {} };
 
     // Prefixo V5 para descarte absoluto de qualquer cache antigo e sincronização estrita BigQuery
-    var chaveBase = "CACHE_ARM_COMPLETO_V21_" + omePadrao.toUpperCase().replace(/[^A-Z0-9]/g, "_");
+    var chaveBase = "CACHE_ARM_COMPLETO_V23_" + omePadrao.toUpperCase().replace(/[^A-Z0-9]/g, "_");
     var cached = (!forcarAtualizacao && typeof lerDeCacheChunked_ === 'function') ? lerDeCacheChunked_(chaveBase) : null;
 
     // Se houver algum setor não identificado ou genérico (ex: "BIS"), bypass no cache
@@ -2850,7 +2850,7 @@ function garantirConsistenciaArvoreLocais_(omePadrao) {
     if (!ome) return;
 
     // Desduplica tb_Arvore e planilha se ainda nao foi executado nesta versao
-    var flagDedup = "FLAG_DEDUP_TB_ARVORE_V531";
+    var flagDedup = "FLAG_DEDUP_TB_ARVORE_V532";
     var jaDedup = PropertiesService.getScriptProperties().getProperty(flagDedup);
     if (!jaDedup) {
       limparReplicasTbArvore_();
@@ -2878,72 +2878,75 @@ function garantirConsistenciaArvoreLocais_(omePadrao) {
       console.warn("Aviso ao garantir gavetas ABTS - 1133: " + eGav.message);
     }
 
-    // 2. Aplica a substituição solicitada pelo usuário (AR - 1164 -> AR - 971):
-    // Reponta Porta 01 e Porta 02 para AR - 971 e transfere os materiais
-    try {
-      var sqlUpSubst971 = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` " +
-                          "SET ID_Pai = 'vtr_1__GB_Vitoria_St__Ant_o_AR___971', " +
-                          "    Unidade_OME = '1º GB Vitoria Stº Antão' " +
-                          "WHERE ID_Local IN ('loc_1794309618424', 'loc_1794309632986') " +
-                          "   OR (ID_Pai = 'vtr_1__GB_Vitoria_St__Ant_o_AR___1164' AND UPPER(TRIM(Nome_Local)) IN ('PORTA 01', 'PORTA 02'))";
-      executarEscritaBigQuerySegura(sqlUpSubst971);
+    // 2. Executa UMA ÚNICA VEZ a substituição pendente solicitada pelo usuário (AR 971 -> AR 1164)
+    // NUNCA rodar em loop recorrente para não sobreescrever substituições futuras!
+    var flagSubst = "FLAG_SUBST_AR971_AR1164_V532";
+    if (!PropertiesService.getScriptProperties().getProperty(flagSubst)) {
+      try {
+        // 2.1 Reponta Porta 01 e Porta 02 para AR - 1164
+        var sqlUpP = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` " +
+                     "SET ID_Pai = 'vtr_1__GB_Vitoria_St__Ant_o_AR___1164', " +
+                     "    Unidade_OME = '1º GB Vitoria Stº Antão' " +
+                     "WHERE ID_Local IN ('loc_1794309618424', 'loc_1794309632986') " +
+                     "   OR (ID_Pai = 'vtr_1__GB_Vitoria_St__Ant_o_AR___971' AND UPPER(TRIM(Nome_Local)) IN ('PORTA 01', 'PORTA 02'))";
+        executarEscritaBigQuerySegura(sqlUpP);
 
-      // Transfere materiais de AR - 1164 para AR - 971
-      var sqlUpMats971 = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
-                         "SET SETOR = 'AR - 971', " +
-                         "    SUBUNIDADE = '1ª Seção de Bombeiros do 1º GB - 1ª SB/1º GB' " +
-                         "WHERE UPPER(TRIM(UNIDADE)) LIKE '%VITORIA%' " +
-                         "  AND (STATUS IS NULL OR UPPER(TRIM(STATUS)) NOT IN ('BAIXADO', 'EXCLUIDO')) " +
-                         "  AND UPPER(TRIM(SETOR)) IN ('AR - 1164', 'AR-1164') " +
-                         "  AND NOT (REGEXP_CONTAINS(UPPER(OBJETO), r'\b(VIATURA|AUTO|CAMINHAO|CAMINHONETE|MOTO|AMBULANCIA|RESGATE|AR)\b') AND UPPER(OBJETO) LIKE '%1164%')";
-      executarEscritaBigQuerySegura(sqlUpMats971);
+        // 2.2 Transfere materiais de AR - 971 para AR - 1164
+        var sqlUpM = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
+                     "SET SETOR = 'AR - 1164', " +
+                     "    SUBUNIDADE = '1ª Seção de Bombeiros do 1º GB - 1ª SB/1º GB' " +
+                     "WHERE UPPER(TRIM(UNIDADE)) LIKE '%VITORIA%' " +
+                     "  AND (STATUS IS NULL OR UPPER(TRIM(STATUS)) NOT IN ('BAIXADO', 'EXCLUIDO')) " +
+                     "  AND UPPER(TRIM(SETOR)) IN ('AR - 971', 'AR-971') " +
+                     "  AND NOT (REGEXP_CONTAINS(UPPER(OBJETO), r'\\b(VIATURA|AUTO|CAMINHAO|CAMINHONETE|MOTO|AMBULANCIA|RESGATE|AR)\\b') AND UPPER(OBJETO) LIKE '%971%')";
+        executarEscritaBigQuerySegura(sqlUpM);
 
-      // Atualiza status da viatura substituída para SCD (Manutenção) e da substituta para ECD
-      var sqlUpVtrStatus = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
-                           "SET STATUS = CASE " +
-                           "      WHEN UPPER(OBJETO) LIKE '%1164%' THEN 'SCD' " +
-                           "      WHEN UPPER(OBJETO) LIKE '%971%' THEN 'ECD' " +
-                           "      ELSE STATUS END " +
-                           "WHERE UPPER(TRIM(UNIDADE)) LIKE '%VITORIA%' " +
-                           "  AND REGEXP_CONTAINS(UPPER(OBJETO), r'\b(VIATURA|AUTO|CAMINHAO|CAMINHONETE|MOTO|AMBULANCIA|RESGATE|AR)\b') " +
-                           "  AND (UPPER(OBJETO) LIKE '%1164%' OR UPPER(OBJETO) LIKE '%971%')";
-      executarEscritaBigQuerySegura(sqlUpVtrStatus);
-    } catch(eSubst) {
-      console.warn("Aviso ao aplicar substituição AR-1164 -> AR-971: " + eSubst.message);
-    }
+        // 2.3 Atualiza status das viaturas: AR - 1164 assume como operacional (ECD) e AR - 971 vai para manutenção (SCD)
+        var sqlUpSt = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
+                      "SET STATUS = CASE " +
+                      "      WHEN UPPER(OBJETO) LIKE '%971%' THEN 'SCD' " +
+                      "      WHEN UPPER(OBJETO) LIKE '%1164%' THEN 'ECD' " +
+                      "      ELSE STATUS END " +
+                      "WHERE UPPER(TRIM(UNIDADE)) LIKE '%VITORIA%' " +
+                      "  AND REGEXP_CONTAINS(UPPER(OBJETO), r'\\b(VIATURA|AUTO|CAMINHAO|CAMINHONETE|MOTO|AMBULANCIA|RESGATE|AR)\\b') " +
+                      "  AND (UPPER(OBJETO) LIKE '%1164%' OR UPPER(OBJETO) LIKE '%971%')";
+        executarEscritaBigQuerySegura(sqlUpSt);
 
-    // 3. Sincroniza planilha auxiliar
-    try {
-      var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
-      var sheet = ss.getSheetByName(ABA_LOCAIS_ARMAZENAMENTO);
-      if (sheet && sheet.getLastRow() > 1) {
-        var dadosSheet = sheet.getDataRange().getValues();
-        for (var i = 1; i < dadosSheet.length; i++) {
-          var idRow = String(dadosSheet[i][0] || "").trim();
-          var nomeRow = String(dadosSheet[i][2] || "").trim().toUpperCase();
-          var idPaiRow = String(dadosSheet[i][3] || "").trim();
+        // 2.4 Sincroniza na planilha auxiliar
+        var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
+        var sheet = ss.getSheetByName(ABA_LOCAIS_ARMAZENAMENTO);
+        if (sheet && sheet.getLastRow() > 1) {
+          var dadosSheet = sheet.getDataRange().getValues();
+          for (var i = 1; i < dadosSheet.length; i++) {
+            var idRow = String(dadosSheet[i][0] || "").trim();
+            var nomeRow = String(dadosSheet[i][2] || "").trim().toUpperCase();
+            var idPaiRow = String(dadosSheet[i][3] || "").trim();
 
-          // Reponta Gavetas para ABTS - 1133
-          if (idPaiRow === 'loc_1789580985354' || idRow === 'loc_1791394847372' || idRow === 'loc_1790179378474' || ((nomeRow === 'GAVETA 01' || nomeRow === 'GAVETA 02') && idPaiRow.indexOf('1133') !== -1)) {
-            sheet.getRange(i + 1, 4).setValue('vtr_1__GB_Vitoria_St__Ant_o_ABTS___1133');
-            sheet.getRange(i + 1, 2).setValue('1º GB Vitoria Stº Antão');
+            // Reponta Gavetas para ABTS - 1133
+            if (idPaiRow === 'loc_1789580985354' || idRow === 'loc_1791394847372' || idRow === 'loc_1790179378474' || ((nomeRow === 'GAVETA 01' || nomeRow === 'GAVETA 02') && idPaiRow.indexOf('1133') !== -1)) {
+              sheet.getRange(i + 1, 4).setValue('vtr_1__GB_Vitoria_St__Ant_o_ABTS___1133');
+              sheet.getRange(i + 1, 2).setValue('1º GB Vitoria Stº Antão');
+            }
+
+            // Reponta Porta 01 e Porta 02 para AR - 1164
+            if (idRow === 'loc_1794309618424' || idRow === 'loc_1794309632986' || ((nomeRow === 'PORTA 01' || nomeRow === 'PORTA 02') && idPaiRow.indexOf('971') !== -1)) {
+              sheet.getRange(i + 1, 4).setValue('vtr_1__GB_Vitoria_St__Ant_o_AR___1164');
+              sheet.getRange(i + 1, 2).setValue('1º GB Vitoria Stº Antão');
+            }
+
+            // Garante AR - 1164 na 1ª SB
+            if (idRow === 'vtr_1__GB_Vitoria_St__Ant_o_AR___1164' || nomeRow === 'AR - 1164') {
+              sheet.getRange(i + 1, 2).setValue('1º GB Vitoria Stº Antão');
+              sheet.getRange(i + 1, 4).setValue('loc_1791388339391');
+            }
           }
-
-          // Reponta Porta 01 e Porta 02 para AR - 971
-          if (idRow === 'loc_1794309618424' || idRow === 'loc_1794309632986' || ((nomeRow === 'PORTA 01' || nomeRow === 'PORTA 02') && idPaiRow.indexOf('1164') !== -1)) {
-            sheet.getRange(i + 1, 4).setValue('vtr_1__GB_Vitoria_St__Ant_o_AR___971');
-            sheet.getRange(i + 1, 2).setValue('1º GB Vitoria Stº Antão');
-          }
-
-          // Garante AR - 971 na 1ª SB
-          if (idRow === 'vtr_1__GB_Vitoria_St__Ant_o_AR___971' || nomeRow === 'AR - 971') {
-            sheet.getRange(i + 1, 2).setValue('1º GB Vitoria Stº Antão');
-            sheet.getRange(i + 1, 4).setValue('loc_1791388339391');
-          }
+          SpreadsheetApp.flush();
         }
+
+        PropertiesService.getScriptProperties().setProperty(flagSubst, "true");
+      } catch(eSubst) {
+        console.warn("Aviso ao aplicar transição AR-971 -> AR-1164: " + eSubst.message);
       }
-    } catch(eSh) {
-      console.warn("Aviso ao corrigir planilha auxiliar: " + eSh.message);
     }
 
   } catch(eGeral) {
@@ -3240,7 +3243,7 @@ function migrarEstruturaEMateriaisViatura(dados) {
             var omeSh = String(dadosSheet[i][1] || "").trim().toUpperCase();
             var idSh = String(dadosSheet[i][0] || "").trim();
             var nomeSh = String(dadosSheet[i][2] || "").trim().toUpperCase();
-            if (omeSh === omePadrao.toUpperCase() && (idSh === idDestino || idSh === idDestinoCanonico || nomeSh === nomeDestino.toUpperCase())) {
+            if ((omeSh === omePadrao.toUpperCase() || omeSh.indexOf("VITORIA") !== -1) && (idSh === idDestino || idSh === idDestinoCanonico || nomeSh === nomeDestino.toUpperCase())) {
               sheet.getRange(i + 1, 4).setValue(idPaiOrigem);
               achouDestSheet = true;
               break;
@@ -3311,7 +3314,7 @@ function migrarEstruturaEMateriaisViatura(dados) {
             var omeSh = String(dadosSheet[i][1] || "").trim().toUpperCase();
             var idPaiSh = String(dadosSheet[i][3] || "").trim();
             var idPaiNorm = idPaiSh.replace(/\s+/g, '').toUpperCase();
-            if (omeSh === omePadrao.toUpperCase() && (
+            if ((omeSh === omePadrao.toUpperCase() || omeSh.indexOf("VITORIA") !== -1) && (
                 idPaiSh === idOrigem || 
                 idPaiSh === idOrigEfetivo ||
                 idPaiSh.toUpperCase() === nomeOrigem.toUpperCase() || 
@@ -3326,6 +3329,7 @@ function migrarEstruturaEMateriaisViatura(dados) {
               }
             }
           }
+          SpreadsheetApp.flush();
         }
       } catch (eSh) {
         console.warn("Aviso ao atualizar sublocais na planilha auxiliar: " + eSh.message);
@@ -3333,7 +3337,7 @@ function migrarEstruturaEMateriaisViatura(dados) {
     }
 
     // 4. TRANSFERIR TODOS OS MATERIAIS ATRIBUÍDOS À VIATURA DE ORIGEM PARA A SUBSTITUTA (tb_Inventario)
-    var whereMatsInventario = "UPPER(TRIM(UNIDADE)) IN (" + inSqlOme + ") " +
+    var whereMatsInventario = "(UPPER(TRIM(UNIDADE)) IN (" + inSqlOme + ") OR UPPER(TRIM(UNIDADE)) LIKE '%VITORIA%') " +
                               "AND (STATUS IS NULL OR UPPER(TRIM(STATUS)) NOT IN ('BAIXADO', 'EXCLUIDO')) " +
                               "AND (" +
                               "  UPPER(TRIM(SETOR)) = '" + limparSQL(nomeOrigem.toUpperCase()) + "' " +
@@ -3403,13 +3407,13 @@ function migrarEstruturaEMateriaisViatura(dados) {
       console.warn("Aviso ao migrar itens da viatura em tb_Inventario: " + eItens.message);
     }
 
-    // 5. ATUALIZAR STATUS DA VIATURA SUBSTITUÍDA PARA 'MANUTENÇÃO' (SCD)
+    // 5. ATUALIZAR STATUS DA VIATURA SUBSTITUÍDA PARA 'MANUTENÇÃO' (SCD) E SUBSTITUTA PARA 'ECD'
     if (marcarManutencao) {
       var dataHoraHoje = Utilities.formatDate(new Date(), "America/Recife", "dd/MM/yyyy HH:mm");
       var sqlUpVtrOrig = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
                          "SET STATUS = 'SCD', " +
                          "    OBSERVACAO_Mais_detalhes_sobre_a_situacao_do_material = CONCAT(COALESCE(OBSERVACAO_Mais_detalhes_sobre_a_situacao_do_material, ''), ' | Substituída por " + limparSQL(nomeDestino) + " e enviada para manutenção em " + dataHoraHoje + " (" + limparSQL(motivo) + ")') " +
-                         "WHERE UPPER(TRIM(UNIDADE)) IN (" + inSqlOme + ") " +
+                         "WHERE (UPPER(TRIM(UNIDADE)) IN (" + inSqlOme + ") OR UPPER(TRIM(UNIDADE)) LIKE '%VITORIA%') " +
                          "  AND (STATUS IS NULL OR UPPER(TRIM(STATUS)) NOT IN ('BAIXADO', 'EXCLUIDO')) " +
                          "  AND (REPLACE(UPPER(TRIM(COALESCE(N_SERIE, ''))), ' ', '') = '" + limparSQL(numOrigLimpo) + "' " +
                          "       OR (UPPER(OBJETO) LIKE '%" + limparSQL(numOrigLimpo) + "%' AND REGEXP_CONTAINS(UPPER(OBJETO), r'\\b(AR|ABT|ABTS|AT|ASE|BIS|MSA|MR|UR|VIATURA|AUTO)\\b')))";
