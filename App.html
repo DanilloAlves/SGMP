@@ -29818,15 +29818,27 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
           const clickedSub = subsTop[el.index];
           if (!clickedSub) return;
           const nomeSub = clickedSub.subunidade;
+          const nomeOme = clickedSub.ome;
 
-          // Alterna filtro (se já estiver selecionado, desmarca)
-          if (subunidadeFiltroGrafico === nomeSub) {
-            subunidadeFiltroGrafico = null;
-          } else {
+          const selOme = document.getElementById('filtroDashOme');
+          const omeAtual = selOme ? selOme.value : 'TODAS';
+
+          if (omeAtual === 'TODAS' && nomeOme) {
+            // Quando filtrado com todas as OMES: filtra OME e SUBUNIDADE
+            selOme.value = nomeOme;
+            popularSubunidadesDashboard(nomeOme, 'TODAS');
+            popularMateriaisDashboard();
             subunidadeFiltroGrafico = nomeSub;
+            aplicarFiltrosDashboard();
+          } else {
+            // Quando já estiver filtrado em alguma OME: filtra apenas a SUBUNIDADE dentro daquela OME
+            if (subunidadeFiltroGrafico === nomeSub) {
+              subunidadeFiltroGrafico = null;
+            } else {
+              subunidadeFiltroGrafico = nomeSub;
+            }
+            atualizarFiltrosCruzadosGraficos(subsTop, statusFiltro);
           }
-
-          atualizarFiltrosCruzadosGraficos(subsTop, statusFiltro);
         },
         plugins: {
           legend: {
@@ -29840,8 +29852,14 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
                 const val = context.parsed.y || 0;
                 return ' ' + context.dataset.label + ': ' + val.toLocaleString('pt-BR') + ' itens';
               },
-              afterLabel: function() {
-                return '👆 Clique para filtrar a tabela e detalhes';
+              afterLabel: function(context) {
+                const s = subsTop[context.dataIndex];
+                const selOme = document.getElementById('filtroDashOme');
+                const omeAtual = selOme ? selOme.value : 'TODAS';
+                if (omeAtual === 'TODAS' && s && s.ome) {
+                  return '👆 Clique para filtrar OME (' + s.ome + ') e ' + s.subunidade;
+                }
+                return '👆 Clique para filtrar ' + (s ? s.subunidade : 'esta subunidade');
               }
             }
           }
@@ -29924,11 +29942,21 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
             const st = statusArr[el.index];
             if (st) definirFiltroStatusRapidoDash(st);
           } else {
-            // No modo geral de subunidades, clicar filtra a subunidade clicada
+            // No modo geral de subunidades, clicar filtra de acordo com o nível atual
             const clickedSub = subsTop[el.index];
             if (clickedSub) {
-              subunidadeFiltroGrafico = clickedSub.subunidade;
-              atualizarFiltrosCruzadosGraficos(subsTop, statusFiltro);
+              const selOme = document.getElementById('filtroDashOme');
+              const omeAtual = selOme ? selOme.value : 'TODAS';
+              if (omeAtual === 'TODAS' && clickedSub.ome) {
+                selOme.value = clickedSub.ome;
+                popularSubunidadesDashboard(clickedSub.ome, 'TODAS');
+                popularMateriaisDashboard();
+                subunidadeFiltroGrafico = clickedSub.subunidade;
+                aplicarFiltrosDashboard();
+              } else {
+                subunidadeFiltroGrafico = clickedSub.subunidade;
+                atualizarFiltrosCruzadosGraficos(subsTop, statusFiltro);
+              }
             }
           }
         },
