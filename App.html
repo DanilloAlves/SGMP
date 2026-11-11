@@ -4222,9 +4222,9 @@
             <span class="badge bg-danger rounded-pill px-2 py-1 ms-1" id="contFrotasManutencao">0</span>
           </button>
 
-          <button type="button" class="btn btn-sm btn-light border py-1 px-3 rounded-pill d-inline-flex align-items-center gap-2 frotas-pill-filtro active" id="pillFiltroDesfazimento" onclick="alternarFiltroRapidoSituacao('Processo de Desfazimento')">
+          <button type="button" class="btn btn-sm btn-light border py-1 px-3 rounded-pill align-items-center gap-2 frotas-pill-filtro active" id="pillFiltroDesfazimento" onclick="alternarFiltroRapidoSituacao('Processo de Desfazimento')" style="display: none;">
             <span class="rounded-circle" style="width: 8px; height: 8px; background-color: #f97316;"></span>
-            <span>Processo de Desfazimento</span>
+            <span>Desativadas</span>
             <span class="badge bg-warning text-dark rounded-pill px-2 py-1 ms-1" id="contFrotasDesfazimento">0</span>
           </button>
 
@@ -31184,7 +31184,7 @@ let menuFrotasAtivo = 'peculio';
 let filtroSituacoesFrotas = {
   'Ativa': true,
   'Manutenção': true,
-  'Processo de Desfazimento': true
+  'Processo de Desfazimento': false
 };
 
 function alternarSidebarFrotas() {
@@ -31225,13 +31225,23 @@ function alternarMenuFrotas(menu) {
   if (visaoRelatorios) visaoRelatorios.style.display = (menu === 'relatorios') ? 'block' : 'none';
   if (visaoPermissoes) visaoPermissoes.style.display = (menu === 'permissoes') ? 'block' : 'none';
 
+  const pAtiva = document.getElementById('pillFiltroAtiva');
+  const pManut = document.getElementById('pillFiltroManutencao');
+  const pDesfaz = document.getElementById('pillFiltroDesfazimento');
+
   if (menu === 'peculio') {
     if (titulo) titulo.innerText = 'Viaturas';
-    filtroSituacoesFrotas = { 'Ativa': true, 'Manutenção': true, 'Processo de Desfazimento': true };
+    if (pAtiva) pAtiva.style.display = 'inline-flex';
+    if (pManut) pManut.style.display = 'inline-flex';
+    if (pDesfaz) pDesfaz.style.display = 'none';
+    filtroSituacoesFrotas = { 'Ativa': true, 'Manutenção': true, 'Processo de Desfazimento': false };
     atualizarEstiloPillsSituacao();
     aplicarFiltrosFrotas();
   } else if (menu === 'desativadas') {
     if (titulo) titulo.innerText = 'Viaturas Desativadas';
+    if (pAtiva) pAtiva.style.display = 'none';
+    if (pManut) pManut.style.display = 'none';
+    if (pDesfaz) pDesfaz.style.display = 'inline-flex';
     filtroSituacoesFrotas = { 'Ativa': false, 'Manutenção': false, 'Processo de Desfazimento': true };
     atualizarEstiloPillsSituacao();
     aplicarFiltrosFrotas();
@@ -31367,7 +31377,11 @@ function limparFiltrosFrotas() {
   const inputPesquisa = document.getElementById('filtroFrotasPesquisa');
   if (selectOme) selectOme.value = '';
   if (inputPesquisa) inputPesquisa.value = '';
-  filtroSituacoesFrotas = { 'Ativa': true, 'Manutenção': true, 'Processo de Desfazimento': true };
+  if (menuFrotasAtivo === 'desativadas') {
+    filtroSituacoesFrotas = { 'Ativa': false, 'Manutenção': false, 'Processo de Desfazimento': true };
+  } else {
+    filtroSituacoesFrotas = { 'Ativa': true, 'Manutenção': true, 'Processo de Desfazimento': false };
+  }
   atualizarEstiloPillsSituacao();
   aplicarFiltrosFrotas();
 }
@@ -31387,17 +31401,30 @@ function aplicarFiltrosFrotas() {
       return false;
     }
 
-    // 2. Filtro Situação
+    // 2. Filtro Situação e Separação por Menu:
+    // As viaturas descarregadas/desativadas devem aparecer APENAS no menu DESATIVADAS.
+    // No menu Viaturas, apenas as demais viaturas com outros status (ativas, em manutenção, etc.).
     var sitNorm = String(v.situacao || '').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    var categoriaSit = 'Ativa';
-    if (sitNorm.indexOf('MANUTEN') !== -1 || sitNorm.indexOf('OFICINA') !== -1 || sitNorm.indexOf('REPARO') !== -1) {
-      categoriaSit = 'Manutenção';
-    } else if (sitNorm.indexOf('DESFAZ') !== -1 || sitNorm.indexOf('BAIXA') !== -1 || sitNorm.indexOf('INSERVIV') !== -1 || sitNorm.indexOf('DESATIV') !== -1 || sitNorm.indexOf('DESCARREG') !== -1) {
-      categoriaSit = 'Processo de Desfazimento';
-    }
+    var ehDescarregada = (
+      sitNorm.indexOf('DESCARREG') !== -1 ||
+      sitNorm.indexOf('DESFAZ') !== -1 ||
+      sitNorm.indexOf('BAIXA') !== -1 ||
+      sitNorm.indexOf('INSERVIV') !== -1 ||
+      sitNorm.indexOf('DESATIV') !== -1
+    );
 
-    if (!filtroSituacoesFrotas[categoriaSit]) {
-      return false;
+    if (menuFrotasAtivo === 'desativadas') {
+      if (!ehDescarregada) return false;
+    } else {
+      if (ehDescarregada) return false;
+
+      var categoriaSit = 'Ativa';
+      if (sitNorm.indexOf('MANUTEN') !== -1 || sitNorm.indexOf('OFICINA') !== -1 || sitNorm.indexOf('REPARO') !== -1) {
+        categoriaSit = 'Manutenção';
+      }
+      if (!filtroSituacoesFrotas[categoriaSit]) {
+        return false;
+      }
     }
 
     // 3. Filtro Pesquisa (nome, placa, patrimonio, marca/modelo, ano)
