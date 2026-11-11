@@ -2175,7 +2175,7 @@ function invalidarCacheArmazenamentoOme_(ome) {
   try {
     var omePadrao = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(ome) : (ome || "");
     if (!omePadrao) return;
-    var sufixos = ["", "_V3", "_V4", "_V5", "_V6", "_V7", "_V8", "_V9", "_V10", "_V11", "_V12", "_V13", "_V14", "_V15", "_V16", "_V17", "_V18", "_V19"];
+    var sufixos = ["", "_V3", "_V4", "_V5", "_V6", "_V7", "_V8", "_V9", "_V10", "_V11", "_V12", "_V13", "_V14", "_V15", "_V16", "_V17", "_V18", "_V19", "_V20", "_V21"];
     var cache = CacheService.getScriptCache();
     sufixos.forEach(function(suf) {
       var chaveBase = "CACHE_ARM_COMPLETO" + suf + "_" + omePadrao.toUpperCase().replace(/[^A-Z0-9]/g, "_");
@@ -2201,7 +2201,7 @@ function carregarDadosArmazenamentoCompleto(unidadeOmega, forcarAtualizacao) {
     if (!omePadrao) return { locais: [], materiais: [], vinculos: {} };
 
     // Prefixo V5 para descarte absoluto de qualquer cache antigo e sincronização estrita BigQuery
-    var chaveBase = "CACHE_ARM_COMPLETO_V19_" + omePadrao.toUpperCase().replace(/[^A-Z0-9]/g, "_");
+    var chaveBase = "CACHE_ARM_COMPLETO_V21_" + omePadrao.toUpperCase().replace(/[^A-Z0-9]/g, "_");
     var cached = (!forcarAtualizacao && typeof lerDeCacheChunked_ === 'function') ? lerDeCacheChunked_(chaveBase) : null;
 
     // Se houver algum setor não identificado ou genérico (ex: "BIS"), bypass no cache
@@ -2850,7 +2850,7 @@ function garantirConsistenciaArvoreLocais_(omePadrao) {
     if (!ome) return;
 
     // Desduplica tb_Arvore e planilha se ainda nao foi executado nesta versao
-    var flagDedup = "FLAG_DEDUP_TB_ARVORE_V530";
+    var flagDedup = "FLAG_DEDUP_TB_ARVORE_V531";
     var jaDedup = PropertiesService.getScriptProperties().getProperty(flagDedup);
     if (!jaDedup) {
       limparReplicasTbArvore_();
@@ -2858,34 +2858,8 @@ function garantirConsistenciaArvoreLocais_(omePadrao) {
       PropertiesService.getScriptProperties().setProperty(flagDedup, "true");
     }
 
-    // 1. Corrige Unidade_OME e ID_Pai da viatura AR - 1164 e reponta Gavetas de ABTS - 1133 na tb_Arvore no BigQuery
+    // 1. Garante consistência de Gavetas da ABTS - 1133 (repontando o id legado excluído loc_1789580985354)
     try {
-      var sqlFixBq = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` " +
-                     "SET Unidade_OME = '1º GB Vitoria Stº Antão', " +
-                     "    ID_Pai = 'loc_1791388339391' " +
-                     "WHERE ID_Local = 'vtr_1__GB_Vitoria_St__Ant_o_AR___1164' " +
-                     "   OR (UPPER(TRIM(Nome_Local)) = 'AR - 1164' AND (UPPER(TRIM(Unidade_OME)) = 'DLOG' OR UPPER(TRIM(Unidade_OME)) LIKE '%VITORIA%'))";
-      executarEscritaBigQuerySegura(sqlFixBq);
-
-      // Garante Porta 01 e Porta 02 na tb_Arvore vinculadas à AR - 1164
-      var sqlUpPortasBq = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` " +
-                          "SET Unidade_OME = '1º GB Vitoria Stº Antão', " +
-                          "    ID_Pai = 'vtr_1__GB_Vitoria_St__Ant_o_AR___1164' " +
-                          "WHERE ID_Local IN ('loc_1794309618424', 'loc_1794309632986') " +
-                          "   OR (UPPER(TRIM(Nome_Local)) IN ('PORTA 01', 'PORTA 02') AND UPPER(TRIM(ID_Pai)) LIKE '%1164%')";
-      executarEscritaBigQuerySegura(sqlUpPortasBq);
-
-      var sqlInsP1 = "INSERT INTO `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` (ID_Local, Unidade_OME, Nome_Local, ID_Pai) " +
-                     "SELECT 'loc_1794309618424', '1º GB Vitoria Stº Antão', 'Porta 01', 'vtr_1__GB_Vitoria_St__Ant_o_AR___1164' " +
-                     "WHERE NOT EXISTS (SELECT 1 FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` WHERE ID_Local = 'loc_1794309618424')";
-      executarEscritaBigQuerySegura(sqlInsP1);
-
-      var sqlInsP2 = "INSERT INTO `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` (ID_Local, Unidade_OME, Nome_Local, ID_Pai) " +
-                     "SELECT 'loc_1794309632986', '1º GB Vitoria Stº Antão', 'Porta 02', 'vtr_1__GB_Vitoria_St__Ant_o_AR___1164' " +
-                     "WHERE NOT EXISTS (SELECT 1 FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` WHERE ID_Local = 'loc_1794309632986')";
-      executarEscritaBigQuerySegura(sqlInsP2);
-
-      // Reponta Gaveta 01 e Gaveta 02 da ABTS - 1133 para o registro canônico que permaneceu
       var sqlUpGavetasBq = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` " +
                            "SET ID_Pai = 'vtr_1__GB_Vitoria_St__Ant_o_ABTS___1133', " +
                            "    Unidade_OME = '1º GB Vitoria Stº Antão' " +
@@ -2894,79 +2868,82 @@ function garantirConsistenciaArvoreLocais_(omePadrao) {
                            "   OR (UPPER(TRIM(Nome_Local)) IN ('GAVETA 01', 'GAVETA 02') AND UPPER(TRIM(Unidade_OME)) LIKE '%VITORIA%')";
       executarEscritaBigQuerySegura(sqlUpGavetasBq);
 
-      var sqlInsG1 = "INSERT INTO `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` (ID_Local, Unidade_OME, Nome_Local, ID_Pai) " +
-                     "SELECT 'loc_1790179378474', '1º GB Vitoria Stº Antão', 'Gaveta 01', 'vtr_1__GB_Vitoria_St__Ant_o_ABTS___1133' " +
-                     "WHERE NOT EXISTS (SELECT 1 FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` WHERE ID_Local = 'loc_1790179378474')";
-      executarEscritaBigQuerySegura(sqlInsG1);
-
-      var sqlInsG2 = "INSERT INTO `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` (ID_Local, Unidade_OME, Nome_Local, ID_Pai) " +
-                     "SELECT 'loc_1791394847372', '1º GB Vitoria Stº Antão', 'Gaveta 02', 'vtr_1__GB_Vitoria_St__Ant_o_ABTS___1133' " +
-                     "WHERE NOT EXISTS (SELECT 1 FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` WHERE ID_Local = 'loc_1791394847372')";
-      executarEscritaBigQuerySegura(sqlInsG2);
-    } catch(eBq) {
-      console.warn("Aviso ao corrigir tb_Arvore no BigQuery: " + eBq.message);
-    }
-
-    // 2. Corrige na planilha auxiliar (aba Arvore)
-    try {
-      var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
-      var sheet = ss.getSheetByName(ABA_LOCAIS_ARMAZENAMENTO);
-      if (sheet && sheet.getLastRow() > 1) {
-        var dadosSheet = sheet.getDataRange().getValues();
-        var achouVtr = false;
-        for (var i = 1; i < dadosSheet.length; i++) {
-          var idRow = String(dadosSheet[i][0] || "").trim();
-          var nomeRow = String(dadosSheet[i][2] || "").trim().toUpperCase();
-          var idPaiRow = String(dadosSheet[i][3] || "").trim();
-
-          if (idPaiRow === 'loc_1789580985354' || idRow === 'loc_1791394847372' || idRow === 'loc_1790179378474' || ((nomeRow === 'GAVETA 01' || nomeRow === 'GAVETA 02') && idPaiRow.indexOf('1133') !== -1)) {
-            sheet.getRange(i + 1, 4).setValue('vtr_1__GB_Vitoria_St__Ant_o_ABTS___1133');
-            sheet.getRange(i + 1, 2).setValue('1º GB Vitoria Stº Antão');
-          }
-
-          if (idRow === 'vtr_1__GB_Vitoria_St__Ant_o_AR___1164' || nomeRow === 'AR - 1164') {
-            sheet.getRange(i + 1, 2).setValue("1º GB Vitoria Stº Antão");
-            sheet.getRange(i + 1, 4).setValue("loc_1791388339391");
-            achouVtr = true;
-          }
-        }
-        if (!achouVtr) {
-          sheet.appendRow(['vtr_1__GB_Vitoria_St__Ant_o_AR___1164', '1º GB Vitoria Stº Antão', 'AR - 1164', 'loc_1791388339391']);
-        }
-      }
-    } catch(eSh) {
-      console.warn("Aviso ao corrigir planilha auxiliar: " + eSh.message);
-    }
-
-    // 3. Garante que os materiais de AR - 1164 (AMBU na Porta 01, Capa de Chuva e Facão na Porta 02) estejam devidamente configurados
-    try {
-      var sqlUpAmbu = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
-                      "SET SETOR = 'AR - 1164', " +
-                      "    LOCALIZACAO_ESPCIFICA_NA_OME_Se_Necessario = 'Porta 01', " +
-                      "    SUBUNIDADE = '1ª Seção de Bombeiros do 1º GB - 1ª SB/1º GB' " +
-                      "WHERE UPPER(TRIM(UNIDADE)) LIKE '%VITORIA%' " +
-                      "  AND (UPPER(TRIM(SETOR)) IN ('AR - 1164', 'AR-1164', 'AR - 971', 'AR-971')) " +
-                      "  AND UPPER(OBJETO) LIKE '%AMBU%'";
-      executarEscritaBigQuerySegura(sqlUpAmbu);
-
-      var sqlUpPorta2 = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
-                        "SET SETOR = 'AR - 1164', " +
-                        "    LOCALIZACAO_ESPCIFICA_NA_OME_Se_Necessario = 'Porta 02', " +
-                        "    SUBUNIDADE = '1ª Seção de Bombeiros do 1º GB - 1ª SB/1º GB' " +
-                        "WHERE UPPER(TRIM(UNIDADE)) LIKE '%VITORIA%' " +
-                        "  AND (UPPER(TRIM(SETOR)) IN ('AR - 1164', 'AR-1164', 'AR - 971', 'AR-971')) " +
-                        "  AND (UPPER(OBJETO) LIKE '%CAPA DE CHUVA%' OR UPPER(OBJETO) LIKE '%FAC%' OR UPPER(OBJETO) LIKE '%FACAO%')";
-      executarEscritaBigQuerySegura(sqlUpPorta2);
-
-      // Garante que materiais de Gaveta 01 e Gaveta 02 estejam associados à ABTS - 1133
       var sqlUpGavMat = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
                         "SET SETOR = 'ABTS - 1133', " +
                         "    SUBUNIDADE = '1ª Seção de Bombeiros do 1º GB - 1ª SB/1º GB' " +
                         "WHERE UPPER(TRIM(UNIDADE)) LIKE '%VITORIA%' " +
                         "  AND UPPER(TRIM(LOCALIZACAO_ESPCIFICA_NA_OME_Se_Necessario)) IN ('GAVETA 01', 'GAVETA 02')";
       executarEscritaBigQuerySegura(sqlUpGavMat);
-    } catch(eMat) {
-      console.warn("Aviso ao sincronizar materiais de AR - 1164 nas Portas: " + eMat.message);
+    } catch(eGav) {
+      console.warn("Aviso ao garantir gavetas ABTS - 1133: " + eGav.message);
+    }
+
+    // 2. Aplica a substituição solicitada pelo usuário (AR - 1164 -> AR - 971):
+    // Reponta Porta 01 e Porta 02 para AR - 971 e transfere os materiais
+    try {
+      var sqlUpSubst971 = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` " +
+                          "SET ID_Pai = 'vtr_1__GB_Vitoria_St__Ant_o_AR___971', " +
+                          "    Unidade_OME = '1º GB Vitoria Stº Antão' " +
+                          "WHERE ID_Local IN ('loc_1794309618424', 'loc_1794309632986') " +
+                          "   OR (ID_Pai = 'vtr_1__GB_Vitoria_St__Ant_o_AR___1164' AND UPPER(TRIM(Nome_Local)) IN ('PORTA 01', 'PORTA 02'))";
+      executarEscritaBigQuerySegura(sqlUpSubst971);
+
+      // Transfere materiais de AR - 1164 para AR - 971
+      var sqlUpMats971 = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
+                         "SET SETOR = 'AR - 971', " +
+                         "    SUBUNIDADE = '1ª Seção de Bombeiros do 1º GB - 1ª SB/1º GB' " +
+                         "WHERE UPPER(TRIM(UNIDADE)) LIKE '%VITORIA%' " +
+                         "  AND (STATUS IS NULL OR UPPER(TRIM(STATUS)) NOT IN ('BAIXADO', 'EXCLUIDO')) " +
+                         "  AND UPPER(TRIM(SETOR)) IN ('AR - 1164', 'AR-1164') " +
+                         "  AND NOT (REGEXP_CONTAINS(UPPER(OBJETO), r'\b(VIATURA|AUTO|CAMINHAO|CAMINHONETE|MOTO|AMBULANCIA|RESGATE|AR)\b') AND UPPER(OBJETO) LIKE '%1164%')";
+      executarEscritaBigQuerySegura(sqlUpMats971);
+
+      // Atualiza status da viatura substituída para SCD (Manutenção) e da substituta para ECD
+      var sqlUpVtrStatus = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
+                           "SET STATUS = CASE " +
+                           "      WHEN UPPER(OBJETO) LIKE '%1164%' THEN 'SCD' " +
+                           "      WHEN UPPER(OBJETO) LIKE '%971%' THEN 'ECD' " +
+                           "      ELSE STATUS END " +
+                           "WHERE UPPER(TRIM(UNIDADE)) LIKE '%VITORIA%' " +
+                           "  AND REGEXP_CONTAINS(UPPER(OBJETO), r'\b(VIATURA|AUTO|CAMINHAO|CAMINHONETE|MOTO|AMBULANCIA|RESGATE|AR)\b') " +
+                           "  AND (UPPER(OBJETO) LIKE '%1164%' OR UPPER(OBJETO) LIKE '%971%')";
+      executarEscritaBigQuerySegura(sqlUpVtrStatus);
+    } catch(eSubst) {
+      console.warn("Aviso ao aplicar substituição AR-1164 -> AR-971: " + eSubst.message);
+    }
+
+    // 3. Sincroniza planilha auxiliar
+    try {
+      var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
+      var sheet = ss.getSheetByName(ABA_LOCAIS_ARMAZENAMENTO);
+      if (sheet && sheet.getLastRow() > 1) {
+        var dadosSheet = sheet.getDataRange().getValues();
+        for (var i = 1; i < dadosSheet.length; i++) {
+          var idRow = String(dadosSheet[i][0] || "").trim();
+          var nomeRow = String(dadosSheet[i][2] || "").trim().toUpperCase();
+          var idPaiRow = String(dadosSheet[i][3] || "").trim();
+
+          // Reponta Gavetas para ABTS - 1133
+          if (idPaiRow === 'loc_1789580985354' || idRow === 'loc_1791394847372' || idRow === 'loc_1790179378474' || ((nomeRow === 'GAVETA 01' || nomeRow === 'GAVETA 02') && idPaiRow.indexOf('1133') !== -1)) {
+            sheet.getRange(i + 1, 4).setValue('vtr_1__GB_Vitoria_St__Ant_o_ABTS___1133');
+            sheet.getRange(i + 1, 2).setValue('1º GB Vitoria Stº Antão');
+          }
+
+          // Reponta Porta 01 e Porta 02 para AR - 971
+          if (idRow === 'loc_1794309618424' || idRow === 'loc_1794309632986' || ((nomeRow === 'PORTA 01' || nomeRow === 'PORTA 02') && idPaiRow.indexOf('1164') !== -1)) {
+            sheet.getRange(i + 1, 4).setValue('vtr_1__GB_Vitoria_St__Ant_o_AR___971');
+            sheet.getRange(i + 1, 2).setValue('1º GB Vitoria Stº Antão');
+          }
+
+          // Garante AR - 971 na 1ª SB
+          if (idRow === 'vtr_1__GB_Vitoria_St__Ant_o_AR___971' || nomeRow === 'AR - 971') {
+            sheet.getRange(i + 1, 2).setValue('1º GB Vitoria Stº Antão');
+            sheet.getRange(i + 1, 4).setValue('loc_1791388339391');
+          }
+        }
+      }
+    } catch(eSh) {
+      console.warn("Aviso ao corrigir planilha auxiliar: " + eSh.message);
     }
 
   } catch(eGeral) {
@@ -3188,10 +3165,16 @@ function migrarEstruturaEMateriaisViatura(dados) {
     var numDestLimpo = nomeDestino.replace(/[^0-9]/g, '').replace(/^0+/, '');
     var nomeDestinoSemEsp = nomeDestino.replace(/\s+/g, '');
 
+    var idOrigemCanonico = 'vtr_' + omePadrao.replace(/[^A-Z0-9]/gi, '_') + '_' + nomeOrigem.replace(/[^A-Z0-9]/gi, '_');
+    var idDestinoCanonico = 'vtr_' + omePadrao.replace(/[^A-Z0-9]/gi, '_') + '_' + nomeDestino.replace(/[^A-Z0-9]/gi, '_');
+    var idOrigEfetivo = idOrigem || idOrigemCanonico;
+    var idDestEfetivo = idDestino || idDestinoCanonico;
+
     // 1. IDENTIFICA A POSIÇÃO EXATA DA VIATURA SUBSTITUÍDA NA ÁRVORE (ID_Pai e Subunidade Raiz)
     var todosLocaisOme = (typeof getArvoreLocais === 'function') ? (getArvoreLocais(omePadrao) || []) : [];
     var noOrigem = todosLocaisOme.find(function(l) { 
       if (idOrigem && String(l.id) === String(idOrigem)) return true;
+      if (idOrigEfetivo && String(l.id) === String(idOrigEfetivo)) return true;
       if (nomeOrigem && String(l.nome).toUpperCase().trim() === String(nomeOrigem).toUpperCase().trim()) return true;
       if (nomeOrigemSemEsp && String(l.nome).replace(/\s+/g, '').toUpperCase() === nomeOrigemSemEsp.toUpperCase()) return true;
       return false;
@@ -3226,28 +3209,27 @@ function migrarEstruturaEMateriaisViatura(dados) {
 
     // 2. REMANEJAR A VIATURA SUBSTITUTA PARA A MESMA POSIÇÃO DA ÁRVORE QUE A SUBSTITUÍDA
     if (migrarSubunidade && idPaiOrigem) {
-      // 2.1 Garante que a viatura substituta esteja registrada na tb_Arvore com ID_Pai = idPaiOrigem
       try {
         var sqlCheckDest = "SELECT ID_Local FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` " +
                            "WHERE UPPER(TRIM(Unidade_OME)) IN (" + inSqlOme + ") " +
-                           "  AND (ID_Local = '" + limparSQL(idDestino) + "' OR UPPER(TRIM(Nome_Local)) = '" + limparSQL(nomeDestino.toUpperCase()) + "') LIMIT 1";
+                           "  AND (ID_Local IN ('" + limparSQL(idDestino) + "', '" + limparSQL(idDestinoCanonico) + "') OR UPPER(TRIM(Nome_Local)) = '" + limparSQL(nomeDestino.toUpperCase()) + "') LIMIT 1";
         var resCheckDest = executarConsultaBigQuerySegura(sqlCheckDest);
         if (resCheckDest && resCheckDest.rows && resCheckDest.rows.length > 0) {
           var sqlUpPaiDest = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` " +
                              "SET ID_Pai = '" + limparSQL(idPaiOrigem) + "' " +
                              "WHERE UPPER(TRIM(Unidade_OME)) IN (" + inSqlOme + ") " +
-                             "  AND (ID_Local = '" + limparSQL(idDestino) + "' OR UPPER(TRIM(Nome_Local)) = '" + limparSQL(nomeDestino.toUpperCase()) + "')";
+                             "  AND (ID_Local IN ('" + limparSQL(idDestino) + "', '" + limparSQL(idDestinoCanonico) + "') OR UPPER(TRIM(Nome_Local)) = '" + limparSQL(nomeDestino.toUpperCase()) + "')";
           executarEscritaBigQuerySegura(sqlUpPaiDest);
         } else {
           var sqlInsDest = "INSERT INTO `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` (ID_Local, Unidade_OME, Nome_Local, ID_Pai) " +
-                           "VALUES ('" + limparSQL(idDestino) + "', '" + limparSQL(omePadrao) + "', '" + limparSQL(nomeDestino) + "', '" + limparSQL(idPaiOrigem) + "')";
+                           "VALUES ('" + limparSQL(idDestEfetivo) + "', '" + limparSQL(omePadrao) + "', '" + limparSQL(nomeDestino) + "', '" + limparSQL(idPaiOrigem) + "')";
           executarEscritaBigQuerySegura(sqlInsDest);
         }
       } catch(ePaiDest) {
         console.warn("Aviso ao atualizar/inserir viatura substituta na tb_Arvore: " + ePaiDest.message);
       }
 
-      // 2.2 Sincroniza na planilha auxiliar
+      // Sincroniza na planilha auxiliar
       try {
         var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
         var sheet = ss.getSheetByName(ABA_LOCAIS_ARMAZENAMENTO);
@@ -3258,21 +3240,21 @@ function migrarEstruturaEMateriaisViatura(dados) {
             var omeSh = String(dadosSheet[i][1] || "").trim().toUpperCase();
             var idSh = String(dadosSheet[i][0] || "").trim();
             var nomeSh = String(dadosSheet[i][2] || "").trim().toUpperCase();
-            if (omeSh === omePadrao.toUpperCase() && (idSh === idDestino || nomeSh === nomeDestino.toUpperCase())) {
+            if (omeSh === omePadrao.toUpperCase() && (idSh === idDestino || idSh === idDestinoCanonico || nomeSh === nomeDestino.toUpperCase())) {
               sheet.getRange(i + 1, 4).setValue(idPaiOrigem);
               achouDestSheet = true;
               break;
             }
           }
           if (!achouDestSheet) {
-            sheet.appendRow([idDestino, omePadrao, nomeDestino, idPaiOrigem]);
+            sheet.appendRow([idDestEfetivo, omePadrao, nomeDestino, idPaiOrigem]);
           }
         }
       } catch(eShDest) {
         console.warn("Aviso ao sincronizar viatura substituta na planilha: " + eShDest.message);
       }
 
-      // 2.3 Atualiza a viatura substituta na tb_Inventario para SUBUNIDADE = subunidadeAlvo e STATUS = 'ECD'
+      // Atualiza a viatura substituta na tb_Inventario para SUBUNIDADE = subunidadeAlvo e STATUS = 'ECD'
       try {
         var sqlUpVtrDestInv = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
                               "SET SUBUNIDADE = '" + limparSQL(subunidadeAlvo) + "', " +
@@ -3293,8 +3275,8 @@ function migrarEstruturaEMateriaisViatura(dados) {
 
     // 3. TRANSFERIR TODOS OS LOCAIS (Compartimentos / Gavetas / Baús / Portas) PARA A VIATURA SUBSTITUTA
     if (migrarLocais) {
-      var whereFilhosArvore = "UPPER(TRIM(Unidade_OME)) IN (" + inSqlOme + ") AND (" +
-                              "ID_Pai = '" + limparSQL(idOrigem) + "' " +
+      var whereFilhosArvore = "(" +
+                              "ID_Pai IN ('" + limparSQL(idOrigem) + "', '" + limparSQL(idOrigEfetivo) + "') " +
                               "OR UPPER(TRIM(ID_Pai)) = '" + limparSQL(nomeOrigem.toUpperCase()) + "' " +
                               "OR REPLACE(UPPER(TRIM(ID_Pai)), ' ', '') = '" + limparSQL(nomeOrigemSemEsp.toUpperCase()) + "' " +
                               (numOrigLimpo ? ("OR (ID_Pai LIKE '%" + numOrigLimpo + "%' AND REGEXP_CONTAINS(UPPER(ID_Pai), r'\\b(AR|ABT|ABTS|AT|ASE|BIS|MSA|MR|UR|VTR)\\b')) ") : "") +
@@ -3308,13 +3290,13 @@ function migrarEstruturaEMateriaisViatura(dados) {
           resFilhos.rows.forEach(function(r) {
             nomesLocaisMigrados.push(String(r.f[1].v || ""));
           });
-
-          // Atualiza o ID_Pai para idDestino na base BigQuery
-          var sqlUpdateArvore = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` " +
-                                "SET ID_Pai = '" + limparSQL(idDestino) + "' " +
-                                "WHERE " + whereFilhosArvore;
-          executarEscritaBigQuerySegura(sqlUpdateArvore);
         }
+
+        // Atualiza o ID_Pai para idDestEfetivo incondicionalmente na tb_Arvore
+        var sqlUpdateArvore = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` " +
+                              "SET ID_Pai = '" + limparSQL(idDestEfetivo) + "' " +
+                              "WHERE " + whereFilhosArvore;
+        executarEscritaBigQuerySegura(sqlUpdateArvore);
       } catch (eFilhos) {
         console.warn("Aviso ao migrar sublocais da viatura em tb_Arvore: " + eFilhos.message);
       }
@@ -3331,11 +3313,12 @@ function migrarEstruturaEMateriaisViatura(dados) {
             var idPaiNorm = idPaiSh.replace(/\s+/g, '').toUpperCase();
             if (omeSh === omePadrao.toUpperCase() && (
                 idPaiSh === idOrigem || 
+                idPaiSh === idOrigEfetivo ||
                 idPaiSh.toUpperCase() === nomeOrigem.toUpperCase() || 
                 idPaiNorm === nomeOrigemSemEsp.toUpperCase() ||
                 (numOrigLimpo && idPaiSh.indexOf(numOrigLimpo) !== -1)
             )) {
-              sheet.getRange(i + 2, 4).setValue(idDestino);
+              sheet.getRange(i + 2, 4).setValue(idDestEfetivo);
               var nmComp = String(dadosSheet[i][2] || "");
               if (nomesLocaisMigrados.indexOf(nmComp) === -1) {
                 locaisMigradosCount++;
@@ -3366,10 +3349,6 @@ function migrarEstruturaEMateriaisViatura(dados) {
                               "  )" +
                               ")";
 
-    var sqlBuscaItens = "SELECT ITEM, OBJETO, COALESCE(LOCALIZACAO_ESPCIFICA_NA_OME_Se_Necessario, '') as local_esp, STATUS " +
-                        "FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
-                        "WHERE " + whereMatsInventario;
-
     var itensMigradosCount = 0;
     var eventosHistorico = [];
     var emailUser = "";
@@ -3379,6 +3358,10 @@ function migrarEstruturaEMateriaisViatura(dados) {
     var respCpf = cpf || (userLogado && userLogado.cpf) || "-";
 
     try {
+      var sqlBuscaItens = "SELECT ITEM, OBJETO, COALESCE(LOCALIZACAO_ESPCIFICA_NA_OME_Se_Necessario, '') as local_esp, STATUS " +
+                          "FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
+                          "WHERE " + whereMatsInventario;
+
       var resItens = executarConsultaBigQuerySegura(sqlBuscaItens);
       if (resItens && resItens.rows && resItens.rows.length > 0) {
         itensMigradosCount = resItens.rows.length;
@@ -3438,36 +3421,28 @@ function migrarEstruturaEMateriaisViatura(dados) {
     // 6. REGISTRAR HISTÓRICO E AUDITORIA
     if (eventosHistorico.length > 0) {
       try {
-        registrarHistoricoMovimentacao(eventosHistorico);
-      } catch (eHist) {
-        console.warn("Aviso ao registrar histórico de migração: " + eHist.message);
+        registrarHistoricoLote(eventosHistorico);
+      } catch(eHist) {
+        console.warn("Aviso ao registrar histórico de migração de viatura: " + eHist.message);
       }
     }
 
-    var detalheLocaisTxt = nomesLocaisMigrados.length > 0 ? " [" + nomesLocaisMigrados.join(", ") + "]" : "";
-    var logTexto = "Substituição/Migração de Viatura: de '" + nomeOrigem + "' para '" + nomeDestino + "' na Subunidade '" + subunidadeAlvo + "' (OME " + omePadrao + "). " +
-                   "Locais/Compartimentos migrados: " + locaisMigradosCount + detalheLocaisTxt + ". " +
-                   "Materiais físicos transferidos: " + itensMigradosCount + " item(ns). Motivo: " + motivo;
-    if (typeof registrarLogAuditoria === 'function') {
-      registrarLogAuditoria("MIGRACAO_TOTAL_VIATURA", logTexto, userLogado);
-    }
-
-    // 7. INVALIDA O CACHE PARA ATUALIZAÇÃO IMEDIATA DA ÁRVORE
-    if (typeof invalidarCacheArmazenamentoOme_ === 'function') {
+    // 7. INVALIDA TODOS OS CACHES DA OME
+    try {
       invalidarCacheArmazenamentoOme_(omePadrao);
-    }
+    } catch(eCache) {}
 
     return {
       sucesso: true,
       subunidadeAlvo: subunidadeAlvo,
       locaisMigrados: locaisMigradosCount,
+      nomesLocais: nomesLocaisMigrados,
       itensMigrados: itensMigradosCount,
-      mensagem: "Migração concluída com sucesso! A viatura " + nomeDestino + " assumiu o posto na Subunidade " + subunidadeAlvo + " com " + locaisMigradosCount + " local(is) e " + itensMigradosCount + " material(is) transferidos de " + nomeOrigem + "."
+      mensagem: "Substituição concluída com sucesso! " + locaisMigradosCount + " locais e " + itensMigradosCount + " materiais transferidos para " + nomeDestino + "."
     };
-
-  } catch (err) {
+  } catch(err) {
     console.error("Erro em migrarEstruturaEMateriaisViatura: " + err.message);
-    throw new Error(err.message);
+    throw new Error("Falha na substituição da viatura: " + err.message);
   }
 }
 
