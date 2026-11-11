@@ -1453,38 +1453,39 @@
             </div>
           </div>
 
-          <!-- TABELA DE DETALHAMENTO POR SUBUNIDADE -->
+          <!-- TABELA DE DETALHAMENTO DE MATERIAIS -->
           <div class="card border border-secondary border-opacity-25 shadow-sm mb-2">
             <div class="card-header bg-white d-flex justify-content-between align-items-center py-2 px-3 flex-wrap gap-2">
               <div class="d-flex align-items-center flex-wrap gap-2">
                 <span class="fw-bold text-dark" style="font-size: 0.78rem;">
-                  <i class="fa-solid fa-sitemap me-2 text-danger"></i> Quantitativo por Subunidade (<span id="contadorItensTabelaDash">0</span> subunidade(s) com carga)
+                  <i class="fa-solid fa-boxes-stacked me-2 text-danger"></i> Detalhamento de Materiais (<span id="contadorItensTabelaDash">0</span> materiais listados)
                 </span>
                 <span id="badgeFiltroStatusTabelaDash" class="badge py-1 px-2 border" style="display: none; cursor: pointer; font-size: 0.72rem;" onclick="definirFiltroStatusRapidoDash('TODOS')" title="Clique para remover este filtro de status"></span>
-                <span id="badgeFiltroGraficoTabelaDash" class="badge bg-primary text-white py-1 px-2 border" style="display: none; cursor: pointer; font-size: 0.72rem;" onclick="limparFiltroGraficoDash()" title="Clique para remover o filtro por gráfico"><i class="fa-solid fa-chart-column me-1"></i> <span id="textoFiltroGraficoTabelaDash"></span> <i class="fa-solid fa-xmark ms-1"></i></span>
+                <span id="badgeFiltroGraficoTabelaDash" class="badge bg-primary text-white py-1 px-2 border" style="display: none; cursor: pointer; font-size: 0.72rem;" onclick="limparFiltroGraficoDash()" title="Clique para remover o filtro por subunidade"><i class="fa-solid fa-chart-column me-1"></i> <span id="textoFiltroGraficoTabelaDash"></span> <i class="fa-solid fa-xmark ms-1"></i></span>
               </div>
               <div class="d-flex align-items-center gap-2">
-                <input type="text" id="filtroTextoTabelaDash" class="form-control form-control-sm py-1 px-2" placeholder="Buscar subunidade ou material..." style="max-width: 260px; font-size: 0.78rem;" onkeyup="filtrarTabelaMateriaisDashLocal()">
+                <input type="text" id="filtroTextoTabelaDash" class="form-control form-control-sm py-1 px-2" placeholder="Buscar material ou classe..." style="max-width: 260px; font-size: 0.78rem;" onkeyup="filtrarTabelaMateriaisDashLocal()">
               </div>
             </div>
-            <div class="table-responsive" style="max-height: 380px; overflow-y: auto;">
+            <div class="table-responsive" style="max-height: 420px; overflow-y: auto;">
               <table class="table table-hover table-sm align-middle mb-0" style="font-size: 0.78rem;">
                 <thead class="table-light sticky-top">
                   <tr>
                     <th class="text-center" style="width: 40px;">#</th>
-                    <th>Subunidade</th>
-                    <th>Materiais Encontrados</th>
-                    <th class="text-center" style="width: 100px;">Soma Total</th>
-                    <th class="text-center text-success" style="width: 90px;">ECD</th>
-                    <th class="text-center text-danger" style="width: 90px;">SCD</th>
-                    <th class="text-center text-primary" style="width: 95px;">Acautelado</th>
+                    <th>Descrição do Material (Objeto)</th>
+                    <th>Classe 1</th>
+                    <th>Classe 2</th>
+                    <th>Classe 3</th>
+                    <th class="text-center" style="width: 110px;">Quantidade Ideal</th>
+                    <th class="text-center" style="width: 95px;">Soma Total</th>
+                    <th class="text-center text-success" style="width: 85px;">ECD</th>
+                    <th class="text-center text-danger" style="width: 85px;">SCD</th>
                     <th class="text-center text-warning" style="width: 95px; color: #b45309 !important;">Extraviado</th>
-                    <th class="text-center" style="width: 90px;">% do Total</th>
-                    <th class="text-center" style="width: 90px;">Detalhes</th>
+                    <th class="text-center text-primary" style="width: 95px;">Acautelado</th>
                   </tr>
                 </thead>
                 <tbody id="corpoTabelaMateriaisDash">
-                  <tr><td colspan="10" class="text-center text-muted py-3">Nenhum dado selecionado.</td></tr>
+                  <tr><td colspan="11" class="text-center text-muted py-3">Nenhum dado selecionado.</td></tr>
                 </tbody>
               </table>
             </div>
@@ -29164,6 +29165,9 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
   let mapaSubunidadesDetalhesCompletos = {};
   let subunidadeFiltroGrafico = null;
   let ultimasSubsTopDash = [];
+  let listaMateriaisDetalhamentoDash = [];
+  let mapaMateriaisGeraisAgregados = {};
+  let mapaMateriaisPorSubunidadeAgregados = {};
 
   // Carrega ou atualiza os dados consolidados do servidor
   function carregarDadosDashboardVisaoGeral(forcar) {
@@ -29487,6 +29491,8 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
 
     const mapaSubunidades = {};
     mapaSubunidadesDetalhesCompletos = {};
+    mapaMateriaisGeraisAgregados = {};
+    mapaMateriaisPorSubunidadeAgregados = {};
 
     let totalGeral = 0;
     let totalEcd = 0;
@@ -29558,10 +29564,68 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
         sMat.scd += mScd;
         sMat.acautelado += mAcaut;
         sMat.extraviado += mExtr;
+
+        // Agregação Global de Materiais para a Tabela do Dashboard
+        if (!mapaMateriaisGeraisAgregados[m.nome]) {
+          mapaMateriaisGeraisAgregados[m.nome] = {
+            nome: m.nome,
+            classe1: m.classe1 || item.classe1 || '-',
+            classe2: m.classe2 || item.classe2 || '-',
+            classe3: m.classe3 || item.classe3 || '-',
+            cargaPadrao: m.cargaPadrao || 0,
+            total: 0,
+            ecd: 0,
+            scd: 0,
+            acautelado: 0,
+            extraviado: 0
+          };
+        }
+        const matGeral = mapaMateriaisGeraisAgregados[m.nome];
+        matGeral.total += mTot;
+        matGeral.ecd += mEcd;
+        matGeral.scd += mScd;
+        matGeral.acautelado += mAcaut;
+        matGeral.extraviado += mExtr;
+
+        // Agregação por Subunidade para filtragem dinâmica ao clicar no gráfico
+        if (!mapaMateriaisPorSubunidadeAgregados[subKey]) {
+          mapaMateriaisPorSubunidadeAgregados[subKey] = {};
+        }
+        if (!mapaMateriaisPorSubunidadeAgregados[subKey][m.nome]) {
+          mapaMateriaisPorSubunidadeAgregados[subKey][m.nome] = {
+            nome: m.nome,
+            classe1: m.classe1 || item.classe1 || '-',
+            classe2: m.classe2 || item.classe2 || '-',
+            classe3: m.classe3 || item.classe3 || '-',
+            cargaPadrao: m.cargaPadrao || 0,
+            total: 0,
+            ecd: 0,
+            scd: 0,
+            acautelado: 0,
+            extraviado: 0
+          };
+        }
+        const matSub = mapaMateriaisPorSubunidadeAgregados[subKey][m.nome];
+        matSub.total += mTot;
+        matSub.ecd += mEcd;
+        matSub.scd += mScd;
+        matSub.acautelado += mAcaut;
+        matSub.extraviado += mExtr;
       });
     });
 
     mapaSubunidadesDetalhesCompletos = mapaSubunidades;
+
+    // Define os materiais para exibição na tabela (geral ou filtrado pela subunidade clicada)
+    if (subunidadeFiltroGrafico && mapaMateriaisPorSubunidadeAgregados[subunidadeFiltroGrafico]) {
+      listaMateriaisDetalhamentoDash = Object.values(mapaMateriaisPorSubunidadeAgregados[subunidadeFiltroGrafico]).sort(function(a, b) {
+        return b.total - a.total;
+      });
+    } else {
+      listaMateriaisDetalhamentoDash = Object.values(mapaMateriaisGeraisAgregados).sort(function(a, b) {
+        return b.total - a.total;
+      });
+    }
 
     // Converte para lista ordenada por quantidade total decrescente
     listaSubunidadesDetalhamentoDash = Object.values(mapaSubunidades).sort(function(a, b) {
@@ -29994,7 +30058,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     filtrarTabelaMateriaisDashLocal();
   }
 
-  // Filtra e renderiza a tabela de detalhamento por Subunidade
+  // Filtra e renderiza a tabela de detalhamento de Materiais (com busca e filtro de status)
   function filtrarTabelaMateriaisDashLocal() {
     const tbody = document.getElementById('corpoTabelaMateriaisDash');
     if (!tbody) return;
@@ -30003,32 +30067,26 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     const selStatus = document.getElementById('filtroDashStatus');
     const statusFiltro = selStatus ? selStatus.value : 'TODOS';
 
-    let filtrados = listaSubunidadesDetalhamentoDash;
-    if (subunidadeFiltroGrafico) {
-      filtrados = filtrados.filter(function(sub) {
-        return (sub.subunidade === subunidadeFiltroGrafico || sub.subunidadeRotulo === subunidadeFiltroGrafico);
-      });
-    }
+    let filtrados = listaMateriaisDetalhamentoDash || [];
+
+    // Filtro por texto digitado
     if (texto) {
-      filtrados = filtrados.filter(function(sub) {
-        if ((sub.subunidadeRotulo || '').toLowerCase().includes(texto)) return true;
-        if ((sub.subunidade || '').toLowerCase().includes(texto)) return true;
-        if (sub.materiaisMap) {
-          for (const m in sub.materiaisMap) {
-            if (m.toLowerCase().includes(texto)) return true;
-          }
-        }
-        return false;
+      filtrados = filtrados.filter(function(m) {
+        return (m.nome && m.nome.toLowerCase().includes(texto)) ||
+               (m.classe1 && m.classe1.toLowerCase().includes(texto)) ||
+               (m.classe2 && m.classe2.toLowerCase().includes(texto)) ||
+               (m.classe3 && m.classe3.toLowerCase().includes(texto));
       });
     }
 
+    // Filtro por status
     if (statusFiltro !== 'TODOS') {
-      filtrados = filtrados.filter(function(sub) {
-        if (statusFiltro === 'ECD') return sub.ecd > 0;
-        if (statusFiltro === 'SCD') return sub.scd > 0;
-        if (statusFiltro === 'ACAUTELADO') return sub.acautelado > 0;
-        if (statusFiltro === 'EXTRAVIADO') return sub.extraviado > 0;
-        return true;
+      const stKey = statusFiltro.toLowerCase();
+      filtrados = filtrados.filter(function(m) {
+        return (m[stKey] || 0) > 0;
+      });
+      filtrados = filtrados.slice().sort(function(a, b) {
+        return (b[stKey] || 0) - (a[stKey] || 0);
       });
     }
 
@@ -30036,51 +30094,28 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     if (contador) contador.innerText = filtrados.length;
 
     if (filtrados.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-4"><i class="fa-solid fa-filter-circle-xmark me-2 text-secondary"></i>Nenhuma subunidade encontrada com os filtros selecionados.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="11" class="text-center text-muted py-4"><i class="fa-solid fa-filter-circle-xmark me-2 text-secondary"></i>Nenhum material encontrado com os filtros selecionados.</td></tr>';
       return;
     }
 
-    let totGeralTabela = 0;
-    filtrados.forEach(s => { totGeralTabela += s.total; });
-
     let html = '';
-    filtrados.forEach(function(sub, idx) {
-      const p = totGeralTabela > 0 ? ((sub.total / totGeralTabela) * 100).toFixed(1).replace('.', ',') + '%' : '0%';
-      
-      const nomesMats = Object.keys(sub.materiaisMap || {});
-      let matsHtml = '';
-      if (nomesMats.length === 1) {
-        matsHtml = '<span class="badge bg-light text-dark border">' + escapeHtmlResumo(nomesMats[0]) + '</span>';
-      } else if (nomesMats.length > 1) {
-        matsHtml = '<span class="badge bg-light text-primary border fw-bold me-1">' + nomesMats.length + ' tipos de materiais</span> ' +
-                   '<span class="text-muted small">(' + escapeHtmlResumo(nomesMats.slice(0, 2).join(', ')) + (nomesMats.length > 2 ? '...' : '') + ')</span>';
-      } else {
-        matsHtml = '<span class="text-muted">-</span>';
-      }
+    filtrados.forEach(function(m, idx) {
+      const ehVtr = (typeof ehViaturaMaterial === 'function' && ehViaturaMaterial(m.nome));
+      const badgeVtr = ehVtr ? '<span class="badge bg-danger bg-opacity-10 text-danger border border-danger-subtle me-1" style="font-size: 0.65rem;"><i class="fa-solid fa-truck-fire me-1"></i>Viatura</span>' : '';
 
-      const rotuloSub = escapeHtmlResumo(sub.subunidadeRotulo || sub.subunidade);
-      const chaveSub = encodeURIComponent(sub.subunidadeRotulo || sub.subunidade);
-
-      html += `
-        <tr>
-          <td class="text-center text-muted small">${idx + 1}</td>
-          <td class="fw-bold text-dark text-nowrap">
-            <i class="fa-solid fa-sitemap text-danger me-1 small"></i> ${rotuloSub}
-          </td>
-          <td>${matsHtml}</td>
-          <td class="text-center fw-bold bg-light"><span class="badge bg-dark text-white px-2">${sub.total}</span></td>
-          <td class="text-center text-success fw-bold">${sub.ecd > 0 ? `<span class="badge bg-success bg-opacity-10 text-success border border-success">${sub.ecd}</span>` : '-'}</td>
-          <td class="text-center text-danger fw-bold">${sub.scd > 0 ? `<span class="badge bg-danger bg-opacity-10 text-danger border border-danger">${sub.scd}</span>` : '-'}</td>
-          <td class="text-center text-primary fw-bold">${sub.acautelado > 0 ? `<span class="badge bg-primary bg-opacity-10 text-primary border border-primary">${sub.acautelado}</span>` : '-'}</td>
-          <td class="text-center text-warning fw-bold">${sub.extraviado > 0 ? `<span class="badge bg-warning bg-opacity-25 text-dark border border-warning">${sub.extraviado}</span>` : '-'}</td>
-          <td class="text-center text-muted small">${p}</td>
-          <td class="text-center">
-            <button class="btn btn-outline-secondary btn-sm py-0 px-2" style="font-size: 0.72rem;" onclick="abrirModalDetalhesSubunidadeDash('${chaveSub}')" title="Ver materiais detalhados desta Subunidade">
-              <i class="fa-solid fa-list-check me-1"></i> Ver
-            </button>
-          </td>
-        </tr>
-      `;
+      html += '<tr>' +
+        '<td class="text-center text-muted small">' + (idx + 1) + '</td>' +
+        '<td class="fw-bold text-dark text-break">' + badgeVtr + escapeHtmlResumo(m.nome) + '</td>' +
+        '<td><span class="badge bg-light text-secondary border" style="font-size: 0.72rem;">' + escapeHtmlResumo(m.classe1 || '-') + '</span></td>' +
+        '<td><span class="badge bg-light text-primary border" style="font-size: 0.72rem;">' + escapeHtmlResumo(m.classe2 || '-') + '</span></td>' +
+        '<td><span class="badge bg-light text-info border" style="font-size: 0.72rem;">' + escapeHtmlResumo(m.classe3 || '-') + '</span></td>' +
+        '<td class="text-center fw-bold text-primary">' + (m.cargaPadrao > 0 ? m.cargaPadrao.toLocaleString('pt-BR') : '-') + '</td>' +
+        '<td class="text-center fw-bold bg-light"><span class="badge bg-dark text-white px-2">' + m.total.toLocaleString('pt-BR') + '</span></td>' +
+        '<td class="text-center text-success fw-bold">' + (m.ecd > 0 ? ('<span class="badge bg-success bg-opacity-10 text-success border border-success">' + m.ecd.toLocaleString('pt-BR') + '</span>') : '-') + '</td>' +
+        '<td class="text-center text-danger fw-bold">' + (m.scd > 0 ? ('<span class="badge bg-danger bg-opacity-10 text-danger border border-danger">' + m.scd.toLocaleString('pt-BR') + '</span>') : '-') + '</td>' +
+        '<td class="text-center text-warning fw-bold">' + (m.extraviado > 0 ? ('<span class="badge bg-warning bg-opacity-25 text-dark border border-warning">' + m.extraviado.toLocaleString('pt-BR') + '</span>') : '-') + '</td>' +
+        '<td class="text-center text-primary fw-bold">' + (m.acautelado > 0 ? ('<span class="badge bg-primary bg-opacity-10 text-primary border border-primary">' + m.acautelado.toLocaleString('pt-BR') + '</span>') : '-') + '</td>' +
+      '</tr>';
     });
 
     tbody.innerHTML = html;
