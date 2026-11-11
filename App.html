@@ -10836,7 +10836,15 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
               if (filtrosAtivos.length > 0 && !filtrosAtivos.includes(m.nome.toUpperCase())) return acc;
               return acc + (parseInt(m.qtd) || 0);
             }, 0);
-            const filhosDoNo = locais.filter(l => String(l.idPai) === String(noId));
+            const pNode = locais.find(p => String(p.id) === String(noId));
+            const pNomeUpper = pNode ? String(pNode.nome || '').trim().toUpperCase() : '';
+            const pNomeSemEsp = pNomeUpper.replace(/\s+/g, '');
+            const filhosDoNo = locais.filter(l => {
+              const pId = String(l.idPai || '').trim();
+              if (pId === String(noId)) return true;
+              if (pNomeUpper && (pId.toUpperCase() === pNomeUpper || pId.replace(/\s+/g, '').toUpperCase() === pNomeSemEsp)) return true;
+              return false;
+            });
             filhosDoNo.forEach(fn => { total += obterTotalItensSubarvore(fn.id); });
             return total;
           }
