@@ -29877,11 +29877,89 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
           y: {
             stacked: statusFiltro === 'TODOS',
             beginAtZero: true,
+            grace: '12%',
             ticks: { precision: 0, font: { size: 10 } },
             grid: { color: 'rgba(0,0,0,0.05)' }
           }
         }
-      }
+      },
+      plugins: [{
+        id: 'rotulosQuantidadesBarras',
+        afterDatasetsDraw: function(chart) {
+          const ctx = chart.ctx;
+          ctx.save();
+
+          const isStacked = (statusFiltro === 'TODOS');
+          const meta0 = chart.getDatasetMeta(0);
+          if (!meta0 || !meta0.data || meta0.data.length === 0) {
+            ctx.restore();
+            return;
+          }
+
+          const numBarras = meta0.data.length;
+
+          if (isStacked) {
+            const totaisPorBarra = new Array(numBarras).fill(0);
+            const menoresYPorBarra = new Array(numBarras).fill(chart.chartArea.bottom);
+
+            chart.data.datasets.forEach(function(ds, dsIdx) {
+              const meta = chart.getDatasetMeta(dsIdx);
+              if (meta.hidden) return;
+              meta.data.forEach(function(bar, i) {
+                const val = (ds.data && ds.data[i]) ? ds.data[i] : 0;
+                totaisPorBarra[i] += val;
+
+                if (bar && bar.y < menoresYPorBarra[i]) {
+                  menoresYPorBarra[i] = bar.y;
+                }
+
+                // Desenha número dentro da fatia da barra se tiver altura suficiente (>= 15px)
+                const altFatia = Math.abs((bar.base || chart.chartArea.bottom) - bar.y);
+                if (val > 0 && altFatia >= 15) {
+                  ctx.font = 'bold 9px Arial, sans-serif';
+                  ctx.fillStyle = '#ffffff';
+                  ctx.textAlign = 'center';
+                  ctx.textBaseline = 'middle';
+                  const midY = (bar.y + (bar.base || chart.chartArea.bottom)) / 2;
+                  ctx.fillText(val.toLocaleString('pt-BR'), bar.x, midY);
+                }
+              });
+            });
+
+            // Desenha o número total consolidado no topo de cada barra
+            for (let i = 0; i < numBarras; i++) {
+              const tot = totaisPorBarra[i];
+              if (tot <= 0 || !meta0.data[i]) continue;
+              const barX = meta0.data[i].x;
+              const barY = menoresYPorBarra[i];
+
+              ctx.font = 'bold 10px Arial, sans-serif';
+              ctx.fillStyle = '#0f172a';
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'bottom';
+              ctx.fillText(tot.toLocaleString('pt-BR'), barX, Math.max(barY - 3, chart.chartArea.top + 10));
+            }
+          } else {
+            // Modo de status específico (não empilhado): desenha o número no topo de cada barra
+            chart.data.datasets.forEach(function(ds, dsIdx) {
+              const meta = chart.getDatasetMeta(dsIdx);
+              if (meta.hidden) return;
+              meta.data.forEach(function(bar, i) {
+                const val = (ds.data && ds.data[i]) ? ds.data[i] : 0;
+                if (val <= 0 || !bar) return;
+
+                ctx.font = 'bold 10.5px Arial, sans-serif';
+                ctx.fillStyle = '#0f172a';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'bottom';
+                ctx.fillText(val.toLocaleString('pt-BR'), bar.x, Math.max(bar.y - 3, chart.chartArea.top + 10));
+              });
+            });
+          }
+
+          ctx.restore();
+        }
+      }]
     });
 
     // 2. GRÁFICO DONUT POR SUBUNIDADE (COM FILTRAGEM AO CLICAR)
