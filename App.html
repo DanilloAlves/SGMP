@@ -1241,10 +1241,10 @@
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2 pb-2 border-bottom">
           <div>
             <h6 class="fw-bold text-dark mb-0 d-flex align-items-center">
-              <i class="fa-solid fa-chart-pie text-danger me-2"></i> Dashboard de Materiais por Classe e Situação
+              <i class="fa-solid fa-chart-column text-danger me-2"></i> Dashboard de Quantitativo de Materiais por Subunidade
             </h6>
             <span class="text-muted" style="font-size: 0.75rem;">
-              Visão consolidada dos materiais por classes e estado de conservação.
+              Visão consolidada do quantitativo existente de materiais por Subunidade e situação patrimonial.
             </span>
           </div>
           <div class="d-flex align-items-center gap-2">
@@ -1260,7 +1260,7 @@
           </div>
         </div>
 
-        <!-- BARRA DE FILTROS DO DASHBOARD (5 FILTROS + BOTÃO RESET) -->
+        <!-- BARRA DE FILTROS DO DASHBOARD (OME, MATERIAL MULTI-SELECT, STATUS, SUBUNIDADE, RESET) -->
         <div class="row g-2 mb-3 p-2 bg-light bg-opacity-50 rounded border align-items-end" style="font-size: 0.8rem;">
           <!-- Filtro OME -->
           <div class="col-lg-3 col-md-6 col-sm-12">
@@ -1272,48 +1272,48 @@
             </select>
           </div>
 
-          <!-- Filtro Subunidade -->
+          <!-- Filtro Material (Multi-seleção com Select2) -->
+          <div class="col-lg-5 col-md-12 col-sm-12">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <label class="form-label fw-bold text-secondary mb-0" style="font-size: 0.73rem;">
+                <i class="fa-solid fa-boxes-stacked me-1 text-primary"></i> Material(is)
+              </label>
+              <div class="d-flex gap-1">
+                <a href="javascript:void(0)" class="text-primary small text-decoration-none" style="font-size: 0.68rem;" onclick="selecionarTodosMateriaisDash(true)">Todos</a>
+                <span class="text-muted" style="font-size: 0.68rem;">|</span>
+                <a href="javascript:void(0)" class="text-secondary small text-decoration-none" style="font-size: 0.68rem;" onclick="selecionarTodosMateriaisDash(false)">Limpar</a>
+              </div>
+            </div>
+            <select id="filtroDashMaterial" class="form-select form-select-sm" multiple="multiple" style="width: 100%;">
+            </select>
+          </div>
+
+          <!-- Filtro Situação / Status -->
           <div class="col-lg-2 col-md-6 col-sm-12">
+            <label class="form-label fw-bold text-secondary mb-1" style="font-size: 0.73rem;">
+              <i class="fa-solid fa-shield-halved me-1 text-success"></i> Situação / Status
+            </label>
+            <select id="filtroDashStatus" class="form-select form-select-sm shadow-none" onchange="aplicarFiltrosDashboard()" style="font-size: 0.78rem;">
+              <option value="TODOS">Todos os Status</option>
+              <option value="ECD">Em Uso (ECD)</option>
+              <option value="SCD">Sem Condições (SCD)</option>
+              <option value="ACAUTELADO">Acautelado</option>
+              <option value="EXTRAVIADO">Extraviado</option>
+            </select>
+          </div>
+
+          <!-- Filtro Subunidade (Opcional) -->
+          <div class="col-lg-1 col-md-6 col-sm-12">
             <label class="form-label fw-bold text-secondary mb-1" style="font-size: 0.73rem;">
               <i class="fa-solid fa-sitemap me-1 text-danger"></i> Subunidade
             </label>
             <select id="filtroDashSubunidade" class="form-select form-select-sm shadow-none" onchange="aplicarFiltrosDashboard()" style="font-size: 0.78rem;">
-              <option value="TODAS">TODAS (Subunidades)</option>
-            </select>
-          </div>
-
-          <!-- Filtro Classe 1 -->
-          <div class="col-lg-2 col-md-6 col-sm-12">
-            <label class="form-label fw-bold text-secondary mb-1" style="font-size: 0.73rem;">
-              <i class="fa-solid fa-layer-group me-1 text-secondary"></i> Classe 1
-            </label>
-            <select id="filtroDashClasse1" class="form-select form-select-sm shadow-none" onchange="aplicarFiltrosDashboard()" style="font-size: 0.78rem;">
-              <option value="TODAS">TODAS (Classe 1)</option>
-            </select>
-          </div>
-
-          <!-- Filtro Classe 2 -->
-          <div class="col-lg-2 col-md-6 col-sm-12">
-            <label class="form-label fw-bold text-secondary mb-1" style="font-size: 0.73rem;">
-              <i class="fa-solid fa-tags me-1 text-primary"></i> Classe 2
-            </label>
-            <select id="filtroDashClasse2" class="form-select form-select-sm shadow-none" onchange="aplicarFiltrosDashboard()" style="font-size: 0.78rem;">
-              <option value="TODAS">TODAS (Classe 2)</option>
-            </select>
-          </div>
-
-          <!-- Filtro Classe 3 -->
-          <div class="col-lg-2 col-md-6 col-sm-12">
-            <label class="form-label fw-bold text-secondary mb-1" style="font-size: 0.73rem;">
-              <i class="fa-solid fa-tag me-1 text-info"></i> Classe 3
-            </label>
-            <select id="filtroDashClasse3" class="form-select form-select-sm shadow-none" onchange="aplicarFiltrosDashboard()" style="font-size: 0.78rem;">
-              <option value="TODAS">TODAS (Classe 3)</option>
+              <option value="TODAS">TODAS</option>
             </select>
           </div>
 
           <!-- Botão Reset -->
-          <div class="col-lg-1 col-md-12 col-sm-12">
+          <div class="col-lg-1 col-md-6 col-sm-12">
             <button class="btn btn-outline-secondary btn-sm w-100" onclick="resetarFiltrosDashboard()" title="Restaurar filtros padrão" style="font-size: 0.78rem; padding: 0.28rem 0.2rem;">
               <i class="fa-solid fa-filter-circle-xmark me-1"></i> Limpar
             </button>
@@ -1323,7 +1323,7 @@
         <!-- INDICADOR DE CARREGAMENTO -->
         <div id="loadingDashboardVisaoGeral" class="text-center py-4">
           <div class="spinner-border spinner-border-sm text-danger mb-2" role="status"></div>
-          <div class="text-muted small fw-bold">Carregando dados do inventário e classificação do catálogo...</div>
+          <div class="text-muted small fw-bold">Carregando dados quantitativos de materiais por Subunidade...</div>
         </div>
 
         <!-- CONTEÚDO PRINCIPAL DO DASHBOARD (OCULTO DURANTE CARREGAMENTO) -->
@@ -1333,7 +1333,7 @@
           <div class="row g-2 mb-3">
             <!-- Total Geral -->
             <div class="col-xl col-md-4 col-sm-6">
-              <div class="card border border-secondary border-opacity-25 shadow-sm p-2 rounded-2 bg-white" style="border-top: 3px solid #475569 !important; cursor: pointer;" onclick="limparFiltroStatusTabelaDash()" title="Clique para ver todos os materiais na tabela">
+              <div class="card border border-secondary border-opacity-25 shadow-sm p-2 rounded-2 bg-white" style="border-top: 3px solid #475569 !important; cursor: pointer;" onclick="definirFiltroStatusRapidoDash('TODOS')" title="Clique para ver todos os status">
                 <div class="d-flex justify-content-between align-items-center">
                   <div>
                     <div class="text-uppercase text-secondary fw-bold" style="font-size: 0.68rem; letter-spacing: 0.5px;">Total de Itens</div>
@@ -1347,7 +1347,7 @@
 
             <!-- ECD -->
             <div class="col-xl col-md-4 col-sm-6">
-              <div class="card border border-secondary border-opacity-25 shadow-sm p-2 rounded-2 bg-white card-hover-dash" style="border-top: 3px solid #10b981 !important; cursor: pointer;" onclick="alternarFiltroStatusTabelaDash('ECD')" title="Clique para filtrar a tabela por itens Em Uso (ECD)">
+              <div class="card border border-secondary border-opacity-25 shadow-sm p-2 rounded-2 bg-white card-hover-dash" style="border-top: 3px solid #10b981 !important; cursor: pointer;" onclick="definirFiltroStatusRapidoDash('ECD')" title="Clique para filtrar por itens Em Uso (ECD)">
                 <div class="d-flex justify-content-between align-items-center">
                   <div>
                     <div class="text-uppercase text-success fw-bold" style="font-size: 0.68rem; letter-spacing: 0.5px;">Em Uso (ECD)</div>
@@ -1361,7 +1361,7 @@
 
             <!-- SCD -->
             <div class="col-xl col-md-4 col-sm-4">
-              <div class="card border border-secondary border-opacity-25 shadow-sm p-2 rounded-2 bg-white card-hover-dash" style="border-top: 3px solid #ef4444 !important; cursor: pointer;" onclick="alternarFiltroStatusTabelaDash('SCD')" title="Clique para filtrar a tabela por itens Sem Condições (SCD)">
+              <div class="card border border-secondary border-opacity-25 shadow-sm p-2 rounded-2 bg-white card-hover-dash" style="border-top: 3px solid #ef4444 !important; cursor: pointer;" onclick="definirFiltroStatusRapidoDash('SCD')" title="Clique para filtrar por itens Sem Condições (SCD)">
                 <div class="d-flex justify-content-between align-items-center">
                   <div>
                     <div class="text-uppercase text-danger fw-bold" style="font-size: 0.68rem; letter-spacing: 0.5px;">Sem Condições (SCD)</div>
@@ -1375,7 +1375,7 @@
 
             <!-- Extraviado -->
             <div class="col-xl col-md-6 col-sm-4">
-              <div class="card border border-secondary border-opacity-25 shadow-sm p-2 rounded-2 bg-white card-hover-dash" style="border-top: 3px solid #f59e0b !important; cursor: pointer;" onclick="alternarFiltroStatusTabelaDash('EXTRAVIADO')" title="Clique para filtrar a tabela por itens Extraviados">
+              <div class="card border border-secondary border-opacity-25 shadow-sm p-2 rounded-2 bg-white card-hover-dash" style="border-top: 3px solid #f59e0b !important; cursor: pointer;" onclick="definirFiltroStatusRapidoDash('EXTRAVIADO')" title="Clique para filtrar por itens Extraviados">
                 <div class="d-flex justify-content-between align-items-center">
                   <div>
                     <div class="text-uppercase text-warning-emphasis fw-bold" style="font-size: 0.68rem; letter-spacing: 0.5px; color: #b45309 !important;">Extraviado</div>
@@ -1389,7 +1389,7 @@
 
             <!-- Acautelado -->
             <div class="col-xl col-md-6 col-sm-4">
-              <div class="card border border-secondary border-opacity-25 shadow-sm p-2 rounded-2 bg-white card-hover-dash" style="border-top: 3px solid #3b82f6 !important; cursor: pointer;" onclick="alternarFiltroStatusTabelaDash('ACAUTELADO')" title="Clique para filtrar a tabela por itens Acautelados">
+              <div class="card border border-secondary border-opacity-25 shadow-sm p-2 rounded-2 bg-white card-hover-dash" style="border-top: 3px solid #3b82f6 !important; cursor: pointer;" onclick="definirFiltroStatusRapidoDash('ACAUTELADO')" title="Clique para filtrar por itens Acautelados">
                 <div class="d-flex justify-content-between align-items-center">
                   <div>
                     <div class="text-uppercase text-primary fw-bold" style="font-size: 0.68rem; letter-spacing: 0.5px;">Acautelado</div>
@@ -1400,79 +1400,89 @@
                 </div>
               </div>
             </div>
+
+            <!-- Subunidades com Carga -->
+            <div class="col-xl col-md-6 col-sm-6">
+              <div class="card border border-secondary border-opacity-25 shadow-sm p-2 rounded-2 bg-white" style="border-top: 3px solid #8b5cf6 !important;">
+                <div class="d-flex justify-content-between align-items-center">
+                  <div>
+                    <div class="text-uppercase text-purple fw-bold" style="font-size: 0.68rem; letter-spacing: 0.5px; color: #7c3aed !important;">Subunidades</div>
+                    <div class="fs-5 fw-bold my-1" style="color: #7c3aed;" id="kpiDashTotalSubs">0</div>
+                    <span class="badge bg-light text-secondary border" style="font-size: 0.65rem;" id="kpiDashSubtituloSubs">com materiais</span>
+                  </div>
+                  <div class="opacity-50 pe-1" style="color: #7c3aed;"><i class="fa-solid fa-sitemap fs-4"></i></div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <!-- SEÇÃO DE GRÁFICOS (CHART.JS COMPACTOS) -->
           <div class="row g-2 mb-3">
-            <!-- Gráfico Principal: Barras de Status -->
+            <!-- Gráfico Principal: Quantitativo de Materiais por SUBUNIDADE -->
             <div class="col-lg-8 col-md-12">
               <div class="card border border-secondary border-opacity-25 shadow-sm p-2 h-100 bg-white">
                 <div class="d-flex justify-content-between align-items-center mb-1">
                   <span class="fw-bold text-dark" style="font-size: 0.78rem;">
-                    <i class="fa-solid fa-chart-column text-danger me-1"></i> Quantitativo por Situação / Status
+                    <i class="fa-solid fa-chart-column text-danger me-1"></i> Quantitativo por SUBUNIDADE
                   </span>
                   <div class="d-flex align-items-center gap-1">
-                    <span class="badge bg-light text-muted border d-none d-sm-inline-block" style="font-size: 0.66rem;" title="Clique nas barras ou fatias para filtrar a tabela abaixo">
-                      <i class="fa-solid fa-hand-pointer text-danger me-1"></i>Clique na barra para filtrar
-                    </span>
                     <span class="badge bg-light text-secondary border" style="font-size: 0.68rem;" id="badgeTituloGraficoBarras">
                       Filtro Ativo
                     </span>
                   </div>
                 </div>
-                <div style="position: relative; height: 210px; width: 100%;">
+                <div style="position: relative; height: 250px; width: 100%;">
                   <canvas id="chartDashBarrasStatus"></canvas>
                 </div>
               </div>
             </div>
 
-            <!-- Gráfico Secundário: Proporção Donut -->
+            <!-- Gráfico Secundário: Proporção entre Subunidades (Rosca / Donut) -->
             <div class="col-lg-4 col-md-12">
               <div class="card border border-secondary border-opacity-25 shadow-sm p-2 h-100 bg-white">
                 <div class="d-flex justify-content-between align-items-center mb-1">
                   <span class="fw-bold text-dark" style="font-size: 0.78rem;">
-                    <i class="fa-solid fa-chart-pie text-primary me-1"></i> Proporção (%)
+                    <i class="fa-solid fa-chart-pie text-primary me-1"></i> Proporção por Subunidade (%)
                   </span>
                 </div>
-                <div style="position: relative; height: 210px; width: 100%; display: flex; align-items: center; justify-content: center;">
+                <div style="position: relative; height: 250px; width: 100%; display: flex; align-items: center; justify-content: center;">
                   <canvas id="chartDashDonutStatus"></canvas>
                 </div>
               </div>
             </div>
           </div>
 
-          <!-- TABELA DE DETALHAMENTO DE MATERIAIS DA CLASSE -->
+          <!-- TABELA DE DETALHAMENTO POR SUBUNIDADE -->
           <div class="card border border-secondary border-opacity-25 shadow-sm mb-2">
             <div class="card-header bg-white d-flex justify-content-between align-items-center py-2 px-3 flex-wrap gap-2">
               <div class="d-flex align-items-center flex-wrap gap-2">
                 <span class="fw-bold text-dark" style="font-size: 0.78rem;">
-                  <i class="fa-solid fa-list-check me-2 text-danger"></i> Detalhamento dos Materiais (<span id="contadorItensTabelaDash">0</span> itens listados)
+                  <i class="fa-solid fa-sitemap me-2 text-danger"></i> Quantitativo por Subunidade (<span id="contadorItensTabelaDash">0</span> subunidade(s) com carga)
                 </span>
-                <span id="badgeFiltroStatusTabelaDash" class="badge py-1 px-2 border" style="display: none; cursor: pointer; font-size: 0.72rem;" onclick="limparFiltroStatusTabelaDash()" title="Clique para remover este filtro de status"></span>
+                <span id="badgeFiltroStatusTabelaDash" class="badge py-1 px-2 border" style="display: none; cursor: pointer; font-size: 0.72rem;" onclick="definirFiltroStatusRapidoDash('TODOS')" title="Clique para remover este filtro de status"></span>
               </div>
               <div class="d-flex align-items-center gap-2">
-                <input type="text" id="filtroTextoTabelaDash" class="form-control form-control-sm py-1 px-2" placeholder="Buscar material ou classe..." style="max-width: 260px; font-size: 0.78rem;" onkeyup="filtrarTabelaMateriaisDashLocal()">
+                <input type="text" id="filtroTextoTabelaDash" class="form-control form-control-sm py-1 px-2" placeholder="Buscar subunidade ou material..." style="max-width: 260px; font-size: 0.78rem;" onkeyup="filtrarTabelaMateriaisDashLocal()">
               </div>
             </div>
-            <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+            <div class="table-responsive" style="max-height: 380px; overflow-y: auto;">
               <table class="table table-hover table-sm align-middle mb-0" style="font-size: 0.78rem;">
                 <thead class="table-light sticky-top">
                   <tr>
                     <th class="text-center" style="width: 40px;">#</th>
-                    <th>Descrição do Material (Objeto)</th>
-                    <th>Classe 1</th>
-                    <th>Classe 2</th>
-                    <th>Classe 3</th>
-                    <th class="text-center" style="width: 110px;">Quantidade Ideal</th>
-                    <th class="text-center" style="width: 95px;">Soma Total</th>
-                    <th class="text-center text-success" style="width: 85px;">ECD</th>
-                    <th class="text-center text-danger" style="width: 85px;">SCD</th>
-                    <th class="text-center text-warning" style="width: 95px; color: #b45309 !important;">Extraviado</th>
+                    <th>Subunidade</th>
+                    <th>Materiais Encontrados</th>
+                    <th class="text-center" style="width: 100px;">Soma Total</th>
+                    <th class="text-center text-success" style="width: 90px;">ECD</th>
+                    <th class="text-center text-danger" style="width: 90px;">SCD</th>
                     <th class="text-center text-primary" style="width: 95px;">Acautelado</th>
+                    <th class="text-center text-warning" style="width: 95px; color: #b45309 !important;">Extraviado</th>
+                    <th class="text-center" style="width: 90px;">% do Total</th>
+                    <th class="text-center" style="width: 90px;">Detalhes</th>
                   </tr>
                 </thead>
                 <tbody id="corpoTabelaMateriaisDash">
-                  <tr><td colspan="11" class="text-center text-muted py-3">Nenhum dado selecionado.</td></tr>
+                  <tr><td colspan="10" class="text-center text-muted py-3">Nenhum dado selecionado.</td></tr>
                 </tbody>
               </table>
             </div>
@@ -8508,6 +8518,7 @@
     // Filtra lista de materiais
     const materiaisFiltrados = dadosResumoMaterialAtual.materiais.filter(function(item) {
       if ((item.totais.total || 0) <= 0) return false;
+      if (typeof ehViaturaMaterial === 'function' && ehViaturaMaterial(item.material)) return false;
       if (filtroTexto && item.material.toLowerCase().indexOf(filtroTexto) === -1) {
         return false;
       }
@@ -10447,14 +10458,16 @@
       return;
     }
 
-    const listaMat = (dadosResumoArvoreAtual && dadosResumoArvoreAtual.materiaisDisponiveis) ? dadosResumoArvoreAtual.materiaisDisponiveis : [];
-    let opcoesHtml = '<option value="">-- Selecione ou digite abaixo --</option>';
+    const listaMat = (dadosResumoArvoreAtual && dadosResumoArvoreAtual.materiaisDisponiveis) 
+      ? dadosResumoArvoreAtual.materiaisDisponiveis.filter(m => (typeof ehViaturaMaterial !== 'function' || !ehViaturaMaterial(m)))
+      : [];
+    let opcoesHtml = '<option value="">-- Selecione o material na lista --</option>';
     listaMat.forEach(function(m) {
       opcoesHtml += `<option value="${escapeHtmlResumo(m)}">${escapeHtmlResumo(m)}</option>`;
     });
 
     Swal.fire({
-      title: 'Adicionar Quantidade Ideal ao Setor',
+      title: 'Definir Carga do Setor',
       html: `
         <div class="text-start small mb-3">
           <p class="mb-1"><strong>Unidade (OME):</strong> ${escapeHtmlResumo(ome)}</p>
@@ -10463,11 +10476,9 @@
         </div>
         <div class="text-start mb-3">
           <label class="form-label fw-bold small">Selecione o Material da OME:</label>
-          <select id="swalSelectMatCarga" class="form-select form-select-sm mb-2" onchange="document.getElementById('swalInputMatCarga').value = this.value;">
+          <select id="swalSelectMatCarga" class="form-select form-select-sm">
             ${opcoesHtml}
           </select>
-          <label class="form-label fw-bold small">Ou digite o Nome do Material:</label>
-          <input type="text" id="swalInputMatCarga" class="form-control form-control-sm" placeholder="Nome exato do material...">
         </div>
         <div class="text-start">
           <label class="form-label fw-bold small">Quantidade Ideal:</label>
@@ -10475,20 +10486,20 @@
         </div>
       `,
       showCancelButton: true,
-      confirmButtonText: '<i class="fa-solid fa-plus me-1"></i> Adicionar Carga',
+      confirmButtonText: '<i class="fa-solid fa-plus me-1"></i> Salvar Carga',
       cancelButtonText: 'Cancelar',
       focusConfirm: false,
       preConfirm: function() {
-        const matInput = document.getElementById('swalInputMatCarga');
-        const mat = matInput ? matInput.value.trim() : '';
+        const selMat = document.getElementById('swalSelectMatCarga');
+        const mat = selMat ? selMat.value.trim() : '';
         const qtdInput = document.getElementById('swalInputQtdCarga');
         const qtd = parseInt(qtdInput ? qtdInput.value : 0, 10);
         if (!mat) {
-          Swal.showValidationMessage('Informe ou selecione o nome do material.');
+          Swal.showValidationMessage('Selecione um material na lista suspensa.');
           return false;
         }
         if (isNaN(qtd) || qtd < 0) {
-          Swal.showValidationMessage('Informe uma quantidade válida.');
+          Swal.showValidationMessage('Informe uma quantidade válida maior ou igual a zero.');
           return false;
         }
         return { material: mat, carga: qtd };
@@ -10512,14 +10523,14 @@
             if (resp && resp.sucesso) {
               Swal.fire({
                 icon: 'success',
-                title: 'Carga Adicionada!',
+                title: 'Carga Salva!',
                 text: `Quantidade Ideal de ${material} definida para ${carga} unidade(s).`,
                 timer: 1800,
                 showConfirmButton: false
               });
               carregarResumoArvoreArmazenamento(true);
             } else {
-              Swal.fire('Erro', (resp && resp.erro) ? resp.erro : 'Falha ao salvar.', 'error');
+              Swal.fire('Erro', (resp && resp.erro) ? resp.erro : 'Falha ao salvar carga.', 'error');
             }
           })
           .withFailureHandler(function(err) {
@@ -13626,9 +13637,12 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
 
   function ehViaturaMaterial(nome) {
     if (!nome) return false;
-    const n = String(nome).trim();
-    if (/^(?:VTR|ABTF|ABTS|ABT|ABSL|ABSM|ABSC|AR|AT\/1|AT|ASE|AE|AEM|BIS|MSA|MR|AP|ATM|AC|ACA|UR|UTI)(?:\b|[-_ ])/i.test(n)) return true;
-    return (typeof CONFIG_VIATURAS_CBMPE !== 'undefined') && CONFIG_VIATURAS_CBMPE.some(cfg => cfg.regex.test(n));
+    const n = String(nome).trim().toUpperCase();
+    if (n.startsWith("VIATURA") || /\bVIATURA\b/.test(n) || /\bVE[IÍ]CULO\b/.test(n)) return true;
+    if (/^(?:VTR|ABTF|ABTS|ABT|ABSL|ABSM|ABSC|AR|AT\/1|AT|ASE|AE|AEM|BIS|MSA|MR|AP|ATM|AC|ACA|UR|UTI)(?:\b|[-_ \/])/i.test(n)) return true;
+    if ((typeof CONFIG_VIATURAS_CBMPE !== 'undefined') && CONFIG_VIATURAS_CBMPE.some(cfg => cfg.regex.test(n))) return true;
+    if (typeof obterSiglaViatura === 'function' && obterSiglaViatura(n)) return true;
+    return false;
   }
 
   function formatarBadgeStatusBase(status) {
@@ -28919,8 +28933,8 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
   let cacheDadosDashboard = null;
   let chartDashBarrasInstancia = null;
   let chartDashDonutInstancia = null;
-  let listaMateriaisDetalhamentoDash = [];
-  let filtroStatusDashAtivo = null; // 'ECD' | 'SCD' | 'ACAUTELADO' | 'EXTRAVIADO'
+  let listaSubunidadesDetalhamentoDash = [];
+  let mapaSubunidadesDetalhesCompletos = {};
 
   // Carrega ou atualiza os dados consolidados do servidor
   function carregarDadosDashboardVisaoGeral(forcar) {
@@ -28967,28 +28981,18 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       .obterDadosDashboardVisaoGeral(forcar === true, (typeof OME_GLOBAL !== 'undefined' ? OME_GLOBAL : ''), (typeof PERFIL_GLOBAL !== 'undefined' ? PERFIL_GLOBAL : ''));
   }
 
-  // Preenche as opções de OME, Subunidade e das 3 Classes nos selects
+  // Preenche as opções de OME, Materiais (Multi-select) e Subunidades
   function popularFiltrosDashboard(resp) {
     const selOme = document.getElementById('filtroDashOme');
     const selSub = document.getElementById('filtroDashSubunidade');
-    const selCl1 = document.getElementById('filtroDashClasse1');
-    const selCl2 = document.getElementById('filtroDashClasse2');
-    const selCl3 = document.getElementById('filtroDashClasse3');
 
     const ehAdmin = resp.ehAdmin === true;
     const omeUsuario = (resp.omeUsuario || OME_GLOBAL || "").trim().toUpperCase();
 
-    // Preserva seleção anterior se houver
-    const valOmeAnt = selOme ? selOme.value : '';
-    const valSubAnt = selSub ? selSub.value : '';
-    const valCl1Ant = selCl1 ? selCl1.value : '';
-    const valCl2Ant = selCl2 ? selCl2.value : '';
-    const valCl3Ant = selCl3 ? selCl3.value : '';
-
-    // 1. OME
+    // 1. OME (Admin escolhe livremente, outros têm sua OME fixa)
     if (selOme) {
+      const valOmeAnt = selOme.value;
       if (!ehAdmin && omeUsuario) {
-        // Se for Comandante de Unidade ou Chefe, restringe estritamente aos materiais de sua OME
         selOme.innerHTML = '<option value="' + omeUsuario + '">' + omeUsuario + ' (Sua Unidade)</option>';
         selOme.value = omeUsuario;
         selOme.disabled = true;
@@ -29023,57 +29027,82 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       }
     }
 
-    // 2. Subunidade (atualiza de acordo com a OME selecionada)
-    popularSubunidadesDashboard(selOme ? selOme.value : 'TODAS', valSubAnt);
+    // 2. Subunidades de acordo com a OME
+    popularSubunidadesDashboard(selOme ? selOme.value : 'TODAS');
 
-    const ehTituloInvalido = function(c) {
-      if (!c) return true;
-      const cu = String(c).trim().toUpperCase();
-      return cu === 'CLASSE 1' || cu === 'CLASSE 2' || cu === 'CLASSE 3' || cu === 'CLASSE' || cu === 'CLASSES' || cu === 'OUTROS';
+    // 3. Materiais (Multi-select com Select2)
+    popularMateriaisDashboard();
+  }
+
+  // Preenche a lista de materiais disponíveis no select2 multi-select
+  function popularMateriaisDashboard() {
+    const selMat = $('#filtroDashMaterial');
+    if (!selMat.length || !cacheDadosDashboard) return;
+
+    const selOme = document.getElementById('filtroDashOme');
+    const omeSelecionado = selOme ? selOme.value : 'TODAS';
+
+    const normComp = function(s) {
+      return String(s || '').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     };
 
-    // 3. Classe 1
-    if (selCl1) {
-      let htmlCl1 = '<option value="TODAS">TODAS (Classe 1)</option>';
-      const classes1 = (resp.listaClasses1 || []).filter(c => !ehTituloInvalido(c));
-      classes1.forEach(function(c) {
-        htmlCl1 += '<option value="' + c + '">' + c + '</option>';
+    // Coleta materiais presentes nos dados da OME selecionada
+    const setMats = new Set();
+    if (cacheDadosDashboard.dados) {
+      cacheDadosDashboard.dados.forEach(function(item) {
+        if (omeSelecionado !== 'TODAS' && normComp(item.ome) !== normComp(omeSelecionado)) return;
+        (item.materiais || []).forEach(function(m) {
+          if (!m || !m.nome) return;
+          if (typeof ehViaturaMaterial === 'function' && ehViaturaMaterial(m.nome)) return;
+          setMats.add(m.nome);
+        });
       });
-      selCl1.innerHTML = htmlCl1;
-      if (valCl1Ant && selCl1.querySelector('option[value="' + valCl1Ant + '"]')) {
-        selCl1.value = valCl1Ant;
-      } else {
-        selCl1.value = "TODAS";
-      }
     }
 
-    // 4. Classe 2
-    if (selCl2) {
-      let htmlCl2 = '<option value="TODAS">TODAS (Classe 2)</option>';
-      const classes2 = (resp.listaClasses2 || []).filter(c => !ehTituloInvalido(c));
-      classes2.forEach(function(c) {
-        htmlCl2 += '<option value="' + c + '">' + c + '</option>';
+    // Se a OME não filtrou materiais diretamente, usa lista geral de materiais
+    if (setMats.size === 0 && cacheDadosDashboard.listaMateriais) {
+      cacheDadosDashboard.listaMateriais.forEach(function(m) {
+        if (typeof ehViaturaMaterial === 'function' && ehViaturaMaterial(m)) return;
+        setMats.add(m);
       });
-      selCl2.innerHTML = htmlCl2;
-      if (valCl2Ant && selCl2.querySelector('option[value="' + valCl2Ant + '"]')) {
-        selCl2.value = valCl2Ant;
-      } else {
-        selCl2.value = "TODAS";
-      }
     }
 
-    // 5. Classe 3
-    if (selCl3) {
-      let htmlCl3 = '<option value="TODAS">TODAS (Classe 3)</option>';
-      const classes3 = (resp.listaClasses3 || []).filter(c => !ehTituloInvalido(c));
-      classes3.forEach(function(c) {
-        htmlCl3 += '<option value="' + c + '">' + c + '</option>';
-      });
-      selCl3.innerHTML = htmlCl3;
-      if (valCl3Ant && selCl3.querySelector('option[value="' + valCl3Ant + '"]')) {
-        selCl3.value = valCl3Ant;
+    const listaOrdenada = Array.from(setMats).sort(function(a, b) {
+      return a.localeCompare(b);
+    });
+
+    const valoresAntigos = selMat.val() || [];
+    let htmlOpts = '';
+    listaOrdenada.forEach(function(m) {
+      htmlOpts += '<option value="' + escapeHtmlResumo(m) + '">' + escapeHtmlResumo(m) + '</option>';
+    });
+
+    selMat.html(htmlOpts);
+
+    if (window.jQuery && $.fn.select2) {
+      if (!selMat.data('select2')) {
+        selMat.select2({
+          theme: 'bootstrap-5',
+          width: '100%',
+          placeholder: 'Todos os materiais (ou selecione específicos)...',
+          allowClear: true,
+          closeOnSelect: false
+        });
       } else {
-        selCl3.value = "TODAS";
+        selMat.trigger('change.select2');
+      }
+
+      selMat.off('change.dashMat').on('change.dashMat', function() {
+        aplicarFiltrosDashboard();
+      });
+    }
+
+    // Restaura seleções anteriores válidas se existirem
+    const novasSelecoes = valoresAntigos.filter(v => setMats.has(v));
+    if (novasSelecoes.length > 0) {
+      selMat.val(novasSelecoes);
+      if (window.jQuery && $.fn.select2 && selMat.data('select2')) {
+        selMat.trigger('change.select2');
       }
     }
   }
@@ -29127,7 +29156,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       return a.localeCompare(b);
     });
 
-    let htmlSub = '<option value="TODAS">TODAS (Subunidades)</option>';
+    let htmlSub = '<option value="TODAS">TODAS</option>';
     listaSubs.forEach(function(s) {
       if (s) htmlSub += '<option value="' + escapeHtmlResumo(s) + '">' + escapeHtmlResumo(s) + '</option>';
     });
@@ -29145,71 +29174,173 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     const selOme = document.getElementById('filtroDashOme');
     const omeVal = selOme ? selOme.value : 'TODAS';
     popularSubunidadesDashboard(omeVal, 'TODAS');
+    popularMateriaisDashboard();
     aplicarFiltrosDashboard();
   }
 
-  // Aplica os filtros selecionados, atualiza os KPIs, Gráficos e Tabela
+  // Helper para selecionar todos ou limpar materiais
+  function selecionarTodosMateriaisDash(selecionar) {
+    const selMat = $('#filtroDashMaterial');
+    if (!selMat.length) return;
+    if (selecionar) {
+      const allVals = [];
+      selMat.find('option').each(function() {
+        allVals.push($(this).val());
+      });
+      selMat.val(allVals);
+    } else {
+      selMat.val([]);
+    }
+    if (window.jQuery && $.fn.select2 && selMat.data('select2')) {
+      selMat.trigger('change.select2');
+    }
+    aplicarFiltrosDashboard();
+  }
+
+  // Helper para definir rapidamente o filtro de status via clique nos cards
+  function definirFiltroStatusRapidoDash(status) {
+    const selStatus = document.getElementById('filtroDashStatus');
+    if (selStatus) {
+      selStatus.value = status;
+    }
+    aplicarFiltrosDashboard();
+  }
+
+  // Restaura os filtros padrão
+  function resetarFiltrosDashboard() {
+    const selOme = document.getElementById('filtroDashOme');
+    const selSub = document.getElementById('filtroDashSubunidade');
+    const selStatus = document.getElementById('filtroDashStatus');
+    const selMat = $('#filtroDashMaterial');
+
+    const ehAdmin = cacheDadosDashboard ? cacheDadosDashboard.ehAdmin === true : false;
+    const omeUsuario = (cacheDadosDashboard ? cacheDadosDashboard.omeUsuario : OME_GLOBAL) || "";
+
+    if (selOme && ehAdmin) {
+      selOme.value = 'TODAS';
+    } else if (selOme && omeUsuario) {
+      selOme.value = omeUsuario;
+    }
+
+    if (selSub) selSub.value = 'TODAS';
+    if (selStatus) selStatus.value = 'TODOS';
+
+    if (selMat.length) {
+      selMat.val([]);
+      if (window.jQuery && $.fn.select2 && selMat.data('select2')) {
+        selMat.trigger('change.select2');
+      }
+    }
+
+    popularSubunidadesDashboard(selOme ? selOme.value : 'TODAS', 'TODAS');
+    popularMateriaisDashboard();
+    aplicarFiltrosDashboard();
+  }
+
+  // Aplica os filtros selecionados, consolida por SUBUNIDADE, atualiza KPIs, Gráficos e Tabela
   function aplicarFiltrosDashboard() {
     if (!cacheDadosDashboard || !cacheDadosDashboard.dados) return;
 
     const selOme = document.getElementById('filtroDashOme');
     const selSub = document.getElementById('filtroDashSubunidade');
-    const selCl1 = document.getElementById('filtroDashClasse1');
-    const selCl2 = document.getElementById('filtroDashClasse2');
-    const selCl3 = document.getElementById('filtroDashClasse3');
+    const selStatus = document.getElementById('filtroDashStatus');
+    const selMat = $('#filtroDashMaterial');
 
     const omeFiltro = selOme ? selOme.value : 'TODAS';
     const subFiltro = selSub ? selSub.value : 'TODAS';
-    const cl1Filtro = selCl1 ? selCl1.value : 'TODAS';
-    const cl2Filtro = selCl2 ? selCl2.value : 'TODAS';
-    const cl3Filtro = selCl3 ? selCl3.value : 'TODAS';
+    const statusFiltro = selStatus ? selStatus.value : 'TODOS'; // 'TODOS' | 'ECD' | 'SCD' | 'ACAUTELADO' | 'EXTRAVIADO'
+    const matsSelecionados = (selMat.length && selMat.val()) ? selMat.val() : [];
 
-    const dados = cacheDadosDashboard.dados;
+    const normComp = function(s) {
+      return String(s || '').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    };
+
+    const mapaSubunidades = {};
+    mapaSubunidadesDetalhesCompletos = {};
 
     let totalGeral = 0;
     let totalEcd = 0;
     let totalScd = 0;
     let totalAcautelado = 0;
     let totalExtraviado = 0;
-    const mapaMateriaisAgregados = {};
 
-    dados.forEach(function(item) {
-      const normCompOme = function(s) { return String(s || '').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); };
-      if (omeFiltro !== 'TODAS' && normCompOme(item.ome) !== normCompOme(omeFiltro)) return;
-      if (subFiltro !== 'TODAS' && normCompOme(item.subunidade) !== normCompOme(subFiltro)) return;
-      if (cl1Filtro !== 'TODAS' && item.classe1 !== cl1Filtro) return;
-      if (cl2Filtro !== 'TODAS' && item.classe2 !== cl2Filtro) return;
-      if (cl3Filtro !== 'TODAS' && item.classe3 !== cl3Filtro) return;
+    cacheDadosDashboard.dados.forEach(function(item) {
+      if (omeFiltro !== 'TODAS' && normComp(item.ome) !== normComp(omeFiltro)) return;
+      if (subFiltro !== 'TODAS' && normComp(item.subunidade) !== normComp(subFiltro)) return;
 
-      totalGeral += (item.total || 0);
-      totalEcd += (item.ecd || 0);
-      totalScd += (item.scd || 0);
-      totalAcautelado += (item.acautelado || 0);
-      totalExtraviado += (item.extraviado || 0);
+      const subKey = (item.subunidade || 'SEDE').trim();
+      const subOmeKey = (omeFiltro === 'TODAS' && item.ome) ? (subKey + ' (' + item.ome + ')') : subKey;
 
       (item.materiais || []).forEach(function(m) {
-        if (!mapaMateriaisAgregados[m.nome]) {
-          mapaMateriaisAgregados[m.nome] = {
-            nome: m.nome,
-            classe1: m.classe1 || item.classe1 || '-',
-            classe2: m.classe2 || item.classe2 || '-',
-            classe3: m.classe3 || item.classe3 || '-',
-            cargaPadrao: 0,
+        if (!m || !m.nome) return;
+        if (typeof ehViaturaMaterial === 'function' && ehViaturaMaterial(m.nome)) return;
+
+        // Se houver materiais selecionados, filtra estritamente por eles
+        if (matsSelecionados.length > 0 && !matsSelecionados.includes(m.nome)) {
+          return;
+        }
+
+        const mEcd = m.ecd || 0;
+        const mScd = m.scd || 0;
+        const mAcaut = m.acautelado || 0;
+        const mExtr = m.extraviado || 0;
+        const mTot = m.total || (mEcd + mScd + mAcaut + mExtr);
+
+        totalGeral += mTot;
+        totalEcd += mEcd;
+        totalScd += mScd;
+        totalAcautelado += mAcaut;
+        totalExtraviado += mExtr;
+
+        if (!mapaSubunidades[subOmeKey]) {
+          mapaSubunidades[subOmeKey] = {
+            subunidade: subKey,
+            subunidadeRotulo: subOmeKey,
+            ome: item.ome || '',
+            total: 0,
             ecd: 0,
             scd: 0,
             acautelado: 0,
             extraviado: 0,
-            total: 0
+            materiaisMap: {}
           };
         }
-        const alv = mapaMateriaisAgregados[m.nome];
-        alv.cargaPadrao += (m.cargaPadrao || 0);
-        alv.ecd += (m.ecd || 0);
-        alv.scd += (m.scd || 0);
-        alv.acautelado += (m.acautelado || 0);
-        alv.extraviado += (m.extraviado || 0);
-        alv.total += (m.total || 0);
+
+        const subObj = mapaSubunidades[subOmeKey];
+        subObj.total += mTot;
+        subObj.ecd += mEcd;
+        subObj.scd += mScd;
+        subObj.acautelado += mAcaut;
+        subObj.extraviado += mExtr;
+
+        if (!subObj.materiaisMap[m.nome]) {
+          subObj.materiaisMap[m.nome] = {
+            nome: m.nome,
+            total: 0,
+            ecd: 0,
+            scd: 0,
+            acautelado: 0,
+            extraviado: 0
+          };
+        }
+        const sMat = subObj.materiaisMap[m.nome];
+        sMat.total += mTot;
+        sMat.ecd += mEcd;
+        sMat.scd += mScd;
+        sMat.acautelado += mAcaut;
+        sMat.extraviado += mExtr;
       });
+    });
+
+    mapaSubunidadesDetalhesCompletos = mapaSubunidades;
+
+    // Converte para lista ordenada por quantidade total decrescente
+    listaSubunidadesDetalhamentoDash = Object.values(mapaSubunidades).sort(function(a, b) {
+      if (statusFiltro === 'ECD') return b.ecd - a.ecd;
+      if (statusFiltro === 'SCD') return b.scd - a.scd;
+      if (statusFiltro === 'ACAUTELADO') return b.acautelado - a.acautelado;
+      if (statusFiltro === 'EXTRAVIADO') return b.extraviado - a.extraviado;
+      return b.total - a.total;
     });
 
     // Atualiza KPIs
@@ -29218,12 +29349,14 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     const elScd = document.getElementById('kpiDashScd');
     const elAcaut = document.getElementById('kpiDashAcautelado');
     const elExtr = document.getElementById('kpiDashExtraviado');
+    const elTotSubs = document.getElementById('kpiDashTotalSubs');
 
     if (elTot) elTot.innerText = totalGeral.toLocaleString('pt-BR');
     if (elEcd) elEcd.innerText = totalEcd.toLocaleString('pt-BR');
     if (elScd) elScd.innerText = totalScd.toLocaleString('pt-BR');
     if (elAcaut) elAcaut.innerText = totalAcautelado.toLocaleString('pt-BR');
     if (elExtr) elExtr.innerText = totalExtraviado.toLocaleString('pt-BR');
+    if (elTotSubs) elTotSubs.innerText = listaSubunidadesDetalhamentoDash.length;
 
     const pct = function(qtd) {
       if (!totalGeral) return '0%';
@@ -29239,9 +29372,13 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     const filtrosAtivos = [];
     if (omeFiltro !== 'TODAS') filtrosAtivos.push(omeFiltro);
     if (subFiltro !== 'TODAS') filtrosAtivos.push(subFiltro);
-    if (cl1Filtro !== 'TODAS') filtrosAtivos.push(cl1Filtro);
-    if (cl2Filtro !== 'TODAS') filtrosAtivos.push(cl2Filtro);
-    if (cl3Filtro !== 'TODAS') filtrosAtivos.push(cl3Filtro);
+    if (matsSelecionados.length === 1) {
+      filtrosAtivos.push(matsSelecionados[0]);
+    } else if (matsSelecionados.length > 1) {
+      filtrosAtivos.push(matsSelecionados.length + ' materiais');
+    }
+    if (statusFiltro !== 'TODOS') filtrosAtivos.push('Status: ' + statusFiltro);
+
     const textoFiltro = filtrosAtivos.length > 0 ? filtrosAtivos.join(' • ') : 'Geral (Todos os Itens)';
 
     if (elSubTot) elSubTot.innerText = textoFiltro;
@@ -29253,22 +29390,32 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     const badgeGrafico = document.getElementById('badgeTituloGraficoBarras');
     if (badgeGrafico) badgeGrafico.innerText = textoFiltro;
 
-    // Renderiza Gráficos (Chart.js)
-    renderizarGraficosDashboard(totalEcd, totalScd, totalAcautelado, totalExtraviado, totalGeral);
+    const badgeStatusTab = document.getElementById('badgeFiltroStatusTabelaDash');
+    if (badgeStatusTab) {
+      if (statusFiltro !== 'TODOS') {
+        badgeStatusTab.style.display = 'inline-block';
+        badgeStatusTab.className = 'badge py-1 px-2 border ' + 
+          (statusFiltro === 'ECD' ? 'bg-success text-white' : 
+           (statusFiltro === 'SCD' ? 'bg-danger text-white' : 
+            (statusFiltro === 'ACAUTELADO' ? 'bg-primary text-white' : 'bg-warning text-dark')));
+        badgeStatusTab.innerHTML = 'Filtro Status: ' + statusFiltro + ' <i class="fa-solid fa-xmark ms-1"></i>';
+      } else {
+        badgeStatusTab.style.display = 'none';
+      }
+    }
 
-    // Converte mapa de materiais em lista para tabela
-    listaMateriaisDetalhamentoDash = Object.values(mapaMateriaisAgregados).sort(function(a, b) {
-      return b.total - a.total;
-    });
+    // Renderiza Gráficos (Chart.js) por SUBUNIDADE
+    renderizarGraficosDashboardSubunidades(listaSubunidadesDetalhamentoDash, statusFiltro, totalGeral);
 
+    // Atualiza Tabela de Detalhamento por Subunidade
     const elContadorTab = document.getElementById('contadorItensTabelaDash');
-    if (elContadorTab) elContadorTab.innerText = listaMateriaisDetalhamentoDash.length;
+    if (elContadorTab) elContadorTab.innerText = listaSubunidadesDetalhamentoDash.length;
 
     filtrarTabelaMateriaisDashLocal();
   }
 
-  // Renderiza Gráficos de Barras e Rosca com Chart.js (Compactos e Elegantes)
-  function renderizarGraficosDashboard(ecd, scd, acautelado, extraviado, total) {
+  // Renderiza Gráfico de Barras empilhadas por SUBUNIDADE e Donut de Proporção
+  function renderizarGraficosDashboardSubunidades(listaSubs, statusFiltro, totalGeral) {
     if (typeof Chart === 'undefined') {
       console.warn("Chart.js ainda não carregado.");
       return;
@@ -29278,7 +29425,6 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     const canvasDonut = document.getElementById('chartDashDonutStatus');
     if (!canvasBarras || !canvasDonut) return;
 
-    // Destrói instâncias anteriores para evitar duplicações/conflitos
     if (chartDashBarrasInstancia) {
       try { chartDashBarrasInstancia.destroy(); } catch (e) {}
       chartDashBarrasInstancia = null;
@@ -29288,81 +29434,122 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       chartDashDonutInstancia = null;
     }
 
-    const labels = ['ECD (Em Uso)', 'SCD (Sem Condições)', 'Acautelado', 'Extraviado'];
-    const statusCodes = ['ECD', 'SCD', 'ACAUTELADO', 'EXTRAVIADO'];
-    const dataValues = [ecd, scd, acautelado, extraviado];
-    const bgColors = ['#10b981', '#ef4444', '#3b82f6', '#f59e0b'];
-    const hoverColors = ['#059669', '#dc2626', '#2563eb', '#d97706'];
+    // Pega até 15 subunidades com maior quantitativo para manter gráfico legível
+    const subsTop = listaSubs.slice(0, 15);
+    const labels = subsTop.map(s => s.subunidadeRotulo || s.subunidade);
 
-    // 1. GRÁFICO DE BARRAS (COMPACTO E INTERATIVO AO CLIQUE)
+    let datasetsBarras = [];
+    if (statusFiltro === 'TODOS') {
+      datasetsBarras = [
+        {
+          label: 'ECD (Em Uso)',
+          data: subsTop.map(s => s.ecd),
+          backgroundColor: '#10b981',
+          borderRadius: 4
+        },
+        {
+          label: 'SCD (Sem Condições)',
+          data: subsTop.map(s => s.scd),
+          backgroundColor: '#ef4444',
+          borderRadius: 4
+        },
+        {
+          label: 'Acautelado',
+          data: subsTop.map(s => s.acautelado),
+          backgroundColor: '#3b82f6',
+          borderRadius: 4
+        },
+        {
+          label: 'Extraviado',
+          data: subsTop.map(s => s.extraviado),
+          backgroundColor: '#f59e0b',
+          borderRadius: 4
+        }
+      ];
+    } else {
+      let corStatus = '#10b981';
+      let propStatus = 'ecd';
+      let labelStatus = 'Em Uso (ECD)';
+      if (statusFiltro === 'SCD') { corStatus = '#ef4444'; propStatus = 'scd'; labelStatus = 'Sem Condições (SCD)'; }
+      else if (statusFiltro === 'ACAUTELADO') { corStatus = '#3b82f6'; propStatus = 'acautelado'; labelStatus = 'Acautelado'; }
+      else if (statusFiltro === 'EXTRAVIADO') { corStatus = '#f59e0b'; propStatus = 'extraviado'; labelStatus = 'Extraviado'; }
+
+      datasetsBarras = [{
+        label: labelStatus,
+        data: subsTop.map(s => s[propStatus] || 0),
+        backgroundColor: corStatus,
+        borderRadius: 6,
+        maxBarThickness: 38
+      }];
+    }
+
+    // 1. GRÁFICO DE BARRAS POR SUBUNIDADE
     const ctxBarras = canvasBarras.getContext('2d');
     chartDashBarrasInstancia = new Chart(ctxBarras, {
       type: 'bar',
       data: {
         labels: labels,
-        datasets: [{
-          label: 'Quantidade',
-          data: dataValues,
-          backgroundColor: bgColors,
-          hoverBackgroundColor: hoverColors,
-          borderRadius: 6,
-          borderSkipped: false,
-          maxBarThickness: 42
-        }]
+        datasets: datasetsBarras
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        onHover: function(event, chartElement) {
-          event.native.target.style.cursor = chartElement[0] ? 'pointer' : 'default';
-        },
-        onClick: function(event, elements) {
-          if (elements && elements.length > 0) {
-            const elementIndex = elements[0].index;
-            const statusClicado = statusCodes[elementIndex];
-            alternarFiltroStatusTabelaDash(statusClicado);
-          }
-        },
         plugins: {
-          legend: { display: false },
+          legend: {
+            display: statusFiltro === 'TODOS',
+            position: 'top',
+            labels: { font: { size: 10, weight: 'bold' }, boxWidth: 12 }
+          },
           tooltip: {
             callbacks: {
               label: function(context) {
                 const val = context.parsed.y || 0;
-                const p = total > 0 ? ((val / total) * 100).toFixed(1).replace('.', ',') + '%' : '0%';
-                return ' ' + val.toLocaleString('pt-BR') + ' itens (' + p + ') - Clique para filtrar tabela';
+                return ' ' + context.dataset.label + ': ' + val.toLocaleString('pt-BR') + ' itens';
               }
             }
           }
         },
         scales: {
-          y: {
-            beginAtZero: true,
-            ticks: {
-              precision: 0,
-              font: { size: 10, weight: 'bold' }
-            },
-            grid: { color: 'rgba(0,0,0,0.05)' }
-          },
           x: {
-            grid: { display: false },
+            stacked: statusFiltro === 'TODOS',
             ticks: {
-              font: { weight: 'bold', size: 10 }
-            }
+              font: { size: 9.5, weight: 'bold' },
+              maxRotation: 45,
+              minRotation: 20
+            },
+            grid: { display: false }
+          },
+          y: {
+            stacked: statusFiltro === 'TODOS',
+            beginAtZero: true,
+            ticks: { precision: 0, font: { size: 10 } },
+            grid: { color: 'rgba(0,0,0,0.05)' }
           }
         }
       }
     });
 
-    // 2. GRÁFICO DONUT / ROSCA (COMPACTO E INTERATIVO AO CLIQUE)
+    // 2. GRÁFICO DONUT POR SUBUNIDADE
     const ctxDonut = canvasDonut.getContext('2d');
+    const coresDonut = ['#dc2626', '#2563eb', '#16a34a', '#d97706', '#9333ea', '#0891b2', '#ea580c', '#4f46e5', '#059669', '#64748b'];
+    
+    const donutData = subsTop.map(s => {
+      if (statusFiltro === 'ECD') return s.ecd;
+      if (statusFiltro === 'SCD') return s.scd;
+      if (statusFiltro === 'ACAUTELADO') return s.acautelado;
+      if (statusFiltro === 'EXTRAVIADO') return s.extraviado;
+      return s.total;
+    });
+
+    const totDonut = donutData.reduce((acc, v) => acc + v, 0);
+
     chartDashDonutInstancia = new Chart(ctxDonut, {
       type: 'doughnut',
       data: {
         labels: labels,
         datasets: [{
-          data: total > 0 ? dataValues : [1, 0, 0, 0],
-          backgroundColor: total > 0 ? bgColors : ['#e2e8f0', '#e2e8f0', '#e2e8f0', '#e2e8f0'],
+          data: totDonut > 0 ? donutData : [1],
+          backgroundColor: totDonut > 0 ? coresDonut.slice(0, labels.length) : ['#e2e8f0'],
           borderColor: '#ffffff',
           borderWidth: 2,
           hoverOffset: 6
@@ -29371,170 +29558,107 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        onHover: function(event, chartElement) {
-          event.native.target.style.cursor = chartElement[0] ? 'pointer' : 'default';
-        },
-        onClick: function(event, elements) {
-          if (elements && elements.length > 0) {
-            const elementIndex = elements[0].index;
-            const statusClicado = statusCodes[elementIndex];
-            alternarFiltroStatusTabelaDash(statusClicado);
-          }
-        },
         plugins: {
           legend: {
+            display: true,
             position: 'bottom',
-            labels: {
-              boxWidth: 10,
-              font: { size: 10, weight: 'bold' },
-              padding: 8
-            }
+            labels: { font: { size: 8.5 }, boxWidth: 10 }
           },
           tooltip: {
-            enabled: total > 0,
             callbacks: {
               label: function(context) {
+                if (totDonut === 0) return ' Sem dados';
                 const val = context.parsed || 0;
-                const p = total > 0 ? ((val / total) * 100).toFixed(1).replace('.', ',') + '%' : '0%';
-                return ' ' + context.label + ': ' + val.toLocaleString('pt-BR') + ' (' + p + ') - Clique para filtrar';
+                const p = ((val / totDonut) * 100).toFixed(1).replace('.', ',') + '%';
+                return ' ' + context.label + ': ' + val.toLocaleString('pt-BR') + ' (' + p + ')';
               }
             }
           }
-        },
-        cutout: '70%'
+        }
       }
     });
   }
 
-  // Alterna o filtro de status da tabela (ao clicar nas barras, fatias da rosca ou cards de KPI)
-  function alternarFiltroStatusTabelaDash(status) {
-    if (!status) return;
-    const stUpper = status.toUpperCase();
-    if (filtroStatusDashAtivo === stUpper) {
-      limparFiltroStatusTabelaDash(true);
-      return;
-    }
-
-    filtroStatusDashAtivo = stUpper;
-    atualizarBadgeFiltroStatusTabelaDash();
-    filtrarTabelaMateriaisDashLocal();
-
-    // Rola suavemente até a tabela de detalhamento
-    const corpoEl = document.getElementById('corpoTabelaMateriaisDash');
-    if (corpoEl) {
-      corpoEl.closest('.card')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }
-  }
-
-  // Remove o filtro de status da tabela e exibe todos os itens
-  function limparFiltroStatusTabelaDash(reaplicar = true) {
-    filtroStatusDashAtivo = null;
-    atualizarBadgeFiltroStatusTabelaDash();
-    if (reaplicar) {
-      filtrarTabelaMateriaisDashLocal();
-    }
-  }
-
-  // Atualiza o badge indicador do filtro de status na tabela
-  function atualizarBadgeFiltroStatusTabelaDash() {
-    const badge = document.getElementById('badgeFiltroStatusTabelaDash');
-    if (!badge) return;
-
-    if (!filtroStatusDashAtivo) {
-      badge.style.display = 'none';
-      badge.innerHTML = '';
-      return;
-    }
-
-    let rotulo = '';
-    let classeCor = 'bg-secondary-subtle text-dark border-secondary-subtle';
-
-    if (filtroStatusDashAtivo === 'ECD') {
-      rotulo = 'Em Uso (ECD)';
-      classeCor = 'bg-success-subtle text-success border-success-subtle';
-    } else if (filtroStatusDashAtivo === 'SCD') {
-      rotulo = 'Sem Condições (SCD)';
-      classeCor = 'bg-danger-subtle text-danger border-danger-subtle';
-    } else if (filtroStatusDashAtivo === 'ACAUTELADO') {
-      rotulo = 'Acautelado';
-      classeCor = 'bg-primary-subtle text-primary border-primary-subtle';
-    } else if (filtroStatusDashAtivo === 'EXTRAVIADO') {
-      rotulo = 'Extraviado';
-      classeCor = 'bg-warning-subtle text-warning-emphasis border-warning-subtle';
-    }
-
-    badge.className = 'badge py-1 px-2 border ' + classeCor;
-    badge.innerHTML = '<i class="fa-solid fa-filter me-1"></i> Filtrando por: <strong>' + rotulo + '</strong> <i class="fa-solid fa-circle-xmark ms-1"></i>';
-    badge.style.display = 'inline-flex';
-    badge.style.alignItems = 'center';
-  }
-
-  // Filtra localmente os materiais da tabela abaixo do gráfico (por texto e por status clicado)
+  // Filtra e renderiza a tabela de detalhamento por Subunidade
   function filtrarTabelaMateriaisDashLocal() {
     const tbody = document.getElementById('corpoTabelaMateriaisDash');
     if (!tbody) return;
 
-    const inputBusca = document.getElementById('filtroTextoTabelaDash');
-    const termo = (inputBusca ? inputBusca.value : '').trim().toLowerCase();
+    const texto = (document.getElementById('filtroTextoTabelaDash')?.value || '').trim().toLowerCase();
+    const selStatus = document.getElementById('filtroDashStatus');
+    const statusFiltro = selStatus ? selStatus.value : 'TODOS';
 
-    let filtrados = listaMateriaisDetalhamentoDash || [];
-
-    // 1. Filtro por status clicado no gráfico (Barras/Donut) ou nos cards
-    if (filtroStatusDashAtivo) {
-      const stKey = filtroStatusDashAtivo.toLowerCase(); // 'ecd', 'scd', 'acautelado', 'extraviado'
-      filtrados = filtrados.filter(function(m) {
-        return (m[stKey] || 0) > 0;
-      });
-      // Ordena decrescente pela quantidade do status selecionado
-      filtrados = filtrados.slice().sort(function(a, b) {
-        return (b[stKey] || 0) - (a[stKey] || 0);
-      });
-    }
-
-    // 2. Filtro por texto digitado
-    if (termo) {
-      filtrados = filtrados.filter(function(m) {
-        return (m.nome && m.nome.toLowerCase().indexOf(termo) !== -1) ||
-               (m.classe1 && m.classe1.toLowerCase().indexOf(termo) !== -1) ||
-               (m.classe2 && m.classe2.toLowerCase().indexOf(termo) !== -1) ||
-               (m.classe3 && m.classe3.toLowerCase().indexOf(termo) !== -1);
+    let filtrados = listaSubunidadesDetalhamentoDash;
+    if (texto) {
+      filtrados = filtrados.filter(function(sub) {
+        if ((sub.subunidadeRotulo || '').toLowerCase().includes(texto)) return true;
+        if ((sub.subunidade || '').toLowerCase().includes(texto)) return true;
+        if (sub.materiaisMap) {
+          for (const m in sub.materiaisMap) {
+            if (m.toLowerCase().includes(texto)) return true;
+          }
+        }
+        return false;
       });
     }
 
-    const elContador = document.getElementById('contadorItensTabelaDash');
-    if (elContador) elContador.innerText = filtrados.length;
+    if (statusFiltro !== 'TODOS') {
+      filtrados = filtrados.filter(function(sub) {
+        if (statusFiltro === 'ECD') return sub.ecd > 0;
+        if (statusFiltro === 'SCD') return sub.scd > 0;
+        if (statusFiltro === 'ACAUTELADO') return sub.acautelado > 0;
+        if (statusFiltro === 'EXTRAVIADO') return sub.extraviado > 0;
+        return true;
+      });
+    }
+
+    const contador = document.getElementById('contadorItensTabelaDash');
+    if (contador) contador.innerText = filtrados.length;
 
     if (filtrados.length === 0) {
-      const msgStatus = filtroStatusDashAtivo 
-        ? 'Nenhum material com unidades em status <strong>' + filtroStatusDashAtivo + '</strong> encontrado.'
-        : 'Nenhum material encontrado para os filtros selecionados.';
-      tbody.innerHTML = '<tr><td colspan="11" class="text-center text-muted py-3"><i class="fa-solid fa-inbox me-2"></i>' + msgStatus + '</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-4"><i class="fa-solid fa-filter-circle-xmark me-2 text-secondary"></i>Nenhuma subunidade encontrada com os filtros selecionados.</td></tr>';
       return;
     }
 
-    let html = '';
-    filtrados.forEach(function(m, idx) {
-      const hEcd = filtroStatusDashAtivo === 'ECD' ? 'style="border: 2px solid #10b981 !important; font-weight: bold; background-color: #ecfdf5 !important;"' : '';
-      const hScd = filtroStatusDashAtivo === 'SCD' ? 'style="border: 2px solid #ef4444 !important; font-weight: bold; background-color: #fef2f2 !important;"' : '';
-      const hExtr = filtroStatusDashAtivo === 'EXTRAVIADO' ? 'style="border: 2px solid #f59e0b !important; font-weight: bold; background-color: #fffbeb !important;"' : '';
-      const hAcaut = filtroStatusDashAtivo === 'ACAUTELADO' ? 'style="border: 2px solid #3b82f6 !important; font-weight: bold; background-color: #eff6ff !important;"' : '';
+    let totGeralTabela = 0;
+    filtrados.forEach(s => { totGeralTabela += s.total; });
 
-      const badgeIdeal = `<span class="fw-bold ${(m.cargaPadrao || 0) > 0 ? 'text-primary' : 'text-muted'}">${(m.cargaPadrao || 0).toLocaleString('pt-BR')}</span>`;
-      const badgeSomaTotal = `<span class="badge bg-secondary-subtle text-dark border px-2 py-1 fw-bold">${(m.total || 0).toLocaleString('pt-BR')}</span>`;
+    let html = '';
+    filtrados.forEach(function(sub, idx) {
+      const p = totGeralTabela > 0 ? ((sub.total / totGeralTabela) * 100).toFixed(1).replace('.', ',') + '%' : '0%';
+      
+      const nomesMats = Object.keys(sub.materiaisMap || {});
+      let matsHtml = '';
+      if (nomesMats.length === 1) {
+        matsHtml = '<span class="badge bg-light text-dark border">' + escapeHtmlResumo(nomesMats[0]) + '</span>';
+      } else if (nomesMats.length > 1) {
+        matsHtml = '<span class="badge bg-light text-primary border fw-bold me-1">' + nomesMats.length + ' tipos de materiais</span> ' +
+                   '<span class="text-muted small">(' + escapeHtmlResumo(nomesMats.slice(0, 2).join(', ')) + (nomesMats.length > 2 ? '...' : '') + ')</span>';
+      } else {
+        matsHtml = '<span class="text-muted">-</span>';
+      }
+
+      const rotuloSub = escapeHtmlResumo(sub.subunidadeRotulo || sub.subunidade);
+      const chaveSub = encodeURIComponent(sub.subunidadeRotulo || sub.subunidade);
 
       html += `
         <tr>
-          <td class="text-center text-muted small" style="width: 40px;">${idx + 1}</td>
-          <td><strong class="text-dark">${m.nome}</strong></td>
-          <td><span class="badge bg-light text-secondary border" style="font-size: 0.7rem;">${m.classe1 || '-'}</span></td>
-          <td><span class="badge bg-light text-primary border border-primary-subtle" style="font-size: 0.7rem;">${m.classe2 || '-'}</span></td>
-          <td><span class="badge bg-light text-info border border-info-subtle" style="font-size: 0.7rem;">${m.classe3 || '-'}</span></td>
-          <td class="text-center">${badgeIdeal}</td>
-          <td class="text-center">${badgeSomaTotal}</td>
-          <td class="text-center"><span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1" ${hEcd}>${(m.ecd || 0).toLocaleString('pt-BR')}</span></td>
-          <td class="text-center"><span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1" ${hScd}>${(m.scd || 0).toLocaleString('pt-BR')}</span></td>
-          <td class="text-center"><span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-1" ${hExtr}>${(m.extraviado || 0).toLocaleString('pt-BR')}</span></td>
-          <td class="text-center"><span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1" ${hAcaut}>${(m.acautelado || 0).toLocaleString('pt-BR')}</span></td>
+          <td class="text-center text-muted small">${idx + 1}</td>
+          <td class="fw-bold text-dark text-nowrap">
+            <i class="fa-solid fa-sitemap text-danger me-1 small"></i> ${rotuloSub}
+          </td>
+          <td>${matsHtml}</td>
+          <td class="text-center fw-bold bg-light"><span class="badge bg-dark text-white px-2">${sub.total}</span></td>
+          <td class="text-center text-success fw-bold">${sub.ecd > 0 ? `<span class="badge bg-success bg-opacity-10 text-success border border-success">${sub.ecd}</span>` : '-'}</td>
+          <td class="text-center text-danger fw-bold">${sub.scd > 0 ? `<span class="badge bg-danger bg-opacity-10 text-danger border border-danger">${sub.scd}</span>` : '-'}</td>
+          <td class="text-center text-primary fw-bold">${sub.acautelado > 0 ? `<span class="badge bg-primary bg-opacity-10 text-primary border border-primary">${sub.acautelado}</span>` : '-'}</td>
+          <td class="text-center text-warning fw-bold">${sub.extraviado > 0 ? `<span class="badge bg-warning bg-opacity-25 text-dark border border-warning">${sub.extraviado}</span>` : '-'}</td>
+          <td class="text-center text-muted small">${p}</td>
+          <td class="text-center">
+            <button class="btn btn-outline-secondary btn-sm py-0 px-2" style="font-size: 0.72rem;" onclick="abrirModalDetalhesSubunidadeDash('${chaveSub}')" title="Ver materiais detalhados desta Subunidade">
+              <i class="fa-solid fa-list-check me-1"></i> Ver
+            </button>
+          </td>
         </tr>
       `;
     });
@@ -29542,7 +29666,64 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     tbody.innerHTML = html;
   }
 
-  // Exporta o Dashboard completo (Filtros, KPIs, Gráficos e Detalhamento) em formato PDF / Impressão
+  // Modal para detalhar os materiais específicos existentes na subunidade clicada
+  function abrirModalDetalhesSubunidadeDash(chaveSubEnc) {
+    const chaveSub = decodeURIComponent(chaveSubEnc);
+    const subObj = mapaSubunidadesDetalhesCompletos[chaveSub];
+    if (!subObj || !subObj.materiaisMap) {
+      Swal.fire('Aviso', 'Subunidade não encontrada nos dados do dashboard.', 'info');
+      return;
+    }
+
+    const mats = Object.values(subObj.materiaisMap).sort((a, b) => b.total - a.total);
+    let linhasHtml = '';
+    mats.forEach(function(m, idx) {
+      linhasHtml += `
+        <tr>
+          <td class="text-center text-muted">${idx + 1}</td>
+          <td class="fw-bold text-dark text-wrap">${escapeHtmlResumo(m.nome)}</td>
+          <td class="text-center"><span class="badge bg-dark text-white">${m.total}</span></td>
+          <td class="text-center text-success">${m.ecd > 0 ? `<span class="badge bg-success bg-opacity-10 text-success border border-success">${m.ecd}</span>` : '-'}</td>
+          <td class="text-center text-danger">${m.scd > 0 ? `<span class="badge bg-danger bg-opacity-10 text-danger border border-danger">${m.scd}</span>` : '-'}</td>
+          <td class="text-center text-primary">${m.acautelado > 0 ? `<span class="badge bg-primary bg-opacity-10 text-primary border border-primary">${m.acautelado}</span>` : '-'}</td>
+          <td class="text-center text-warning">${m.extraviado > 0 ? `<span class="badge bg-warning bg-opacity-25 text-dark border border-warning">${m.extraviado}</span>` : '-'}</td>
+        </tr>
+      `;
+    });
+
+    Swal.fire({
+      title: `<span class="fs-6 fw-bold"><i class="fa-solid fa-sitemap text-danger me-2"></i>${escapeHtmlResumo(subObj.subunidadeRotulo || subObj.subunidade)}</span>`,
+      html: `
+        <div class="text-start mb-2 small text-muted">
+          Relação de materiais e situação patrimonial nesta Subunidade:
+        </div>
+        <div class="table-responsive" style="max-height: 340px; overflow-y: auto;">
+          <table class="table table-sm table-hover align-middle mb-0" style="font-size: 0.78rem;">
+            <thead class="table-light sticky-top">
+              <tr>
+                <th class="text-center" style="width: 35px;">#</th>
+                <th>Material</th>
+                <th class="text-center" style="width: 70px;">Total</th>
+                <th class="text-center text-success" style="width: 65px;">ECD</th>
+                <th class="text-center text-danger" style="width: 65px;">SCD</th>
+                <th class="text-center text-primary" style="width: 75px;">Acaut.</th>
+                <th class="text-center text-warning" style="width: 75px;">Extr.</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${linhasHtml}
+            </tbody>
+          </table>
+        </div>
+      `,
+      width: '750px',
+      showCloseButton: true,
+      confirmButtonText: 'Fechar',
+      confirmButtonColor: '#475569'
+    });
+  }
+
+  // Exporta o Dashboard completo (Subunidades, KPIs, Gráficos) em formato PDF / Impressão
   function exportarDashboardPdf() {
     if (!cacheDadosDashboard || !cacheDadosDashboard.dados) {
       Swal.fire('Aviso', 'Aguarde o carregamento do dashboard antes de exportar o PDF.', 'info');
@@ -29551,232 +29732,171 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
 
     const selOme = document.getElementById('filtroDashOme');
     const selSub = document.getElementById('filtroDashSubunidade');
-    const selCl1 = document.getElementById('filtroDashClasse1');
-    const selCl2 = document.getElementById('filtroDashClasse2');
-    const selCl3 = document.getElementById('filtroDashClasse3');
+    const selStatus = document.getElementById('filtroDashStatus');
+    const selMat = $('#filtroDashMaterial');
 
     const omeTexto = selOme ? (selOme.options[selOme.selectedIndex] ? selOme.options[selOme.selectedIndex].text : selOme.value) : 'TODAS';
     const subTexto = selSub ? (selSub.options[selSub.selectedIndex] ? selSub.options[selSub.selectedIndex].text : selSub.value) : 'TODAS';
-    const cl1Texto = selCl1 ? (selCl1.options[selCl1.selectedIndex] ? selCl1.options[selCl1.selectedIndex].text : selCl1.value) : 'TODAS';
-    const cl2Texto = selCl2 ? (selCl2.options[selCl2.selectedIndex] ? selCl2.options[selCl2.selectedIndex].text : selCl2.value) : 'TODAS';
-    const cl3Texto = selCl3 ? (selCl3.options[selCl3.selectedIndex] ? selCl3.options[selCl3.selectedIndex].text : selCl3.value) : 'TODAS';
+    const statusTexto = selStatus ? selStatus.value : 'TODOS';
+    const matsSel = (selMat.length && selMat.val()) ? selMat.val() : [];
+    const matTexto = matsSel.length > 0 ? (matsSel.length === 1 ? matsSel[0] : matsSel.length + ' materiais selecionados') : 'Todos os materiais';
 
     const kpiTot = document.getElementById('kpiDashTotal')?.innerText || '0';
     const kpiEcd = document.getElementById('kpiDashEcd')?.innerText || '0';
     const kpiScd = document.getElementById('kpiDashScd')?.innerText || '0';
     const kpiAcaut = document.getElementById('kpiDashAcautelado')?.innerText || '0';
     const kpiExtr = document.getElementById('kpiDashExtraviado')?.innerText || '0';
+    const kpiSubs = document.getElementById('kpiDashTotalSubs')?.innerText || '0';
 
-    const pctEcd = document.getElementById('kpiDashPctEcd')?.innerText || '';
-    const pctScd = document.getElementById('kpiDashPctScd')?.innerText || '';
-    const pctAcaut = document.getElementById('kpiDashPctAcautelado')?.innerText || '';
-    const pctExtr = document.getElementById('kpiDashPctExtraviado')?.innerText || '';
-
-    // Converte gráficos Chart.js para imagens base64
     let imgBarrasHtml = '';
     let imgDonutHtml = '';
     try {
       const canvasBarras = document.getElementById('chartDashBarrasStatus');
       if (canvasBarras) {
         const urlBarras = canvasBarras.toDataURL('image/png');
-        imgBarrasHtml = '<img src="' + urlBarras + '" style="max-width: 100%; max-height: 180px; object-fit: contain;">';
+        imgBarrasHtml = '<img src="' + urlBarras + '" style="max-width: 100%; max-height: 200px; object-fit: contain;">';
       }
       const canvasDonut = document.getElementById('chartDashDonutStatus');
       if (canvasDonut) {
         const urlDonut = canvasDonut.toDataURL('image/png');
-        imgDonutHtml = '<img src="' + urlDonut + '" style="max-width: 100%; max-height: 180px; object-fit: contain;">';
+        imgDonutHtml = '<img src="' + urlDonut + '" style="max-width: 100%; max-height: 200px; object-fit: contain;">';
       }
     } catch (e) {
-      console.warn("Não foi possível capturar imagem dos gráficos:", e);
+      console.warn("Não foi possível capturar gráficos para PDF:", e);
     }
 
-    // Tabela de materiais
-    const materiais = listaMateriaisDetalhamentoDash || [];
-    let linhasMateriaisHtml = '';
-    let somaIdeal = 0, somaTot = 0, somaEcd = 0, somaScd = 0, somaExtr = 0, somaAcaut = 0;
-
-    materiais.forEach((m, idx) => {
-      somaIdeal += (m.cargaPadrao || 0);
-      somaTot += (m.total || 0);
-      somaEcd += (m.ecd || 0);
-      somaScd += (m.scd || 0);
-      somaExtr += (m.extraviado || 0);
-      somaAcaut += (m.acautelado || 0);
-
-      linhasMateriaisHtml += `
+    let linhasTabelaHtml = '';
+    listaSubunidadesDetalhamentoDash.forEach(function(sub, idx) {
+      linhasTabelaHtml += `
         <tr>
-          <td style="text-align: center; border: 1px solid #ddd; padding: 4px;">${idx + 1}</td>
-          <td style="border: 1px solid #ddd; padding: 4px; font-weight: bold;">${m.nome}</td>
-          <td style="border: 1px solid #ddd; padding: 4px; font-size: 0.8em; color: #555;">${m.classe1 || '-'}</td>
-          <td style="border: 1px solid #ddd; padding: 4px; font-size: 0.8em; color: #0d6efd;">${m.classe2 || '-'}</td>
-          <td style="border: 1px solid #ddd; padding: 4px; font-size: 0.8em; color: #0dcaf0;">${m.classe3 || '-'}</td>
-          <td style="text-align: center; border: 1px solid #ddd; padding: 4px; font-weight: bold; color: #0d6efd;">${(m.cargaPadrao || 0).toLocaleString('pt-BR')}</td>
-          <td style="text-align: center; border: 1px solid #ddd; padding: 4px; font-weight: bold;">${(m.total || 0).toLocaleString('pt-BR')}</td>
-          <td style="text-align: center; border: 1px solid #ddd; padding: 4px; color: #10b981; font-weight: bold;">${(m.ecd || 0).toLocaleString('pt-BR')}</td>
-          <td style="text-align: center; border: 1px solid #ddd; padding: 4px; color: #ef4444; font-weight: bold;">${(m.scd || 0).toLocaleString('pt-BR')}</td>
-          <td style="text-align: center; border: 1px solid #ddd; padding: 4px; color: #f59e0b; font-weight: bold;">${(m.extraviado || 0).toLocaleString('pt-BR')}</td>
-          <td style="text-align: center; border: 1px solid #ddd; padding: 4px; color: #3b82f6; font-weight: bold;">${(m.acautelado || 0).toLocaleString('pt-BR')}</td>
+          <td style="text-align: center; border: 1px solid #cbd5e1; padding: 5px;">${idx + 1}</td>
+          <td style="border: 1px solid #cbd5e1; padding: 5px; font-weight: bold;">${escapeHtmlResumo(sub.subunidadeRotulo || sub.subunidade)}</td>
+          <td style="text-align: center; border: 1px solid #cbd5e1; padding: 5px; font-weight: bold; background: #f8fafc;">${sub.total}</td>
+          <td style="text-align: center; border: 1px solid #cbd5e1; padding: 5px; color: #16a34a; font-weight: bold;">${sub.ecd}</td>
+          <td style="text-align: center; border: 1px solid #cbd5e1; padding: 5px; color: #dc2626; font-weight: bold;">${sub.scd}</td>
+          <td style="text-align: center; border: 1px solid #cbd5e1; padding: 5px; color: #2563eb;">${sub.acautelado}</td>
+          <td style="text-align: center; border: 1px solid #cbd5e1; padding: 5px; color: #d97706;">${sub.extraviado}</td>
         </tr>
       `;
     });
 
-    const militarNome = (usuarioSessaoAtual && usuarioSessaoAtual.nome) ? usuarioSessaoAtual.nome : 'Usuário do Sistema';
-    const militarOme = (usuarioSessaoAtual && usuarioSessaoAtual.ome) ? usuarioSessaoAtual.ome : (OME_GLOBAL || 'CBMPE');
-    const dataHoraEmissao = new Date().toLocaleString('pt-BR');
+    const janelaPrint = window.open('', '_blank', 'width=950,height=800');
+    if (!janelaPrint) {
+      Swal.fire('Aviso', 'Pop-up bloqueado. Permita a abertura de pop-ups para imprimir o relatório.', 'warning');
+      return;
+    }
 
-    const htmlImpressao = `
+    const agoraStr = new Date().toLocaleString('pt-BR');
+
+    janelaPrint.document.open();
+    janelaPrint.document.write(`
       <!DOCTYPE html>
       <html>
       <head>
         <meta charset="utf-8">
-        <title>Dashboard de Materiais por Classe e Situação - CBMPE</title>
+        <title>Dashboard por Subunidade - SGMP CBMPE</title>
         <style>
-          @page { size: landscape; margin: 10mm; }
-          body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #222; margin: 0; padding: 15px; font-size: 11px; line-height: 1.3; }
-          .header { text-align: center; border-bottom: 2px solid #b91c1c; padding-bottom: 8px; margin-bottom: 12px; }
-          .header h2 { margin: 0 0 3px 0; font-size: 16px; color: #991b1b; text-transform: uppercase; }
-          .header h4 { margin: 0; font-size: 12px; color: #444; font-weight: 600; }
-          .info-bar { display: flex; justify-content: space-between; background: #f8fafc; border: 1px solid #e2e8f0; padding: 6px 10px; border-radius: 4px; margin-bottom: 12px; font-size: 10px; }
-          .kpis-grid { display: flex; gap: 8px; margin-bottom: 12px; }
-          .kpi-card { flex: 1; border: 1px solid #e2e8f0; border-radius: 4px; padding: 8px; text-align: center; background: #ffffff; }
-          .kpi-title { font-size: 9px; font-weight: bold; text-transform: uppercase; margin-bottom: 3px; }
-          .kpi-val { font-size: 18px; font-weight: bold; margin-bottom: 2px; }
-          .kpi-sub { font-size: 8.5px; }
-          .charts-row { display: flex; gap: 12px; margin-bottom: 12px; }
-          .chart-box { flex: 1; border: 1px solid #e2e8f0; border-radius: 4px; padding: 8px; text-align: center; background: #ffffff; min-height: 190px; }
-          .chart-title { font-size: 10px; font-weight: bold; margin-bottom: 6px; text-align: left; border-bottom: 1px solid #eee; padding-bottom: 4px; }
-          table { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 9.5px; }
-          th { background: #f1f5f9; color: #1e293b; border: 1px solid #cbd5e1; padding: 5px; text-align: left; font-size: 9px; text-transform: uppercase; }
-          th.center { text-align: center; }
-          td { border: 1px solid #cbd5e1; padding: 4px 6px; }
-          tr:nth-child(even) { background-color: #f8fafc; }
-          .tfoot-totais { background: #e2e8f0; font-weight: bold; }
-          .assinaturas { display: flex; justify-content: space-around; margin-top: 30px; text-align: center; }
-          .ass-linha { width: 35%; border-top: 1px solid #444; padding-top: 4px; font-size: 9.5px; }
+          @page { size: A4 landscape; margin: 10mm; }
+          body { font-family: Arial, Helvetica, sans-serif; color: #0f172a; margin: 0; padding: 15px; font-size: 11px; }
+          .header-doc { text-align: center; border-bottom: 2px solid #991b1b; padding-bottom: 10px; margin-bottom: 12px; }
+          .logo-doc { height: 50px; margin-bottom: 4px; }
+          .titulo-doc { font-size: 14px; font-weight: bold; color: #991b1b; text-transform: uppercase; margin: 0; }
+          .subtitulo-doc { font-size: 10px; color: #64748b; margin-top: 2px; }
+          .box-filtros { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 12px; margin-bottom: 12px; font-size: 10px; }
+          .grid-kpis { display: flex; gap: 8px; margin-bottom: 12px; }
+          .card-kpi { flex: 1; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px; text-align: center; background: #ffffff; }
+          .card-kpi .val { font-size: 16px; font-weight: bold; margin-top: 2px; }
+          .grid-graficos { display: flex; gap: 10px; margin-bottom: 15px; }
+          .box-grafico { flex: 1; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px; text-align: center; }
+          table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 10px; }
+          th { background: #f1f5f9; border: 1px solid #cbd5e1; padding: 6px; text-align: center; font-weight: bold; }
+          td { border: 1px solid #cbd5e1; padding: 5px; }
           @media print {
+            .no-print { display: none !important; }
             body { padding: 0; }
-            .no-print { display: none; }
           }
         </style>
       </head>
       <body>
-        <div class="header">
-          <h2>CORPO DE BOMBEIROS MILITAR DE PERNAMBUCO</h2>
-          <h4>DIRETORIA DE LOGÍSTICA (DLOG) - DASHBOARD DE MATERIAIS POR CLASSE E SITUAÇÃO</h4>
+        <div class="no-print" style="margin-bottom: 10px; text-align: right;">
+          <button onclick="window.print()" style="background: #991b1b; color: #fff; border: none; padding: 8px 16px; font-weight: bold; border-radius: 4px; cursor: pointer;">
+            Imprimir / Salvar PDF
+          </button>
         </div>
 
-        <div class="info-bar">
-          <div><strong>Unidade / OME:</strong> ${omeTexto} | <strong>Subunidade:</strong> ${subTexto} | <strong>Classe 1:</strong> ${cl1Texto} | <strong>Classe 2:</strong> ${cl2Texto} | <strong>Classe 3:</strong> ${cl3Texto}</div>
-          <div><strong>Emissão:</strong> ${dataHoraEmissao} | <strong>Responsável:</strong> ${militarNome} (${militarOme})</div>
+        <div class="header-doc">
+          <img class="logo-doc" src="https://agendamento.bombeiros.pe.gov.br/assets/logo_cbmpe.png" onerror="this.style.display='none'">
+          <div class="titulo-doc">Corpo de Bombeiros Militar de Pernambuco</div>
+          <div class="subtitulo-doc">Sistema de Gestão de Materiais e Patrimônio (SGMP) — Relatório Executivo por Subunidade</div>
         </div>
 
-        <div class="kpis-grid">
-          <div class="kpi-card" style="border-top: 3px solid #475569;">
-            <div class="kpi-title" style="color: #475569;">Total de Itens</div>
-            <div class="kpi-val" style="color: #0f172a;">${kpiTot}</div>
-            <div class="kpi-sub" style="color: #64748b;">Filtros Ativos</div>
+        <div class="box-filtros">
+          <strong>Filtros Aplicados:</strong> OME: <u>${escapeHtmlResumo(omeTexto)}</u> | Subunidade: <u>${escapeHtmlResumo(subTexto)}</u> | Material(is): <u>${escapeHtmlResumo(matTexto)}</u> | Status: <u>${escapeHtmlResumo(statusTexto)}</u> | Gerado em: ${agoraStr}
+        </div>
+
+        <div class="grid-kpis">
+          <div class="card-kpi" style="border-top: 3px solid #475569;">
+            <div style="color: #64748b; font-size: 9px; font-weight: bold;">TOTAL DE ITENS</div>
+            <div class="val" style="color: #0f172a;">${kpiTot}</div>
           </div>
-          <div class="kpi-card" style="border-top: 3px solid #10b981;">
-            <div class="kpi-title" style="color: #10b981;">Em Uso (ECD)</div>
-            <div class="kpi-val" style="color: #10b981;">${kpiEcd}</div>
-            <div class="kpi-sub" style="color: #059669;">${pctEcd}</div>
+          <div class="card-kpi" style="border-top: 3px solid #16a34a;">
+            <div style="color: #16a34a; font-size: 9px; font-weight: bold;">EM USO (ECD)</div>
+            <div class="val" style="color: #16a34a;">${kpiEcd}</div>
           </div>
-          <div class="kpi-card" style="border-top: 3px solid #ef4444;">
-            <div class="kpi-title" style="color: #ef4444;">Sem Condições (SCD)</div>
-            <div class="kpi-val" style="color: #ef4444;">${kpiScd}</div>
-            <div class="kpi-sub" style="color: #dc2626;">${pctScd}</div>
+          <div class="card-kpi" style="border-top: 3px solid #dc2626;">
+            <div style="color: #dc2626; font-size: 9px; font-weight: bold;">SEM CONDIÇÕES (SCD)</div>
+            <div class="val" style="color: #dc2626;">${kpiScd}</div>
           </div>
-          <div class="kpi-card" style="border-top: 3px solid #3b82f6;">
-            <div class="kpi-title" style="color: #3b82f6;">Acautelado</div>
-            <div class="kpi-val" style="color: #3b82f6;">${kpiAcaut}</div>
-            <div class="kpi-sub" style="color: #2563eb;">${pctAcaut}</div>
+          <div class="card-kpi" style="border-top: 3px solid #2563eb;">
+            <div style="color: #2563eb; font-size: 9px; font-weight: bold;">ACAUTELADO</div>
+            <div class="val" style="color: #2563eb;">${kpiAcaut}</div>
           </div>
-          <div class="kpi-card" style="border-top: 3px solid #f59e0b;">
-            <div class="kpi-title" style="color: #b45309;">Extraviado</div>
-            <div class="kpi-val" style="color: #b45309;">${kpiExtr}</div>
-            <div class="kpi-sub" style="color: #d97706;">${pctExtr}</div>
+          <div class="card-kpi" style="border-top: 3px solid #d97706;">
+            <div style="color: #d97706; font-size: 9px; font-weight: bold;">EXTRAVIADO</div>
+            <div class="val" style="color: #d97706;">${kpiExtr}</div>
+          </div>
+          <div class="card-kpi" style="border-top: 3px solid #7c3aed;">
+            <div style="color: #7c3aed; font-size: 9px; font-weight: bold;">SUBUNIDADES</div>
+            <div class="val" style="color: #7c3aed;">${kpiSubs}</div>
           </div>
         </div>
 
-        ${(imgBarrasHtml || imgDonutHtml) ? `
-          <div class="charts-row">
-            ${imgBarrasHtml ? `
-              <div class="chart-box" style="flex: 2;">
-                <div class="chart-title">Distribuição por Situação / Status</div>
-                ${imgBarrasHtml}
-              </div>
-            ` : ''}
-            ${imgDonutHtml ? `
-              <div class="chart-box" style="flex: 1;">
-                <div class="chart-title">Proporção Geral (%)</div>
-                ${imgDonutHtml}
-              </div>
-            ` : ''}
+        <div class="grid-graficos">
+          <div class="box-grafico" style="flex: 2;">
+            <div style="font-size: 10px; font-weight: bold; margin-bottom: 5px;">Quantitativo por SUBUNIDADE</div>
+            ${imgBarrasHtml}
           </div>
-        ` : ''}
-
-        <div style="font-weight: bold; font-size: 11px; margin-top: 8px; margin-bottom: 4px; color: #1e293b;">
-          Detalhamento dos Materiais (${materiais.length} registros)
+          <div class="box-grafico" style="flex: 1;">
+            <div style="font-size: 10px; font-weight: bold; margin-bottom: 5px;">Proporção por Subunidade</div>
+            ${imgDonutHtml}
+          </div>
         </div>
 
+        <div style="font-size: 11px; font-weight: bold; margin-bottom: 4px;">Detalhamento por Subunidade:</div>
         <table>
           <thead>
             <tr>
-              <th class="center" style="width: 30px;">#</th>
-              <th>Descrição do Material (Objeto)</th>
-              <th style="width: 90px;">Classe 1</th>
-              <th style="width: 100px;">Classe 2</th>
-              <th style="width: 100px;">Classe 3</th>
-              <th class="center" style="width: 65px; color: #0d6efd;">Qtd. Ideal</th>
-              <th class="center" style="width: 60px;">Soma Total</th>
-              <th class="center" style="width: 50px; color: #10b981;">ECD</th>
-              <th class="center" style="width: 50px; color: #ef4444;">SCD</th>
-              <th class="center" style="width: 55px; color: #b45309;">Extrav.</th>
-              <th class="center" style="width: 55px; color: #3b82f6;">Acaut.</th>
+              <th style="width: 35px;">#</th>
+              <th>Subunidade</th>
+              <th style="width: 80px;">Soma Total</th>
+              <th style="width: 75px; color: #16a34a;">ECD</th>
+              <th style="width: 75px; color: #dc2626;">SCD</th>
+              <th style="width: 80px; color: #2563eb;">Acautelado</th>
+              <th style="width: 80px; color: #d97706;">Extraviado</th>
             </tr>
           </thead>
           <tbody>
-            ${linhasMateriaisHtml || '<tr><td colspan="11" style="text-align: center; color: #888; padding: 10px;">Nenhum material listado com os filtros atuais.</td></tr>'}
+            ${linhasTabelaHtml}
           </tbody>
-          <tfoot>
-            <tr class="tfoot-totais">
-              <td colspan="5" style="text-align: right; padding: 5px 8px;">TOTAIS:</td>
-              <td style="text-align: center; font-weight: bold; color: #0d6efd;">${somaIdeal.toLocaleString('pt-BR')}</td>
-              <td style="text-align: center; font-weight: bold;">${somaTot.toLocaleString('pt-BR')}</td>
-              <td style="text-align: center; font-weight: bold; color: #10b981;">${somaEcd.toLocaleString('pt-BR')}</td>
-              <td style="text-align: center; font-weight: bold; color: #ef4444;">${somaScd.toLocaleString('pt-BR')}</td>
-              <td style="text-align: center; font-weight: bold; color: #b45309;">${somaExtr.toLocaleString('pt-BR')}</td>
-              <td style="text-align: center; font-weight: bold; color: #3b82f6;">${somaAcaut.toLocaleString('pt-BR')}</td>
-            </tr>
-          </tfoot>
         </table>
-
-        <div class="assinaturas">
-          <div class="ass-linha">
-            <strong>${militarNome}</strong><br>
-            Responsável pela Emissão / Gestão do Inventário
-          </div>
-          <div class="ass-linha">
-            <strong>Comando / Diretoria de Logística (DLOG)</strong><br>
-            CBMPE - ${militarOme}
-          </div>
-        </div>
       </body>
       </html>
-    `;
-
-    const janela = window.open('', '_blank');
-    if (janela) {
-      janela.document.write(htmlImpressao);
-      janela.document.close();
-      janela.focus();
-      setTimeout(() => { janela.print(); }, 500);
-    } else {
-      Swal.fire('Aviso', 'Permita a abertura de pop-ups no navegador para gerar o PDF do Dashboard.', 'warning');
-    }
+    `);
+    janelaPrint.document.close();
+    janelaPrint.focus();
+    setTimeout(() => { try { janelaPrint.print(); } catch (e) {} }, 600);
   }
 
-  
   // =========================================================================
   // GERENCIAMENTO DE CADASTRO DE MATERIAIS
   // =========================================================================

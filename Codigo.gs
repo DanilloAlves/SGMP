@@ -5929,6 +5929,11 @@ function getResumoArvoreArmazenamento(unidadeOme) {
         return;
       }
 
+      // Exclui viaturas de serem tratadas como materiais
+      if (typeof ehViaturaMaterialGeral_ === 'function' && ehViaturaMaterialGeral_(objeto)) {
+        return;
+      }
+
       // Normaliza Subunidade e Setor com a árvore oficial
       var noArvore = null;
       if (locRaw && mapaNomesArvore[normComp_(locRaw)]) {
@@ -6341,6 +6346,11 @@ function getResumoMaterialSubunidade(unidadeOme) {
 
       // Exclui materiais de consumo da lista de permanentes
       if (typeof ehMaterialConsumo_ === 'function' && ehMaterialConsumo_(objeto, mapaConsumo)) {
+        return;
+      }
+
+      // Exclui viaturas de serem tratadas como materiais (viaturas são locais/setores operacionais)
+      if (typeof ehViaturaMaterialGeral_ === 'function' && ehViaturaMaterialGeral_(objeto)) {
         return;
       }
 
@@ -10625,6 +10635,17 @@ function ehViaturaLocalBackend_(nomeLocal) {
   if (typeof ehViaturaMaterialBackend_ === 'function' && ehViaturaMaterialBackend_(n)) {
     return true;
   }
+  return false;
+}
+
+function ehViaturaMaterialGeral_(nome) {
+  if (!nome) return false;
+  var n = String(nome).trim().toUpperCase();
+  if (n.startsWith("VIATURA") || /\bVIATURA\b/.test(n) || /\bVE[IÍ]CULO\b/.test(n)) return true;
+  if (/^(?:VTR|ABTF|ABTS|ABT|ABSL|ABSM|ABSC|AR|AT\/1|AT|ASE|AE|AEM|BIS|MSA|MR|AP|ATM|AC|ACA|UR|UTI)(?:\b|[-_ \/])/i.test(n)) return true;
+  if (typeof identificarSeObjetoEhViatura_ === 'function' && identificarSeObjetoEhViatura_(nome)) return true;
+  if (typeof ehViaturaMaterialBackend_ === 'function' && ehViaturaMaterialBackend_(nome)) return true;
+  if (typeof obterSiglaViaturaBackend_ === 'function' && obterSiglaViaturaBackend_(nome)) return true;
   return false;
 }
 
@@ -21138,7 +21159,7 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao, omeCliente, perfilClie
     var perfilNorm = (perfilUsuario || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
     var ehAdmin = (perfilNorm === "administrador" || perfilNorm.indexOf("admin") !== -1);
 
-    var chaveCacheDash = "DASH_VISAO_GERAL_V7_" + (ehAdmin ? "ADMIN" : (omeUsuario || "USER").toUpperCase().replace(/[^A-Z0-9]/g, "_"));
+    var chaveCacheDash = "DASH_VISAO_GERAL_V8_" + (ehAdmin ? "ADMIN" : (omeUsuario || "USER").toUpperCase().replace(/[^A-Z0-9]/g, "_"));
     if (!forcarAtualizacao) {
       var dashCached = lerDeCacheChunked_(chaveCacheDash);
       if (dashCached && dashCached.sucesso && dashCached.dados && dashCached.dados.length > 0) {
@@ -21205,6 +21226,7 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao, omeCliente, perfilClie
     var mapaClasses2Encontradas = {};
     var mapaClasses3Encontradas = {};
     var dadosAgrupados = {}; // Chave: "OME||SUBUNIDADE||CLASSE1||CLASSE2||CLASSE3"
+    var mapaTodosMateriaisDistintos = {};
 
     var detectouOmeNaoPadronizada = false;
     for (var i = 0; i < rows.length; i++) {
@@ -21226,6 +21248,12 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao, omeCliente, perfilClie
       var rawStatus = (r[3] && r[3].v) ? String(r[3].v).trim().toUpperCase() : "ECD";
       var qtd = (r[4] && r[4].v) ? parseInt(r[4].v, 10) : 0;
       if (qtd <= 0 || !objNome) continue;
+
+      // Exclui viaturas de serem tratadas como materiais no dashboard
+      if (typeof ehViaturaMaterialGeral_ === 'function' && ehViaturaMaterialGeral_(objNome)) {
+        continue;
+      }
+      mapaTodosMateriaisDistintos[objNome] = true;
 
       mapaOmes[ome] = true;
       if (!mapaSubunidadesPorOme[ome]) mapaSubunidadesPorOme[ome] = {};
@@ -21317,6 +21345,8 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao, omeCliente, perfilClie
       var cMat = partes[2];
       var cVal = mapaCargas[chCarga];
       if (!cVal || cVal <= 0 || !cMat) continue;
+      if (typeof ehViaturaMaterialGeral_ === 'function' && ehViaturaMaterialGeral_(cMat)) continue;
+      mapaTodosMateriaisDistintos[cMat] = true;
       if (!ehAdmin && omeUsuario && cOme !== (typeof obterOmePadronizada === 'function' ? obterOmePadronizada(omeUsuario) : omeUsuario).toUpperCase()) continue;
 
       var catInfo = mapaCat[cMat];
@@ -21457,6 +21487,9 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao, omeCliente, perfilClie
       listaClasses1: listaClasses1Final,
       listaClasses2: listaClasses2Final,
       listaClasses3: listaClasses3Final,
+      listaMateriais: Object.keys(mapaTodosMateriaisDistintos).sort(function(a, b) {
+        return a.localeCompare(b);
+      }),
       dados: listaFinal,
       totalRegistros: rows.length
     };
