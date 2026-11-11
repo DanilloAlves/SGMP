@@ -2175,7 +2175,7 @@ function invalidarCacheArmazenamentoOme_(ome) {
   try {
     var omePadrao = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(ome) : (ome || "");
     if (!omePadrao) return;
-    var sufixos = ["", "_V3", "_V4", "_V5", "_V6", "_V7", "_V8", "_V9", "_V10", "_V11", "_V12", "_V13", "_V14", "_V15", "_V16"];
+    var sufixos = ["", "_V3", "_V4", "_V5", "_V6", "_V7", "_V8", "_V9", "_V10", "_V11", "_V12", "_V13", "_V14", "_V15", "_V16", "_V17"];
     var cache = CacheService.getScriptCache();
     sufixos.forEach(function(suf) {
       var chaveBase = "CACHE_ARM_COMPLETO" + suf + "_" + omePadrao.toUpperCase().replace(/[^A-Z0-9]/g, "_");
@@ -2201,7 +2201,7 @@ function carregarDadosArmazenamentoCompleto(unidadeOmega, forcarAtualizacao) {
     if (!omePadrao) return { locais: [], materiais: [], vinculos: {} };
 
     // Prefixo V5 para descarte absoluto de qualquer cache antigo e sincronização estrita BigQuery
-    var chaveBase = "CACHE_ARM_COMPLETO_V16_" + omePadrao.toUpperCase().replace(/[^A-Z0-9]/g, "_");
+    var chaveBase = "CACHE_ARM_COMPLETO_V17_" + omePadrao.toUpperCase().replace(/[^A-Z0-9]/g, "_");
     var cached = (!forcarAtualizacao && typeof lerDeCacheChunked_ === 'function') ? lerDeCacheChunked_(chaveBase) : null;
 
     // Se houver algum setor não identificado ou genérico (ex: "BIS"), bypass no cache
@@ -2708,6 +2708,51 @@ function obterCargasPadraoPlanilhaFallback_(omePadrao) {
 function limparReplicasTbArvore_() {
   try {
     garantirTabelaArvore_();
+    
+    // 1. Reponta filhos que apontavam para IDs legados loc_ para o ID canônico vtr_
+    try {
+      var sqlRepontarFilhos = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` filho " +
+                              "SET ID_Pai = ( " +
+                              "  SELECT vtr.ID_Local " +
+                              "  FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` vtr " +
+                              "  JOIN `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` loc_antigo " +
+                              "    ON UPPER(TRIM(vtr.Unidade_OME)) = UPPER(TRIM(loc_antigo.Unidade_OME)) " +
+                              "   AND UPPER(TRIM(vtr.Nome_Local)) = UPPER(TRIM(loc_antigo.Nome_Local)) " +
+                              "  WHERE vtr.ID_Local LIKE 'vtr_%' " +
+                              "    AND loc_antigo.ID_Local = filho.ID_Pai " +
+                              "  LIMIT 1 " +
+                              ") " +
+                              "WHERE EXISTS ( " +
+                              "  SELECT 1 " +
+                              "  FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` loc_antigo " +
+                              "  JOIN `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` vtr " +
+                              "    ON UPPER(TRIM(vtr.Unidade_OME)) = UPPER(TRIM(loc_antigo.Unidade_OME)) " +
+                              "   AND UPPER(TRIM(vtr.Nome_Local)) = UPPER(TRIM(loc_antigo.Nome_Local)) " +
+                              "  WHERE loc_antigo.ID_Local = filho.ID_Pai " +
+                              "    AND loc_antigo.ID_Local LIKE 'loc_%' " +
+                              "    AND vtr.ID_Local LIKE 'vtr_%' " +
+                              ")";
+      executarEscritaBigQuerySegura(sqlRepontarFilhos);
+    } catch(eRep) {
+      console.warn("Aviso ao repontar filhos de viaturas legadas: " + eRep.message);
+    }
+
+    // 2. Remove os registros legados loc_ de viaturas que já possuem o registro canônico vtr_
+    try {
+      var sqlDelLegados = "DELETE FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` " +
+                          "WHERE ID_Local LIKE 'loc_%' " +
+                          "  AND EXISTS ( " +
+                          "    SELECT 1 FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` vtr " +
+                          "    WHERE vtr.ID_Local LIKE 'vtr_%' " +
+                          "      AND UPPER(TRIM(vtr.Unidade_OME)) = UPPER(TRIM(`" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "`.Unidade_OME)) " +
+                          "      AND UPPER(TRIM(vtr.Nome_Local)) = UPPER(TRIM(`" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "`.Nome_Local)) " +
+                          "  )";
+      executarEscritaBigQuerySegura(sqlDelLegados);
+    } catch(eDel) {
+      console.warn("Aviso ao deletar registros legados de viaturas: " + eDel.message);
+    }
+
+    // 3. Desduplica a tabela inteira por ID_Local garantindo ordenação
     var sqlDedup = "CREATE OR REPLACE TABLE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` AS " +
                    "SELECT ID_Local, Unidade_OME, Nome_Local, ID_Pai, Ordem " +
                    "FROM (" +
@@ -2722,7 +2767,7 @@ function limparReplicasTbArvore_() {
                    "  WHERE ID_Local IS NOT NULL AND TRIM(ID_Local) != ''" +
                    ") WHERE rn = 1";
     executarEscritaBigQuerySegura(sqlDedup);
-    console.log("Limpeza de replicas em tb_Arvore executada com sucesso no BigQuery.");
+    console.log("Limpeza de replicas e exclusao de viaturas legadas em tb_Arvore executada com sucesso no BigQuery.");
   } catch(e) {
     console.warn("Aviso ao limpar replicas de tb_Arvore: " + e.message);
   }
@@ -2736,6 +2781,29 @@ function limparReplicasPlanilhaArvore_() {
     if (!sheet || sheet.getLastRow() <= 1) return;
     var dados = sheet.getDataRange().getValues();
     var cabecalho = dados[0];
+    
+    // Identifica quais viaturas possuem registro vtr_
+    var mapaVtrExistentes = {};
+    for (var i = 1; i < dados.length; i++) {
+      var id = String(dados[i][0] || "").trim();
+      var ome = String(dados[i][1] || "").trim().toUpperCase();
+      var nome = String(dados[i][2] || "").trim().toUpperCase();
+      if (id.indexOf("vtr_") === 0) {
+        mapaVtrExistentes[ome + "|" + nome] = id;
+      }
+    }
+
+    // Se houver filhos apontando para loc_ cujo vtr_ existe, reponta
+    var mapaLocParaVtr = {};
+    for (var i = 1; i < dados.length; i++) {
+      var id = String(dados[i][0] || "").trim();
+      var ome = String(dados[i][1] || "").trim().toUpperCase();
+      var nome = String(dados[i][2] || "").trim().toUpperCase();
+      if (id.indexOf("loc_") === 0 && mapaVtrExistentes[ome + "|" + nome]) {
+        mapaLocParaVtr[id] = mapaVtrExistentes[ome + "|" + nome];
+      }
+    }
+
     var mapaVistos = {};
     var linhasUnicas = [cabecalho];
     for (var i = 1; i < dados.length; i++) {
@@ -2743,6 +2811,18 @@ function limparReplicasPlanilhaArvore_() {
       var ome = String(dados[i][1] || "").trim().toUpperCase();
       var nome = String(dados[i][2] || "").trim().toUpperCase();
       var idPai = String(dados[i][3] || "").trim();
+
+      // Descarta registro legado loc_ se ja existe vtr_
+      if (id.indexOf("loc_") === 0 && mapaVtrExistentes[ome + "|" + nome]) {
+        continue;
+      }
+
+      // Reponta pai se apontava para o loc_ que foi substituido por vtr_
+      if (mapaLocParaVtr[idPai]) {
+        dados[i][3] = mapaLocParaVtr[idPai];
+        idPai = mapaLocParaVtr[idPai];
+      }
+
       var chave = id + "|" + ome + "|" + nome + "|" + idPai;
       if (!id || mapaVistos[chave] || (id && mapaVistos[id])) continue;
       mapaVistos[chave] = true;
@@ -2753,7 +2833,7 @@ function limparReplicasPlanilhaArvore_() {
       sheet.clearContents();
       sheet.getRange(1, 1, linhasUnicas.length, linhasUnicas[0].length).setValues(linhasUnicas);
       SpreadsheetApp.flush();
-      console.log("Planilha de arvore desduplicada: " + (dados.length - linhasUnicas.length) + " replicas removidas.");
+      console.log("Planilha de arvore desduplicada: " + (dados.length - linhasUnicas.length) + " registros removidos.");
     }
   } catch(eSh) {
     console.warn("Aviso ao limpar replicas da planilha: " + eSh.message);
@@ -2772,7 +2852,7 @@ function garantirConsistenciaArvoreLocais_(omePadrao) {
     if (!ome) return;
 
     // Desduplica tb_Arvore e planilha se ainda nao foi executado nesta versao
-    var flagDedup = "FLAG_DEDUP_TB_ARVORE_V527";
+    var flagDedup = "FLAG_DEDUP_TB_ARVORE_V529";
     var jaDedup = PropertiesService.getScriptProperties().getProperty(flagDedup);
     if (!jaDedup) {
       limparReplicasTbArvore_();
