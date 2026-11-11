@@ -1422,9 +1422,14 @@
             <div class="col-lg-8 col-md-12">
               <div class="card border border-secondary border-opacity-25 shadow-sm p-2 h-100 bg-white">
                 <div class="d-flex justify-content-between align-items-center mb-1">
-                  <span class="fw-bold text-dark" style="font-size: 0.78rem;">
-                    <i class="fa-solid fa-chart-column text-danger me-1"></i> Quantitativo por SUBUNIDADE
-                  </span>
+                  <div class="d-flex align-items-center gap-2">
+                    <span class="fw-bold text-dark" style="font-size: 0.78rem;" id="tituloGraficoBarrasDash">
+                      <i class="fa-solid fa-chart-column text-danger me-1"></i> <span id="textoTituloGraficoBarras">Quantitativo por OME</span>
+                    </span>
+                    <button id="btnVoltarOmeGrafico" class="btn btn-outline-danger btn-xs py-0 px-2 fw-semibold shadow-none" style="display: none; font-size: 0.70rem; border-radius: 4px;" onclick="voltarParaTodasOmesDash()" title="Voltar para a visualização consolidada por OMEs">
+                      <i class="fa-solid fa-arrow-left me-1"></i> Todas as OMEs
+                    </button>
+                  </div>
                   <div class="d-flex align-items-center gap-1">
                     <span id="badgeFiltroGraficoAtivo" class="badge bg-primary text-white border" style="display:none; font-size: 0.68rem; cursor: pointer;" onclick="limparFiltroGraficoDash()" title="Clique para remover este filtro de subunidade"><i class="fa-solid fa-filter me-1"></i> <span id="textoFiltroGraficoAtivo"></span> <i class="fa-solid fa-xmark ms-1"></i></span>
                     <span class="badge bg-light text-secondary border" style="font-size: 0.68rem;" id="badgeTituloGraficoBarras">
@@ -29165,6 +29170,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
   let mapaSubunidadesDetalhesCompletos = {};
   let subunidadeFiltroGrafico = null;
   let ultimasSubsTopDash = [];
+  let ultimasEntidadesTopDash = [];
   let listaMateriaisDetalhamentoDash = [];
   let mapaMateriaisGeraisAgregados = {};
   let mapaMateriaisPorSubunidadeAgregados = {};
@@ -29471,7 +29477,19 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     aplicarFiltrosDashboard();
   }
 
-  // Aplica os filtros selecionados, consolida por SUBUNIDADE, atualiza KPIs, Gráficos e Tabela
+  // Volta para a visualização consolidada por OMEs
+  function voltarParaTodasOmesDash() {
+    const selOme = document.getElementById('filtroDashOme');
+    if (selOme) selOme.value = 'TODAS';
+    const selSub = document.getElementById('filtroDashSubunidade');
+    if (selSub) selSub.value = 'TODAS';
+    subunidadeFiltroGrafico = null;
+    popularSubunidadesDashboard('TODAS', 'TODAS');
+    popularMateriaisDashboard();
+    aplicarFiltrosDashboard();
+  }
+
+  // Aplica os filtros selecionados, consolida por OME ou SUBUNIDADE, atualiza KPIs, Gráficos e Tabela
   function aplicarFiltrosDashboard() {
     if (!cacheDadosDashboard || !cacheDadosDashboard.dados) return;
 
@@ -29489,8 +29507,9 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       return String(s || '').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     };
 
-    const mapaSubunidades = {};
-    mapaSubunidadesDetalhesCompletos = {};
+    const ehVisaoGeralOme = (omeFiltro === 'TODAS');
+
+    const mapaEntidadesGrafico = {};
     mapaMateriaisGeraisAgregados = {};
     mapaMateriaisPorSubunidadeAgregados = {};
 
@@ -29505,12 +29524,16 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       if (subFiltro !== 'TODAS' && normComp(item.subunidade) !== normComp(subFiltro)) return;
 
       const subKey = (item.subunidade || 'SEDE').trim();
-      const subOmeKey = (omeFiltro === 'TODAS' && item.ome) ? (subKey + ' (' + item.ome + ')') : subKey;
+      const omeKey = (item.ome || 'SEM OME').trim();
+
+      // No modo geral, a barra representa a OME. No modo filtrado, a barra representa a SUBUNIDADE.
+      const chaveEntidade = ehVisaoGeralOme ? omeKey : subKey;
+      const rotuloEntidade = chaveEntidade;
 
       (item.materiais || []).forEach(function(m) {
         if (!m || !m.nome) return;
 
-        // Se houver materiais selecionados, filtra estritamente por eles
+        // Se houver materiais selecionados no filtro múltiplo, filtra estritamente por eles
         if (matsSelecionados.length > 0 && !matsSelecionados.includes(m.nome)) {
           return;
         }
@@ -29527,30 +29550,14 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
         totalAcautelado += mAcaut;
         totalExtraviado += mExtr;
 
-        if (!mapaSubunidades[subOmeKey]) {
-          mapaSubunidades[subOmeKey] = {
+        // Agregação para as Barras do Gráfico (por OME se geral, ou por SUBUNIDADE se dentro de uma OME)
+        if (!mapaEntidadesGrafico[chaveEntidade]) {
+          mapaEntidadesGrafico[chaveEntidade] = {
+            tipo: ehVisaoGeralOme ? 'OME' : 'SUBUNIDADE',
+            nome: chaveEntidade,
+            rotulo: rotuloEntidade,
+            ome: omeKey,
             subunidade: subKey,
-            subunidadeRotulo: subOmeKey,
-            ome: item.ome || '',
-            total: 0,
-            ecd: 0,
-            scd: 0,
-            acautelado: 0,
-            extraviado: 0,
-            materiaisMap: {}
-          };
-        }
-
-        const subObj = mapaSubunidades[subOmeKey];
-        subObj.total += mTot;
-        subObj.ecd += mEcd;
-        subObj.scd += mScd;
-        subObj.acautelado += mAcaut;
-        subObj.extraviado += mExtr;
-
-        if (!subObj.materiaisMap[m.nome]) {
-          subObj.materiaisMap[m.nome] = {
-            nome: m.nome,
             total: 0,
             ecd: 0,
             scd: 0,
@@ -29558,14 +29565,15 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
             extraviado: 0
           };
         }
-        const sMat = subObj.materiaisMap[m.nome];
-        sMat.total += mTot;
-        sMat.ecd += mEcd;
-        sMat.scd += mScd;
-        sMat.acautelado += mAcaut;
-        sMat.extraviado += mExtr;
 
-        // Agregação Global de Materiais para a Tabela do Dashboard
+        const ent = mapaEntidadesGrafico[chaveEntidade];
+        ent.total += mTot;
+        ent.ecd += mEcd;
+        ent.scd += mScd;
+        ent.acautelado += mAcaut;
+        ent.extraviado += mExtr;
+
+        // Agregação Geral de Materiais para a Tabela
         if (!mapaMateriaisGeraisAgregados[m.nome]) {
           mapaMateriaisGeraisAgregados[m.nome] = {
             nome: m.nome,
@@ -29587,7 +29595,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
         matGeral.acautelado += mAcaut;
         matGeral.extraviado += mExtr;
 
-        // Agregação por Subunidade para filtragem dinâmica ao clicar no gráfico
+        // Agregação de Materiais por Subunidade
         if (!mapaMateriaisPorSubunidadeAgregados[subKey]) {
           mapaMateriaisPorSubunidadeAgregados[subKey] = {};
         }
@@ -29614,9 +29622,16 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       });
     });
 
-    mapaSubunidadesDetalhesCompletos = mapaSubunidades;
+    // Ordena entidades para os gráficos decrescente por quantidade
+    const listaEntidadesGrafico = Object.values(mapaEntidadesGrafico).sort(function(a, b) {
+      if (statusFiltro === 'ECD') return b.ecd - a.ecd;
+      if (statusFiltro === 'SCD') return b.scd - a.scd;
+      if (statusFiltro === 'ACAUTELADO') return b.acautelado - a.acautelado;
+      if (statusFiltro === 'EXTRAVIADO') return b.extraviado - a.extraviado;
+      return b.total - a.total;
+    });
 
-    // Define os materiais para exibição na tabela (geral ou filtrado pela subunidade clicada)
+    // Define os materiais para exibição na tabela
     if (subunidadeFiltroGrafico && mapaMateriaisPorSubunidadeAgregados[subunidadeFiltroGrafico]) {
       listaMateriaisDetalhamentoDash = Object.values(mapaMateriaisPorSubunidadeAgregados[subunidadeFiltroGrafico]).sort(function(a, b) {
         return b.total - a.total;
@@ -29627,15 +29642,6 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       });
     }
 
-    // Converte para lista ordenada por quantidade total decrescente
-    listaSubunidadesDetalhamentoDash = Object.values(mapaSubunidades).sort(function(a, b) {
-      if (statusFiltro === 'ECD') return b.ecd - a.ecd;
-      if (statusFiltro === 'SCD') return b.scd - a.scd;
-      if (statusFiltro === 'ACAUTELADO') return b.acautelado - a.acautelado;
-      if (statusFiltro === 'EXTRAVIADO') return b.extraviado - a.extraviado;
-      return b.total - a.total;
-    });
-
     // Atualiza KPIs
     const elTot = document.getElementById('kpiDashTotal');
     const elEcd = document.getElementById('kpiDashEcd');
@@ -29643,13 +29649,15 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     const elAcaut = document.getElementById('kpiDashAcautelado');
     const elExtr = document.getElementById('kpiDashExtraviado');
     const elTotSubs = document.getElementById('kpiDashTotalSubs');
+    const elSubKpi = document.getElementById('kpiDashSubtituloSubs');
 
     if (elTot) elTot.innerText = totalGeral.toLocaleString('pt-BR');
     if (elEcd) elEcd.innerText = totalEcd.toLocaleString('pt-BR');
     if (elScd) elScd.innerText = totalScd.toLocaleString('pt-BR');
     if (elAcaut) elAcaut.innerText = totalAcautelado.toLocaleString('pt-BR');
     if (elExtr) elExtr.innerText = totalExtraviado.toLocaleString('pt-BR');
-    if (elTotSubs) elTotSubs.innerText = listaSubunidadesDetalhamentoDash.length;
+    if (elTotSubs) elTotSubs.innerText = listaEntidadesGrafico.length;
+    if (elSubKpi) elSubKpi.innerText = ehVisaoGeralOme ? 'OMEs ativas' : 'subunidades';
 
     const pct = function(qtd) {
       if (!totalGeral) return '0%';
@@ -29672,7 +29680,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     }
     if (statusFiltro !== 'TODOS') filtrosAtivos.push('Status: ' + statusFiltro);
 
-    const textoFiltro = filtrosAtivos.length > 0 ? filtrosAtivos.join(' • ') : 'Geral (Todos os Itens)';
+    const textoFiltro = filtrosAtivos.length > 0 ? filtrosAtivos.join(' • ') : 'Geral (Todas as OMEs)';
 
     if (elSubTot) elSubTot.innerText = textoFiltro;
     if (elPctEcd) elPctEcd.innerText = pct(totalEcd) + ' do total';
@@ -29682,6 +29690,23 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
 
     const badgeGrafico = document.getElementById('badgeTituloGraficoBarras');
     if (badgeGrafico) badgeGrafico.innerText = textoFiltro;
+
+    // Atualiza Título do Gráfico e Botão Voltar
+    const txtTituloBarras = document.getElementById('textoTituloGraficoBarras');
+    const elTituloDonut = document.getElementById('tituloGraficoDonutDash');
+    const btnVoltarOme = document.getElementById('btnVoltarOmeGrafico');
+    const ehAdmin = cacheDadosDashboard ? cacheDadosDashboard.ehAdmin === true : false;
+    const podeVoltarTodas = selOme && !selOme.disabled && !!selOme.querySelector('option[value="TODAS"]');
+
+    if (ehVisaoGeralOme) {
+      if (txtTituloBarras) txtTituloBarras.innerText = 'Quantitativo por OME';
+      if (elTituloDonut) elTituloDonut.innerHTML = '<i class="fa-solid fa-chart-pie text-primary me-1"></i> Proporção por OME (%)';
+      if (btnVoltarOme) btnVoltarOme.style.display = 'none';
+    } else {
+      if (txtTituloBarras) txtTituloBarras.innerText = 'Subunidades — ' + omeFiltro;
+      if (elTituloDonut) elTituloDonut.innerHTML = '<i class="fa-solid fa-chart-pie text-primary me-1"></i> Proporção por Subunidade (%)';
+      if (btnVoltarOme) btnVoltarOme.style.display = (podeVoltarTodas || ehAdmin) ? 'inline-block' : 'none';
+    }
 
     const badgeStatusTab = document.getElementById('badgeFiltroStatusTabelaDash');
     if (badgeStatusTab) {
@@ -29697,18 +29722,18 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       }
     }
 
-    // Renderiza Gráficos (Chart.js) por SUBUNIDADE
-    renderizarGraficosDashboardSubunidades(listaSubunidadesDetalhamentoDash, statusFiltro, totalGeral);
+    // Renderiza Gráficos (Chart.js)
+    renderizarGraficosDashboardEntidades(listaEntidadesGrafico, statusFiltro, totalGeral, ehVisaoGeralOme);
 
-    // Atualiza Tabela de Detalhamento por Subunidade
+    // Atualiza Tabela de Detalhamento de Materiais
     const elContadorTab = document.getElementById('contadorItensTabelaDash');
-    if (elContadorTab) elContadorTab.innerText = listaSubunidadesDetalhamentoDash.length;
+    if (elContadorTab) elContadorTab.innerText = listaMateriaisDetalhamentoDash.length;
 
     filtrarTabelaMateriaisDashLocal();
   }
 
-  // Renderiza Gráfico de Barras empilhadas por SUBUNIDADE e Donut de Proporção (Com Interatividade Cruzada)
-  function renderizarGraficosDashboardSubunidades(listaSubs, statusFiltro, totalGeral) {
+  // Renderiza Gráfico de Barras e Donut com Suporte a Drill-down OME -> SUBUNIDADES
+  function renderizarGraficosDashboardEntidades(listaEnts, statusFiltro, totalGeral, ehVisaoGeralOme) {
     if (typeof Chart === 'undefined') {
       console.warn("Chart.js ainda não carregado.");
       return;
@@ -29727,38 +29752,38 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       chartDashDonutInstancia = null;
     }
 
-    // Pega até 15 subunidades com maior quantitativo para manter gráfico legível
-    const subsTop = listaSubs.slice(0, 15);
-    ultimasSubsTopDash = subsTop;
-    const labels = subsTop.map(function(s) { return s.subunidadeRotulo || s.subunidade; });
+    // Pega até 16 entidades com maior quantitativo
+    const entsTop = listaEnts.slice(0, 16);
+    ultimasEntidadesTopDash = entsTop;
+    const labels = entsTop.map(function(e) { return e.rotulo || e.nome; });
 
     let datasetsBarras = [];
     if (statusFiltro === 'TODOS') {
       datasetsBarras = [
         {
           label: 'ECD (Em Uso)',
-          data: subsTop.map(function(s) { return s.ecd; }),
+          data: entsTop.map(function(e) { return e.ecd; }),
           backgroundColor: '#10b981',
           corOriginal: '#10b981',
           borderRadius: 4
         },
         {
           label: 'SCD (Sem Condições)',
-          data: subsTop.map(function(s) { return s.scd; }),
+          data: entsTop.map(function(e) { return e.scd; }),
           backgroundColor: '#ef4444',
           corOriginal: '#ef4444',
           borderRadius: 4
         },
         {
           label: 'Acautelado',
-          data: subsTop.map(function(s) { return s.acautelado; }),
+          data: entsTop.map(function(e) { return e.acautelado; }),
           backgroundColor: '#3b82f6',
           corOriginal: '#3b82f6',
           borderRadius: 4
         },
         {
           label: 'Extraviado',
-          data: subsTop.map(function(s) { return s.extraviado; }),
+          data: entsTop.map(function(e) { return e.extraviado; }),
           backgroundColor: '#f59e0b',
           corOriginal: '#f59e0b',
           borderRadius: 4
@@ -29774,7 +29799,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
 
       datasetsBarras = [{
         label: labelStatus,
-        data: subsTop.map(function(s) { return s[propStatus] || 0; }),
+        data: entsTop.map(function(e) { return e[propStatus] || 0; }),
         backgroundColor: corStatus,
         corOriginal: corStatus,
         borderRadius: 6,
@@ -29782,23 +29807,23 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       }];
     }
 
-    // Aplica estado de seleção atual se houver
-    if (subunidadeFiltroGrafico) {
+    // Aplica destaque se houver subunidade selecionada
+    if (!ehVisaoGeralOme && subunidadeFiltroGrafico) {
       datasetsBarras.forEach(function(ds) {
         const corBase = ds.corOriginal;
-        ds.backgroundColor = subsTop.map(function(s) {
-          return s.subunidade === subunidadeFiltroGrafico ? corBase : 'rgba(203, 213, 225, 0.35)';
+        ds.backgroundColor = entsTop.map(function(e) {
+          return e.nome === subunidadeFiltroGrafico ? corBase : 'rgba(203, 213, 225, 0.35)';
         });
-        ds.borderColor = subsTop.map(function(s) {
-          return s.subunidade === subunidadeFiltroGrafico ? '#0f172a' : 'transparent';
+        ds.borderColor = entsTop.map(function(e) {
+          return e.nome === subunidadeFiltroGrafico ? '#0f172a' : 'transparent';
         });
-        ds.borderWidth = subsTop.map(function(s) {
-          return s.subunidade === subunidadeFiltroGrafico ? 2 : 0;
+        ds.borderWidth = entsTop.map(function(e) {
+          return e.nome === subunidadeFiltroGrafico ? 2 : 0;
         });
       });
     }
 
-    // 1. GRÁFICO DE BARRAS POR SUBUNIDADE (COM FILTRAGEM AO CLICAR)
+    // 1. GRÁFICO DE BARRAS (POR OME OU POR SUBUNIDADE)
     const ctxBarras = canvasBarras.getContext('2d');
     chartDashBarrasInstancia = new Chart(ctxBarras, {
       type: 'bar',
@@ -29815,29 +29840,29 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
         onClick: function(evt, elements) {
           if (!elements || elements.length === 0) return;
           const el = elements[0];
-          const clickedSub = subsTop[el.index];
-          if (!clickedSub) return;
-          const nomeSub = clickedSub.subunidade;
-          const nomeOme = clickedSub.ome;
+          const clickedEnt = entsTop[el.index];
+          if (!clickedEnt) return;
 
           const selOme = document.getElementById('filtroDashOme');
           const omeAtual = selOme ? selOme.value : 'TODAS';
 
-          if (omeAtual === 'TODAS' && nomeOme) {
-            // Quando filtrado com todas as OMES: filtra OME e SUBUNIDADE
-            selOme.value = nomeOme;
-            popularSubunidadesDashboard(nomeOme, 'TODAS');
+          if (omeAtual === 'TODAS') {
+            // NÍVEL 1: Clicou numa OME -> Muda o painel para as SUBUNIDADES dessa OME!
+            const nomeOmeEscolhida = clickedEnt.ome || clickedEnt.nome;
+            selOme.value = nomeOmeEscolhida;
+            subunidadeFiltroGrafico = null;
+            popularSubunidadesDashboard(nomeOmeEscolhida, 'TODAS');
             popularMateriaisDashboard();
-            subunidadeFiltroGrafico = nomeSub;
             aplicarFiltrosDashboard();
           } else {
-            // Quando já estiver filtrado em alguma OME: filtra apenas a SUBUNIDADE dentro daquela OME
+            // NÍVEL 2: Já dentro da OME -> Clicou numa Subunidade: filtra materiais dessa Subunidade
+            const nomeSub = clickedEnt.nome || clickedEnt.subunidade;
             if (subunidadeFiltroGrafico === nomeSub) {
               subunidadeFiltroGrafico = null;
             } else {
               subunidadeFiltroGrafico = nomeSub;
             }
-            atualizarFiltrosCruzadosGraficos(subsTop, statusFiltro);
+            atualizarFiltrosCruzadosGraficos(entsTop, statusFiltro, false);
           }
         },
         plugins: {
@@ -29853,13 +29878,13 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
                 return ' ' + context.dataset.label + ': ' + val.toLocaleString('pt-BR') + ' itens';
               },
               afterLabel: function(context) {
-                const s = subsTop[context.dataIndex];
+                const ent = entsTop[context.dataIndex];
                 const selOme = document.getElementById('filtroDashOme');
                 const omeAtual = selOme ? selOme.value : 'TODAS';
-                if (omeAtual === 'TODAS' && s && s.ome) {
-                  return '👆 Clique para filtrar OME (' + s.ome + ') e ' + s.subunidade;
+                if (omeAtual === 'TODAS') {
+                  return '👆 Clique para abrir as Subunidades de ' + (ent ? ent.nome : '');
                 }
-                return '👆 Clique para filtrar ' + (s ? s.subunidade : 'esta subunidade');
+                return '👆 Clique para filtrar materiais de ' + (ent ? ent.nome : '');
               }
             }
           }
@@ -29940,7 +29965,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
               ctx.fillText(tot.toLocaleString('pt-BR'), barX, Math.max(barY - 3, chart.chartArea.top + 10));
             }
           } else {
-            // Modo de status específico (não empilhado): desenha o número no topo de cada barra
+            // Modo de status específico (não empilhado)
             chart.data.datasets.forEach(function(ds, dsIdx) {
               const meta = chart.getDatasetMeta(dsIdx);
               if (meta.hidden) return;
@@ -29962,7 +29987,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       }]
     });
 
-    // 2. GRÁFICO DONUT POR SUBUNIDADE (COM FILTRAGEM AO CLICAR)
+    // 2. GRÁFICO DONUT (POR OME OU POR SUBUNIDADE)
     const ctxDonut = canvasDonut.getContext('2d');
     const coresDonut = ['#dc2626', '#2563eb', '#16a34a', '#d97706', '#9333ea', '#0891b2', '#ea580c', '#4f46e5', '#059669', '#64748b'];
     
@@ -29970,21 +29995,19 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     let donutDatasetsData = [];
     let donutBgColors = [];
 
-    if (subunidadeFiltroGrafico) {
-      const subAlvo = (listaSubunidadesDetalhamentoDash || []).find(function(s) {
-        return s.subunidade === subunidadeFiltroGrafico;
-      }) || subsTop.find(function(s) { return s.subunidade === subunidadeFiltroGrafico; });
-
+    if (!ehVisaoGeralOme && subunidadeFiltroGrafico) {
+      // Subunidade selecionada dentro da OME: mostra status dela
+      const subAlvo = entsTop.find(function(e) { return e.nome === subunidadeFiltroGrafico; });
       donutLabels = ['ECD (Em Uso)', 'SCD (Sem Condições)', 'Acautelado', 'Extraviado'];
       donutDatasetsData = subAlvo ? [subAlvo.ecd || 0, subAlvo.scd || 0, subAlvo.acautelado || 0, subAlvo.extraviado || 0] : [0, 0, 0, 0];
       donutBgColors = ['#10b981', '#ef4444', '#3b82f6', '#f59e0b'];
     } else {
-      const donutData = subsTop.map(function(s) {
-        if (statusFiltro === 'ECD') return s.ecd;
-        if (statusFiltro === 'SCD') return s.scd;
-        if (statusFiltro === 'ACAUTELADO') return s.acautelado;
-        if (statusFiltro === 'EXTRAVIADO') return s.extraviado;
-        return s.total;
+      const donutData = entsTop.map(function(e) {
+        if (statusFiltro === 'ECD') return e.ecd;
+        if (statusFiltro === 'SCD') return e.scd;
+        if (statusFiltro === 'ACAUTELADO') return e.acautelado;
+        if (statusFiltro === 'EXTRAVIADO') return e.extraviado;
+        return e.total;
       });
       const totDonut = donutData.reduce(function(acc, v) { return acc + v; }, 0);
       donutDatasetsData = totDonut > 0 ? donutData : [1];
@@ -30014,26 +30037,30 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
         onClick: function(evt, elements) {
           if (!elements || elements.length === 0) return;
           const el = elements[0];
-          if (subunidadeFiltroGrafico) {
-            // No modo de status da subunidade selecionada, clicar filtra o status
-            const statusArr = ['ECD', 'SCD', 'ACAUTELADO', 'EXTRAVIADO'];
-            const st = statusArr[el.index];
-            if (st) definirFiltroStatusRapidoDash(st);
+
+          const selOme = document.getElementById('filtroDashOme');
+          const omeAtual = selOme ? selOme.value : 'TODAS';
+
+          if (omeAtual === 'TODAS') {
+            const clickedEnt = entsTop[el.index];
+            if (clickedEnt) {
+              const nomeOmeEscolhida = clickedEnt.ome || clickedEnt.nome;
+              selOme.value = nomeOmeEscolhida;
+              subunidadeFiltroGrafico = null;
+              popularSubunidadesDashboard(nomeOmeEscolhida, 'TODAS');
+              popularMateriaisDashboard();
+              aplicarFiltrosDashboard();
+            }
           } else {
-            // No modo geral de subunidades, clicar filtra de acordo com o nível atual
-            const clickedSub = subsTop[el.index];
-            if (clickedSub) {
-              const selOme = document.getElementById('filtroDashOme');
-              const omeAtual = selOme ? selOme.value : 'TODAS';
-              if (omeAtual === 'TODAS' && clickedSub.ome) {
-                selOme.value = clickedSub.ome;
-                popularSubunidadesDashboard(clickedSub.ome, 'TODAS');
-                popularMateriaisDashboard();
-                subunidadeFiltroGrafico = clickedSub.subunidade;
-                aplicarFiltrosDashboard();
-              } else {
-                subunidadeFiltroGrafico = clickedSub.subunidade;
-                atualizarFiltrosCruzadosGraficos(subsTop, statusFiltro);
+            if (subunidadeFiltroGrafico) {
+              const statusArr = ['ECD', 'SCD', 'ACAUTELADO', 'EXTRAVIADO'];
+              const st = statusArr[el.index];
+              if (st) definirFiltroStatusRapidoDash(st);
+            } else {
+              const clickedEnt = entsTop[el.index];
+              if (clickedEnt) {
+                subunidadeFiltroGrafico = clickedEnt.nome;
+                atualizarFiltrosCruzadosGraficos(entsTop, statusFiltro, false);
               }
             }
           }
@@ -30053,7 +30080,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
                 return ' ' + context.label + ': ' + val.toLocaleString('pt-BR') + ' (' + p + ')';
               },
               afterLabel: function() {
-                return '👆 Clique para filtrar';
+                return '👆 Clique para abrir';
               }
             }
           }
@@ -30067,28 +30094,30 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     subunidadeFiltroGrafico = null;
     const selStatus = document.getElementById('filtroDashStatus');
     const statusFiltro = selStatus ? selStatus.value : 'TODOS';
-    atualizarFiltrosCruzadosGraficos(ultimasSubsTopDash, statusFiltro);
+    const selOme = document.getElementById('filtroDashOme');
+    const ehVisaoGeralOme = (selOme && selOme.value === 'TODAS');
+    atualizarFiltrosCruzadosGraficos(ultimasEntidadesTopDash, statusFiltro, ehVisaoGeralOme);
   }
 
   // Atualiza visualmente o Gráfico de Barras, o Gráfico Donut e a Tabela em tempo real
-  function atualizarFiltrosCruzadosGraficos(subsTop, statusFiltro) {
-    if (!subsTop) subsTop = ultimasSubsTopDash || [];
+  function atualizarFiltrosCruzadosGraficos(entsTop, statusFiltro, ehVisaoGeralOme) {
+    if (!entsTop) entsTop = ultimasEntidadesTopDash || [];
 
-    // 1. Atualiza visual do Gráfico de Barras (destaque da barra selecionada ou restauração de todas)
+    // 1. Atualiza visual do Gráfico de Barras
     if (chartDashBarrasInstancia && chartDashBarrasInstancia.data && chartDashBarrasInstancia.data.datasets) {
       chartDashBarrasInstancia.data.datasets.forEach(function(ds) {
         const corBase = ds.corOriginal || ds.backgroundColor;
         if (!ds.corOriginal) ds.corOriginal = corBase;
 
-        if (subunidadeFiltroGrafico) {
-          ds.backgroundColor = subsTop.map(function(s) {
-            return s.subunidade === subunidadeFiltroGrafico ? (typeof corBase === 'string' ? corBase : '#dc2626') : 'rgba(203, 213, 225, 0.35)';
+        if (!ehVisaoGeralOme && subunidadeFiltroGrafico) {
+          ds.backgroundColor = entsTop.map(function(e) {
+            return e.nome === subunidadeFiltroGrafico ? (typeof corBase === 'string' ? corBase : '#dc2626') : 'rgba(203, 213, 225, 0.35)';
           });
-          ds.borderColor = subsTop.map(function(s) {
-            return s.subunidade === subunidadeFiltroGrafico ? '#0f172a' : 'transparent';
+          ds.borderColor = entsTop.map(function(e) {
+            return e.nome === subunidadeFiltroGrafico ? '#0f172a' : 'transparent';
           });
-          ds.borderWidth = subsTop.map(function(s) {
-            return s.subunidade === subunidadeFiltroGrafico ? 2 : 0;
+          ds.borderWidth = entsTop.map(function(e) {
+            return e.nome === subunidadeFiltroGrafico ? 2 : 0;
           });
         } else {
           ds.backgroundColor = ds.corOriginal;
@@ -30099,13 +30128,11 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       chartDashBarrasInstancia.update();
     }
 
-    // 2. Atualiza Gráfico Donut (se subunidade selecionada, mostra status daquela subunidade; senão, mostra proporção das subunidades)
+    // 2. Atualiza Gráfico Donut
     const elTituloDonut = document.getElementById('tituloGraficoDonutDash');
     if (chartDashDonutInstancia && chartDashDonutInstancia.data) {
-      if (subunidadeFiltroGrafico) {
-        const subAlvo = (listaSubunidadesDetalhamentoDash || []).find(function(s) {
-          return s.subunidade === subunidadeFiltroGrafico;
-        }) || subsTop.find(function(s) { return s.subunidade === subunidadeFiltroGrafico; });
+      if (!ehVisaoGeralOme && subunidadeFiltroGrafico) {
+        const subAlvo = entsTop.find(function(e) { return e.nome === subunidadeFiltroGrafico; });
 
         if (subAlvo) {
           chartDashDonutInstancia.data.labels = ['ECD (Em Uso)', 'SCD (Sem Condições)', 'Acautelado', 'Extraviado'];
@@ -30117,15 +30144,14 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
           elTituloDonut.innerHTML = '<i class="fa-solid fa-chart-pie text-primary me-1"></i> Status de ' + escapeHtmlResumo(subunidadeFiltroGrafico);
         }
       } else {
-        // Restaura donut geral por subunidade
-        const labels = subsTop.map(function(s) { return s.subunidadeRotulo || s.subunidade; });
+        const labels = entsTop.map(function(e) { return e.rotulo || e.nome; });
         const coresDonut = ['#dc2626', '#2563eb', '#16a34a', '#d97706', '#9333ea', '#0891b2', '#ea580c', '#4f46e5', '#059669', '#64748b'];
-        const donutData = subsTop.map(function(s) {
-          if (statusFiltro === 'ECD') return s.ecd;
-          if (statusFiltro === 'SCD') return s.scd;
-          if (statusFiltro === 'ACAUTELADO') return s.acautelado;
-          if (statusFiltro === 'EXTRAVIADO') return s.extraviado;
-          return s.total;
+        const donutData = entsTop.map(function(e) {
+          if (statusFiltro === 'ECD') return e.ecd;
+          if (statusFiltro === 'SCD') return e.scd;
+          if (statusFiltro === 'ACAUTELADO') return e.acautelado;
+          if (statusFiltro === 'EXTRAVIADO') return e.extraviado;
+          return e.total;
         });
         const totDonut = donutData.reduce(function(acc, v) { return acc + v; }, 0);
 
@@ -30135,7 +30161,9 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
         chartDashDonutInstancia.update();
 
         if (elTituloDonut) {
-          elTituloDonut.innerHTML = '<i class="fa-solid fa-chart-pie text-primary me-1"></i> Proporção por Subunidade (%)';
+          elTituloDonut.innerHTML = ehVisaoGeralOme 
+            ? '<i class="fa-solid fa-chart-pie text-primary me-1"></i> Proporção por OME (%)' 
+            : '<i class="fa-solid fa-chart-pie text-primary me-1"></i> Proporção por Subunidade (%)';
         }
       }
     }
@@ -30146,7 +30174,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     const badgeTab = document.getElementById('badgeFiltroGraficoTabelaDash');
     const txtTab = document.getElementById('textoFiltroGraficoTabelaDash');
 
-    if (subunidadeFiltroGrafico) {
+    if (!ehVisaoGeralOme && subunidadeFiltroGrafico) {
       if (badgeBar && txtBar) {
         txtBar.innerText = subunidadeFiltroGrafico;
         badgeBar.style.display = 'inline-block';
@@ -30160,7 +30188,18 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       if (badgeTab) badgeTab.style.display = 'none';
     }
 
-    // 4. Filtra e atualiza a Tabela
+    // 4. Atualiza os materiais exibidos na tabela de acordo com a subunidade selecionada
+    if (!ehVisaoGeralOme && subunidadeFiltroGrafico && mapaMateriaisPorSubunidadeAgregados[subunidadeFiltroGrafico]) {
+      listaMateriaisDetalhamentoDash = Object.values(mapaMateriaisPorSubunidadeAgregados[subunidadeFiltroGrafico]).sort(function(a, b) {
+        return b.total - a.total;
+      });
+    } else {
+      listaMateriaisDetalhamentoDash = Object.values(mapaMateriaisGeraisAgregados).sort(function(a, b) {
+        return b.total - a.total;
+      });
+    }
+
+    // 5. Filtra e atualiza a Tabela
     filtrarTabelaMateriaisDashLocal();
   }
 
@@ -30227,7 +30266,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     tbody.innerHTML = html;
   }
 
-  // Modal para detalhar os materiais específicos existentes na subunidade clicada
+    // Modal para detalhar os materiais específicos existentes na subunidade clicada
   function abrirModalDetalhesSubunidadeDash(chaveSubEnc) {
     const chaveSub = decodeURIComponent(chaveSubEnc);
     const subObj = mapaSubunidadesDetalhesCompletos[chaveSub];
