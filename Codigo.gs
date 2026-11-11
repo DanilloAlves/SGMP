@@ -21162,7 +21162,7 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao, omeCliente, perfilClie
     var ehAdmin = (perfilNorm === "administrador" || perfilNorm.indexOf("admin") !== -1);
     var temVisaoTodasOmes = ehAdmin || (usuario && Array.isArray(usuario.permissoes) && usuario.permissoes.indexOf("selecionar_todas_omes") !== -1);
 
-    var chaveCacheDash = "DASH_VISAO_GERAL_V10_" + (temVisaoTodasOmes ? "ADMIN" : (omeUsuario || "USER").toUpperCase().replace(/[^A-Z0-9]/g, "_"));
+    var chaveCacheDash = "DASH_VISAO_GERAL_V11_" + (temVisaoTodasOmes ? "ADMIN" : (omeUsuario || "USER").toUpperCase().replace(/[^A-Z0-9]/g, "_"));
     if (!forcarAtualizacao) {
       var dashCached = lerDeCacheChunked_(chaveCacheDash);
       if (dashCached && dashCached.sucesso && dashCached.dados && dashCached.dados.length > 0) {
@@ -21190,10 +21190,10 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao, omeCliente, perfilClie
         var cVal = parseInt(cRow.cargaPadrao, 10) || 0;
         if (!cOme || !cMat || cVal <= 0) continue;
         
-        var normOmeSubMat = (cOme || '').toUpperCase() + "___" + cSub + "___" + (cMat || '').toUpperCase();
+        var normOmeSubMat = cOme + "___" + cSub + "___" + (cMat || '').toUpperCase();
         mapaCargas[normOmeSubMat] = (mapaCargas[normOmeSubMat] || 0) + cVal;
 
-        var normOmeMat = (cOme || '').toUpperCase() + "___" + (cMat || '').toUpperCase();
+        var normOmeMat = cOme + "___" + (cMat || '').toUpperCase();
         mapaCargasOme[normOmeMat] = (mapaCargasOme[normOmeMat] || 0) + cVal;
       }
     } catch (eCarg) {
@@ -21319,8 +21319,8 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao, omeCliente, perfilClie
       else if (statusNorm === "EXTRAVIADO") grupo.extraviado += qtd;
 
       if (!grupo.materiais[objNome]) {
-        var chCargaSub = (ome || '').toUpperCase() + "___" + (subunidade || '').toUpperCase() + "___" + (objNome || '').toUpperCase();
-        var chCargaOme = (ome || '').toUpperCase() + "___" + (objNome || '').toUpperCase();
+        var chCargaSub = ome + "___" + (subunidade || '').toUpperCase() + "___" + (objNome || '').toUpperCase();
+        var chCargaOme = ome + "___" + (objNome || '').toUpperCase();
         var cotaItem = mapaCargas[chCargaSub] !== undefined ? mapaCargas[chCargaSub] : (mapaCargasOme[chCargaOme] || 0);
 
         grupo.materiais[objNome] = {
@@ -21348,13 +21348,14 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao, omeCliente, perfilClie
     // Incorpora materiais com Quantidade Ideal cadastrada que estejam zerados no BigQuery
     for (var chCarga in mapaCargas) {
       var partes = chCarga.split("___");
-      var cOme = partes[0];
+      var cOme = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(partes[0]) : partes[0];
       var cSub = partes[1] || "SEDE";
       var cMat = partes[2];
       var cVal = mapaCargas[chCarga];
       if (!cVal || cVal <= 0 || !cMat) continue;
       mapaTodosMateriaisDistintos[cMat] = true;
-      if (!ehAdmin && omeUsuario && cOme !== (typeof obterOmePadronizada === 'function' ? obterOmePadronizada(omeUsuario) : omeUsuario).toUpperCase()) continue;
+      var omeComp = (typeof obterOmePadronizada === 'function' && omeUsuario) ? obterOmePadronizada(omeUsuario) : (omeUsuario || "");
+      if (!ehAdmin && omeComp && cOme !== omeComp) continue;
 
       var catInfo = mapaCat[cMat];
       if (!catInfo) {
@@ -21461,20 +21462,23 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao, omeCliente, perfilClie
 
     var mapaSubunidadesFinal = {};
     for (var o in mapaSubunidadesPorOme) {
-      var setSubs = new Set(Object.keys(mapaSubunidadesPorOme[o]));
-      if (mapaTodasSubs[o] && Array.isArray(mapaTodasSubs[o])) {
-        mapaTodasSubs[o].forEach(function(s) { if (s) setSubs.add(s); });
+      var oPad = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(o) : o;
+      if (!mapaSubunidadesFinal[oPad]) mapaSubunidadesFinal[oPad] = new Set();
+      Object.keys(mapaSubunidadesPorOme[o]).forEach(function(s) { if (s) mapaSubunidadesFinal[oPad].add(s); });
+    }
+    for (var oOficial in mapaTodasSubs) {
+      var oOficialPad = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(oOficial) : oOficial;
+      if (!mapaSubunidadesFinal[oOficialPad]) mapaSubunidadesFinal[oOficialPad] = new Set();
+      if (Array.isArray(mapaTodasSubs[oOficial])) {
+        mapaTodasSubs[oOficial].forEach(function(s) { if (s) mapaSubunidadesFinal[oOficialPad].add(s); });
       }
-      mapaSubunidadesFinal[o] = Array.from(setSubs).sort(function(a, b) {
+    }
+    for (var kOme in mapaSubunidadesFinal) {
+      mapaSubunidadesFinal[kOme] = Array.from(mapaSubunidadesFinal[kOme]).sort(function(a, b) {
         if (a === "SEDE") return -1;
         if (b === "SEDE") return 1;
         return a.localeCompare(b);
       });
-    }
-    for (var oOficial in mapaTodasSubs) {
-      if (!mapaSubunidadesFinal[oOficial] && Array.isArray(mapaTodasSubs[oOficial])) {
-        mapaSubunidadesFinal[oOficial] = mapaTodasSubs[oOficial];
-      }
     }
 
     var setClasses1 = new Set([...(catDados.listaClasses1 || []), ...Object.keys(mapaClasses1Encontradas)]);

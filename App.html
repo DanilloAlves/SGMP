@@ -29444,10 +29444,13 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     };
 
     // Coleta materiais presentes nos dados da OME selecionada
+    const omeSelOficial = (omeSelecionado !== 'TODAS' && typeof obterNomeOficialOme === 'function') ? obterNomeOficialOme(omeSelecionado) : omeSelecionado;
+
     const setMats = new Set();
     if (cacheDadosDashboard.dados) {
       cacheDadosDashboard.dados.forEach(function(item) {
-        if (omeSelecionado !== 'TODAS' && normComp(item.ome) !== normComp(omeSelecionado)) return;
+        const itemOmeOficial = (typeof obterNomeOficialOme === 'function') ? obterNomeOficialOme(item.ome) : item.ome;
+        if (omeSelecionado !== 'TODAS' && normComp(itemOmeOficial) !== normComp(omeSelOficial)) return;
         (item.materiais || []).forEach(function(m) {
           if (!m || !m.nome) return;
           const cl1Norm = String(m.classe1 || item.classe1 || '').trim().toUpperCase();
@@ -29518,11 +29521,14 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       return String(s || '').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     };
 
+    const omeSelOficial = (omeSelecionado && omeSelecionado !== 'TODAS' && typeof obterNomeOficialOme === 'function') ? obterNomeOficialOme(omeSelecionado) : omeSelecionado;
+
     if (cacheDadosDashboard) {
       const mapa = cacheDadosDashboard.mapaSubunidadesPorOme || {};
       if (omeSelecionado && omeSelecionado !== 'TODAS') {
         for (const o in mapa) {
-          if (normComp(o) === normComp(omeSelecionado)) {
+          const oOficial = (typeof obterNomeOficialOme === 'function') ? obterNomeOficialOme(o) : o;
+          if (normComp(oOficial) === normComp(omeSelOficial)) {
             listaSubs = [...mapa[o]];
             break;
           }
@@ -29530,7 +29536,8 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
         if (listaSubs.length === 0 && cacheDadosDashboard.dados) {
           const setS = new Set();
           cacheDadosDashboard.dados.forEach(d => {
-            if (normComp(d.ome) === normComp(omeSelecionado) && d.subunidade) {
+            const dOmeOficial = (typeof obterNomeOficialOme === 'function') ? obterNomeOficialOme(d.ome) : d.ome;
+            if (normComp(dOmeOficial) === normComp(omeSelOficial) && d.subunidade) {
               setS.add(d.subunidade);
             }
           });
@@ -29680,6 +29687,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     };
 
     const ehVisaoGeralOme = (omeFiltro === 'TODAS');
+    const omeFiltroOficial = (omeFiltro && omeFiltro !== 'TODAS' && typeof obterNomeOficialOme === 'function') ? obterNomeOficialOme(omeFiltro) : omeFiltro;
 
     const mapaEntidadesGrafico = {};
     mapaMateriaisGeraisAgregados = {};
@@ -29692,11 +29700,12 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     let totalExtraviado = 0;
 
     cacheDadosDashboard.dados.forEach(function(item) {
-      if (omeFiltro !== 'TODAS' && normComp(item.ome) !== normComp(omeFiltro)) return;
+      const itemOmeOficial = (typeof obterNomeOficialOme === 'function' ? obterNomeOficialOme(item.ome) : item.ome) || 'SEM OME';
+      if (omeFiltro !== 'TODAS' && normComp(itemOmeOficial) !== normComp(omeFiltroOficial)) return;
       if (subFiltro !== 'TODAS' && normComp(item.subunidade) !== normComp(subFiltro)) return;
 
       const subKey = (item.subunidade || 'SEDE').trim();
-      const omeKey = (item.ome || 'SEM OME').trim();
+      const omeKey = itemOmeOficial.trim();
 
       // No modo geral, a barra representa a OME. No modo filtrado, a barra representa a SUBUNIDADE.
       const chaveEntidade = ehVisaoGeralOme ? omeKey : subKey;
@@ -30020,10 +30029,26 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
 
           if (omeAtual === 'TODAS') {
             // NÍVEL 1: Clicou numa OME -> Muda o painel para as SUBUNIDADES dessa OME!
-            const nomeOmeEscolhida = clickedEnt.ome || clickedEnt.nome;
-            selOme.value = nomeOmeEscolhida;
+            const nomeOmeBruto = clickedEnt.ome || clickedEnt.nome;
+            const nomeOmeEscolhida = (typeof obterNomeOficialOme === 'function') ? obterNomeOficialOme(nomeOmeBruto) : nomeOmeBruto;
+            
+            // Procura a opção correspondente no select de OME
+            let achou = false;
+            for (let i = 0; i < selOme.options.length; i++) {
+              const optVal = selOme.options[i].value;
+              const optValNorm = (typeof obterNomeOficialOme === 'function') ? obterNomeOficialOme(optVal) : optVal;
+              if (optVal === nomeOmeEscolhida || normComp(optValNorm) === normComp(nomeOmeEscolhida)) {
+                selOme.value = optVal;
+                achou = true;
+                break;
+              }
+            }
+            if (!achou) {
+              selOme.value = nomeOmeEscolhida;
+            }
+
             subunidadeFiltroGrafico = null;
-            popularSubunidadesDashboard(nomeOmeEscolhida, 'TODAS');
+            popularSubunidadesDashboard(selOme.value, 'TODAS');
             popularMateriaisDashboard();
             aplicarFiltrosDashboard();
           } else {
