@@ -29937,17 +29937,6 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
                 if (bar && bar.y < menoresYPorBarra[i]) {
                   menoresYPorBarra[i] = bar.y;
                 }
-
-                // Desenha número dentro da fatia da barra se tiver altura suficiente (>= 15px)
-                const altFatia = Math.abs((bar.base || chart.chartArea.bottom) - bar.y);
-                if (val > 0 && altFatia >= 15) {
-                  ctx.font = 'bold 9px Arial, sans-serif';
-                  ctx.fillStyle = '#ffffff';
-                  ctx.textAlign = 'center';
-                  ctx.textBaseline = 'middle';
-                  const midY = (bar.y + (bar.base || chart.chartArea.bottom)) / 2;
-                  ctx.fillText(val.toLocaleString('pt-BR'), bar.x, midY);
-                }
               });
             });
 
