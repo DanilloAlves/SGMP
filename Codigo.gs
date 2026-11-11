@@ -21162,7 +21162,7 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao, omeCliente, perfilClie
     var ehAdmin = (perfilNorm === "administrador" || perfilNorm.indexOf("admin") !== -1);
     var temVisaoTodasOmes = ehAdmin || (usuario && Array.isArray(usuario.permissoes) && usuario.permissoes.indexOf("selecionar_todas_omes") !== -1);
 
-    var chaveCacheDash = "DASH_VISAO_GERAL_V9_" + (temVisaoTodasOmes ? "ADMIN" : (omeUsuario || "USER").toUpperCase().replace(/[^A-Z0-9]/g, "_"));
+    var chaveCacheDash = "DASH_VISAO_GERAL_V10_" + (temVisaoTodasOmes ? "ADMIN" : (omeUsuario || "USER").toUpperCase().replace(/[^A-Z0-9]/g, "_"));
     if (!forcarAtualizacao) {
       var dashCached = lerDeCacheChunked_(chaveCacheDash);
       if (dashCached && dashCached.sucesso && dashCached.dados && dashCached.dados.length > 0) {
@@ -21173,6 +21173,7 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao, omeCliente, perfilClie
     // 1. Obter catálogo mapeado
     var catDados = obterMapaCatalogoClasses_(forcarAtualizacao);
     var mapaCat = catDados.mapa || {};
+    var mapaConsumo = (typeof obterMapaClassificacaoConsumo_ === 'function') ? obterMapaClassificacaoConsumo_() : {};
 
     // 2. Lê Cargas Padrão (Quantidade Ideal) da base centralizada (BigQuery tb_Carga_Padrao)
     var mapaCargas = {};    // chave: "OME___SUBUNIDADE___MATERIAIS_NORM" -> cota
@@ -21281,6 +21282,14 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao, omeCliente, perfilClie
       var classe2 = (catInfo && catInfo.classe2) ? catInfo.classe2 : "OUTROS";
       var classe3 = (catInfo && catInfo.classe3) ? catInfo.classe3 : "OUTROS";
 
+      // Filtra / ignora materiais de consumo no dashboard executivo
+      var cl1Norm = String(classe1 || "").toUpperCase();
+      var cl2Norm = String(classe2 || "").toUpperCase();
+      var ehConsumo = (cl1Norm.indexOf("CONSUMO") !== -1) || 
+                      (cl2Norm.indexOf("CONSUMO") !== -1) || 
+                      (typeof ehMaterialConsumo_ === 'function' && ehMaterialConsumo_(objNome, mapaConsumo));
+      if (ehConsumo) continue;
+
       mapaClasses1Encontradas[classe1] = true;
       mapaClasses2Encontradas[classe2] = true;
       mapaClasses3Encontradas[classe3] = true;
@@ -21355,6 +21364,13 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao, omeCliente, perfilClie
       var cl1 = (catInfo && catInfo.classe1) ? catInfo.classe1 : "OUTROS";
       var cl2 = (catInfo && catInfo.classe2) ? catInfo.classe2 : "OUTROS";
       var cl3 = (catInfo && catInfo.classe3) ? catInfo.classe3 : "OUTROS";
+
+      var cl1NormC = String(cl1 || "").toUpperCase();
+      var cl2NormC = String(cl2 || "").toUpperCase();
+      var ehConsumoC = (cl1NormC.indexOf("CONSUMO") !== -1) || 
+                       (cl2NormC.indexOf("CONSUMO") !== -1) || 
+                       (typeof ehMaterialConsumo_ === "function" && ehMaterialConsumo_(cMat, mapaConsumo));
+      if (ehConsumoC) continue;
 
       mapaOmes[cOme] = true;
       if (!mapaSubunidadesPorOme[cOme]) mapaSubunidadesPorOme[cOme] = {};

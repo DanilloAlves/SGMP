@@ -29450,6 +29450,9 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
         if (omeSelecionado !== 'TODAS' && normComp(item.ome) !== normComp(omeSelecionado)) return;
         (item.materiais || []).forEach(function(m) {
           if (!m || !m.nome) return;
+          const cl1Norm = String(m.classe1 || item.classe1 || '').trim().toUpperCase();
+          const cl2Norm = String(m.classe2 || item.classe2 || '').trim().toUpperCase();
+          if (cl1Norm.includes('CONSUMO') || cl2Norm.includes('CONSUMO')) return;
           setMats.add(m.nome);
         });
       });
