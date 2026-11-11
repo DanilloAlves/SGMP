@@ -2175,7 +2175,7 @@ function invalidarCacheArmazenamentoOme_(ome) {
   try {
     var omePadrao = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(ome) : (ome || "");
     if (!omePadrao) return;
-    var sufixos = ["", "_V3", "_V4", "_V5", "_V6", "_V7", "_V8", "_V9", "_V10", "_V11", "_V12", "_V13", "_V14", "_V15", "_V16", "_V17"];
+    var sufixos = ["", "_V3", "_V4", "_V5", "_V6", "_V7", "_V8", "_V9", "_V10", "_V11", "_V12", "_V13", "_V14", "_V15", "_V16", "_V17", "_V18", "_V19"];
     var cache = CacheService.getScriptCache();
     sufixos.forEach(function(suf) {
       var chaveBase = "CACHE_ARM_COMPLETO" + suf + "_" + omePadrao.toUpperCase().replace(/[^A-Z0-9]/g, "_");
@@ -2201,7 +2201,7 @@ function carregarDadosArmazenamentoCompleto(unidadeOmega, forcarAtualizacao) {
     if (!omePadrao) return { locais: [], materiais: [], vinculos: {} };
 
     // Prefixo V5 para descarte absoluto de qualquer cache antigo e sincronização estrita BigQuery
-    var chaveBase = "CACHE_ARM_COMPLETO_V17_" + omePadrao.toUpperCase().replace(/[^A-Z0-9]/g, "_");
+    var chaveBase = "CACHE_ARM_COMPLETO_V19_" + omePadrao.toUpperCase().replace(/[^A-Z0-9]/g, "_");
     var cached = (!forcarAtualizacao && typeof lerDeCacheChunked_ === 'function') ? lerDeCacheChunked_(chaveBase) : null;
 
     // Se houver algum setor não identificado ou genérico (ex: "BIS"), bypass no cache
@@ -2712,30 +2712,26 @@ function limparReplicasTbArvore_() {
     // 1. Reponta filhos que apontavam para IDs legados loc_ para o ID canônico vtr_
     try {
       var sqlRepontarFilhos = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` filho " +
-                              "SET ID_Pai = ( " +
-                              "  SELECT vtr.ID_Local " +
-                              "  FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` vtr " +
-                              "  JOIN `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` loc_antigo " +
-                              "    ON UPPER(TRIM(vtr.Unidade_OME)) = UPPER(TRIM(loc_antigo.Unidade_OME)) " +
-                              "   AND UPPER(TRIM(vtr.Nome_Local)) = UPPER(TRIM(loc_antigo.Nome_Local)) " +
-                              "  WHERE vtr.ID_Local LIKE 'vtr_%' " +
-                              "    AND loc_antigo.ID_Local = filho.ID_Pai " +
-                              "  LIMIT 1 " +
-                              ") " +
-                              "WHERE EXISTS ( " +
-                              "  SELECT 1 " +
-                              "  FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` loc_antigo " +
-                              "  JOIN `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` vtr " +
-                              "    ON UPPER(TRIM(vtr.Unidade_OME)) = UPPER(TRIM(loc_antigo.Unidade_OME)) " +
-                              "   AND UPPER(TRIM(vtr.Nome_Local)) = UPPER(TRIM(loc_antigo.Nome_Local)) " +
-                              "  WHERE loc_antigo.ID_Local = filho.ID_Pai " +
-                              "    AND loc_antigo.ID_Local LIKE 'loc_%' " +
-                              "    AND vtr.ID_Local LIKE 'vtr_%' " +
-                              ")";
+                              "SET ID_Pai = vtr.ID_Local " +
+                              "FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` loc_antigo " +
+                              "JOIN `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` vtr " +
+                              "  ON UPPER(TRIM(vtr.Unidade_OME)) = UPPER(TRIM(loc_antigo.Unidade_OME)) " +
+                              " AND UPPER(TRIM(vtr.Nome_Local)) = UPPER(TRIM(loc_antigo.Nome_Local)) " +
+                              "WHERE filho.ID_Pai = loc_antigo.ID_Local " +
+                              "  AND loc_antigo.ID_Local LIKE 'loc_%' " +
+                              "  AND vtr.ID_Local LIKE 'vtr_%'";
       executarEscritaBigQuerySegura(sqlRepontarFilhos);
     } catch(eRep) {
       console.warn("Aviso ao repontar filhos de viaturas legadas: " + eRep.message);
     }
+
+    try {
+      var sqlRepontarAbts = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` " +
+                            "SET ID_Pai = 'vtr_1__GB_Vitoria_St__Ant_o_ABTS___1133' " +
+                            "WHERE ID_Pai = 'loc_1789580985354' " +
+                            "   OR ID_Local IN ('loc_1791394847372', 'loc_1790179378474')";
+      executarEscritaBigQuerySegura(sqlRepontarAbts);
+    } catch(eAbts) {}
 
     // 2. Remove os registros legados loc_ de viaturas que já possuem o registro canônico vtr_
     try {
@@ -2794,7 +2790,9 @@ function limparReplicasPlanilhaArvore_() {
     }
 
     // Se houver filhos apontando para loc_ cujo vtr_ existe, reponta
-    var mapaLocParaVtr = {};
+    var mapaLocParaVtr = {
+      'loc_1789580985354': 'vtr_1__GB_Vitoria_St__Ant_o_ABTS___1133'
+    };
     for (var i = 1; i < dados.length; i++) {
       var id = String(dados[i][0] || "").trim();
       var ome = String(dados[i][1] || "").trim().toUpperCase();
@@ -2852,7 +2850,7 @@ function garantirConsistenciaArvoreLocais_(omePadrao) {
     if (!ome) return;
 
     // Desduplica tb_Arvore e planilha se ainda nao foi executado nesta versao
-    var flagDedup = "FLAG_DEDUP_TB_ARVORE_V529";
+    var flagDedup = "FLAG_DEDUP_TB_ARVORE_V530";
     var jaDedup = PropertiesService.getScriptProperties().getProperty(flagDedup);
     if (!jaDedup) {
       limparReplicasTbArvore_();
@@ -2860,7 +2858,7 @@ function garantirConsistenciaArvoreLocais_(omePadrao) {
       PropertiesService.getScriptProperties().setProperty(flagDedup, "true");
     }
 
-    // 1. Corrige Unidade_OME e ID_Pai da viatura AR - 1164 na tb_Arvore no BigQuery
+    // 1. Corrige Unidade_OME e ID_Pai da viatura AR - 1164 e reponta Gavetas de ABTS - 1133 na tb_Arvore no BigQuery
     try {
       var sqlFixBq = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` " +
                      "SET Unidade_OME = '1º GB Vitoria Stº Antão', " +
@@ -2886,6 +2884,25 @@ function garantirConsistenciaArvoreLocais_(omePadrao) {
                      "SELECT 'loc_1794309632986', '1º GB Vitoria Stº Antão', 'Porta 02', 'vtr_1__GB_Vitoria_St__Ant_o_AR___1164' " +
                      "WHERE NOT EXISTS (SELECT 1 FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` WHERE ID_Local = 'loc_1794309632986')";
       executarEscritaBigQuerySegura(sqlInsP2);
+
+      // Reponta Gaveta 01 e Gaveta 02 da ABTS - 1133 para o registro canônico que permaneceu
+      var sqlUpGavetasBq = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` " +
+                           "SET ID_Pai = 'vtr_1__GB_Vitoria_St__Ant_o_ABTS___1133', " +
+                           "    Unidade_OME = '1º GB Vitoria Stº Antão' " +
+                           "WHERE ID_Pai = 'loc_1789580985354' " +
+                           "   OR ID_Local IN ('loc_1791394847372', 'loc_1790179378474') " +
+                           "   OR (UPPER(TRIM(Nome_Local)) IN ('GAVETA 01', 'GAVETA 02') AND UPPER(TRIM(Unidade_OME)) LIKE '%VITORIA%')";
+      executarEscritaBigQuerySegura(sqlUpGavetasBq);
+
+      var sqlInsG1 = "INSERT INTO `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` (ID_Local, Unidade_OME, Nome_Local, ID_Pai) " +
+                     "SELECT 'loc_1790179378474', '1º GB Vitoria Stº Antão', 'Gaveta 01', 'vtr_1__GB_Vitoria_St__Ant_o_ABTS___1133' " +
+                     "WHERE NOT EXISTS (SELECT 1 FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` WHERE ID_Local = 'loc_1790179378474')";
+      executarEscritaBigQuerySegura(sqlInsG1);
+
+      var sqlInsG2 = "INSERT INTO `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` (ID_Local, Unidade_OME, Nome_Local, ID_Pai) " +
+                     "SELECT 'loc_1791394847372', '1º GB Vitoria Stº Antão', 'Gaveta 02', 'vtr_1__GB_Vitoria_St__Ant_o_ABTS___1133' " +
+                     "WHERE NOT EXISTS (SELECT 1 FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` WHERE ID_Local = 'loc_1791394847372')";
+      executarEscritaBigQuerySegura(sqlInsG2);
     } catch(eBq) {
       console.warn("Aviso ao corrigir tb_Arvore no BigQuery: " + eBq.message);
     }
@@ -2900,6 +2917,13 @@ function garantirConsistenciaArvoreLocais_(omePadrao) {
         for (var i = 1; i < dadosSheet.length; i++) {
           var idRow = String(dadosSheet[i][0] || "").trim();
           var nomeRow = String(dadosSheet[i][2] || "").trim().toUpperCase();
+          var idPaiRow = String(dadosSheet[i][3] || "").trim();
+
+          if (idPaiRow === 'loc_1789580985354' || idRow === 'loc_1791394847372' || idRow === 'loc_1790179378474' || ((nomeRow === 'GAVETA 01' || nomeRow === 'GAVETA 02') && idPaiRow.indexOf('1133') !== -1)) {
+            sheet.getRange(i + 1, 4).setValue('vtr_1__GB_Vitoria_St__Ant_o_ABTS___1133');
+            sheet.getRange(i + 1, 2).setValue('1º GB Vitoria Stº Antão');
+          }
+
           if (idRow === 'vtr_1__GB_Vitoria_St__Ant_o_AR___1164' || nomeRow === 'AR - 1164') {
             sheet.getRange(i + 1, 2).setValue("1º GB Vitoria Stº Antão");
             sheet.getRange(i + 1, 4).setValue("loc_1791388339391");
@@ -2933,6 +2957,14 @@ function garantirConsistenciaArvoreLocais_(omePadrao) {
                         "  AND (UPPER(TRIM(SETOR)) IN ('AR - 1164', 'AR-1164', 'AR - 971', 'AR-971')) " +
                         "  AND (UPPER(OBJETO) LIKE '%CAPA DE CHUVA%' OR UPPER(OBJETO) LIKE '%FAC%' OR UPPER(OBJETO) LIKE '%FACAO%')";
       executarEscritaBigQuerySegura(sqlUpPorta2);
+
+      // Garante que materiais de Gaveta 01 e Gaveta 02 estejam associados à ABTS - 1133
+      var sqlUpGavMat = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
+                        "SET SETOR = 'ABTS - 1133', " +
+                        "    SUBUNIDADE = '1ª Seção de Bombeiros do 1º GB - 1ª SB/1º GB' " +
+                        "WHERE UPPER(TRIM(UNIDADE)) LIKE '%VITORIA%' " +
+                        "  AND UPPER(TRIM(LOCALIZACAO_ESPCIFICA_NA_OME_Se_Necessario)) IN ('GAVETA 01', 'GAVETA 02')";
+      executarEscritaBigQuerySegura(sqlUpGavMat);
     } catch(eMat) {
       console.warn("Aviso ao sincronizar materiais de AR - 1164 nas Portas: " + eMat.message);
     }
@@ -2982,7 +3014,9 @@ function getArvoreLocais(unidadeOmega) {
       }
 
       var idPaiEfetivo = item.idPai;
-      if (item.idPai && mapaGhostIds[item.idPai]) {
+      if (item.idPai === 'loc_1789580985354' || item.id === 'loc_1790179378474' || item.id === 'loc_1791394847372') {
+        idPaiEfetivo = 'vtr_1__GB_Vitoria_St__Ant_o_ABTS___1133';
+      } else if (item.idPai && mapaGhostIds[item.idPai]) {
         idPaiEfetivo = idSedeOficial || "";
       }
 
