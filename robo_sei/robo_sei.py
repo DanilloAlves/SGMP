@@ -46,6 +46,32 @@ def limpar_numero_sei(param):
             param = param[len(prefix):]
     return param.strip().strip("/").strip()
 
+def detectar_canal_navegador():
+    """
+    Detecta se o Google Chrome ou Microsoft Edge estão instalados na máquina.
+    Utilizar o navegador nativo (Chrome/Edge) é fundamental pois eles contêm
+    o visualizador de PDF proprietário (PDFium nativo completo), permitindo
+    a exibição direta e sem falhas de todos os anexos em PDF do SEI.
+    """
+    caminhos_chrome = [
+        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+        os.path.expanduser(r"~\AppData\Local\Google\Chrome\Application\chrome.exe")
+    ]
+    for c in caminhos_chrome:
+        if os.path.exists(c):
+            return "chrome"
+
+    caminhos_edge = [
+        r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+        r"C:\Program Files\Microsoft\Edge\Application\msedge.exe"
+    ]
+    for e in caminhos_edge:
+        if os.path.exists(e):
+            return "msedge"
+
+    return None
+
 def abrir_processo_sei(numero_sei):
     numero_limpo = limpar_numero_sei(numero_sei)
     if not numero_limpo:
@@ -58,10 +84,65 @@ def abrir_processo_sei(numero_sei):
 
     try:
         with sync_playwright() as p:
-            # Inicia o navegador Chromium visível para o militar
-            print("[1/5] Abrindo navegador...")
-            browser = p.chromium.launch(headless=False)
-            context = browser.new_context()
+            canal = detectar_canal_navegador()
+
+            launch_kwargs = {
+                "headless": False,
+                "args": [
+                    "--start-maximized",
+                    "--disable-blink-features=AutomationControlled",
+                    "--no-default-browser-check",
+                    "--no-first-run"
+                ],
+                # Permite que as extensões e o visualizador interno de PDF do navegador funcionem
+                "ignore_default_args": [
+                    "--disable-extensions",
+                    "--disable-component-extensions-with-background-pages"
+                ]
+            }
+
+            if canal:
+                launch_kwargs["channel"] = canal
+                print(f"[1/5] Abrindo navegador nativo ({canal.upper()}) com suporte a tela cheia e PDF...")
+            else:
+                print("[1/5] Abrindo navegador Chromium com suporte a tela cheia...")
+
+            try:
+                browser = p.chromium.launch(**launch_kwargs)
+            except Exception as e_launch:
+                print(f"[AVISO] Falha ao iniciar com canal {canal}: {e_launch}. Tentando Chromium padrão...")
+                launch_kwargs.pop("channel", None)
+                browser = p.chromium.launch(**launch_kwargs)
+
+            # no_viewport=True garante que o navegador ocupe 100% da tela (sem restrição 1280x720)
+            context = browser.new_context(
+                no_viewport=True,
+                accept_downloads=True
+            )
+
+            # Injeta CSS e utilitário no contexto para garantir que os iframes de visualização
+            # de documentos e PDFs do SEI se expandam para 100% da janela
+            context.add_init_script("""
+                document.addEventListener('DOMContentLoaded', () => {
+                    const style = document.createElement('style');
+                    style.innerHTML = `
+                        html, body {
+                            width: 100% !important;
+                            height: 100% !important;
+                            margin: 0 !important;
+                            padding: 0 !important;
+                        }
+                        #ifrVisualizacao, #ifrArvore, #divArvore, #divVisualizacao,
+                        object[type="application/pdf"], embed[type="application/pdf"],
+                        iframe[name="ifrVisualizacao"], iframe[name="ifrArvore"] {
+                            width: 100% !important;
+                            height: 100% !important;
+                        }
+                    `;
+                    if (document.head) document.head.appendChild(style);
+                });
+            """)
+
             page = context.new_page()
 
             # 1. Acessa a página de autenticação
@@ -104,7 +185,7 @@ def abrir_processo_sei(numero_sei):
             page.press("#txtPesquisaRapida", "Enter")
 
             print("\n[SUCESSO] Processo carregado no SEI!")
-            print("[DICA] O navegador permanecerá aberto para sua navegação.")
+            print("[DICA] O navegador permanecerá aberto em tela cheia com suporte nativo a PDFs.")
             print("       Ao terminar de consultar os documentos, basta fechar a janela do navegador.\n")
 
             # Mantém a janela aberta enquanto o usuário estiver interagindo com ela
