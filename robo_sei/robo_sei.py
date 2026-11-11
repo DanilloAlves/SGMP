@@ -37,6 +37,18 @@ USUARIO_SEI = "07400344480"
 SENHA_SEI = "Da@723108"
 ORGAO_SEI = "CBMPE"
 
+ARQUIVO_CONFIG = os.path.join(DIR_ATUAL, "config_sei.json")
+if os.path.exists(ARQUIVO_CONFIG):
+    try:
+        import json
+        with open(ARQUIVO_CONFIG, "r", encoding="utf-8") as f:
+            cfg = json.load(f)
+            USUARIO_SEI = cfg.get("usuario", USUARIO_SEI)
+            SENHA_SEI = cfg.get("senha", SENHA_SEI)
+            ORGAO_SEI = cfg.get("orgao", ORGAO_SEI)
+    except Exception:
+        pass
+
 def limpar_numero_sei(param):
     if not param:
         return ""

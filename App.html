@@ -11586,7 +11586,7 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
             <small class="opacity-75 d-block text-uppercase" style="font-size: 10px; letter-spacing: 0.05em;">Processo SEI da Aquisição</small>
             <strong class="font-monospace fs-6"><i class="fa-solid fa-file-contract me-1"></i>${seiExibido}</strong>
           </div>
-          ${seiCompra ? `<button type="button" class="btn btn-sm btn-light fw-bold py-1 px-3 shadow-sm" onclick="navigator.clipboard && navigator.clipboard.writeText('${seiCompra}'); Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'SEI copiado!', showConfirmButton: false, timer: 1500 });"><i class="fa-solid fa-copy me-1"></i>Copiar SEI</button>` : ''}
+          ${seiCompra ? `<button type="button" class="btn btn-sm btn-light fw-bold py-1 px-3 shadow-sm me-2" onclick="acionarRoboSeiComVerificacao('${encodeURIComponent(seiCompra)}')"><i class="fa-solid fa-robot text-primary me-1"></i>Abrir no SEI</button><button type="button" class="btn btn-sm btn-light fw-bold py-1 px-3 shadow-sm" onclick="navigator.clipboard && navigator.clipboard.writeText('${seiCompra}'); Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'SEI copiado!', showConfirmButton: false, timer: 1500 });"><i class="fa-solid fa-copy me-1"></i>Copiar SEI</button>` : ''}
         </div>
 
         <!-- NAVEGAÇÃO POR ABAS -->
@@ -13602,6 +13602,231 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
     }
   ];
 
+  // =========================================================================
+  // INTEGRAÇÃO INTELIGENTE DO ROBÔ SEI-PE COM DETECÇÃO AUTOMÁTICA DE RECURSOS
+  // =========================================================================
+  const B64_ROBO_SEI = "IiIiClJvYsO0IGRlIEF1dG9tYcOnw6NvIHBhcmEgQWJlcnR1cmEgRGlyZXRhIGRlIFByb2Nlc3NvcyBubyBTRUktUEUgKENCTVBFKQpEZXNlbnZvbHZpZG8gcGFyYSBpbnRlZ3Jhw6fDo28gY29tIG8gU2lzdGVtYSBTR01QCiIiIgoKaW1wb3J0IHN5cwppbXBvcnQgb3MKaW1wb3J0IHRpbWUKaW1wb3J0IHVybGxpYi5wYXJzZQpmcm9tIHBsYXl3cmlnaHQuc3luY19hcGkgaW1wb3J0IHN5bmNfcGxheXdyaWdodAoKIyBHYXJhbnRlIHF1ZSBzb2IgcHl0aG9udy5leGUgKHNlbSBqYW5lbGEgQ01EKSBhIGV4ZWN1w6fDo28gb2NvcnJhIDEwMCUgc2lsZW5jaW9zYQojIGUgcmVnaXN0cmUgc2HDrWRhcyBlbSBhcnF1aXZvIGRlIGxvZyBsb2NhbCBwYXJhIGRpYWduw7NzdGljbwpESVJfQVRVQUwgPSBvcy5wYXRoLmRpcm5hbWUob3MucGF0aC5hYnNwYXRoKF9fZmlsZV9fKSkKQVJRVUlWT19MT0cgPSBvcy5wYXRoLmpvaW4oRElSX0FUVUFMLCAicm9ib19zZWkubG9nIikKCmNsYXNzIExvZ2dlclNpbGVuY2lvc286CiAgICBkZWYgX19pbml0X18oc2VsZiwgY2FtaW5ob19sb2cpOgogICAgICAgIHNlbGYuY2FtaW5ob19sb2cgPSBjYW1pbmhvX2xvZwogICAgZGVmIHdyaXRlKHNlbGYsIG1lc3NhZ2UpOgogICAgICAgIHRyeToKICAgICAgICAgICAgd2l0aCBvcGVuKHNlbGYuY2FtaW5ob19sb2csICJhIiwgZW5jb2Rpbmc9InV0Zi04IikgYXMgZjoKICAgICAgICAgICAgICAgIGYud3JpdGUobWVzc2FnZSkKICAgICAgICBleGNlcHQgRXhjZXB0aW9uOgogICAgICAgICAgICBwYXNzCiAgICBkZWYgZmx1c2goc2VsZik6CiAgICAgICAgcGFzcwoKaWYgc3lzLnN0ZG91dCBpcyBOb25lIG9yIG5vdCBzeXMuc3Rkb3V0LmlzYXR0eSgpOgogICAgc3lzLnN0ZG91dCA9IExvZ2dlclNpbGVuY2lvc28oQVJRVUlWT19MT0cpCmlmIHN5cy5zdGRlcnIgaXMgTm9uZSBvciBub3Qgc3lzLnN0ZGVyci5pc2F0dHkoKToKICAgIHN5cy5zdGRlcnIgPSBMb2dnZXJTaWxlbmNpb3NvKEFSUVVJVk9fTE9HKQoKIyBDb25maWd1cmHDp8O1ZXMgZGUgQWNlc3NvIGFvIFNFSQpTRUlfVVJMID0gImh0dHBzOi8vc2VpLnBlLmdvdi5ici9zaXAvbG9naW4ucGhwP3NpZ2xhX29yZ2FvX3Npc3RlbWE9R09WUEUmc2lnbGFfc2lzdGVtYT1TRUkiClVTVUFSSU9fU0VJID0gIjA3NDAwMzQ0NDgwIgpTRU5IQV9TRUkgPSAiRGFANzIzMTA4IgpPUkdBT19TRUkgPSAiQ0JNUEUiCgpBUlFVSVZPX0NPTkZJRyA9IG9zLnBhdGguam9pbihESVJfQVRVQUwsICJjb25maWdfc2VpLmpzb24iKQppZiBvcy5wYXRoLmV4aXN0cyhBUlFVSVZPX0NPTkZJRyk6CiAgICB0cnk6CiAgICAgICAgaW1wb3J0IGpzb24KICAgICAgICB3aXRoIG9wZW4oQVJRVUlWT19DT05GSUcsICJyIiwgZW5jb2Rpbmc9InV0Zi04IikgYXMgZjoKICAgICAgICAgICAgY2ZnID0ganNvbi5sb2FkKGYpCiAgICAgICAgICAgIFVTVUFSSU9fU0VJID0gY2ZnLmdldCgidXN1YXJpbyIsIFVTVUFSSU9fU0VJKQogICAgICAgICAgICBTRU5IQV9TRUkgPSBjZmcuZ2V0KCJzZW5oYSIsIFNFTkhBX1NFSSkKICAgICAgICAgICAgT1JHQU9fU0VJID0gY2ZnLmdldCgib3JnYW8iLCBPUkdBT19TRUkpCiAgICBleGNlcHQgRXhjZXB0aW9uOgogICAgICAgIHBhc3MKCmRlZiBsaW1wYXJfbnVtZXJvX3NlaShwYXJhbSk6CiAgICBpZiBub3QgcGFyYW06CiAgICAgICAgcmV0dXJuICIiCiAgICBwYXJhbSA9IHVybGxpYi5wYXJzZS51bnF1b3RlKHN0cihwYXJhbSkpLnN0cmlwKCkKICAgIGZvciBwcmVmaXggaW4gWyJzZ21wLXNlaTovLyIsICJzZ21wLXNlaToiLCAic2VpOi8vIiwgInNlaToiXToKICAgICAgICBpZiBwYXJhbS5sb3dlcigpLnN0YXJ0c3dpdGgocHJlZml4KToKICAgICAgICAgICAgcGFyYW0gPSBwYXJhbVtsZW4ocHJlZml4KTpdCiAgICByZXR1cm4gcGFyYW0uc3RyaXAoKS5zdHJpcCgiLyIpLnN0cmlwKCkKCmRlZiBkZXRlY3Rhcl9jYW5hbF9uYXZlZ2Fkb3IoKToKICAgICIiIgogICAgRGV0ZWN0YSBzZSBvIEdvb2dsZSBDaHJvbWUgb3UgTWljcm9zb2Z0IEVkZ2UgZXN0w6NvIGluc3RhbGFkb3MgbmEgbcOhcXVpbmEuCiAgICBVdGlsaXphciBvIG5hdmVnYWRvciBuYXRpdm8gKENocm9tZS9FZGdlKSDDqSBmdW5kYW1lbnRhbCBwb2lzIGVsZXMgY29udMOqbQogICAgbyB2aXN1YWxpemFkb3IgZGUgUERGIHByb3ByaWV0w6FyaW8gKFBERml1bSBuYXRpdm8gY29tcGxldG8pLCBwZXJtaXRpbmRvCiAgICBhIGV4aWJpw6fDo28gZGlyZXRhIGUgc2VtIGZhbGhhcyBkZSB0b2RvcyBvcyBhbmV4b3MgZW0gUERGIGRvIFNFSS4KICAgICIiIgogICAgY2FtaW5ob3NfY2hyb21lID0gWwogICAgICAgIHIiQzpcUHJvZ3JhbSBGaWxlc1xHb29nbGVcQ2hyb21lXEFwcGxpY2F0aW9uXGNocm9tZS5leGUiLAogICAgICAgIHIiQzpcUHJvZ3JhbSBGaWxlcyAoeDg2KVxHb29nbGVcQ2hyb21lXEFwcGxpY2F0aW9uXGNocm9tZS5leGUiLAogICAgICAgIG9zLnBhdGguZXhwYW5kdXNlcihyIn5cQXBwRGF0YVxMb2NhbFxHb29nbGVcQ2hyb21lXEFwcGxpY2F0aW9uXGNocm9tZS5leGUiKQogICAgXQogICAgZm9yIGMgaW4gY2FtaW5ob3NfY2hyb21lOgogICAgICAgIGlmIG9zLnBhdGguZXhpc3RzKGMpOgogICAgICAgICAgICByZXR1cm4gImNocm9tZSIKCiAgICBjYW1pbmhvc19lZGdlID0gWwogICAgICAgIHIiQzpcUHJvZ3JhbSBGaWxlcyAoeDg2KVxNaWNyb3NvZnRcRWRnZVxBcHBsaWNhdGlvblxtc2VkZ2UuZXhlIiwKICAgICAgICByIkM6XFByb2dyYW0gRmlsZXNcTWljcm9zb2Z0XEVkZ2VcQXBwbGljYXRpb25cbXNlZGdlLmV4ZSIKICAgIF0KICAgIGZvciBlIGluIGNhbWluaG9zX2VkZ2U6CiAgICAgICAgaWYgb3MucGF0aC5leGlzdHMoZSk6CiAgICAgICAgICAgIHJldHVybiAibXNlZGdlIgoKICAgIHJldHVybiBOb25lCgpkZWYgYWJyaXJfcHJvY2Vzc29fc2VpKG51bWVyb19zZWkpOgogICAgbnVtZXJvX2xpbXBvID0gbGltcGFyX251bWVyb19zZWkobnVtZXJvX3NlaSkKICAgIGlmIG5vdCBudW1lcm9fbGltcG86CiAgICAgICAgcHJpbnQoIltFUlJPXSBOZW5odW0gbsO6bWVybyBkZSBwcm9jZXNzbyBTRUkgZm9pIGZvcm5lY2lkby4iKQogICAgICAgIHJldHVybiBGYWxzZQoKICAgIHByaW50KGYiXG49PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09IikKICAgIHByaW50KGYiWypdIEluaWNpYW5kbyBSb2LDtCBTRUkgcGFyYSBvIFByb2Nlc3NvOiB7bnVtZXJvX2xpbXBvfSIpCiAgICBwcmludChmIj09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT1cbiIpCgogICAgdHJ5OgogICAgICAgIHdpdGggc3luY19wbGF5d3JpZ2h0KCkgYXMgcDoKICAgICAgICAgICAgY2FuYWwgPSBkZXRlY3Rhcl9jYW5hbF9uYXZlZ2Fkb3IoKQoKICAgICAgICAgICAgbGF1bmNoX2t3YXJncyA9IHsKICAgICAgICAgICAgICAgICJoZWFkbGVzcyI6IEZhbHNlLAogICAgICAgICAgICAgICAgImFyZ3MiOiBbCiAgICAgICAgICAgICAgICAgICAgIi0tc3RhcnQtbWF4aW1pemVkIiwKICAgICAgICAgICAgICAgICAgICAiLS1kaXNhYmxlLWJsaW5rLWZlYXR1cmVzPUF1dG9tYXRpb25Db250cm9sbGVkIiwKICAgICAgICAgICAgICAgICAgICAiLS1uby1kZWZhdWx0LWJyb3dzZXItY2hlY2siLAogICAgICAgICAgICAgICAgICAgICItLW5vLWZpcnN0LXJ1biIKICAgICAgICAgICAgICAgIF0sCiAgICAgICAgICAgICAgICAjIFBlcm1pdGUgcXVlIGFzIGV4dGVuc8O1ZXMgZSBvIHZpc3VhbGl6YWRvciBpbnRlcm5vIGRlIFBERiBkbyBuYXZlZ2Fkb3IgZnVuY2lvbmVtCiAgICAgICAgICAgICAgICAiaWdub3JlX2RlZmF1bHRfYXJncyI6IFsKICAgICAgICAgICAgICAgICAgICAiLS1kaXNhYmxlLWV4dGVuc2lvbnMiLAogICAgICAgICAgICAgICAgICAgICItLWRpc2FibGUtY29tcG9uZW50LWV4dGVuc2lvbnMtd2l0aC1iYWNrZ3JvdW5kLXBhZ2VzIgogICAgICAgICAgICAgICAgXQogICAgICAgICAgICB9CgogICAgICAgICAgICBpZiBjYW5hbDoKICAgICAgICAgICAgICAgIGxhdW5jaF9rd2FyZ3NbImNoYW5uZWwiXSA9IGNhbmFsCiAgICAgICAgICAgICAgICBwcmludChmIlsxLzVdIEFicmluZG8gbmF2ZWdhZG9yIG5hdGl2byAoe2NhbmFsLnVwcGVyKCl9KSBjb20gc3Vwb3J0ZSBhIHRlbGEgY2hlaWEgZSBQREYuLi4iKQogICAgICAgICAgICBlbHNlOgogICAgICAgICAgICAgICAgcHJpbnQoIlsxLzVdIEFicmluZG8gbmF2ZWdhZG9yIENocm9taXVtIGNvbSBzdXBvcnRlIGEgdGVsYSBjaGVpYS4uLiIpCgogICAgICAgICAgICB0cnk6CiAgICAgICAgICAgICAgICBicm93c2VyID0gcC5jaHJvbWl1bS5sYXVuY2goKipsYXVuY2hfa3dhcmdzKQogICAgICAgICAgICBleGNlcHQgRXhjZXB0aW9uIGFzIGVfbGF1bmNoOgogICAgICAgICAgICAgICAgcHJpbnQoZiJbQVZJU09dIEZhbGhhIGFvIGluaWNpYXIgY29tIGNhbmFsIHtjYW5hbH06IHtlX2xhdW5jaH0uIFRlbnRhbmRvIENocm9taXVtIHBhZHLDo28uLi4iKQogICAgICAgICAgICAgICAgbGF1bmNoX2t3YXJncy5wb3AoImNoYW5uZWwiLCBOb25lKQogICAgICAgICAgICAgICAgYnJvd3NlciA9IHAuY2hyb21pdW0ubGF1bmNoKCoqbGF1bmNoX2t3YXJncykKCiAgICAgICAgICAgICMgbm9fdmlld3BvcnQ9VHJ1ZSBnYXJhbnRlIHF1ZSBvIG5hdmVnYWRvciBvY3VwZSAxMDAlIGRhIHRlbGEgKHNlbSByZXN0cmnDp8OjbyAxMjgweDcyMCkKICAgICAgICAgICAgY29udGV4dCA9IGJyb3dzZXIubmV3X2NvbnRleHQoCiAgICAgICAgICAgICAgICBub192aWV3cG9ydD1UcnVlLAogICAgICAgICAgICAgICAgYWNjZXB0X2Rvd25sb2Fkcz1UcnVlCiAgICAgICAgICAgICkKCiAgICAgICAgICAgICMgSW5qZXRhIENTUyBlIHV0aWxpdMOhcmlvIG5vIGNvbnRleHRvIHBhcmEgZ2FyYW50aXIgcXVlIG9zIGlmcmFtZXMgZGUgdmlzdWFsaXphw6fDo28KICAgICAgICAgICAgIyBkZSBkb2N1bWVudG9zIGUgUERGcyBkbyBTRUkgc2UgZXhwYW5kYW0gcGFyYSAxMDAlIGRhIGphbmVsYQogICAgICAgICAgICBjb250ZXh0LmFkZF9pbml0X3NjcmlwdCgiIiIKICAgICAgICAgICAgICAgIGRvY3VtZW50LmFkZEV2ZW50TGlzdGVuZXIoJ0RPTUNvbnRlbnRMb2FkZWQnLCAoKSA9PiB7CiAgICAgICAgICAgICAgICAgICAgY29uc3Qgc3R5bGUgPSBkb2N1bWVudC5jcmVhdGVFbGVtZW50KCdzdHlsZScpOwogICAgICAgICAgICAgICAgICAgIHN0eWxlLmlubmVySFRNTCA9IGAKICAgICAgICAgICAgICAgICAgICAgICAgaHRtbCwgYm9keSB7CiAgICAgICAgICAgICAgICAgICAgICAgICAgICB3aWR0aDogMTAwJSAhaW1wb3J0YW50OwogICAgICAgICAgICAgICAgICAgICAgICAgICAgaGVpZ2h0OiAxMDAlICFpbXBvcnRhbnQ7CiAgICAgICAgICAgICAgICAgICAgICAgICAgICBtYXJnaW46IDAgIWltcG9ydGFudDsKICAgICAgICAgICAgICAgICAgICAgICAgICAgIHBhZGRpbmc6IDAgIWltcG9ydGFudDsKICAgICAgICAgICAgICAgICAgICAgICAgfQogICAgICAgICAgICAgICAgICAgICAgICAjaWZyVmlzdWFsaXphY2FvLCAjaWZyQXJ2b3JlLCAjZGl2QXJ2b3JlLCAjZGl2VmlzdWFsaXphY2FvLAogICAgICAgICAgICAgICAgICAgICAgICBvYmplY3RbdHlwZT0iYXBwbGljYXRpb24vcGRmIl0sIGVtYmVkW3R5cGU9ImFwcGxpY2F0aW9uL3BkZiJdLAogICAgICAgICAgICAgICAgICAgICAgICBpZnJhbWVbbmFtZT0iaWZyVmlzdWFsaXphY2FvIl0sIGlmcmFtZVtuYW1lPSJpZnJBcnZvcmUiXSB7CiAgICAgICAgICAgICAgICAgICAgICAgICAgICB3aWR0aDogMTAwJSAhaW1wb3J0YW50OwogICAgICAgICAgICAgICAgICAgICAgICAgICAgaGVpZ2h0OiAxMDAlICFpbXBvcnRhbnQ7CiAgICAgICAgICAgICAgICAgICAgICAgIH0KICAgICAgICAgICAgICAgICAgICBgOwogICAgICAgICAgICAgICAgICAgIGlmIChkb2N1bWVudC5oZWFkKSBkb2N1bWVudC5oZWFkLmFwcGVuZENoaWxkKHN0eWxlKTsKICAgICAgICAgICAgICAgIH0pOwogICAgICAgICAgICAiIiIpCgogICAgICAgICAgICBwYWdlID0gY29udGV4dC5uZXdfcGFnZSgpCgogICAgICAgICAgICAjIDEuIEFjZXNzYSBhIHDDoWdpbmEgZGUgYXV0ZW50aWNhw6fDo28KICAgICAgICAgICAgcHJpbnQoIlsyLzVdIEFjZXNzYW5kbyB0ZWxhIGRlIGxvZ2luIGRvIFNFSS1QRS4uLiIpCiAgICAgICAgICAgIHBhZ2UuZ290byhTRUlfVVJMLCB3YWl0X3VudGlsPSJkb21jb250ZW50bG9hZGVkIikKCiAgICAgICAgICAgICMgMi4gUHJlZW5jaGUgY3JlZGVuY2lhaXMgZSBzZWxlY2lvbmEgQ0JNUEUKICAgICAgICAgICAgdHJ5OgogICAgICAgICAgICAgICAgcGFnZS53YWl0X2Zvcl9zZWxlY3RvcigiaW5wdXRbbmFtZT0ndHh0VXN1YXJpbyddIiwgdGltZW91dD02MDAwKQogICAgICAgICAgICAgICAgcHJpbnQoIlszLzVdIFByZWVuY2hlbmRvIGNyZWRlbmNpYWlzIGUgc2VsZWNpb25hbmRvIMOzcmfDo28gQ0JNUEUuLi4iKQogICAgICAgICAgICAgICAgcGFnZS5maWxsKCJpbnB1dFtuYW1lPSd0eHRVc3VhcmlvJ10iLCBVU1VBUklPX1NFSSkKICAgICAgICAgICAgICAgIHBhZ2UuZmlsbCgiI3B3ZFNlbmhhIiwgU0VOSEFfU0VJKQogICAgICAgICAgICAgICAgdHJ5OgogICAgICAgICAgICAgICAgICAgIHBhZ2Uuc2VsZWN0X29wdGlvbigiI3NlbE9yZ2FvIiwgbGFiZWw9T1JHQU9fU0VJKQogICAgICAgICAgICAgICAgZXhjZXB0OgogICAgICAgICAgICAgICAgICAgIHRyeToKICAgICAgICAgICAgICAgICAgICAgICAgcGFnZS5zZWxlY3Rfb3B0aW9uKCIjc2VsT3JnYW8iLCB2YWx1ZT1PUkdBT19TRUkpCiAgICAgICAgICAgICAgICAgICAgZXhjZXB0OgogICAgICAgICAgICAgICAgICAgICAgICBwYXNzCiAgICAgICAgICAgICAgICAKICAgICAgICAgICAgICAgICMgQ2xpY2EgZW0gZW50cmFyCiAgICAgICAgICAgICAgICBwYWdlLmNsaWNrKCJidXR0b25bdHlwZT0nc3VibWl0J10sICNzYm1BY2Vzc2FyIikKICAgICAgICAgICAgZXhjZXB0IEV4Y2VwdGlvbiBhcyBlX2xvZ2luOgogICAgICAgICAgICAgICAgcHJpbnQoZiJbSU5GT10gVGVsYSBkZSBsb2dpbiBuw6NvIHNvbGljaXRhZGEgb3UgasOhIGF1dGVudGljYWRvOiB7ZV9sb2dpbn0iKQoKICAgICAgICAgICAgIyAzLiBBZ3VhcmRhIG8gY2FtcG8gZGUgcGVzcXVpc2EgcsOhcGlkYQogICAgICAgICAgICBwcmludCgiWzQvNV0gQWd1YXJkYW5kbyB0ZWxhIHByaW5jaXBhbCBkbyBTRUkuLi4iKQogICAgICAgICAgICBwYWdlLndhaXRfZm9yX3NlbGVjdG9yKCIjdHh0UGVzcXVpc2FSYXBpZGEiLCB0aW1lb3V0PTIwMDAwKQoKICAgICAgICAgICAgIyA0LiBUZW50YSBmZWNoYXIgcG9wLXVwcyBpbmZvcm1hdGl2b3MgKHNlIGV4aXN0aXJlbSkKICAgICAgICAgICAgdHJ5OgogICAgICAgICAgICAgICAgcGFnZS5jbGljaygiLnNwYXJrbGluZy1tb2RhbC1jbG9zZSBpbWcsIC5zcGFya2xpbmctbW9kYWwtY2xvc2UsIGJ1dHRvbjpoYXMtdGV4dCgnRmVjaGFyJykiLCB0aW1lb3V0PTI1MDApCiAgICAgICAgICAgICAgICBwcmludCgiICAgICAgIFBvcC11cCBpbmZvcm1hdGl2byBmZWNoYWRvIGNvbSBzdWNlc3NvLiIpCiAgICAgICAgICAgIGV4Y2VwdDoKICAgICAgICAgICAgICAgIHBhc3MKCiAgICAgICAgICAgICMgNS4gRGlnaXRhIG8gcHJvY2Vzc28gZSBhYnJlCiAgICAgICAgICAgIHByaW50KGYiWzUvNV0gUGVzcXVpc2FuZG8gZSBhYnJpbmRvIHByb2Nlc3NvOiB7bnVtZXJvX2xpbXBvfS4uLiIpCiAgICAgICAgICAgIHBhZ2UuZmlsbCgiI3R4dFBlc3F1aXNhUmFwaWRhIiwgbnVtZXJvX2xpbXBvKQogICAgICAgICAgICBwYWdlLnByZXNzKCIjdHh0UGVzcXVpc2FSYXBpZGEiLCAiRW50ZXIiKQoKICAgICAgICAgICAgcHJpbnQoIlxuW1NVQ0VTU09dIFByb2Nlc3NvIGNhcnJlZ2FkbyBubyBTRUkhIikKICAgICAgICAgICAgcHJpbnQoIltESUNBXSBPIG5hdmVnYWRvciBwZXJtYW5lY2Vyw6EgYWJlcnRvIGVtIHRlbGEgY2hlaWEgY29tIHN1cG9ydGUgbmF0aXZvIGEgUERGcy4iKQogICAgICAgICAgICBwcmludCgiICAgICAgIEFvIHRlcm1pbmFyIGRlIGNvbnN1bHRhciBvcyBkb2N1bWVudG9zLCBiYXN0YSBmZWNoYXIgYSBqYW5lbGEgZG8gbmF2ZWdhZG9yLlxuIikKCiAgICAgICAgICAgICMgTWFudMOpbSBhIGphbmVsYSBhYmVydGEgZW5xdWFudG8gbyB1c3XDoXJpbyBlc3RpdmVyIGludGVyYWdpbmRvIGNvbSBlbGEKICAgICAgICAgICAgd2hpbGUgYnJvd3Nlci5pc19jb25uZWN0ZWQoKSBhbmQgbGVuKGNvbnRleHQucGFnZXMpID4gMDoKICAgICAgICAgICAgICAgIHRpbWUuc2xlZXAoMSkKCiAgICAgICAgICAgIHByaW50KCJbKl0gSmFuZWxhIGVuY2VycmFkYSBwZWxvIHVzdcOhcmlvLiIpCiAgICAgICAgICAgIHJldHVybiBUcnVlCgogICAgZXhjZXB0IEV4Y2VwdGlvbiBhcyBlOgogICAgICAgIHByaW50KGYiXG5bRVJST10gT2NvcnJldSB1bWEgZmFsaGEgbmEgZXhlY3XDp8OjbyBkbyByb2LDtDoge2V9IikKICAgICAgICByZXR1cm4gRmFsc2UKCmlmIF9fbmFtZV9fID09ICJfX21haW5fXyI6CiAgICBwYXJhbV9zZWkgPSAiIgogICAgaWYgbGVuKHN5cy5hcmd2KSA+IDE6CiAgICAgICAgcGFyYW1fc2VpID0gc3lzLmFyZ3ZbMV0KICAgIGVsc2U6CiAgICAgICAgdHJ5OgogICAgICAgICAgICBwYXJhbV9zZWkgPSBpbnB1dCgiRGlnaXRlIG8gbsO6bWVybyBkbyBQcm9jZXNzbyBTRUk6ICIpLnN0cmlwKCkKICAgICAgICBleGNlcHQ6CiAgICAgICAgICAgIHBhcmFtX3NlaSA9ICIzOTAwMDAwMTYwLjAwMDA3My8yMDI2LTA0IgoKICAgIGFicmlyX3Byb2Nlc3NvX3NlaShwYXJhbV9zZWkpCg==";
+  const B64_SERVIDOR_SEI = "IiIiClNlcnZpZG9yIExvY2FsIGRlIEludGVncmHDp8OjbyBTR01QIDwtPiBSb2LDtCBTRUkKRXNjdXRhIHJlcXVpc2nDp8O1ZXMgbmEgcG9ydGEgMTg4ODggZSBhY2lvbmEgbyByb2LDtCBQbGF5d3JpZ2h0IGVtIHNlZ3VuZG8gcGxhbm8KIiIiCgppbXBvcnQgdGhyZWFkaW5nCmltcG9ydCB1cmxsaWIucGFyc2UKZnJvbSBodHRwLnNlcnZlciBpbXBvcnQgSFRUUFNlcnZlciwgQmFzZUhUVFBSZXF1ZXN0SGFuZGxlcgpmcm9tIHJvYm9fc2VpIGltcG9ydCBhYnJpcl9wcm9jZXNzb19zZWksIGxpbXBhcl9udW1lcm9fc2VpCgpQT1JUQSA9IDE4ODg4CgpjbGFzcyBSZXF1aXNpY2FvSGFuZGxlcihCYXNlSFRUUFJlcXVlc3RIYW5kbGVyKToKICAgIGRlZiBlbmRfaGVhZGVycyhzZWxmKToKICAgICAgICAjIFBlcm1pdGUgY2hhbWFkYXMgQ09SUyBkZSBxdWFscXVlciBvcmlnZW0gKGluY2x1c2l2ZSBzY3JpcHQuZ29vZ2xlLmNvbSBlIHZlcmNlbC5hcHApCiAgICAgICAgc2VsZi5zZW5kX2hlYWRlcignQWNjZXNzLUNvbnRyb2wtQWxsb3ctT3JpZ2luJywgJyonKQogICAgICAgIHNlbGYuc2VuZF9oZWFkZXIoJ0FjY2Vzcy1Db250cm9sLUFsbG93LU1ldGhvZHMnLCAnR0VULCBPUFRJT05TJykKICAgICAgICBzZWxmLnNlbmRfaGVhZGVyKCdBY2Nlc3MtQ29udHJvbC1BbGxvdy1IZWFkZXJzJywgJ0NvbnRlbnQtVHlwZScpCiAgICAgICAgc3VwZXIoKS5lbmRfaGVhZGVycygpCgogICAgZGVmIGRvX09QVElPTlMoc2VsZik6CiAgICAgICAgc2VsZi5zZW5kX3Jlc3BvbnNlKDIwMCkKICAgICAgICBzZWxmLmVuZF9oZWFkZXJzKCkKCiAgICBkZWYgZG9fR0VUKHNlbGYpOgogICAgICAgIHBhcnNlZCA9IHVybGxpYi5wYXJzZS51cmxwYXJzZShzZWxmLnBhdGgpCiAgICAgICAgaWYgcGFyc2VkLnBhdGggPT0gJy9zdGF0dXMnOgogICAgICAgICAgICBzZWxmLnNlbmRfcmVzcG9uc2UoMjAwKQogICAgICAgICAgICBzZWxmLnNlbmRfaGVhZGVyKCdDb250ZW50LVR5cGUnLCAnYXBwbGljYXRpb24vanNvbicpCiAgICAgICAgICAgIHNlbGYuZW5kX2hlYWRlcnMoKQogICAgICAgICAgICBzZWxmLndmaWxlLndyaXRlKGIneyJzdGF0dXMiOiAib25saW5lIiwgIm1vZHVsbyI6ICJSb2JvIFNFSSBDQk1QRSJ9JykKICAgICAgICAgICAgcmV0dXJuCgogICAgICAgIGlmIHBhcnNlZC5wYXRoLnN0YXJ0c3dpdGgoJy9hYnJpcicpOgogICAgICAgICAgICBxdWVyeV9wYXJhbXMgPSB1cmxsaWIucGFyc2UucGFyc2VfcXMocGFyc2VkLnF1ZXJ5KQogICAgICAgICAgICBudW1lcm9fc2VpID0gcXVlcnlfcGFyYW1zLmdldCgnc2VpJywgWycnXSlbMF0KICAgICAgICAgICAgbnVtZXJvX2xpbXBvID0gbGltcGFyX251bWVyb19zZWkobnVtZXJvX3NlaSkKCiAgICAgICAgICAgIGlmIG5vdCBudW1lcm9fbGltcG86CiAgICAgICAgICAgICAgICBzZWxmLnNlbmRfcmVzcG9uc2UoNDAwKQogICAgICAgICAgICAgICAgc2VsZi5zZW5kX2hlYWRlcignQ29udGVudC1UeXBlJywgJ2FwcGxpY2F0aW9uL2pzb24nKQogICAgICAgICAgICAgICAgc2VsZi5lbmRfaGVhZGVycygpCiAgICAgICAgICAgICAgICBzZWxmLndmaWxlLndyaXRlKGIneyJlcnJvIjogIlBhcmFtZXRybyBzZWkgb2JyaWdhdG9yaW8ifScpCiAgICAgICAgICAgICAgICByZXR1cm4KCiAgICAgICAgICAgIHByaW50KGYiW1NFUlZJRE9SXSBSZWNlYmlkYSBzb2xpY2l0YWNhbyBwYXJhIGFicmlyIHByb2Nlc3NvOiB7bnVtZXJvX2xpbXBvfSIpCiAgICAgICAgICAgIAogICAgICAgICAgICAjIERpc3BhcmEgZW0gdW1hIHRocmVhZCBzZXBhcmFkYSBwYXJhIG7Do28gdHJhdmFyIGEgcmVzcG9zdGEgSFRUUAogICAgICAgICAgICB0ID0gdGhyZWFkaW5nLlRocmVhZCh0YXJnZXQ9YWJyaXJfcHJvY2Vzc29fc2VpLCBhcmdzPShudW1lcm9fbGltcG8sKSkKICAgICAgICAgICAgdC5kYWVtb24gPSBUcnVlCiAgICAgICAgICAgIHQuc3RhcnQoKQoKICAgICAgICAgICAgc2VsZi5zZW5kX3Jlc3BvbnNlKDIwMCkKICAgICAgICAgICAgc2VsZi5zZW5kX2hlYWRlcignQ29udGVudC1UeXBlJywgJ2FwcGxpY2F0aW9uL2pzb24nKQogICAgICAgICAgICBzZWxmLmVuZF9oZWFkZXJzKCkKICAgICAgICAgICAgcmVzcCA9IGYne3sic3VjZXNzbyI6IHRydWUsICJwcm9jZXNzbyI6ICJ7bnVtZXJvX2xpbXBvfSJ9fScuZW5jb2RlKCd1dGYtOCcpCiAgICAgICAgICAgIHNlbGYud2ZpbGUud3JpdGUocmVzcCkKICAgICAgICAgICAgcmV0dXJuCgogICAgICAgIHNlbGYuc2VuZF9yZXNwb25zZSg0MDQpCiAgICAgICAgc2VsZi5lbmRfaGVhZGVycygpCgpkZWYgaW5pY2lhcl9zZXJ2aWRvcigpOgogICAgc2VydmVyID0gSFRUUFNlcnZlcigoJzEyNy4wLjAuMScsIFBPUlRBKSwgUmVxdWlzaWNhb0hhbmRsZXIpCiAgICBwcmludCgiPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09IikKICAgIHByaW50KGYiWypdIFNlcnZpZG9yIExvY2FsIGRvIFJvYsO0IFNFSSBBdGl2byBuYSBwb3J0YSB7UE9SVEF9IikKICAgIHByaW50KCIgICAgUHJvbnRvIHBhcmEgcmVjZWJlciBjbGlxdWVzIGRvIFNpc3RlbWEgU0dNUCEiKQogICAgcHJpbnQoIiAgICBQYXJhIHBhcmFyIG8gc2Vydmlkb3IsIHByZXNzaW9uZSBDdHJsICsgQyBuZXN0YSBqYW5lbGEuIikKICAgIHByaW50KCI9PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0iKQogICAgdHJ5OgogICAgICAgIHNlcnZlci5zZXJ2ZV9mb3JldmVyKCkKICAgIGV4Y2VwdCBLZXlib2FyZEludGVycnVwdDoKICAgICAgICBwcmludCgiXG5bKl0gU2Vydmlkb3IgZW5jZXJyYWRvLiIpCiAgICAgICAgc2VydmVyLnNlcnZlcl9jbG9zZSgpCgppZiBfX25hbWVfXyA9PSAnX19tYWluX18nOgogICAgaW5pY2lhcl9zZXJ2aWRvcigpCg==";
+
+  function acionarRoboSeiComVerificacao(seiParam) {
+    if (!seiParam || seiParam === '-' || seiParam === 'Sem SEI' || seiParam === 'N/I') return;
+    
+    let numLimpo = decodeURIComponent(String(seiParam)).trim();
+    ['sgmp-sei://', 'sgmp-sei:', 'sei://', 'sei:'].forEach(function(p) {
+      if (numLimpo.toLowerCase().indexOf(p) === 0) numLimpo = numLimpo.substring(p.length);
+    });
+    numLimpo = numLimpo.replace(/^\/+|\/+$/g, '').trim();
+
+    // 1. Tenta comunicar via Servidor Local Silencioso (Porta 18888)
+    let ctrl = null;
+    try {
+      if (window.AbortController) {
+        ctrl = new AbortController();
+        setTimeout(function() { try { ctrl.abort(); } catch(e){} }, 850);
+      }
+    } catch(e) {}
+
+    let fetchOpts = ctrl ? { signal: ctrl.signal } : {};
+
+    fetch('http://127.0.0.1:18888/status', fetchOpts)
+      .then(function(res) { return res.json(); })
+      .then(function(info) {
+        // Servidor local está online!
+        fetch('http://127.0.0.1:18888/abrir?sei=' + encodeURIComponent(numLimpo));
+        Swal.fire({
+          toast: true,
+          position: 'top-end',
+          icon: 'success',
+          title: 'Robô SEI Acionado!',
+          text: 'Abrindo o processo ' + numLimpo + ' no SEI...',
+          showConfirmButton: false,
+          timer: 3500
+        });
+      })
+      .catch(function(err) {
+        // Servidor local offline: tenta protocolo nativo sgmp-sei://
+        tentarProtocoloOuAvisarInstalacao(numLimpo);
+      });
+  }
+
+  function tentarProtocoloOuAvisarInstalacao(numLimpo) {
+    let appDisparou = false;
+
+    function onBlurDetector() {
+      appDisparou = true;
+      window.removeEventListener('blur', onBlurDetector);
+    }
+    window.addEventListener('blur', onBlurDetector);
+
+    let iframe = document.getElementById('iframe_disparador_sei');
+    if (!iframe) {
+      iframe = document.createElement('iframe');
+      iframe.id = 'iframe_disparador_sei';
+      iframe.style.display = 'none';
+      document.body.appendChild(iframe);
+    }
+    iframe.src = 'sgmp-sei:' + encodeURIComponent(numLimpo);
+
+    setTimeout(function() {
+      window.removeEventListener('blur', onBlurDetector);
+      if (!appDisparou) {
+        exibirModalAvisoRecursosSei(numLimpo);
+      }
+    }, 1400);
+  }
+
+  function exibirModalAvisoRecursosSei(numLimpo) {
+    Swal.fire({
+      icon: 'warning',
+      title: 'Automação SEI Não Detectada',
+      html: '<div class="text-start" style="font-size: 0.92rem; line-height: 1.5;">' +
+        '<p class="mb-2">Este computador ainda não possui os <b>recursos de integração necessários</b> para que o Robô abra e pesquise o processo automaticamente.</p>' +
+        '<div class="alert alert-light border py-2 px-3 mb-3 bg-light">' +
+          '<div class="fw-bold text-dark mb-1"><i class="fa-solid fa-list-check text-primary me-2"></i>Recursos Necessários:</div>' +
+          '<ul class="mb-0 ps-3 text-secondary" style="font-size: 0.85rem;">' +
+            '<li><b>Python 3.10+</b> (disponível com 1 clique na Microsoft Store)</li>' +
+            '<li><b>Módulo Playwright & Chromium</b> (automação do navegador)</li>' +
+            '<li><b>Registro de Protocolo SGMP-SEI</b> no Windows</li>' +
+          '</ul>' +
+        '</div>' +
+        '<div class="p-2 border rounded bg-white text-center mb-3">' +
+          '<span class="text-muted d-block small">Número do Processo SEI:</span>' +
+          '<span class="font-monospace fw-bold text-primary fs-6">' + numLimpo + '</span>' +
+        '</div>' +
+        '<p class="text-muted small mb-0">Você pode <b>baixar o instalador automático</b> para configurar esta máquina ou copiar o número para abrir o SEI manualmente agora.</p>' +
+      '</div>',
+      showCancelButton: true,
+      showDenyButton: true,
+      confirmButtonText: '<i class="fa-solid fa-download me-1"></i> Baixar Instalador (.bat)',
+      denyButtonText: '<i class="fa-solid fa-arrow-up-right-from-square me-1"></i> Copiar e Abrir SEI',
+      cancelButtonText: 'Fechar',
+      confirmButtonColor: '#1d4ed8',
+      denyButtonColor: '#059669',
+      cancelButtonColor: '#64748b'
+    }).then(function(result) {
+      if (result.isConfirmed) {
+        baixarInstaladorRoboSei();
+      } else if (result.isDenied) {
+        if (navigator.clipboard) {
+          navigator.clipboard.writeText(numLimpo);
+        }
+        window.open('https://sei.pe.gov.br', '_blank');
+        Swal.fire({
+          toast: true,
+          position: 'top-end',
+          icon: 'info',
+          title: 'Processo copiado!',
+          text: 'Pressione Ctrl+V na Pesquisa Rápida do SEI.',
+          showConfirmButton: false,
+          timer: 4000
+        });
+      }
+    });
+  }
+
+  function baixarInstaladorRoboSei() {
+    let batLines = [
+      '@echo off',
+      'chcp 65001 >nul',
+      'title Instalador do Robo SEI - SGMP CBMPE',
+      'color 0F',
+      'echo ====================================================================',
+      'echo      INSTALADOR AUTOMATICO DO ROBO SEI-PE (SISTEMA SGMP - CBMPE)',
+      'echo ====================================================================',
+      'echo.',
+      'echo Este assistente ira verificar e configurar todos os componentes',
+      'echo necessarios para que o SGMP abra e pesquise processos no SEI',
+      'echo automaticamente com 1 clique neste computador.',
+      'echo.',
+      'echo [1/4] Verificando instalacao do Python...',
+      'for /f "delims=" %%i in (\'where python 2^^>nul\') do set PYTHON_EXE=%%i ^& goto :found_python',
+      ':found_python',
+      'if not defined PYTHON_EXE (',
+      '    echo.',
+      '    echo --------------------------------------------------------------------',
+      '    echo [ATENCAO] O Python 3 nao foi detectado no seu computador.',
+      '    echo.',
+      '    echo Abrindo a pagina do Python na Microsoft Store do Windows...',
+      '    echo Basta clicar em "Obter" ou "Instalar" (nao precisa de senha de admin).',
+      '    echo --------------------------------------------------------------------',
+      '    start ms-windows-store://pdp/?ProductId=9NCVDN91XZQP',
+      '    echo.',
+      '    echo Apos concluir a instalacao do Python na Microsoft Store,',
+      '    pause',
+      '    for /f "delims=" %%i in (\'where python 2^^>nul\') do set PYTHON_EXE=%%i ^& goto :found_python2',
+      ':found_python2',
+      '    if not defined PYTHON_EXE (',
+      '        echo [ERRO] Python ainda nao detectado. Por favor, reinicie o instalador apos a instalacao.',
+      '        pause',
+      '        exit /b 1',
+      '    )',
+      ')',
+      'echo [OK] Python detectado: %PYTHON_EXE%',
+      'echo.',
+      'echo [2/4] Verificando e instalando o modulo de automacao (Playwright)...',
+      '"%PYTHON_EXE%" -m pip install --upgrade pip >nul 2>&1',
+      '"%PYTHON_EXE%" -m pip install playwright',
+      'if %errorlevel% neq 0 (',
+      '    echo [ERRO] Falha ao instalar a biblioteca Playwright via pip.',
+      '    pause',
+      '    exit /b 1',
+      ')',
+      'echo Instalando o navegador Chromium para o robo...',
+      '"%PYTHON_EXE%" -m playwright install chromium',
+      'echo [OK] Modulo Playwright e Chromium prontos!',
+      'echo.',
+      'set DEST_DIR=%USERPROFILE%\\SGMP_Robo_SEI',
+      'if not exist "%DEST_DIR%" mkdir "%DEST_DIR%"',
+      'echo [3/4] Gravando scripts do Robo em: %DEST_DIR%...',
+      'powershell -NoProfile -Command "[System.IO.File]::WriteAllBytes(\'%DEST_DIR%\\robo_sei.py\', [System.Convert]::FromBase64String(\'' + B64_ROBO_SEI + '\'))"',
+      'powershell -NoProfile -Command "[System.IO.File]::WriteAllBytes(\'%DEST_DIR%\\servidor_sei.py\', [System.Convert]::FromBase64String(\'' + B64_SERVIDOR_SEI + '\'))"',
+      'echo [4/4] Registrando protocolo sgmp-sei:// no Windows...',
+      'reg add "HKCU\\Software\\Classes\\sgmp-sei" /ve /d "URL:Protocolo SGMP SEI" /f >nul',
+      'reg add "HKCU\\Software\\Classes\\sgmp-sei" /v "URL Protocol" /d "" /f >nul',
+      'reg add "HKCU\\Software\\Classes\\sgmp-sei\\shell" /f >nul',
+      'reg add "HKCU\\Software\\Classes\\sgmp-sei\\shell\\open" /f >nul',
+      'set PYTHONW_EXE=%PYTHON_EXE:python.exe=pythonw.exe%',
+      'if not exist "%PYTHONW_EXE%" set PYTHONW_EXE=%PYTHON_EXE%',
+      'reg add "HKCU\\Software\\Classes\\sgmp-sei\\shell\\open\\command" /ve /d "\"%PYTHONW_EXE%\" \"%DEST_DIR%\\robo_sei.py\" \"%%1\"" /f >nul',
+      'echo [OK] Protocolo sgmp-sei:// registrado com sucesso no Windows!',
+      'echo.',
+      'echo ====================================================================',
+      'echo               INSTALACAO CONCLUIDA COM SUCESSO!',
+      'echo ====================================================================',
+      'echo.',
+      'echo Todos os recursos necessarios foram instalados.',
+      'echo Ao clicar em qualquer processo SEI no SGMP, o robo ira',
+      'echo inicializar automaticamente e abrir o processo na tela.',
+      'echo.',
+      'pause'
+    ];
+
+    let batContent = batLines.join('\r\n');
+    let blob = new Blob([batContent], { type: 'text/plain;charset=utf-8' });
+    let link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'Instalar_Robo_SEI_CBMPE.bat';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    Swal.fire({
+      icon: 'success',
+      title: 'Download Iniciado!',
+      html: '<div class="text-start" style="font-size: 0.9rem;">' +
+        '<p>O arquivo <b>Instalar_Robo_SEI_CBMPE.bat</b> foi baixado para seu computador.</p>' +
+        '<ol class="ps-3 mb-2">' +
+          '<li>Abra sua pasta de <b>Downloads</b>.</li>' +
+          '<li>Dê um duplo clique no arquivo <b>Instalar_Robo_SEI_CBMPE.bat</b>.</li>' +
+          '<li>O instalador cuidará de tudo automaticamente.</li>' +
+        '</ol>' +
+        '<small class="text-muted">Não é necessária senha de administrador do Windows.</small>' +
+      '</div>',
+      confirmButtonText: 'Entendido',
+      confirmButtonColor: '#1d4ed8'
+    });
+  }
+
   function formatarDescricaoViaturaVisual(objeto, nSerie) {
     if (!objeto) return '';
     const objTrim = String(objeto).trim();
@@ -13755,7 +13980,7 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
           const objetoVisual = formatarDescricaoViaturaVisual(r.objeto, serieItem);
           const badgeSerie = serieItem ? `<br><span class="badge bg-light text-dark border">SÉRIE: ${serieItem}</span>` : '';
       const linkSei = (r.seiCompra && r.seiCompra !== '-' && r.seiCompra !== 'Sem SEI' && r.seiCompra !== 'N/I')
-        ? `<a href="sgmp-sei:${encodeURIComponent(r.seiCompra)}" class="text-primary fw-bold text-decoration-none" title="Abrir no SEI via Robô">${r.seiCompra} <i class="fa-solid fa-arrow-up-right-from-square ms-1" style="font-size: 0.7rem;"></i></a>`
+        ? `<a href="javascript:void(0)" onclick="acionarRoboSeiComVerificacao(\'${encodeURIComponent(r.seiCompra)}\'); return false;" class="text-primary fw-bold text-decoration-none" title="Abrir no SEI via Robô">${r.seiCompra} <i class="fa-solid fa-arrow-up-right-from-square ms-1" style="font-size: 0.7rem;"></i></a>`
         : (r.seiCompra || '-');
           const badgeClasse = r.classe2 ? `<br><span class="badge bg-light text-primary border border-primary-subtle" style="font-size: 0.68rem;" title="Classe 1: ${r.classe1 || '-'}\\nClasse 2: ${r.classe2}"><i class="fa-solid fa-layer-group me-1"></i>${r.classe2}</span>` : (r.classe1 ? `<br><span class="badge bg-light text-secondary border" style="font-size: 0.68rem;">${r.classe1}</span>` : '');
 
@@ -14644,7 +14869,7 @@ function renderizarTimelineEmElemento(dados, ids) {
       const objetoVisual = formatarDescricaoViaturaVisual(r.objeto, serieItem);
       const badgeSerie = serieItem ? `<br><span class="badge bg-light text-dark border">SÉRIE: ${serieItem}</span>` : '';
       const linkSei = (r.seiCompra && r.seiCompra !== '-' && r.seiCompra !== 'Sem SEI' && r.seiCompra !== 'N/I')
-        ? `<a href="sgmp-sei:${encodeURIComponent(r.seiCompra)}" class="text-primary fw-bold text-decoration-none" title="Abrir no SEI via Robô">${r.seiCompra} <i class="fa-solid fa-arrow-up-right-from-square ms-1" style="font-size: 0.7rem;"></i></a>`
+        ? `<a href="javascript:void(0)" onclick="acionarRoboSeiComVerificacao(\'${encodeURIComponent(r.seiCompra)}\'); return false;" class="text-primary fw-bold text-decoration-none" title="Abrir no SEI via Robô">${r.seiCompra} <i class="fa-solid fa-arrow-up-right-from-square ms-1" style="font-size: 0.7rem;"></i></a>`
         : (r.seiCompra || '-');
 
       html += `
