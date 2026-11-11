@@ -21159,7 +21159,7 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao, omeCliente, perfilClie
     var perfilNorm = (perfilUsuario || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
     var ehAdmin = (perfilNorm === "administrador" || perfilNorm.indexOf("admin") !== -1);
 
-    var chaveCacheDash = "DASH_VISAO_GERAL_V8_" + (ehAdmin ? "ADMIN" : (omeUsuario || "USER").toUpperCase().replace(/[^A-Z0-9]/g, "_"));
+    var chaveCacheDash = "DASH_VISAO_GERAL_V9_" + (ehAdmin ? "ADMIN" : (omeUsuario || "USER").toUpperCase().replace(/[^A-Z0-9]/g, "_"));
     if (!forcarAtualizacao) {
       var dashCached = lerDeCacheChunked_(chaveCacheDash);
       if (dashCached && dashCached.sucesso && dashCached.dados && dashCached.dados.length > 0) {
@@ -21249,10 +21249,6 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao, omeCliente, perfilClie
       var qtd = (r[4] && r[4].v) ? parseInt(r[4].v, 10) : 0;
       if (qtd <= 0 || !objNome) continue;
 
-      // Exclui viaturas de serem tratadas como materiais no dashboard
-      if (typeof ehViaturaMaterialGeral_ === 'function' && ehViaturaMaterialGeral_(objNome)) {
-        continue;
-      }
       mapaTodosMateriaisDistintos[objNome] = true;
 
       mapaOmes[ome] = true;
@@ -21345,7 +21341,6 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao, omeCliente, perfilClie
       var cMat = partes[2];
       var cVal = mapaCargas[chCarga];
       if (!cVal || cVal <= 0 || !cMat) continue;
-      if (typeof ehViaturaMaterialGeral_ === 'function' && ehViaturaMaterialGeral_(cMat)) continue;
       mapaTodosMateriaisDistintos[cMat] = true;
       if (!ehAdmin && omeUsuario && cOme !== (typeof obterOmePadronizada === 'function' ? obterOmePadronizada(omeUsuario) : omeUsuario).toUpperCase()) continue;
 
