@@ -30736,8 +30736,8 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       });
     } else {
       // Fallback CSV com BOM UTF-8
-      let csv = '﻿#;UNIDADE/OME;SUBUNIDADE;MATERIAL;CLASSE 1;CLASSE 2;CLASSE 3;QUANTIDADE IDEAL;TOTAL;ECD;SCD;EXTRAVIADO;ACAUTELADO;SALDO
-';
+      var cabecalhoCsv = "\uFEFF#;UNIDADE/OME;SUBUNIDADE;MATERIAL;CLASSE 1;CLASSE 2;CLASSE 3;QUANTIDADE IDEAL;TOTAL;ECD;SCD;EXTRAVIADO;ACAUTELADO;SALDO\n";
+      var csv = cabecalhoCsv;
       rowsSheet1.forEach(function(r) {
         csv += [
           r['#'],
@@ -30754,8 +30754,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
           r['EXTRAVIADO'],
           r['ACAUTELADO'],
           r['SALDO (EXISTENTE - IDEAL)']
-        ].join(';') + '
-';
+        ].join(';') + "\n";
       });
 
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
