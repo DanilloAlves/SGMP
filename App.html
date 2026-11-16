@@ -1385,6 +1385,9 @@
             <button class="btn btn-sm btn-outline-danger py-1 px-2" onclick="carregarDadosDashboardVisaoGeral(true)" title="Recarregar dados do painel" style="font-size: 0.78rem;">
               <i class="fa-solid fa-rotate me-1"></i> Atualizar
             </button>
+            <button class="btn btn-sm btn-outline-success py-1 px-2" onclick="exportarDashboardExcel()" title="Exportar Tabela de Materiais para Excel (.xlsx)" style="font-size: 0.78rem;">
+              <i class="fa-solid fa-file-excel me-1 text-success"></i> Exportar Excel
+            </button>
             <button class="btn btn-sm btn-outline-secondary py-1 px-2" onclick="exportarDashboardPdf()" title="Exportar / Imprimir Relatório do Dashboard em PDF" style="font-size: 0.78rem;">
               <i class="fa-solid fa-file-pdf text-danger me-1"></i> Exportar PDF
             </button>
@@ -1602,6 +1605,9 @@
               </div>
               <div class="d-flex align-items-center gap-2">
                 <input type="text" id="filtroTextoTabelaDash" class="form-control form-control-sm py-1 px-2" placeholder="Buscar material ou classe..." style="max-width: 260px; font-size: 0.78rem;" onkeyup="filtrarTabelaMateriaisDashLocal()">
+                <button class="btn btn-sm btn-outline-success py-1 px-2 d-flex align-items-center" onclick="exportarDashboardExcel()" title="Exportar Tabela em Excel (.xlsx)" style="font-size: 0.78rem; white-space: nowrap;">
+                  <i class="fa-solid fa-file-excel me-1 text-success"></i> Exportar Excel
+                </button>
               </div>
             </div>
             <div class="table-responsive" style="max-height: 420px; overflow-y: auto;">
@@ -30507,6 +30513,261 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       confirmButtonText: 'Fechar',
       confirmButtonColor: '#475569'
     });
+  }
+
+  // Exporta a tabela do Dashboard e a base estratificada para Excel (.xlsx)
+  function exportarDashboardExcel() {
+    if (!cacheDadosDashboard || !cacheDadosDashboard.dados) {
+      Swal.fire('Aviso', 'Aguarde o carregamento do dashboard antes de exportar para Excel.', 'info');
+      return;
+    }
+
+    const selOme = document.getElementById('filtroDashOme');
+    const selSub = document.getElementById('filtroDashSubunidade');
+    const selStatus = document.getElementById('filtroDashStatus');
+    const selMat = $('#filtroDashMaterial');
+
+    const omeFiltro = selOme ? selOme.value : 'TODAS';
+    const subFiltro = selSub ? selSub.value : 'TODAS';
+    const statusFiltro = selStatus ? selStatus.value : 'TODOS';
+    const matsSel = (selMat.length && selMat.val()) ? selMat.val() : [];
+
+    const omeTexto = selOme ? (selOme.options[selOme.selectedIndex] ? selOme.options[selOme.selectedIndex].text : selOme.value) : 'TODAS';
+    let subTexto = selSub ? (selSub.options[selSub.selectedIndex] ? selSub.options[selSub.selectedIndex].text : selSub.value) : 'TODAS';
+    if (subunidadeFiltroGrafico) {
+      subTexto = subunidadeFiltroGrafico + ' (Filtrado no Gráfico)';
+    }
+    const statusTexto = selStatus ? selStatus.value : 'TODOS';
+    const matTexto = matsSel.length > 0 ? (matsSel.length === 1 ? matsSel[0] : matsSel.length + ' materiais selecionados') : 'Todos os materiais';
+    const filtroTexto = (document.getElementById('filtroTextoTabelaDash')?.value || '').trim();
+
+    // 1. Obtém os itens da tabela visível conforme busca e filtros
+    let itensTabela = (listaMateriaisDetalhamentoDash || []).slice();
+    if (filtroTexto) {
+      const termo = filtroTexto.toLowerCase();
+      itensTabela = itensTabela.filter(function(m) {
+        return (m.nome && m.nome.toLowerCase().includes(termo)) ||
+               (m.classe1 && m.classe1.toLowerCase().includes(termo)) ||
+               (m.classe2 && m.classe2.toLowerCase().includes(termo)) ||
+               (m.classe3 && m.classe3.toLowerCase().includes(termo));
+      });
+    }
+
+    if (statusFiltro !== 'TODOS') {
+      const stKey = statusFiltro.toLowerCase();
+      itensTabela = itensTabela.filter(function(m) {
+        return (m[stKey] || 0) > 0;
+      });
+      itensTabela.sort(function(a, b) {
+        return (b[stKey] || 0) - (a[stKey] || 0);
+      });
+    }
+
+    if (itensTabela.length === 0) {
+      Swal.fire('Aviso', 'Nenhum material encontrado com os filtros atuais para exportar.', 'warning');
+      return;
+    }
+
+    // 2. Monta Sheet 1: Tabela_Materiais (Consolidado conforme a visão atual)
+    const rowsSheet1 = itensTabela.map(function(m, idx) {
+      const ideal = Number(m.cargaPadrao) || 0;
+      const total = Number(m.total) || 0;
+      const ecd = Number(m.ecd) || 0;
+      const scd = Number(m.scd) || 0;
+      const ext = Number(m.extraviado) || 0;
+      const acaut = Number(m.acautelado) || 0;
+      const saldo = (ideal > 0) ? (total - ideal) : '';
+
+      return {
+        '#': idx + 1,
+        'UNIDADE / OME': omeTexto,
+        'SUBUNIDADE': subunidadeFiltroGrafico || subTexto,
+        'DESCRIÇÃO DO MATERIAL (OBJETO)': m.nome,
+        'CLASSE 1': m.classe1 || '-',
+        'CLASSE 2': m.classe2 || '-',
+        'CLASSE 3': m.classe3 || '-',
+        'QUANTIDADE IDEAL': ideal > 0 ? ideal : 0,
+        'SOMA TOTAL': total,
+        'EM USO (ECD)': ecd,
+        'SEM CONDIÇÕES (SCD)': scd,
+        'EXTRAVIADO': ext,
+        'ACAUTELADO': acaut,
+        'SALDO (EXISTENTE - IDEAL)': saldo
+      };
+    });
+
+    // 3. Monta Sheet 2: Base_Estratificada (Detalhamento granular por OME, Subunidade e Material)
+    const rowsSheet2 = [];
+    const normComp = function(s) {
+      return String(s || '').trim().toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    };
+    const omeFiltroOficial = (omeFiltro && omeFiltro !== 'TODAS' && typeof obterNomeOficialOme === 'function') ? obterNomeOficialOme(omeFiltro) : omeFiltro;
+
+    (cacheDadosDashboard.dados || []).forEach(function(item) {
+      const itemOmeOficial = (typeof obterNomeOficialOme === 'function' ? obterNomeOficialOme(item.ome) : item.ome) || 'SEM OME';
+      if (omeFiltro !== 'TODAS' && normComp(itemOmeOficial) !== normComp(omeFiltroOficial)) return;
+      if (subFiltro !== 'TODAS' && normComp(item.subunidade) !== normComp(subFiltro)) return;
+      if (subunidadeFiltroGrafico && normComp(item.subunidade) !== normComp(subunidadeFiltroGrafico)) return;
+
+      (item.materiais || []).forEach(function(m) {
+        if (!m || !m.nome) return;
+        if (matsSel.length > 0 && !matsSel.includes(m.nome)) return;
+
+        if (filtroTexto) {
+          const termo = filtroTexto.toLowerCase();
+          const matchTexto = (m.nome && m.nome.toLowerCase().includes(termo)) ||
+                             (m.classe1 && m.classe1.toLowerCase().includes(termo)) ||
+                             (m.classe2 && m.classe2.toLowerCase().includes(termo)) ||
+                             (m.classe3 && m.classe3.toLowerCase().includes(termo));
+          if (!matchTexto) return;
+        }
+
+        if (statusFiltro !== 'TODOS') {
+          const stKey = statusFiltro.toLowerCase();
+          if ((m[stKey] || 0) <= 0) return;
+        }
+
+        const ideal = Number(m.cargaPadrao) || 0;
+        const ecd = Number(m.ecd) || 0;
+        const scd = Number(m.scd) || 0;
+        const ext = Number(m.extraviado) || 0;
+        const acaut = Number(m.acautelado) || 0;
+        const total = Number(m.total) || (ecd + scd + ext + acaut);
+        const saldo = (ideal > 0) ? (total - ideal) : '';
+
+        rowsSheet2.push({
+          'UNIDADE / OME': itemOmeOficial,
+          'SUBUNIDADE': item.subunidade || 'SEDE',
+          'DESCRIÇÃO DO MATERIAL (OBJETO)': m.nome,
+          'CLASSE 1': m.classe1 || item.classe1 || '-',
+          'CLASSE 2': m.classe2 || item.classe2 || '-',
+          'CLASSE 3': m.classe3 || item.classe3 || '-',
+          'QUANTIDADE IDEAL': ideal > 0 ? ideal : 0,
+          'SOMA TOTAL': total,
+          'EM USO (ECD)': ecd,
+          'SEM CONDIÇÕES (SCD)': scd,
+          'EXTRAVIADO': ext,
+          'ACAUTELADO': acaut,
+          'SALDO (EXISTENTE - IDEAL)': saldo
+        });
+      });
+    });
+
+    // 4. Monta Sheet 3: Parametros_Filtros (Metadados da exportação e KPIs)
+    const kpiTot = document.getElementById('kpiDashTotal')?.innerText || '0';
+    const kpiEcd = document.getElementById('kpiDashEcd')?.innerText || '0';
+    const kpiScd = document.getElementById('kpiDashScd')?.innerText || '0';
+    const kpiAcaut = document.getElementById('kpiDashAcautelado')?.innerText || '0';
+    const kpiExtr = document.getElementById('kpiDashExtraviado')?.innerText || '0';
+    const kpiSubs = document.getElementById('kpiDashTotalSubs')?.innerText || '0';
+    const rotuloSubs = document.getElementById('kpiDashSubtituloSubs')?.innerText || 'OMEs / Subunidades';
+
+    const rowsSheet3 = [
+      { 'PARÂMETRO': 'Data e Hora da Exportação', 'VALOR': new Date().toLocaleString('pt-BR') },
+      { 'PARÂMETRO': 'Unidade / OME', 'VALOR': omeTexto },
+      { 'PARÂMETRO': 'Subunidade', 'VALOR': subunidadeFiltroGrafico || subTexto },
+      { 'PARÂMETRO': 'Situação / Status Filtrado', 'VALOR': statusTexto },
+      { 'PARÂMETRO': 'Material(is) Selecionado(s)', 'VALOR': matTexto },
+      { 'PARÂMETRO': 'Termo de Busca na Tabela', 'VALOR': filtroTexto || 'Nenhum (Todos)' },
+      { 'PARÂMETRO': 'Total Geral de Itens (KPI)', 'VALOR': kpiTot },
+      { 'PARÂMETRO': 'Em Uso - ECD (KPI)', 'VALOR': kpiEcd },
+      { 'PARÂMETRO': 'Sem Condições - SCD (KPI)', 'VALOR': kpiScd },
+      { 'PARÂMETRO': 'Acautelado (KPI)', 'VALOR': kpiAcaut },
+      { 'PARÂMETRO': 'Extraviado (KPI)', 'VALOR': kpiExtr },
+      { 'PARÂMETRO': 'Total ' + rotuloSubs, 'VALOR': kpiSubs },
+      { 'PARÂMETRO': 'Quantidade de Materiais Listados', 'VALOR': rowsSheet1.length },
+      { 'PARÂMETRO': 'Registros na Base Estratificada', 'VALOR': rowsSheet2.length }
+    ];
+
+    // Nome padronizado do arquivo Excel
+    const dataHoraIso = new Date().toISOString().slice(0, 10);
+    const omeSanitizada = (omeTexto || 'CBMPE').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9]/g, '_').substring(0, 25);
+    const nomeArquivo = 'Dashboard_Materiais_' + omeSanitizada + '_' + dataHoraIso + '.xlsx';
+
+    if (typeof XLSX !== 'undefined') {
+      const wb = XLSX.utils.book_new();
+
+      // Sheet 1: Tabela_Materiais
+      const ws1 = XLSX.utils.json_to_sheet(rowsSheet1);
+      const colWidths1 = Object.keys(rowsSheet1[0] || {}).map(function(k) {
+        let maxLen = k.length;
+        rowsSheet1.slice(0, 80).forEach(function(r) {
+          const l = String(r[k] !== undefined && r[k] !== null ? r[k] : '').length;
+          if (l > maxLen) maxLen = l;
+        });
+        return { wch: Math.min(Math.max(maxLen + 3, 10), 55) };
+      });
+      ws1['!cols'] = colWidths1;
+      XLSX.utils.book_append_sheet(wb, ws1, 'Tabela_Materiais');
+
+      // Sheet 2: Base_Estratificada
+      if (rowsSheet2.length > 0) {
+        const ws2 = XLSX.utils.json_to_sheet(rowsSheet2);
+        const colWidths2 = Object.keys(rowsSheet2[0] || {}).map(function(k) {
+          let maxLen = k.length;
+          rowsSheet2.slice(0, 80).forEach(function(r) {
+            const l = String(r[k] !== undefined && r[k] !== null ? r[k] : '').length;
+            if (l > maxLen) maxLen = l;
+          });
+          return { wch: Math.min(Math.max(maxLen + 3, 10), 55) };
+        });
+        ws2['!cols'] = colWidths2;
+        XLSX.utils.book_append_sheet(wb, ws2, 'Base_Estratificada');
+      }
+
+      // Sheet 3: Parametros_Filtros
+      const ws3 = XLSX.utils.json_to_sheet(rowsSheet3);
+      ws3['!cols'] = [{ wch: 35 }, { wch: 45 }];
+      XLSX.utils.book_append_sheet(wb, ws3, 'Parametros_Filtros');
+
+      XLSX.writeFile(wb, nomeArquivo);
+
+      Swal.fire({
+        icon: 'success',
+        title: 'Exportado com Sucesso!',
+        html: 'O arquivo Excel <strong>' + escapeHtmlResumo(nomeArquivo) + '</strong> foi gerado com sucesso contendo as abas:<br>' +
+              '<ul class="text-start mt-2 mb-0" style="font-size: 0.85rem;">' +
+              '<li><strong>Tabela_Materiais:</strong> Consolidação de ' + rowsSheet1.length + ' materiais com totais por situação e saldo.</li>' +
+              '<li><strong>Base_Estratificada:</strong> ' + rowsSheet2.length + ' registros detalhados por OME e Subunidade para análises e tabelas dinâmicas.</li>' +
+              '<li><strong>Parametros_Filtros:</strong> Metadados e KPIs do momento da exportação.</li>' +
+              '</ul>',
+        timer: 4500,
+        showConfirmButton: true
+      });
+    } else {
+      // Fallback CSV com BOM UTF-8
+      let csv = '﻿#;UNIDADE/OME;SUBUNIDADE;MATERIAL;CLASSE 1;CLASSE 2;CLASSE 3;QUANTIDADE IDEAL;TOTAL;ECD;SCD;EXTRAVIADO;ACAUTELADO;SALDO
+';
+      rowsSheet1.forEach(function(r) {
+        csv += [
+          r['#'],
+          '"' + (r['UNIDADE / OME'] || '').replace(/"/g, '""') + '"',
+          '"' + (r['SUBUNIDADE'] || '').replace(/"/g, '""') + '"',
+          '"' + (r['DESCRIÇÃO DO MATERIAL (OBJETO)'] || '').replace(/"/g, '""') + '"',
+          '"' + (r['CLASSE 1'] || '').replace(/"/g, '""') + '"',
+          '"' + (r['CLASSE 2'] || '').replace(/"/g, '""') + '"',
+          '"' + (r['CLASSE 3'] || '').replace(/"/g, '""') + '"',
+          r['QUANTIDADE IDEAL'],
+          r['SOMA TOTAL'],
+          r['EM USO (ECD)'],
+          r['SEM CONDIÇÕES (SCD)'],
+          r['EXTRAVIADO'],
+          r['ACAUTELADO'],
+          r['SALDO (EXISTENTE - IDEAL)']
+        ].join(';') + '
+';
+      });
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = nomeArquivo.replace('.xlsx', '.csv');
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      Swal.fire('Exportado', 'Arquivo CSV gerado com sucesso.', 'success');
+    }
   }
 
   // Exporta o Dashboard completo (Subunidades, KPIs, Gráficos) em formato PDF / Impressão
