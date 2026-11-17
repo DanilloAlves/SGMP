@@ -17364,6 +17364,7 @@ function validarCompatibilidadeEmailNome_(email, nome) {
     "sd", "cb", "sgt", "sub", "ten", "subten", "asp", "cap", "maj", "tc", "cel",
     "bm", "de", "da", "do", "das", "dos", "e", "qobm", "qpcbm", "qocbm", "qabm",
     "al", "ch", "cmt", "subcmt", "chefe", "bombeiro", "militar",
+    "aspirante", "aluno", "soldado", "cabo", "sargento", "subtenente", "tenente", "capitao", "major", "coronel",
     "1o", "2o", "3o", "1", "2", "3", "primeiro", "segundo", "terceiro"
   ];
 
