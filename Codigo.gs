@@ -182,7 +182,9 @@ function doGet(e) {
     }
   }
 
-  var usuario = verificarPermissaoUsuario(email);
+  // Força atualização instantânea da base de usuários no carregamento/login
+  invalidarCacheLoginsEUsuarios_();
+  var usuario = verificarPermissaoUsuario(email, true);
 
   if (!usuario) {
     var templateLogin = HtmlService.createTemplateFromFile('Login');
@@ -236,7 +238,7 @@ function doGet(e) {
 
 function padronizarPerfilUsuario_(pRaw) {
   var pNorm = String(pRaw || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-  if (pNorm.indexOf("admin") !== -1) return "Administrador";
+  if (pNorm.indexOf("admin") !== -1 || pNorm === "adm") return "Administrador";
   if (pNorm.indexOf("comandante") !== -1 || pNorm.indexOf("chefe") !== -1) return "Comandante de Unidade";
   return "Usuário";
 }
@@ -376,6 +378,16 @@ var _cacheUsuariosMem_ = {};
 var _cacheLoginsDadosMem_ = null;
 var _cacheLoginsDadosTime_ = 0;
 
+// Gatilho executado quando qualquer edição for feita diretamente na planilha do Google Sheets
+function onEdit(e) {
+  try {
+    var sheet = e && e.range && e.range.getSheet();
+    if (sheet && sheet.getName() === ABA_USUARIOS) {
+      invalidarCacheLoginsEUsuarios_();
+    }
+  } catch(err) {}
+}
+
 function invalidarCacheLoginsEUsuarios_(cpf, email) {
   _cacheUsuariosMem_ = {};
   _cacheLoginsDadosMem_ = null;
@@ -385,6 +397,10 @@ function invalidarCacheLoginsEUsuarios_(cpf, email) {
     if (cache) {
       cache.remove("DADOS_TABELA_LOGINS_CHUNKS_OK");
       cache.remove("TABELA_LOGINS_CHUNKS_V2");
+      cache.remove("TABELA_LOGINS_CHUNKS_V2_count");
+      for (var k = 0; k < 10; k++) {
+        cache.remove("TABELA_LOGINS_CHUNKS_V2_" + k);
+      }
       if (cpf) {
         var cClean = String(cpf).replace(/\D/g, "");
         cache.remove("USER_PERM_" + cClean);
@@ -401,22 +417,9 @@ function invalidarCacheLoginsEUsuarios_(cpf, email) {
 
 function obterDadosTabelaLoginsSeguro_(forcar) {
   var agora = new Date().getTime();
-  if (!forcar && _cacheLoginsDadosMem_ && (agora - _cacheLoginsDadosTime_ < 60000)) {
+  // Permite reaproveitamento em memória por no máximo 5 segundos para chamadas em cascata na mesma execução
+  if (!forcar && _cacheLoginsDadosMem_ && (agora - _cacheLoginsDadosTime_ < 5000)) {
     return _cacheLoginsDadosMem_;
-  }
-  var cache = CacheService.getScriptCache();
-  if (!forcar && cache) {
-    try {
-      var cachedOk = cache.get("DADOS_TABELA_LOGINS_CHUNKS_OK");
-      if (cachedOk) {
-        var parsed = (typeof lerDeCacheChunked_ === 'function') ? lerDeCacheChunked_("TABELA_LOGINS_CHUNKS_V2") : null;
-        if (parsed && Array.isArray(parsed) && parsed.length > 0) {
-          _cacheLoginsDadosMem_ = parsed;
-          _cacheLoginsDadosTime_ = agora;
-          return parsed;
-        }
-      }
-    } catch (e) {}
   }
   try {
     var ssUser = abrirPlanilhaSegura_(ID_PLANILHA_USUARIOS);
@@ -427,12 +430,6 @@ function obterDadosTabelaLoginsSeguro_(forcar) {
     var dados = (typeof obterValoresAbaSegura_ === 'function') ? obterValoresAbaSegura_(sheetLogins) : sheetLogins.getDataRange().getValues();
     _cacheLoginsDadosMem_ = dados;
     _cacheLoginsDadosTime_ = agora;
-    if (cache && typeof salvarEmCacheChunked_ === 'function') {
-      try {
-        salvarEmCacheChunked_("TABELA_LOGINS_CHUNKS_V2", dados, 120);
-        cache.put("DADOS_TABELA_LOGINS_CHUNKS_OK", "1", 120);
-      } catch (eCache) {}
-    }
     return dados;
   } catch (err) {
     console.error("Erro ao ler tabela Logins: " + err.message);
@@ -464,7 +461,7 @@ function obterIndicesLoginsArray_(cabecalho) {
   return idx;
 }
 
-function verificarPermissaoUsuario(emailOuCpfInformado) {
+function verificarPermissaoUsuario(emailOuCpfInformado, forcarAtualizacao) {
   try {
     var buscaAlvo = String(emailOuCpfInformado || "").trim().toLowerCase();
     
@@ -476,29 +473,20 @@ function verificarPermissaoUsuario(emailOuCpfInformado) {
     }
     if (!buscaAlvo) return null;
 
-        var chaveLimpa = buscaAlvo.replace(/[^a-z0-9]/g, "_");
+    var chaveLimpa = buscaAlvo.replace(/[^a-z0-9]/g, "_");
 
-    // 1. Memória de execução
-    if (_cacheUsuariosMem_[chaveLimpa]) {
+    if (forcarAtualizacao) {
+      _cacheUsuariosMem_ = {};
+      _cacheLoginsDadosMem_ = null;
+      _cacheLoginsDadosTime_ = 0;
+    }
+
+    // 1. Memória de execução rápida (apenas se não estiver forçando atualização)
+    if (!forcarAtualizacao && _cacheUsuariosMem_[chaveLimpa]) {
       return _cacheUsuariosMem_[chaveLimpa];
     }
 
-    // 2. CacheService (ScriptCache) - 90s de validade
-    var cache = CacheService.getScriptCache();
-    if (cache) {
-      try {
-        var userCached = cache.get("USER_PERM_" + chaveLimpa);
-        if (userCached) {
-          var parsed = JSON.parse(userCached);
-          if (parsed && parsed.cpf) {
-            _cacheUsuariosMem_[chaveLimpa] = parsed;
-            return parsed;
-          }
-        }
-      } catch (eCache) {}
-    }
-
-    var dados = obterDadosTabelaLoginsSeguro_();
+    var dados = obterDadosTabelaLoginsSeguro_(forcarAtualizacao);
     if (!dados || dados.length <= 1) return null;
 
     var idx = (typeof obterIndicesLoginsArray_ === 'function') ? obterIndicesLoginsArray_(dados[0]) : obterIndicesLogins_(dados[0]);
@@ -542,18 +530,36 @@ function verificarPermissaoUsuario(emailOuCpfInformado) {
           primeiroAcessoVal = (valRaw === "SIM" || valRaw === "TRUE");
         }
 
-        // O registro mais recente (último na planilha) define os dados do usuário, respeitando plenamente qualquer rebaixamento de perfil
-        candidatoEncontrado = {
-          nome: nomeUser,
-          email: rowEmail,
-          ome: obterOmePadronizada(omeUser),
-          perfil: perfilUser,
-          subunidade: subunidadeUser || "GERAL",
-          cpf: cpfUser,
-          status: rowStatus,
-          permissoes: padronizarPermissoesUsuario_(rowPerm, perfilUser),
-          primeiroAcesso: primeiroAcessoVal
-        };
+        // Se encontrar duplicata para o mesmo usuário, prioriza privilégio maior (Administrador > Comandante > Usuário)
+        var deveSubstituir = false;
+        if (!candidatoEncontrado) {
+          deveSubstituir = true;
+        } else if (perfilUser === "Administrador") {
+          deveSubstituir = true;
+        } else if (perfilUser === "Comandante de Unidade" && candidatoEncontrado.perfil !== "Administrador") {
+          deveSubstituir = true;
+        } else if (candidatoEncontrado.perfil !== "Administrador" && candidatoEncontrado.perfil !== "Comandante de Unidade") {
+          deveSubstituir = true;
+        }
+
+        if (deveSubstituir) {
+          candidatoEncontrado = {
+            nome: nomeUser,
+            email: rowEmail,
+            ome: obterOmePadronizada(omeUser),
+            perfil: perfilUser,
+            subunidade: subunidadeUser || "GERAL",
+            cpf: cpfUser,
+            status: rowStatus,
+            permissoes: padronizarPermissoesUsuario_(rowPerm, perfilUser),
+            primeiroAcesso: primeiroAcessoVal
+          };
+        } else {
+          // Mantém integridade de status bloqueado/inativo se constar em qualquer linha
+          if (rowStatus === "BLOQUEADO" || rowStatus === "INATIVO") {
+            candidatoEncontrado.status = rowStatus;
+          }
+        }
       }
     }
 
@@ -562,20 +568,6 @@ function verificarPermissaoUsuario(emailOuCpfInformado) {
         candidatoEncontrado.perfil = "Inativo";
       }
       _cacheUsuariosMem_[chaveLimpa] = candidatoEncontrado;
-      if (cache) {
-        try {
-          var jsonUser = JSON.stringify(candidatoEncontrado);
-          cache.put("USER_PERM_" + chaveLimpa, jsonUser, 120);
-          if (candidatoEncontrado.email) {
-            var kEmail = candidatoEncontrado.email.trim().toLowerCase().replace(/[^a-z0-9]/g, "_");
-            cache.put("USER_PERM_" + kEmail, jsonUser, 120);
-          }
-          if (candidatoEncontrado.cpf) {
-            var kCpf = candidatoEncontrado.cpf.replace(/\D/g, "");
-            cache.put("USER_PERM_" + kCpf, jsonUser, 120);
-          }
-        } catch(ePut) {}
-      }
       return candidatoEncontrado;
     }
 
@@ -599,7 +591,7 @@ function getDadosUsuarioLogado(identificadorCliente) {
       email = String(identificadorCliente).trim().toLowerCase();
     }
 
-    var usuario = verificarPermissaoUsuario(email || identificadorCliente);
+    var usuario = verificarPermissaoUsuario(email || identificadorCliente, true);
     if (usuario) {
       return usuario;
     }
