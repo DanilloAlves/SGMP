@@ -19354,14 +19354,14 @@ function descarregarMaterial(payload) {
       cache.remove("BQ_TABELA_HISTORICO_OK");
       if (omeUser) {
         cache.remove("ARVORE_ESTRUTURA_" + omeUser.replace(/[^A-Z0-9]/g, "_"));
-        cache.remove("DASH_VISAO_GERAL_V5_" + omeUser.replace(/[^A-Z0-9]/g, "_"));
+        cache.remove("DASH_VISAO_GERAL_V12_" + omeUser.replace(/[^A-Z0-9]/g, "_"));
         if (typeof invalidarCacheArmazenamentoOme_ === 'function') invalidarCacheArmazenamentoOme_(omeUser);
       }
       for (var r = 0; r < rows.length; r++) {
         var rOme = String(rows[r].f[3].v || "").trim();
         if (rOme && typeof invalidarCacheArmazenamentoOme_ === 'function') invalidarCacheArmazenamentoOme_(rOme);
       }
-      cache.remove("DASH_VISAO_GERAL_V5_ADMIN");
+      cache.remove("DASH_VISAO_GERAL_V12_ADMIN");
     } catch(eCache) {}
 
     // 7. Registra auditoria do sistema
@@ -21162,7 +21162,7 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao, omeCliente, perfilClie
     var ehAdmin = (perfilNorm === "administrador" || perfilNorm.indexOf("admin") !== -1);
     var temVisaoTodasOmes = ehAdmin || (usuario && Array.isArray(usuario.permissoes) && usuario.permissoes.indexOf("selecionar_todas_omes") !== -1);
 
-    var chaveCacheDash = "DASH_VISAO_GERAL_V11_" + (temVisaoTodasOmes ? "ADMIN" : (omeUsuario || "USER").toUpperCase().replace(/[^A-Z0-9]/g, "_"));
+    var chaveCacheDash = "DASH_VISAO_GERAL_V12_" + (temVisaoTodasOmes ? "ADMIN" : (omeUsuario || "USER").toUpperCase().replace(/[^A-Z0-9]/g, "_"));
     if (!forcarAtualizacao) {
       var dashCached = lerDeCacheChunked_(chaveCacheDash);
       if (dashCached && dashCached.sucesso && dashCached.dados && dashCached.dados.length > 0) {
