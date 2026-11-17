@@ -21919,8 +21919,13 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
           <tbody>
     `;
 
+    const chavesSubgruposOrdenadas = Object.keys(subgrupos).sort(function(a, b) {
+      return a.localeCompare(b, 'pt-BR', { numeric: true, sensitivity: 'base' });
+    });
+
     let subIdx = 0;
-    for (let subNome in subgrupos) {
+    for (let sIdx = 0; sIdx < chavesSubgruposOrdenadas.length; sIdx++) {
+      let subNome = chavesSubgruposOrdenadas[sIdx];
       let itensSub = subgrupos[subNome];
       let subId = `sub_${unitIndex}_${subIdx}`;
 
@@ -21957,6 +21962,10 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
           nomesObj.push(k);
         }
         gruposObj[k].push(i);
+      });
+
+      nomesObj.sort(function(a, b) {
+        return a.localeCompare(b, 'pt-BR', { numeric: true, sensitivity: 'base' });
       });
 
       nomesObj.forEach((nomeObj, objIdx) => {
@@ -22041,7 +22050,8 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     `;
 
     subIdx = 0;
-    for (let subNome in subgrupos) {
+    for (let mIdx = 0; mIdx < chavesSubgruposOrdenadas.length; mIdx++) {
+      let subNome = chavesSubgruposOrdenadas[mIdx];
       let itensSub = subgrupos[subNome];
       let subId = `sub_${unitIndex}_${subIdx}`;
 
@@ -22074,6 +22084,10 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
           nomesObjMob.push(k);
         }
         gruposObjMob[k].push(i);
+      });
+
+      nomesObjMob.sort(function(a, b) {
+        return a.localeCompare(b, 'pt-BR', { numeric: true, sensitivity: 'base' });
       });
 
       nomesObjMob.forEach((nomeObj, objIdx) => {
@@ -22354,7 +22368,11 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
 
         for (let sRes in omeData.subunidades) {
           const subData = omeData.subunidades[sRes];
-          const chavesSetores = Object.keys(subData.setores);
+          const chavesSetores = Object.keys(subData.setores).sort(function(a, b) {
+            if (a === "__SEM_SETOR__") return -1;
+            if (b === "__SEM_SETOR__") return 1;
+            return a.localeCompare(b, 'pt-BR', { numeric: true, sensitivity: 'base' });
+          });
 
           let totalItensSub = 0;
           chavesSetores.forEach(k => { totalItensSub += (subData.setores[k].itens || []).length; });
@@ -22468,7 +22486,11 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
         const omeData = arvore[oNome];
         for (let sRes in omeData.subunidades) {
           const subData = omeData.subunidades[sRes];
-          const chavesSetores = Object.keys(subData.setores);
+          const chavesSetores = Object.keys(subData.setores).sort(function(a, b) {
+            if (a === "__SEM_SETOR__") return -1;
+            if (b === "__SEM_SETOR__") return 1;
+            return a.localeCompare(b, 'pt-BR', { numeric: true, sensitivity: 'base' });
+          });
 
           let totalItensSub = 0;
           chavesSetores.forEach(k => { totalItensSub += (subData.setores[k].itens || []).length; });
@@ -22566,7 +22588,11 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
           }
 
           const subData = omeData.subunidades[sRes];
-          const chavesSetores = Object.keys(subData.setores);
+          const chavesSetores = Object.keys(subData.setores).sort(function(a, b) {
+            if (a === "__SEM_SETOR__") return -1;
+            if (b === "__SEM_SETOR__") return 1;
+            return a.localeCompare(b, 'pt-BR', { numeric: true, sensitivity: 'base' });
+          });
 
           let totalItensSub = 0;
           chavesSetores.forEach(k => { totalItensSub += (subData.setores[k].itens || []).length; });

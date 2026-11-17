@@ -368,6 +368,17 @@
           setoresMap[sNome].locaisMap[lNome].itens.push(it);
         }
       }
+
+      // Ordenacao A-Z, 0-9 de setores e locais
+      setoresOrdenados.sort(function(a, b) {
+        return a.localeCompare(b, 'pt-BR', { numeric: true, sensitivity: 'base' });
+      });
+      for (var sOrd = 0; sOrd < setoresOrdenados.length; sOrd++) {
+        var sNomOrd = setoresOrdenados[sOrd];
+        setoresMap[sNomOrd].locaisOrdenados.sort(function(a, b) {
+          return a.localeCompare(b, 'pt-BR', { numeric: true, sensitivity: 'base' });
+        });
+      }
     ?>
 
     <!-- 1. VISÃO DESKTOP / TABLET (TABELA) -->
@@ -963,6 +974,15 @@
             reg.patrimonios.push(patr);
           }
         }
+      });
+
+      // Ordenacao A-Z, 0-9 para impressao
+      setoresOrdenados.sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true, sensitivity: 'base' }));
+      setoresOrdenados.forEach(sNom => {
+        setoresMap[sNom].locaisOrdenados.sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true, sensitivity: 'base' }));
+        setoresMap[sNom].locaisOrdenados.forEach(lNom => {
+          setoresMap[sNom].locaisMap[lNom].materiaisOrdenados.sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true, sensitivity: 'base' }));
+        });
       });
 
       let corpoTabelasHtml = '';
