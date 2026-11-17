@@ -17995,6 +17995,12 @@ function getTodosUsuarios(filtroOmeSolicitante, perfilSolicitante) {
         usuarios.push(mapaUsuarios[k]);
       }
     }
+
+    // Ordena os usuários pela ordem alfabética A-Z (Nome Completo)
+    usuarios.sort(function(a, b) {
+      return String(a.nome || "").localeCompare(String(b.nome || ""), "pt-BR", { sensitivity: "base" });
+    });
+
     return usuarios;
   } catch (err) {
     throw new Error("Erro ao buscar usuários: " + err.message);

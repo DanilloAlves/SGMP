@@ -24905,6 +24905,9 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
           corpo.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-3">Nenhum usuário encontrado.</td></tr>';
           return;
         }
+
+        // Ordena os usuários em ordem alfabética A-Z (Nome Completo)
+        usuarios.sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR', { sensitivity: 'base' }));
         
         let html = '';
         usuarios.forEach(u => {
