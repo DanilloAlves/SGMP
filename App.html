@@ -18550,7 +18550,7 @@ function renderizarTimelineEmElemento(dados, ids) {
   function ehSubunidadeEquivalenteOmeCliente(subNome, omeRef) {
     if (!subNome) return true;
     const sub = String(subNome).trim();
-    if (!sub || sub === '-' || sub === '--' || sub === '.' || sub.toUpperCase() === 'SEDE' || sub.toUpperCase() === 'N/A' || sub.toUpperCase() === 'NENHUMA' || sub.toUpperCase() === 'SEM SUBUNIDADE') {
+    if (!sub || sub === '-' || sub === '--' || sub === '.' || sub.toUpperCase() === 'SEDE' || sub.toUpperCase() === 'N/A' || sub.toUpperCase() === 'NENHUMA' || sub.toUpperCase() === 'SEM SUBUNIDADE' || sub.toUpperCase().indexOf('SELECIONE') !== -1) {
       return true;
     }
 
@@ -18883,16 +18883,10 @@ function renderizarTimelineEmElemento(dados, ids) {
 
       // Coluna C1 de Bases_Ocultas: Mensagem orientativa quando a UNIDADE estiver vazia
       wsDados.getCell('C1').value = 'SELECIONE A UNIDADE (OME) PRIMEIRO';
+      workbook.definedNames.add('Bases_Ocultas!$C$1', 'SUB_DEFAULT');
 
-      // Colunas D em diante (D até AT): Cada OME em uma coluna com suas respectivas Subunidades
-      // Linha 1: Nome da OME
-      // Linha 2: Quantidade de subunidades
-      // Linhas 3..N: Subunidades (iniciando por SEDE e subunidades da organização e árvore)
+      // Colunas D em diante: Cada OME em uma coluna com suas respectivas Subunidades registradas como Intervalo Nomeado (SUB_1, SUB_2, ...)
       const startColIdx = 4; // Coluna D
-      const endColIdx = startColIdx + listaOficialOmes.length - 1;
-      const startColLetter = getColLetter(startColIdx);
-      const endColLetter = getColLetter(endColIdx);
-
       listaOficialOmes.forEach((ome, idx) => {
         const colIdx = startColIdx + idx;
         const colLetter = getColLetter(colIdx);
@@ -18901,11 +18895,15 @@ function renderizarTimelineEmElemento(dados, ids) {
           : ['SEDE'];
 
         wsDados.getCell(`${colLetter}1`).value = ome;
-        wsDados.getCell(`${colLetter}2`).value = listaSubs.length;
 
         listaSubs.forEach((sub, sIdx) => {
-          wsDados.getCell(`${colLetter}${sIdx + 3}`).value = sub;
+          wsDados.getCell(`${colLetter}${sIdx + 2}`).value = sub;
         });
+
+        const endRow = listaSubs.length + 1;
+        const rangeStr = `Bases_Ocultas!$${colLetter}$2:$${colLetter}$${endRow}`;
+        const nameStr = `SUB_${idx + 1}`;
+        workbook.definedNames.add(rangeStr, nameStr);
       });
 
       wsDados.state = 'hidden';
@@ -18958,7 +18956,7 @@ function renderizarTimelineEmElemento(dados, ids) {
         };
 
         // Coluna D (SUBUNIDADE - VALIDAÇÃO CONDICIONAL À OME SELECIONADA NA COLUNA C)
-        const formulaSub = `IF(C${i}="", Bases_Ocultas!$C$1, OFFSET(Bases_Ocultas!$C$3, 0, MATCH(C${i}, Bases_Ocultas!$${startColLetter}$1:$${endColLetter}$1, 0), HLOOKUP(C${i}, Bases_Ocultas!$${startColLetter}$1:$${endColLetter}$2, 2, FALSE), 1))`;
+        const formulaSub = `INDIRECT(IF(C${i}="", "SUB_DEFAULT", "SUB_" & MATCH(C${i}, Bases_Ocultas!$A$1:$A$${listaOficialOmes.length}, 0)))`;
         ws.getCell(`D${i}`).dataValidation = {
           type: 'list', allowBlank: true, showErrorMessage: true, errorStyle: 'warning',
           errorTitle: 'Subunidade Inválida', error: 'Selecione uma Subunidade válida da lista pré-definida para a UNIDADE selecionada.',
