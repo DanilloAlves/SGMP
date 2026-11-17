@@ -17340,7 +17340,7 @@ function debugTestarResolucaoArvore(idLocalDestino, unidadeOme) {
   }
 }
 
-// Valida se o e-mail institucional @bombeiros.pe.gov.br possui partes condizentes com o nome completo
+// Valida se cada parte do e-mail institucional (separada por ponto) está contida no Nome Completo
 function validarCompatibilidadeEmailNome_(email, nome) {
   if (!email || !nome) return false;
 
@@ -17352,14 +17352,32 @@ function validarCompatibilidadeEmailNome_(email, nome) {
       .trim();
   }
 
-  var emailLimpo = normalizar(email);
-  if (!emailLimpo.endsWith("bombeiros.pe.gov.br")) return false;
+  var emailNorm = normalizar(email);
+  // Isola a parte antes do @
+  var parteUsuario = emailNorm.split("@")[0];
+  if (!parteUsuario) return false;
 
-  var usuarioEmail = emailLimpo.split("@")[0].replace(/[^a-z0-9._-]/g, "");
-  if (!usuarioEmail || usuarioEmail.length < 2) return false;
+  // O '.' divide os nomes (ex: danillo.alves -> ['danillo', 'alves'])
+  var partesEmail = parteUsuario.split(".");
+  var tokensEmail = [];
+  for (var i = 0; i < partesEmail.length; i++) {
+    var t = partesEmail[i].replace(/[^a-z]/g, "").trim();
+    if (t.length >= 2) {
+      tokensEmail.push(t);
+    }
+  }
 
-  var nomeNorm = normalizar(nome).replace(/[^a-z0-9\s._-]/g, "");
-  if (!nomeNorm || nomeNorm.length < 3) return false;
+  if (tokensEmail.length === 0) return false;
+
+  var nomeNorm = normalizar(nome);
+
+  // Procura cada um dos nomes no Nome Completo do Usuário
+  for (var j = 0; j < tokensEmail.length; j++) {
+    var token = tokensEmail[j];
+    if (nomeNorm.indexOf(token) === -1) {
+      return false;
+    }
+  }
 
   return true;
 }

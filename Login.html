@@ -249,18 +249,32 @@
     });
   }
 
-    // Validação silenciosa de compatibilidade no cliente
+  // Validação de compatibilidade: cada nome do e-mail institucional deve constar no Nome Completo
   function validarCompatibilidadeEmailNomeClient(email, nome) {
     if (!email || !nome) return false;
     var norm = function(str) {
       return String(str || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
     };
-    var emailLimpo = norm(email);
-    if (!emailLimpo.endsWith('bombeiros.pe.gov.br')) return false;
-    var usuarioEmail = emailLimpo.split('@')[0].replace(/[^a-z0-9._-]/g, '');
-    if (!usuarioEmail || usuarioEmail.length < 2) return false;
-    var nomeNorm = norm(nome).replace(/[^a-z0-9\s._-]/g, '');
-    if (!nomeNorm || nomeNorm.length < 3) return false;
+    var emailNorm = norm(email);
+    var parteUsuario = emailNorm.split('@')[0];
+    if (!parteUsuario) return false;
+
+    var partes = parteUsuario.split('.');
+    var tokens = [];
+    for (var i = 0; i < partes.length; i++) {
+      var t = partes[i].replace(/[^a-z]/g, '').trim();
+      if (t.length >= 2) {
+        tokens.push(t);
+      }
+    }
+    if (tokens.length === 0) return false;
+
+    var nomeNorm = norm(nome);
+    for (var j = 0; j < tokens.length; j++) {
+      if (nomeNorm.indexOf(tokens[j]) === -1) {
+        return false;
+      }
+    }
     return true;
   }
 
