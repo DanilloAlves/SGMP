@@ -89,7 +89,7 @@
 
   <div class="mt-3 text-center">
     <button type="button" onclick="abrirModalEsqueciSenha()" class="btn btn-link text-secondary small text-decoration-none p-1 fw-bold">
-      <i class="fa-solid fa-key text-danger me-1"></i> Esqueci minha Senha / PIN
+      <i class="fa-solid fa-key text-danger me-1"></i> Esqueci minha Senha / Reenviar PIN Temporário
     </button>
   </div>
   
@@ -406,10 +406,10 @@
   // Abre modal de 'Esqueci minha Senha / PIN'
   function abrirModalEsqueciSenha() {
     Swal.fire({
-      title: '<i class="fa-solid fa-key text-danger me-2"></i> Recuperar Senha / PIN',
+      title: '<i class="fa-solid fa-key text-danger me-2"></i> Reenviar PIN / Recuperar Senha',
       html: `
         <div class="text-start p-2 small">
-          <p class="text-muted mb-3">Informe seus dados para receber um <strong>PIN temporário de recuperação</strong> no seu e-mail funcional institucional.</p>
+          <p class="text-muted mb-3">Informe seus dados para receber o seu <strong>PIN temporário de acesso</strong> no seu e-mail funcional e no seu Gmail cadastrado.</p>
           
           <div class="mb-3">
             <label class="form-label fw-bold">CPF (Somente números):</label>
@@ -465,15 +465,33 @@
 
     google.script.run
       .withSuccessHandler(resp => {
+        const pinExibir = (resp && resp.pinTemporario) ? resp.pinTemporario : '';
         Swal.fire({
           icon: 'success',
-          title: 'PIN Temporário Enviado!',
+          title: 'PIN Temporário Gerado!',
           html: `
-            <p class="text-muted small mb-2">Um novo PIN temporário de recuperação foi enviado com sucesso para:</p>
-            <div class="badge bg-danger-subtle text-danger border border-danger-subtle p-2 fs-6 mb-3 font-monospace">${emailInst}</div>
-            <p class="text-muted small mb-0">Para utilizá-lo, clique em <strong>"Entrar com Conta Google"</strong> na tela de login. A tela de segurança solicitará este PIN temporário para você cadastrar seu novo PIN pessoal definitivo.</p>
+            <p class="text-muted small mb-2">Um novo PIN temporário foi gerado com sucesso para seu acesso:</p>
+            ${pinExibir ? `
+              <div class="alert alert-success border text-center py-3 my-2" style="background:#f0fdf4; border-color:#86efac !important;">
+                <div class="text-muted small fw-bold text-uppercase mb-1">Seu PIN Temporário de Acesso:</div>
+                <div class="display-6 fw-bold text-success my-1" style="letter-spacing: 6px;">${pinExibir}</div>
+                <button type="button" class="btn btn-sm btn-outline-success mt-2" onclick="navigator.clipboard.writeText('${pinExibir}'); this.innerHTML='<i class=\'fa-solid fa-check me-1\'></i> Copiado!';">
+                  <i class="fa-regular fa-copy me-1"></i> Copiar PIN
+                </button>
+              </div>
+            ` : `
+              <div class="badge bg-danger-subtle text-danger border border-danger-subtle p-2 fs-6 mb-3 font-monospace">${emailInst}</div>
+            `}
+            <div class="alert alert-light border small text-muted text-start py-2 mb-2">
+              <i class="fa-solid fa-envelope me-1 text-danger"></i> Enviado também para <strong>${emailInst}</strong>${resp && resp.emailGoogle ? ' e <strong>' + resp.emailGoogle + '</strong>' : ''}.
+            </div>
+            <p class="text-muted small mb-0">Clique abaixo em <strong>"Entrar com Conta Google"</strong> para acessar. Na tela de segurança, informe este PIN temporário e cadastre seu PIN pessoal definitivo.</p>
           `,
+          confirmButtonText: '<i class="fa-brands fa-google me-1"></i> Entrar com Conta Google',
           confirmButtonColor: '#991b1b'
+        }).then(() => {
+          const btnEntrar = document.getElementById('btnEntrarGoogle');
+          if (btnEntrar) btnEntrar.focus();
         });
       })
       .withFailureHandler(err => {
@@ -536,21 +554,37 @@
 
         google.script.run
           .withSuccessHandler(r => {
+            const pinGerado = (r && r.pinTemporario) ? r.pinTemporario : '';
             Swal.fire({
               icon: 'success',
               title: 'Cadastro Concluído!',
               html: `
-                <p class="mb-2">Sua identidade militar foi confirmada com sucesso através do e-mail <strong>${dadosForm.emailInstitucional}</strong>.</p>
-                <p class="mb-3">Enviamos a sua <strong>Senha / PIN Temporário de Primeiro Acesso</strong> para a sua caixa postal institucional.</p>
+                <p class="mb-2">Sua identidade foi confirmada com sucesso através de <strong>${dadosForm.emailInstitucional}</strong>!</p>
+                
+                <div class="alert alert-success border text-center py-3 my-3" style="background:#f0fdf4; border-color:#86efac !important;">
+                  <div class="text-muted small fw-bold text-uppercase mb-1">Seu PIN Temporário de Primeiro Acesso:</div>
+                  <div class="display-5 fw-bold text-success my-2" style="letter-spacing: 6px;">${pinGerado || '------'}</div>
+                  <button type="button" class="btn btn-sm btn-outline-success mt-1" onclick="navigator.clipboard.writeText('${pinGerado}'); this.innerHTML='<i class=\'fa-solid fa-check me-1\'></i> Copiado!';">
+                    <i class="fa-regular fa-copy me-1"></i> Copiar PIN
+                  </button>
+                </div>
+
+                <div class="alert alert-light border text-start small py-2 mb-3">
+                  <i class="fa-solid fa-paper-plane text-primary me-1"></i> Uma cópia deste PIN também foi enviada para o seu e-mail funcional e para o seu Gmail (<strong>${dadosForm.email}</strong>).
+                </div>
+
                 <div class="alert alert-warning border text-start small py-2 mb-0">
-                  <i class="fa-solid fa-key text-danger me-1"></i> <strong>Próximo passo:</strong> Clique em <strong>"Entrar com Conta Google"</strong> na tela inicial. A tela de segurança será exibida para você digitar esse PIN temporário e cadastrar o seu PIN pessoal definitivo.
+                  <i class="fa-solid fa-key text-danger me-1"></i> <strong>Como acessar:</strong> Clique no botão abaixo para entrar. Na tela de segurança, informe este PIN temporário para criar seu <strong>PIN pessoal definitivo</strong>.
                 </div>
               `,
-              confirmButtonText: '<i class="fa-solid fa-arrow-right-to-bracket me-1"></i> Ir para Login',
-              confirmButtonColor: '#991b1b'
+              confirmButtonText: '<i class="fa-brands fa-google me-1"></i> Fazer Login com Google',
+              confirmButtonColor: '#991b1b',
+              allowOutsideClick: false
             }).then(() => {
-              const btnEntrar = document.getElementById('btnEntrarGoogle');
-              if (btnEntrar) btnEntrar.focus();
+              var btnEntrar = document.getElementById('btnEntrarGoogle');
+              if (btnEntrar) {
+                btnEntrar.click();
+              }
             });
           })
           .withFailureHandler(err => {

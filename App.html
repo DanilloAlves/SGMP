@@ -1193,11 +1193,17 @@
       <form id="formGatePrimeiroAcesso" onsubmit="submeterGatePrimeiroAcesso(event); return false;" class="text-start">
         <div class="mb-3">
           <label class="form-label fw-bold small text-secondary mb-1">
-            <i class="fa-solid fa-envelope-open-text text-danger me-1"></i> PIN Temporário (recebido por e-mail):
+            <i class="fa-solid fa-envelope-open-text text-danger me-1"></i> PIN Temporário de Acesso:
           </label>
           <div class="input-group">
-            <input type="password" id="gate_pin_temp" class="form-control" maxlength="6" placeholder="PIN de 6 dígitos recebido" required autocomplete="off">
+            <input type="password" id="gate_pin_temp" class="form-control" maxlength="6" placeholder="PIN de 6 dígitos" required autocomplete="off">
             <button class="btn btn-outline-secondary" type="button" onclick="alternarVisibilidadePin('gate_pin_temp', this)" title="Ver/Ocultar"><i class="fa-solid fa-eye"></i></button>
+          </div>
+          <div class="d-flex justify-content-between align-items-center mt-1">
+            <span class="text-muted" style="font-size: 0.72rem;">PIN temporário de 6 dígitos</span>
+            <a href="#" onclick="solicitarReenvioPinModalGate(); return false;" class="text-danger fw-bold text-decoration-none" style="font-size: 0.75rem;">
+              <i class="fa-solid fa-rotate-right me-1"></i> Não recebeu o PIN? Reenviar
+            </a>
           </div>
         </div>
 
@@ -5709,6 +5715,71 @@
         icone.classList.add('fa-eye');
       }
     }
+  }
+
+  // Solicita reenvio imediato do PIN temporário para o militar autenticado no Gate
+  function solicitarReenvioPinModalGate() {
+    Swal.fire({
+      title: '<i class="fa-solid fa-paper-plane text-danger me-2"></i> Reenviar PIN Temporário',
+      html: 'Deseja gerar e reenviar um novo PIN temporário de acesso para os seus e-mails cadastrados (institucional e Gmail)?',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: '<i class="fa-solid fa-rotate-right me-1"></i> Sim, Reenviar PIN',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#991b1b',
+      cancelButtonColor: '#64748b'
+    }).then(res => {
+      if (res.isConfirmed) {
+        Swal.fire({
+          title: 'Reenviando PIN...',
+          html: 'Gerando novo código e despachando para sua caixa postal...',
+          allowOutsideClick: false,
+          didOpen: () => Swal.showLoading()
+        });
+
+        google.script.run
+          .withSuccessHandler(function(r) {
+            var pinNovo = (r && r.pinTemporario) ? r.pinTemporario : '';
+            Swal.fire({
+              icon: 'success',
+              title: 'PIN Reenviado com Sucesso!',
+              html: `
+                <p class="small text-muted mb-2">Um novo PIN temporário foi gerado e enviado para seus e-mails cadastrados.</p>
+                ${pinNovo ? `
+                  <div class="alert alert-success border text-center py-2 my-2" style="background:#f0fdf4; border-color:#86efac !important;">
+                    <div class="small text-muted fw-bold text-uppercase mb-1">Seu Novo PIN Temporário:</div>
+                    <div class="display-6 fw-bold text-success my-1" style="letter-spacing: 5px;">${pinNovo}</div>
+                    <button type="button" class="btn btn-sm btn-outline-success mt-1" onclick="navigator.clipboard.writeText('${pinNovo}'); this.innerHTML='<i class=\'fa-solid fa-check me-1\'></i> Copiado!';">
+                      <i class="fa-regular fa-copy me-1"></i> Copiar PIN
+                    </button>
+                  </div>
+                ` : ''}
+                <p class="small text-muted mb-0">O PIN já foi preenchido automaticamente no campo de PIN Temporário abaixo.</p>
+              `,
+              confirmButtonText: 'Continuar',
+              confirmButtonColor: '#991b1b'
+            }).then(() => {
+              if (pinNovo) {
+                var el = document.getElementById('gate_pin_temp');
+                if (el) {
+                  el.value = pinNovo;
+                  var novoPinEl = document.getElementById('gate_novo_pin');
+                  if (novoPinEl) novoPinEl.focus();
+                }
+              }
+            });
+          })
+          .withFailureHandler(function(err) {
+            Swal.fire({
+              icon: 'error',
+              title: 'Erro ao Reenviar PIN',
+              text: err.message || 'Não foi possível gerar novo PIN temporário.',
+              confirmButtonColor: '#991b1b'
+            });
+          })
+          .reenviarPinGateUsuarioAutenticado();
+      }
+    });
   }
 
   // Submete redefinição de PIN no gate de primeiro acesso

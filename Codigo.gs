@@ -17465,27 +17465,21 @@ function enviarCodigoVerificacaoInstitucional(emailInstitucional, nome) {
         "<p style='font-size: 11px; color: #94a3b8; text-align: center; margin: 0;'>Diretoria de Logística — Corpo de Bombeiros Militar de Pernambuco</p>" +
       "</div>";
 
-    // Dispara exclusivamente utilizando a conta de serviço dcsdlog@gmail.com
+    // Dispara com segurança utilizando a conta oficial
     var remetenteOficial = "dcsdlog@gmail.com";
-    var emailEnviadoComSucesso = false;
+    var ativo = "";
+    try { ativo = Session.getActiveUser().getEmail().toLowerCase().trim(); } catch(e){}
 
-    // Tentativa 1: Envio com remetente oficial via GmailApp
-    try {
-      GmailApp.sendEmail(emailLimpo, assunto, "", {
-        htmlBody: corpoHtml,
-        from: remetenteOficial,
-        name: "SGMP — CBMPE (Sistema de Materiais)",
-        replyTo: remetenteOficial
-      });
-      emailEnviadoComSucesso = true;
-      console.log("E-mail OTP enviado com sucesso via GmailApp pelo remetente: " + remetenteOficial);
-    } catch (eGmail) {
-      console.warn("Aviso ao tentar envio via GmailApp (" + remetenteOficial + "): " + eGmail.message + ". Utilizando fallback via MailApp...");
-    }
-
-    // Tentativa 2: Fallback via MailApp com nome de exibição e replyTo oficiais
-    if (!emailEnviadoComSucesso) {
+    if (ativo === remetenteOficial) {
       try {
+        GmailApp.sendEmail(emailLimpo, assunto, "", {
+          htmlBody: corpoHtml,
+          from: remetenteOficial,
+          name: "SGMP — CBMPE (Sistema de Materiais)",
+          replyTo: remetenteOficial
+        });
+        console.log("E-mail OTP enviado com sucesso via GmailApp por " + remetenteOficial);
+      } catch (eGmail) {
         MailApp.sendEmail({
           to: emailLimpo,
           subject: assunto,
@@ -17493,12 +17487,16 @@ function enviarCodigoVerificacaoInstitucional(emailInstitucional, nome) {
           name: "SGMP — CBMPE (Sistema de Materiais)",
           replyTo: remetenteOficial
         });
-        emailEnviadoComSucesso = true;
-        console.log("E-mail OTP enviado com sucesso via MailApp para " + emailLimpo);
-      } catch (eMail) {
-        console.error("Erro crítico ao enviar via MailApp: " + eMail.message);
-        throw new Error("Não foi possível entregar o código no e-mail funcional informado (" + emailLimpo + "): " + eMail.message);
       }
+    } else {
+      MailApp.sendEmail({
+        to: emailLimpo,
+        subject: assunto,
+        htmlBody: corpoHtml,
+        name: "SGMP — CBMPE (Sistema de Materiais)",
+        replyTo: remetenteOficial
+      });
+      console.log("E-mail OTP enviado com sucesso via MailApp para " + emailLimpo);
     }
 
     registrarLogAuditoria("ENVIO_OTP_INSTITUCIONAL", "Código de verificação enviado para e-mail institucional: " + emailLimpo);
@@ -17661,19 +17659,30 @@ function confirmarCodigoESolicitarAcesso(dados, codigoDigitado) {
           "<p style='font-size: 11px; color: #94a3b8; text-align: center; margin: 0;'>Diretoria de Logística — Corpo de Bombeiros Militar de Pernambuco</p>" +
         "</div>";
 
+      var destinatarios = emailInst;
+      if (emailGoogle && emailGoogle.indexOf("@") !== -1 && emailGoogle !== emailInst) {
+        destinatarios += ", " + emailGoogle;
+      }
+
       MailApp.sendEmail({
-        to: emailInst,
+        to: destinatarios,
         subject: assunto,
-        htmlBody: corpoHtml
+        htmlBody: corpoHtml,
+        name: "SGMP — CBMPE (Sistema de Materiais)",
+        replyTo: "dcsdlog@gmail.com"
       });
     } catch (errMail) {
       console.error("Erro ao enviar email com PIN temporário: " + errMail.message);
     }
 
-    registrarLogAuditoria("CADASTRO_PRIMEIRO_ACESSO", "Usuário cadastrado com sucesso e PIN temporário enviado para: " + emailInst + " | Nome: " + nomeLimpo + " | Login: " + emailGoogle);
+    registrarLogAuditoria("CADASTRO_PRIMEIRO_ACESSO", "Usuário cadastrado com sucesso e PIN temporário gerado para: " + emailInst + " (" + emailGoogle + ") | Nome: " + nomeLimpo);
     return {
       sucesso: true,
-      mensagem: "Cadastro confirmado com sucesso! O seu PIN Temporário de Primeiro Acesso foi enviado para " + emailInst + ". Utilize-o ao fazer login para cadastrar seu novo PIN definitivo."
+      pinTemporario: pinTemporario,
+      emailGoogle: emailGoogle,
+      emailInstitucional: emailInst,
+      nome: nomeLimpo,
+      mensagem: "Cadastro confirmado com sucesso! O seu PIN Temporário de Primeiro Acesso é: " + pinTemporario
     };
   } catch (err) {
     console.error("Erro ao validar código institucional e cadastrar usuário: " + err.message);
@@ -19972,6 +19981,122 @@ function verificarUsuarioExistente(emailGoogle, cpf, emailInst) {
 }
 
 // Gera PIN temporário aleatório, define PRIMEIRO_ACESSO='SIM' e envia para o e-mail @bombeiros.pe.gov.br
+
+// Reenvia ou regenera PIN Temporário para o usuário autenticado na tela de Gate de Primeiro Acesso
+function reenviarPinGateUsuarioAutenticado() {
+  try {
+    var emailLogado = "";
+    try {
+      emailLogado = Session.getActiveUser().getEmail().toLowerCase().trim();
+    } catch (e) {}
+
+    if (!emailLogado) {
+      throw new Error("Sessão não identificada. Por favor, recarregue a página.");
+    }
+
+    var ssUser = abrirPlanilhaSegura_(ID_PLANILHA_USUARIOS);
+    var sheetLogins = ssUser.getSheetByName(ABA_USUARIOS);
+    if (!sheetLogins) throw new Error("Aba de Logins não encontrada.");
+
+    var idx = obterIndicesLogins_(sheetLogins);
+    var dados = sheetLogins.getDataRange().getValues();
+    var linhaUsuario = -1;
+    var usuarioEncontrado = null;
+
+    for (var i = 1; i < dados.length; i++) {
+      var rEmail = String(dados[i][idx.email] || "").trim().toLowerCase();
+      if (rEmail === emailLogado) {
+        linhaUsuario = i + 1;
+        usuarioEncontrado = {
+          nome: String(dados[i][idx.nome] || "").trim(),
+          cpf: String(dados[i][idx.cpf] || "").trim(),
+          email: rEmail
+        };
+        break;
+      }
+    }
+
+    if (linhaUsuario === -1 || !usuarioEncontrado) {
+      throw new Error("Usuário (" + emailLogado + ") não localizado na base de logins.");
+    }
+
+    // Busca email institucional correspondente em CadastrosPendentes
+    var emailInst = "";
+    try {
+      var sheetPend = ssUser.getSheetByName("CadastrosPendentes");
+      if (sheetPend && sheetPend.getLastRow() > 1) {
+        var dadosPend = sheetPend.getDataRange().getValues();
+        for (var p = 1; p < dadosPend.length; p++) {
+          var pEmailGoogle = String(dadosPend[p][3] || "").trim().toLowerCase();
+          var pEmailInst = String(dadosPend[p][10] || "").trim().toLowerCase();
+          if (pEmailGoogle === emailLogado && pEmailInst) {
+            emailInst = pEmailInst;
+            break;
+          }
+        }
+      }
+    } catch (ePend) {}
+
+    // Gera novo PIN temporário de 6 dígitos
+    var pinTemporario = String(Math.floor(100000 + Math.random() * 900000));
+    sheetLogins.getRange(linhaUsuario, idx.pin + 1).setNumberFormat('@').setValue(pinTemporario);
+    sheetLogins.getRange(linhaUsuario, idx.primeiroAcesso + 1).setValue("SIM");
+    SpreadsheetApp.flush();
+
+    try {
+      invalidarCacheLoginsEUsuarios_(usuarioEncontrado.cpf, usuarioEncontrado.email);
+    } catch (eC) {}
+
+    // Envia e-mail para ambos ou para o e-mail Google
+    var destinatarios = usuarioEncontrado.email;
+    if (emailInst && emailInst.indexOf("@") !== -1 && emailInst !== usuarioEncontrado.email) {
+      destinatarios += ", " + emailInst;
+    }
+
+    var assunto = "[SGMP - CBMPE] Reenvio de PIN Temporário: " + pinTemporario;
+    var corpoHtml = 
+      "<div style='font-family: Arial, sans-serif; max-width: 520px; margin: auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 24px; background-color: #ffffff;'>" +
+        "<div style='text-align: center; margin-bottom: 20px;'>" +
+          "<h2 style='color: #15803d; margin: 0; font-size: 22px;'>SGMP — CBMPE</h2>" +
+          "<p style='color: #64748b; font-size: 13px; margin-top: 4px;'>Sistema de Gestão de Materiais e Patrimônio</p>" +
+        "</div>" +
+        "<p style='font-size: 15px; color: #1e293b;'>Olá, <strong>" + usuarioEncontrado.nome + "</strong>.</p>" +
+        "<p style='font-size: 14px; color: #475569;'>Conforme solicitado, seu novo <strong>PIN Temporário de Acesso</strong> é:</p>" +
+        "<div style='background-color: #f0fdf4; border: 2px dashed #15803d; border-radius: 6px; padding: 16px; text-align: center; font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #15803d; margin: 24px 0;'>" +
+          pinTemporario +
+        "</div>" +
+        "<p style='font-size: 14px; color: #475569;'>Digite este PIN na tela de segurança para cadastrar seu novo <strong>PIN pessoal definitivo</strong>.</p>" +
+        "<hr style='border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;'>" +
+        "<p style='font-size: 11px; color: #94a3b8; text-align: center; margin: 0;'>Diretoria de Logística — Corpo de Bombeiros Militar de Pernambuco</p>" +
+      "</div>";
+
+    try {
+      MailApp.sendEmail({
+        to: destinatarios,
+        subject: assunto,
+        htmlBody: corpoHtml,
+        name: "SGMP — CBMPE (Sistema de Materiais)",
+        replyTo: "dcsdlog@gmail.com"
+      });
+    } catch (eM) {
+      console.error("Erro ao enviar email reenviarPinGate: " + eM.message);
+    }
+
+    registrarLogAuditoria("REENVIO_PIN_GATE", "Novo PIN temporário gerado pelo Gate de Primeiro Acesso para: " + destinatarios, usuarioEncontrado.nome);
+
+    return {
+      sucesso: true,
+      pinTemporario: pinTemporario,
+      emailGoogle: usuarioEncontrado.email,
+      emailInstitucional: emailInst,
+      mensagem: "Novo PIN temporário gerado e enviado com sucesso!"
+    };
+  } catch (err) {
+    console.error("Erro ao reenviar PIN pelo Gate: " + err.message);
+    throw new Error(err.message);
+  }
+}
+
 function executarResetPinMilitar(identificador, emailInstInformado) {
   try {
     var emailInstLimpo = String(emailInstInformado || "").trim().toLowerCase();
@@ -20092,17 +20217,35 @@ function executarResetPinMilitar(identificador, emailInstInformado) {
         "<p style='font-size: 11px; color: #94a3b8; text-align: center; margin: 0;'>Diretoria de Logística — Corpo de Bombeiros Militar de Pernambuco</p>" +
       "</div>";
 
+    var destinatarios = emailInstLimpo;
+    if (usuarioEncontrado.email && usuarioEncontrado.email.indexOf("@") !== -1 && usuarioEncontrado.email !== emailInstLimpo) {
+      destinatarios += ", " + usuarioEncontrado.email;
+    }
+
     var remetenteOficial = "dcsdlog@gmail.com";
-    try {
-      GmailApp.sendEmail(emailInstLimpo, assunto, "", {
-        htmlBody: corpoHtml,
-        from: remetenteOficial,
-        name: "SGMP — CBMPE (Sistema de Materiais)",
-        replyTo: remetenteOficial
-      });
-    } catch (eGmail) {
+    var ativo = "";
+    try { ativo = Session.getActiveUser().getEmail().toLowerCase().trim(); } catch(e){}
+
+    if (ativo === remetenteOficial) {
+      try {
+        GmailApp.sendEmail(destinatarios, assunto, "", {
+          htmlBody: corpoHtml,
+          from: remetenteOficial,
+          name: "SGMP — CBMPE (Sistema de Materiais)",
+          replyTo: remetenteOficial
+        });
+      } catch (eGmail) {
+        MailApp.sendEmail({
+          to: destinatarios,
+          subject: assunto,
+          htmlBody: corpoHtml,
+          name: "SGMP — CBMPE (Sistema de Materiais)",
+          replyTo: remetenteOficial
+        });
+      }
+    } else {
       MailApp.sendEmail({
-        to: emailInstLimpo,
+        to: destinatarios,
         subject: assunto,
         htmlBody: corpoHtml,
         name: "SGMP — CBMPE (Sistema de Materiais)",
@@ -20111,12 +20254,15 @@ function executarResetPinMilitar(identificador, emailInstInformado) {
     }
 
     try {
-      registrarLogAuditoria("RESET_PIN_CONCLUIDO", "Novo PIN temporário gerado e enviado para o e-mail: " + emailInstLimpo, usuarioEncontrado.nome);
+      registrarLogAuditoria("RESET_PIN_CONCLUIDO", "Novo PIN temporário gerado e enviado para: " + destinatarios, usuarioEncontrado.nome);
     } catch (eLog) {}
 
     return {
       sucesso: true,
-      mensagem: "PIN temporário de recuperação enviado com sucesso para " + emailInstLimpo
+      pinTemporario: pinTemporario,
+      emailGoogle: usuarioEncontrado.email,
+      emailInstitucional: emailInstLimpo,
+      mensagem: "PIN temporário de recuperação enviado com sucesso para " + destinatarios
     };
   } catch (err) {
     console.error("Erro ao resetar PIN: " + err.message);
