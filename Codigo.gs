@@ -1113,6 +1113,8 @@ function registrarEntradaEstoque(dados) {
   var bemPermanenteValor = limpar(dados.bemPermanente);
   var numerosSerie = Array.isArray(dados.numerosSerie) ? dados.numerosSerie : [];
   var numerosPatrimonio = Array.isArray(dados.numerosPatrimonio) ? dados.numerosPatrimonio : [];
+  var tipoValor = limpar(dados.tipo);
+  var corValor = limpar(dados.cor);
 
   for (var i = 0; i < quantidade; i++) {
     var codigoUnico = prefixo + (proximoNumero + i);
@@ -1128,7 +1130,8 @@ function registrarEntradaEstoque(dados) {
     var linhaSql = "('" + codigoUnico + "', '" + limpar(dados.material) + "', '" + limpar(dados.codEfisco) + "', '" + limpar(dados.seiCompra) + "', " + 
                    (bemPermanenteValor ? "'" + bemPermanenteValor + "'" : "NULL") + ", " + 
                    (patItem ? "'" + patItem + "'" : "NULL") + ", '" + limpar(unidadePadronizada) + "', '" + limpar(dados.subunidade) + "', '" + limpar(dados.setor) + "', '" + limpar(localArmazenamentoFinal) + "', '" + limpar(dados.statusConservacao) + "', '" + limpar(dados.postoGrad) + "', '" + limpar(dados.nomeAcautelado) + "', '" + limpar(dados.cpfAcautelado) + "', '" + limpar(dados.docSeiAcautelado) + "', '" + limpar(dados.docSeiExtraviado) + "', '" + limpar(dados.linkFoto) + "', '" + obsFinal + "'" + 
-                   (temColSerie ? (", " + (numSerieItem ? "'" + limpar(numSerieItem) + "'" : "NULL")) : "") + ")";
+                   (temColSerie ? (", " + (numSerieItem ? "'" + limpar(numSerieItem) + "'" : "NULL")) : "") + 
+                   ", " + (tipoValor ? "'" + tipoValor + "'" : "NULL") + ", " + (corValor ? "'" + corValor + "'" : "NULL") + ")";
     sqlValues.push(linhaSql);
   }
 
@@ -1136,6 +1139,7 @@ function registrarEntradaEstoque(dados) {
   if (temColSerie) {
     camposSql += ", `" + colSerie + "`";
   }
+  camposSql += ", TIPO, COR";
 
   var sql = "INSERT INTO `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` (" + camposSql + ") VALUES " + sqlValues.join(", ");
   
@@ -7829,47 +7833,41 @@ function recusarRemessaPendente(dadosRecusa) {
 
 
 function garantirAbaTbMateriais() {
-
   var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
-
   var sheet = ss.getSheetByName("tb_Materiais");
-
   if (!sheet) {
-
     sheet = ss.insertSheet("tb_Materiais");
-
     sheet.appendRow([
-
       "ID_Recebimento", 
-
       "Numero_Processo", 
-
       "Data_Chegada", 
-
       "Material", 
-
       "Fornecedor", 
-
       "Contato", 
-
       "Marca", 
-
       "Modelo", 
-
       "Qtd_Recebida", 
-
       "Status_Condicao", 
-
       "Link_Foto", 
-
-      "Responsavel"
-
+      "Responsavel",
+      "Tipo",
+      "Cor"
     ]);
-
+  } else {
+    var lastCol = sheet.getLastColumn();
+    if (lastCol > 0) {
+      var cabecalhos = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+      var temTipo = cabecalhos.some(function(c) { return String(c).trim().toLowerCase() === "tipo"; });
+      var temCor = cabecalhos.some(function(c) { return String(c).trim().toLowerCase() === "cor"; });
+      if (!temTipo) {
+        sheet.getRange(1, sheet.getLastColumn() + 1).setValue("Tipo");
+      }
+      if (!temCor) {
+        sheet.getRange(1, sheet.getLastColumn() + 1).setValue("Cor");
+      }
+    }
   }
-
   return sheet;
-
 }
 
 
@@ -7945,7 +7943,9 @@ function confirmarRecebimentoCINT(dadosRecebimento) {
       responsavelNome: usuario.nome || usuario.email,
       responsavelCpf: usuario.cpf || "-",
       origemAcao: "INCLUSAO_RECEBIMENTO",
-      fornecedor: dadosRecebimento.fornecedor || ""
+      fornecedor: dadosRecebimento.fornecedor || "",
+      tipo: dadosRecebimento.tipo || "",
+      cor: dadosRecebimento.cor || ""
     };
 
     // Primeiro confirma a escrita no BigQuery. Só depois grava o espelho na planilha,
@@ -7977,7 +7977,9 @@ function confirmarRecebimentoCINT(dadosRecebimento) {
       parseInt(dadosRecebimento.quantidadeRecebida, 10) || 0,
       String(dadosRecebimento.statusCondicao || "ECD").trim(),
       String(dadosRecebimento.linkFoto || "").trim(),
-      usuario.email
+      usuario.email,
+      String(dadosRecebimento.tipo || "").trim(),
+      String(dadosRecebimento.cor || "").trim()
     ]);
 
     console.log("7 - AppendRow executado");

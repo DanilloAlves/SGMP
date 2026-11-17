@@ -3712,6 +3712,53 @@
               <input type="text" class="form-control" id="cint_modelo" list="listaSugestoesModeloCint" placeholder="Selecione ou digite o modelo...">
             </div>
 
+            <!-- Sugestões de Tipos -->
+            <datalist id="listaSugestoesTipoCint">
+              <option value="Operacional">
+              <option value="Administrativo">
+              <option value="EPI (Equipamento de Proteção Individual)">
+              <option value="EPR (Equipamento de Proteção Respiratória)">
+              <option value="Combate a Incêndio">
+              <option value="Salvamento e Resgate">
+              <option value="APH (Atendimento Pré-Hospitalar)">
+              <option value="Mergulho">
+              <option value="Ferramenta / Equipamento">
+              <option value="Viatura / Veículo">
+              <option value="Comunicação / Rádio">
+              <option value="TI / Informática">
+              <option value="Armamento / Balística">
+              <option value="Consumo">
+            </datalist>
+
+            <div class="col-md-6">
+              <label class="form-label fw-bold" for="cint_tipo">Tipo:</label>
+              <input type="text" class="form-control" id="cint_tipo" list="listaSugestoesTipoCint" placeholder="Selecione ou digite o tipo (ex: Operacional, EPI, Viatura...)">
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label fw-bold" for="cint_cor">Cor:</label>
+              <select class="form-select" id="cint_cor">
+                <option value="">Selecione a cor...</option>
+                <option value="Amarelo">Amarelo</option>
+                <option value="Azul">Azul</option>
+                <option value="Bege">Bege</option>
+                <option value="Branco">Branco</option>
+                <option value="Camuflado">Camuflado</option>
+                <option value="Cinza">Cinza</option>
+                <option value="Dourado">Dourado</option>
+                <option value="Laranja">Laranja</option>
+                <option value="Marrom">Marrom</option>
+                <option value="Prata">Prata</option>
+                <option value="Preto">Preto</option>
+                <option value="Rosa">Rosa</option>
+                <option value="Roxo">Roxo</option>
+                <option value="Verde">Verde</option>
+                <option value="Vermelho">Vermelho</option>
+                <option value="Multicor">Multicor</option>
+                <option value="Não se aplica">Não se aplica</option>
+              </select>
+            </div>
+
             <div class="col-md-6" id="bloco_cint_notaDist">
               <label class="form-label fw-bold">Nº da Nota de Distribuição (Opcional):</label>
               <input type="text" class="form-control" id="cint_notaDist" placeholder="Ex: ND 012/2026...">
@@ -15894,6 +15941,8 @@ function renderizarTimelineEmElemento(dados, ids) {
       statusCondicao: document.getElementById('cint_status').value,
       marca: document.getElementById('cint_marca').value.trim(),
       modelo: document.getElementById('cint_modelo').value.trim(),
+      tipo: document.getElementById('cint_tipo') ? document.getElementById('cint_tipo').value.trim() : '',
+      cor: document.getElementById('cint_cor') ? document.getElementById('cint_cor').value.trim() : '',
       notaDistribuicao: document.getElementById('cint_notaDist') ? document.getElementById('cint_notaDist').value.trim() : '',
       numeroBge: document.getElementById('cint_numeroBge') ? document.getElementById('cint_numeroBge').value.trim() : '',
       linkFoto: document.getElementById('cint_linkFoto').value.trim(),
@@ -16367,6 +16416,8 @@ function renderizarTimelineEmElemento(dados, ids) {
       'cint_contato',
       'cint_marca',
       'cint_modelo',
+      'cint_tipo',
+      'cint_cor',
       'cint_notaDist',
       'cint_numeroBge',
       'cint_linkFoto'
