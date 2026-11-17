@@ -17463,6 +17463,9 @@ function enviarCodigoVerificacaoInstitucional(emailInstitucional, nome) {
 
     // Dispara exclusivamente utilizando a conta de serviço dcsdlog@gmail.com
     var remetenteOficial = "dcsdlog@gmail.com";
+    var emailEnviadoComSucesso = false;
+
+    // Tentativa 1: Envio com remetente oficial via GmailApp
     try {
       GmailApp.sendEmail(emailLimpo, assunto, "", {
         htmlBody: corpoHtml,
@@ -17470,18 +17473,28 @@ function enviarCodigoVerificacaoInstitucional(emailInstitucional, nome) {
         name: "SGMP — CBMPE (Sistema de Materiais)",
         replyTo: remetenteOficial
       });
+      emailEnviadoComSucesso = true;
       console.log("E-mail OTP enviado com sucesso via GmailApp pelo remetente: " + remetenteOficial);
     } catch (eGmail) {
-      console.error("Erro ao enviar via GmailApp (" + remetenteOficial + "): " + eGmail.message);
-      // Se ainda não tiver autorização do GmailApp, tenta com o MailApp com o nome de exibição
-      MailApp.sendEmail({
-        to: emailLimpo,
-        subject: assunto,
-        htmlBody: corpoHtml,
-        name: "SGMP — CBMPE (Sistema de Materiais)",
-        replyTo: remetenteOficial
-      });
-      throw new Error("Aviso de Permissão: O Google Apps Script precisa da sua autorização para enviar e-mails como '" + remetenteOficial + "'. Detalhe: " + eGmail.message);
+      console.warn("Aviso ao tentar envio via GmailApp (" + remetenteOficial + "): " + eGmail.message + ". Utilizando fallback via MailApp...");
+    }
+
+    // Tentativa 2: Fallback via MailApp com nome de exibição e replyTo oficiais
+    if (!emailEnviadoComSucesso) {
+      try {
+        MailApp.sendEmail({
+          to: emailLimpo,
+          subject: assunto,
+          htmlBody: corpoHtml,
+          name: "SGMP — CBMPE (Sistema de Materiais)",
+          replyTo: remetenteOficial
+        });
+        emailEnviadoComSucesso = true;
+        console.log("E-mail OTP enviado com sucesso via MailApp para " + emailLimpo);
+      } catch (eMail) {
+        console.error("Erro crítico ao enviar via MailApp: " + eMail.message);
+        throw new Error("Não foi possível entregar o código no e-mail funcional informado (" + emailLimpo + "): " + eMail.message);
+      }
     }
 
     registrarLogAuditoria("ENVIO_OTP_INSTITUCIONAL", "Código de verificação enviado para e-mail institucional: " + emailLimpo);
