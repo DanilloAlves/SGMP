@@ -17447,7 +17447,17 @@ function enviarCodigoVerificacaoInstitucional(emailInstitucional, nome) {
     // Armazena no cache por 15 minutos (900s)
     cache.put(cacheKey, codigo, 900);
 
-    var assunto = "[SGMP - CBMPE] Código de Verificação de Identidade: " + codigo;
+    var assunto = "SGMP - CBMPE: Código de Verificação " + codigo;
+
+    var corpoTexto = 
+      "SGMP - CBMPE | Sistema de Gestão de Materiais e Patrimônio\n\n" +
+      "Olá, " + nomeLimpo + ".\n\n" +
+      "Seu código de confirmação de identidade militar é:\n\n" +
+      "    " + codigo + "\n\n" +
+      "Este código expira em 15 minutos.\n" +
+      "Se você não solicitou este acesso, desconsidere esta mensagem.\n\n" +
+      "Diretoria de Logística — Corpo de Bombeiros Militar de Pernambuco";
+
     var corpoHtml = 
       "<div style='font-family: Arial, sans-serif; max-width: 520px; margin: auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 24px; background-color: #ffffff;'>" +
         "<div style='text-align: center; margin-bottom: 20px;'>" +
@@ -17460,43 +17470,53 @@ function enviarCodigoVerificacaoInstitucional(emailInstitucional, nome) {
         "<div style='background-color: #fef2f2; border: 2px dashed #991b1b; border-radius: 6px; padding: 16px; text-align: center; font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #991b1b; margin: 24px 0;'>" +
           codigo +
         "</div>" +
-        "<p style='font-size: 13px; color: #64748b; line-height: 1.4;'><i style='color: #ef4444;'>Atenção:</i> Este código é de uso estritamente pessoal e expira em 15 minutos. Se você não solicitou este acesso, desconsidere esta mensagem.</p>" +
+        "<p style='font-size: 13px; color: #64748b; line-height: 1.4;'>Este código é de uso estritamente pessoal e expira em 15 minutos. Se você não solicitou este acesso, desconsidere esta mensagem.</p>" +
         "<hr style='border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;'>" +
         "<p style='font-size: 11px; color: #94a3b8; text-align: center; margin: 0;'>Diretoria de Logística — Corpo de Bombeiros Militar de Pernambuco</p>" +
       "</div>";
 
-    // Dispara com segurança utilizando a conta oficial
-    var remetenteOficial = "dcsdlog@gmail.com";
     var ativo = "";
     try { ativo = Session.getActiveUser().getEmail().toLowerCase().trim(); } catch(e){}
 
-    if (ativo === remetenteOficial) {
+    var emailEnviado = false;
+
+    // Tentativa 1: Envio prioritário via GmailApp (gera multipart com texto plano + html, prevenindo filtros de spam)
+    try {
+      var opcoesG = {
+        htmlBody: corpoHtml,
+        name: "SGMP - CBMPE"
+      };
+      if (ativo === "dcsdlog@gmail.com") {
+        opcoesG.from = "dcsdlog@gmail.com";
+        opcoesG.replyTo = "dcsdlog@gmail.com";
+      }
+      GmailApp.sendEmail(emailLimpo, assunto, corpoTexto, opcoesG);
+      emailEnviado = true;
+      console.log("E-mail OTP enviado com sucesso via GmailApp para " + emailLimpo);
+    } catch (eGmail) {
+      console.warn("Aviso ao tentar envio via GmailApp: " + eGmail.message + ". Tentando via MailApp...");
+    }
+
+    // Tentativa 2: Fallback via MailApp com corpo duplo (texto + html) e remetente alinhado
+    if (!emailEnviado) {
       try {
-        GmailApp.sendEmail(emailLimpo, assunto, "", {
-          htmlBody: corpoHtml,
-          from: remetenteOficial,
-          name: "SGMP — CBMPE (Sistema de Materiais)",
-          replyTo: remetenteOficial
-        });
-        console.log("E-mail OTP enviado com sucesso via GmailApp por " + remetenteOficial);
-      } catch (eGmail) {
-        MailApp.sendEmail({
+        var opcoesM = {
           to: emailLimpo,
           subject: assunto,
+          body: corpoTexto,
           htmlBody: corpoHtml,
-          name: "SGMP — CBMPE (Sistema de Materiais)",
-          replyTo: remetenteOficial
-        });
+          name: "SGMP - CBMPE"
+        };
+        if (ativo === "dcsdlog@gmail.com") {
+          opcoesM.replyTo = "dcsdlog@gmail.com";
+        }
+        MailApp.sendEmail(opcoesM);
+        emailEnviado = true;
+        console.log("E-mail OTP enviado com sucesso via MailApp para " + emailLimpo);
+      } catch (eMail) {
+        console.error("Erro crítico ao enviar via MailApp: " + eMail.message);
+        throw new Error("Não foi possível entregar o código no e-mail funcional informado (" + emailLimpo + "): " + eMail.message);
       }
-    } else {
-      MailApp.sendEmail({
-        to: emailLimpo,
-        subject: assunto,
-        htmlBody: corpoHtml,
-        name: "SGMP — CBMPE (Sistema de Materiais)",
-        replyTo: remetenteOficial
-      });
-      console.log("E-mail OTP enviado com sucesso via MailApp para " + emailLimpo);
     }
 
     registrarLogAuditoria("ENVIO_OTP_INSTITUCIONAL", "Código de verificação enviado para e-mail institucional: " + emailLimpo);
