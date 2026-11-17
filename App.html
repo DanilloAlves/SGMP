@@ -18547,7 +18547,29 @@ function renderizarTimelineEmElemento(dados, ids) {
     new bootstrap.Modal(document.getElementById('modalImportarExcel')).show();
   }
 
-  function ehSubunidadeEquivalenteOmeCliente(subNome, omeRef) {
+    // Padronização e unificação de Subunidades (ex: GBI SBFN e Seção de Bombeiros de Fernando de Noronha - SBFN/GBI)
+  function padronizarNomeSubunidadeCliente(sub, ome) {
+    if (!sub) return "SEDE";
+    const s = String(sub).trim();
+    if (!s || s === "-" || s === "--" || s === "." || s.toUpperCase() === "SEDE") return "SEDE";
+
+    const sNorm = s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+    const condensado = sNorm.replace(/[^A-Z0-9]/g, "");
+
+    // Unificação de Fernando de Noronha / SBFN sob a OME GBI
+    if (condensado === "GBISBFN" || 
+        condensado === "SBFN" || 
+        condensado === "SBFNGBI" ||
+        sNorm === "GBI SBFN" ||
+        sNorm.indexOf("SECAO DE BOMBEIROS DE FERNANDO DE NORONHA") !== -1 ||
+        (sNorm.indexOf("SBFN") !== -1 && (sNorm.indexOf("NORONHA") !== -1 || sNorm.indexOf("GBI") !== -1))) {
+      return "Seção de Bombeiros de Fernando de Noronha - SBFN/GBI";
+    }
+
+    return s;
+  }
+
+function ehSubunidadeEquivalenteOmeCliente(subNome, omeRef) {
     if (!subNome) return true;
     const sub = String(subNome).trim();
     if (!sub || sub === '-' || sub === '--' || sub === '.' || sub.toUpperCase() === 'SEDE' || sub.toUpperCase() === 'N/A' || sub.toUpperCase() === 'NENHUMA' || sub.toUpperCase() === 'SEM SUBUNIDADE' || sub.toUpperCase().indexOf('SELECIONE') !== -1) {
@@ -18890,9 +18912,16 @@ function renderizarTimelineEmElemento(dados, ids) {
       listaOficialOmes.forEach((ome, idx) => {
         const colIdx = startColIdx + idx;
         const colLetter = getColLetter(colIdx);
-        const listaSubs = (mapaSubunidades && mapaSubunidades[ome] && mapaSubunidades[ome].length > 0)
+        let listaSubsBruta = (mapaSubunidades && mapaSubunidades[ome] && mapaSubunidades[ome].length > 0)
           ? mapaSubunidades[ome]
           : ['SEDE'];
+        const setSubsModelo = new Set();
+        listaSubsBruta.forEach(s => {
+          if (s) {
+            setSubsModelo.add(typeof padronizarNomeSubunidadeCliente === 'function' ? padronizarNomeSubunidadeCliente(s, ome) : s);
+          }
+        });
+        const listaSubs = Array.from(setSubsModelo);
 
         wsDados.getCell(`${colLetter}1`).value = ome;
 
@@ -29562,6 +29591,15 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       }
     }
 
+    const setSubsUnicasDash = new Set();
+    listaSubs.forEach(function(s) {
+      if (s) {
+        const sNorm = (typeof padronizarNomeSubunidadeCliente === 'function') ? padronizarNomeSubunidadeCliente(s, omeSelecionado) : s;
+        setSubsUnicasDash.add(sNorm);
+      }
+    });
+    listaSubs = Array.from(setSubsUnicasDash);
+
     listaSubs.sort(function(a, b) {
       if (a.toUpperCase() === 'SEDE') return -1;
       if (b.toUpperCase() === 'SEDE') return 1;
@@ -29708,9 +29746,11 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     cacheDadosDashboard.dados.forEach(function(item) {
       const itemOmeOficial = (typeof obterNomeOficialOme === 'function' ? obterNomeOficialOme(item.ome) : item.ome) || 'SEM OME';
       if (omeFiltro !== 'TODAS' && normComp(itemOmeOficial) !== normComp(omeFiltroOficial)) return;
-      if (subFiltro !== 'TODAS' && normComp(item.subunidade) !== normComp(subFiltro)) return;
+      const sItemPad = (typeof padronizarNomeSubunidadeCliente === 'function') ? padronizarNomeSubunidadeCliente(item.subunidade, itemOmeOficial) : (item.subunidade || 'SEDE');
+      const sFiltroPad = (typeof padronizarNomeSubunidadeCliente === 'function') ? padronizarNomeSubunidadeCliente(subFiltro, omeFiltroOficial) : subFiltro;
+      if (subFiltro !== 'TODAS' && normComp(sItemPad) !== normComp(sFiltroPad)) return;
 
-      const subKey = (item.subunidade || 'SEDE').trim();
+      const subKey = sItemPad.trim();
       const omeKey = itemOmeOficial.trim();
 
       // No modo geral, a barra representa a OME. No modo filtrado, a barra representa a SUBUNIDADE.

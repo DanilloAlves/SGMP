@@ -1270,7 +1270,7 @@ function pesquisarNoBigQuery(filtros) {
       }
       if (filtros.codEfisco && filtros.codEfisco.trim() !== "") baseSqlWhere += " AND COD_EFISCO = '" + limpaSQL(filtros.codEfisco) + "'";
       if (filtros.unidade && filtros.unidade !== "") baseSqlWhere += " AND UPPER(TRIM(UNIDADE)) = '" + limpaSQL(obterOmePadronizada(filtros.unidade)).toUpperCase() + "'";
-      if (filtros.subunidade && filtros.subunidade !== "") baseSqlWhere += " AND TRIM(SUBUNIDADE) = '" + limpaSQL(filtros.subunidade) + "'";
+      if (filtros.subunidade && filtros.subunidade !== "") baseSqlWhere += (typeof obterClausulaSqlSubunidade_ === 'function') ? obterClausulaSqlSubunidade_(filtros.subunidade) : (" AND TRIM(SUBUNIDADE) = '" + limpaSQL(filtros.subunidade) + "'");
       if (filtros.setor && filtros.setor !== "") baseSqlWhere += " AND TRIM(SETOR) = '" + limpaSQL(filtros.setor) + "'";
       if (filtros.localArmazenamento && filtros.localArmazenamento.trim() !== "") baseSqlWhere += " AND TRIM(LOCALIZACAO_ESPCIFICA_NA_OME_Se_Necessario) = '" + limpaSQL(filtros.localArmazenamento) + "'";
       if (filtros.statusConservacao && filtros.statusConservacao !== "") baseSqlWhere += " AND TRIM(STATUS) = '" + limpaSQL(filtros.statusConservacao) + "'";
@@ -15961,6 +15961,12 @@ function resumirSubunidade(sub) {
   if (!sub) return "-";
   var s = String(sub).trim();
   
+  // 0. Fernando de Noronha / SBFN
+  var sNormNor = s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+  if (sNormNor.indexOf("SBFN") !== -1 || sNormNor.indexOf("NORONHA") !== -1 || sNormNor === "GBI SBFN") {
+    return "SBFN";
+  }
+
   // 1. Padrão canônico de Seção de Bombeiros com número (ex: 1ª SB, 1ª SBS, 1ª SATec)
   var mSb = s.match(/(\d+)[ªaºo]?\s*(SB|SBI|SBS|SBSA|SATec)\b/i);
   if (mSb) {
@@ -18762,6 +18768,50 @@ function rejeitarTicketMaterialProvisorio(idTicket, motivo) {
 // =========================================================================
 // MAPA DE TODAS AS SUBUNIDADES POR OME (EXCEL E HIERARQUIA)
 // =========================================================================
+// =========================================================================
+// PADRONIZAÇÃO E UNIFICAÇÃO CANÔNICA DE SUBUNIDADES
+// =========================================================================
+function padronizarNomeSubunidade(sub, ome) {
+  if (!sub) return "SEDE";
+  var s = String(sub).trim();
+  if (!s || s === "-" || s === "--" || s === "." || s.toUpperCase() === "SEDE") return "SEDE";
+
+  var sNorm = s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+  var condensado = sNorm.replace(/[^A-Z0-9]/g, "");
+
+  // Unificação de Fernando de Noronha / SBFN sob a OME GBI
+  if (condensado === "GBISBFN" || 
+      condensado === "SBFN" || 
+      condensado === "SBFNGBI" ||
+      sNorm === "GBI SBFN" ||
+      sNorm.indexOf("SECAO DE BOMBEIROS DE FERNANDO DE NORONHA") !== -1 ||
+      (sNorm.indexOf("SBFN") !== -1 && (sNorm.indexOf("NORONHA") !== -1 || sNorm.indexOf("GBI") !== -1))) {
+    return "Seção de Bombeiros de Fernando de Noronha - SBFN/GBI";
+  }
+
+  return s;
+}
+
+function saoSubunidadesEquivalentes(subA, subB) {
+  if (!subA && !subB) return true;
+  var normA = padronizarNomeSubunidade(subA);
+  var normB = padronizarNomeSubunidade(subB);
+  if (normA.toUpperCase() === normB.toUpperCase()) return true;
+
+  var cA = normA.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Z0-9]/g, "").toUpperCase();
+  var cB = normB.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Z0-9]/g, "").toUpperCase();
+  return cA === cB;
+}
+
+function obterClausulaSqlSubunidade_(subFiltro) {
+  if (!subFiltro || subFiltro === "TODAS") return "";
+  var subPadrao = padronizarNomeSubunidade(subFiltro);
+  if (subPadrao === "Seção de Bombeiros de Fernando de Noronha - SBFN/GBI") {
+    return " AND (TRIM(SUBUNIDADE) = 'Seção de Bombeiros de Fernando de Noronha - SBFN/GBI' OR UPPER(TRIM(SUBUNIDADE)) = 'GBI SBFN' OR UPPER(TRIM(SUBUNIDADE)) = 'SBFN' OR UPPER(TRIM(SUBUNIDADE)) = 'SBFN/GBI')";
+  }
+  return " AND TRIM(SUBUNIDADE) = '" + String(subFiltro).trim().replace(/'/g, "\\'") + "'";
+}
+
 function getMapaTodasSubunidadesPorOme() {
   try {
     var mapa = {};
@@ -18786,8 +18836,9 @@ function getMapaTodasSubunidadesPorOme() {
       var subOrgs = getOpcoesOrgDataPorOme(ome);
       if (subOrgs && Array.isArray(subOrgs)) {
         subOrgs.forEach(function(sub) {
-          if (mapa[ome].indexOf(sub) === -1) {
-            mapa[ome].push(sub);
+          var sPad = padronizarNomeSubunidade(sub, ome);
+          if (mapa[ome].indexOf(sPad) === -1) {
+            mapa[ome].push(sPad);
           }
         });
       }
@@ -18802,8 +18853,9 @@ function getMapaTodasSubunidadesPorOme() {
           var idPai = todosLocais[i].idPai;
           if (omePadrao && nomeLocal) {
             if (!mapa[omePadrao]) mapa[omePadrao] = ["SEDE"];
-            if ((!idPai || idPai === omePadrao) && mapa[omePadrao].indexOf(nomeLocal) === -1) {
-              mapa[omePadrao].push(nomeLocal);
+            var sLocPad = padronizarNomeSubunidade(nomeLocal, omePadrao);
+            if ((!idPai || idPai === omePadrao) && mapa[omePadrao].indexOf(sLocPad) === -1) {
+              mapa[omePadrao].push(sLocPad);
             }
           }
         }
@@ -19354,14 +19406,14 @@ function descarregarMaterial(payload) {
       cache.remove("BQ_TABELA_HISTORICO_OK");
       if (omeUser) {
         cache.remove("ARVORE_ESTRUTURA_" + omeUser.replace(/[^A-Z0-9]/g, "_"));
-        cache.remove("DASH_VISAO_GERAL_V12_" + omeUser.replace(/[^A-Z0-9]/g, "_"));
+        cache.remove("DASH_VISAO_GERAL_V13_" + omeUser.replace(/[^A-Z0-9]/g, "_"));
         if (typeof invalidarCacheArmazenamentoOme_ === 'function') invalidarCacheArmazenamentoOme_(omeUser);
       }
       for (var r = 0; r < rows.length; r++) {
         var rOme = String(rows[r].f[3].v || "").trim();
         if (rOme && typeof invalidarCacheArmazenamentoOme_ === 'function') invalidarCacheArmazenamentoOme_(rOme);
       }
-      cache.remove("DASH_VISAO_GERAL_V12_ADMIN");
+      cache.remove("DASH_VISAO_GERAL_V13_ADMIN");
     } catch(eCache) {}
 
     // 7. Registra auditoria do sistema
@@ -21162,7 +21214,7 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao, omeCliente, perfilClie
     var ehAdmin = (perfilNorm === "administrador" || perfilNorm.indexOf("admin") !== -1);
     var temVisaoTodasOmes = ehAdmin || (usuario && Array.isArray(usuario.permissoes) && usuario.permissoes.indexOf("selecionar_todas_omes") !== -1);
 
-    var chaveCacheDash = "DASH_VISAO_GERAL_V12_" + (temVisaoTodasOmes ? "ADMIN" : (omeUsuario || "USER").toUpperCase().replace(/[^A-Z0-9]/g, "_"));
+    var chaveCacheDash = "DASH_VISAO_GERAL_V13_" + (temVisaoTodasOmes ? "ADMIN" : (omeUsuario || "USER").toUpperCase().replace(/[^A-Z0-9]/g, "_"));
     if (!forcarAtualizacao) {
       var dashCached = lerDeCacheChunked_(chaveCacheDash);
       if (dashCached && dashCached.sucesso && dashCached.dados && dashCached.dados.length > 0) {
@@ -21246,7 +21298,7 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao, omeCliente, perfilClie
       }
 
       var subRaw = (r[1] && r[1].v) ? String(r[1].v).trim() : "SEDE";
-      var subunidade = subRaw || "SEDE";
+      var subunidade = (typeof padronizarNomeSubunidade === 'function') ? padronizarNomeSubunidade(subRaw, ome) : (subRaw || "SEDE");
 
       var objNome = (r[2] && r[2].v) ? String(r[2].v).trim() : "";
       var rawStatus = (r[3] && r[3].v) ? String(r[3].v).trim().toUpperCase() : "ECD";
@@ -21464,13 +21516,19 @@ function obterDadosDashboardVisaoGeral(forcarAtualizacao, omeCliente, perfilClie
     for (var o in mapaSubunidadesPorOme) {
       var oPad = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(o) : o;
       if (!mapaSubunidadesFinal[oPad]) mapaSubunidadesFinal[oPad] = new Set();
-      Object.keys(mapaSubunidadesPorOme[o]).forEach(function(s) { if (s) mapaSubunidadesFinal[oPad].add(s); });
+      Object.keys(mapaSubunidadesPorOme[o]).forEach(function(s) { 
+        var sP = (typeof padronizarNomeSubunidade === 'function') ? padronizarNomeSubunidade(s, oPad) : s;
+        if (sP) mapaSubunidadesFinal[oPad].add(sP); 
+      });
     }
     for (var oOficial in mapaTodasSubs) {
       var oOficialPad = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(oOficial) : oOficial;
       if (!mapaSubunidadesFinal[oOficialPad]) mapaSubunidadesFinal[oOficialPad] = new Set();
       if (Array.isArray(mapaTodasSubs[oOficial])) {
-        mapaTodasSubs[oOficial].forEach(function(s) { if (s) mapaSubunidadesFinal[oOficialPad].add(s); });
+        mapaTodasSubs[oOficial].forEach(function(s) { 
+          var sP = (typeof padronizarNomeSubunidade === 'function') ? padronizarNomeSubunidade(s, oOficialPad) : s;
+          if (sP) mapaSubunidadesFinal[oOficialPad].add(sP); 
+        });
       }
     }
     for (var kOme in mapaSubunidadesFinal) {
@@ -23289,7 +23347,7 @@ function garantirSetorViaturaNaSubunidade_(unidadeOme, idSubunidadeOuNome, nomeV
         var rowPai = dadosLocais[i].idPai;
 
         if (rowOme.toUpperCase() === omePadrao.toUpperCase()) {
-          if (rowId === idAlvo || rowNome.toUpperCase() === idAlvo.toUpperCase()) {
+          if (rowId === idAlvo || rowNome.toUpperCase() === idAlvo.toUpperCase() || (typeof saoSubunidadesEquivalentes === 'function' && saoSubunidadesEquivalentes(rowNome, idAlvo))) {
             if (!rowPai || rowPai === rowOme) {
               idSubunidadeAlvo = rowId;
               nomeSubunidadeAlvo = rowNome;
