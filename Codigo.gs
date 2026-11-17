@@ -161,6 +161,7 @@ function doGet(e) {
   if (!paramLogin) {
     var templateLogin = HtmlService.createTemplateFromFile('Login');
     templateLogin.appUrl = appUrl;
+    templateLogin.parametrosUrl = (e && e.parameter) ? e.parameter : {};
     return templateLogin.evaluate()
       .setTitle('SGMP — CBMPE | Sistema de Gestão de Materiais e Patrimônio')
       .addMetaTag('viewport', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no')
@@ -186,6 +187,7 @@ function doGet(e) {
   if (!usuario) {
     var templateLogin = HtmlService.createTemplateFromFile('Login');
     templateLogin.appUrl = appUrl;
+    templateLogin.parametrosUrl = (e && e.parameter) ? e.parameter : {};
     templateLogin.erro = "Acesso Não Autorizado: O e-mail Google (" + (email || "não identificado") + ") não possui cadastro ativo no SGMP. Solicite seu acesso através do botão abaixo.";
     return templateLogin.evaluate()
       .setTitle('SGMP — CBMPE | Acesso Não Autorizado')
@@ -196,6 +198,7 @@ function doGet(e) {
   if (usuario && (usuario.status === "INATIVO" || usuario.status === "BLOQUEADO")) {
     var templateLogin = HtmlService.createTemplateFromFile('Login');
     templateLogin.appUrl = appUrl;
+    templateLogin.parametrosUrl = (e && e.parameter) ? e.parameter : {};
     templateLogin.erro = "Acesso Bloqueado: Seu cadastro está marcado como " + usuario.status + " na tabela de Logins.";
     return templateLogin.evaluate()
       .setTitle('SGMP — CBMPE | Acesso Bloqueado')
@@ -206,6 +209,7 @@ function doGet(e) {
   var templateIndex = HtmlService.createTemplateFromFile('App');
   templateIndex.usuarioLogado = usuario;
   templateIndex.appUrl = appUrl;
+  templateIndex.parametrosUrl = (e && e.parameter) ? e.parameter : {};
 
   return templateIndex.evaluate()
     .setTitle('SGMP — CBMPE | Sistema de Gestão de Materiais e Patrimônio')

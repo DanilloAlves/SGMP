@@ -219,6 +219,14 @@
   <main class="container my-3" style="max-width: 960px;">
 
     <!-- ALERTA DE MODO LEITURA PÚBLICA -->
+    <?
+      var urlEntrarVistoriar = (typeof appUrl !== 'undefined' && appUrl ? appUrl : '').split('?')[0] + '?auth=true&aba=checklist';
+      if (typeof dados !== 'undefined' && dados) {
+        if (dados.ome) urlEntrarVistoriar += '&ome=' + encodeURIComponent(dados.ome);
+        if (dados.subunidade) urlEntrarVistoriar += '&sub=' + encodeURIComponent(dados.subunidade);
+        if (dados.setor) urlEntrarVistoriar += '&setor=' + encodeURIComponent(dados.setor);
+      }
+    ?>
     <div class="alert alert-warning border-warning d-flex align-items-center gap-3 p-3 mb-3 shadow-xs rounded-3 no-print">
       <div class="rounded-circle bg-warning bg-opacity-25 p-2 text-warning d-flex align-items-center justify-content-center" style="width: 40px; height: 40px; flex-shrink: 0;">
         <i class="fa-solid fa-lock fs-5 text-dark"></i>
@@ -228,7 +236,7 @@
         A marcação de itens, apontamento de avarias e assinatura física são restritas ao efetivo autenticado.
       </div>
       <div>
-        <a href="<?= appUrl ?>?auth=true" class="btn btn-sm btn-danger fw-bold text-nowrap shadow-sm">
+        <a href="<?= urlEntrarVistoriar ?>" class="btn btn-sm btn-danger fw-bold text-nowrap shadow-sm">
           <i class="fa-solid fa-right-to-bracket me-1"></i> Entrar
         </a>
       </div>
@@ -619,7 +627,7 @@
       </button>
     </div>
     <div>
-      <a href="<?= appUrl ?>?auth=true" class="btn btn-sm btn-danger fw-bold shadow-sm">
+      <a href="<?= urlEntrarVistoriar ?>" class="btn btn-sm btn-danger fw-bold shadow-sm">
         <i class="fa-solid fa-clipboard-check me-1"></i> Entrar para Vistoriar
       </a>
     </div>

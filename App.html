@@ -5040,6 +5040,19 @@
 
   // INJEÇÃO DIRETA SÍNCRONA DO USUÁRIO AUTENTICADO NO TEMPLATE DO GAS
   const USUARIO_INJETADO = <?!= JSON.stringify(typeof usuarioLogado !== 'undefined' ? usuarioLogado : {}) ?>;
+  const PARAMETROS_URL_INICIAIS = <?!= JSON.stringify(typeof parametrosUrl !== 'undefined' ? parametrosUrl : {}) ?>;
+
+  function obterParametroUrl(chave) {
+    try {
+      if (typeof PARAMETROS_URL_INICIAIS !== 'undefined' && PARAMETROS_URL_INICIAIS && PARAMETROS_URL_INICIAIS[chave]) {
+        return String(PARAMETROS_URL_INICIAIS[chave]).trim();
+      }
+      const params = new URLSearchParams(window.location.search);
+      return (params.get(chave) || '').trim();
+    } catch(e) {
+      return '';
+    }
+  }
   let APP_URL = "<?= (typeof appUrl !== 'undefined' && appUrl) ? appUrl : '' ?>";
   if (!APP_URL) {
     try {
@@ -5820,7 +5833,9 @@
 
   // Inicializa a aplicação principal (apenas para usuários com PIN regularizado)
   function iniciarAplicacaoAposAutenticacao() {
-    mudarAba('visao-geral');
+    const abaParam = (typeof obterParametroUrl === 'function') ? (obterParametroUrl('aba') || (obterParametroUrl('checklist') ? 'checklist' : '')) : '';
+    const abaAlvo = (abaParam && abaParam.toLowerCase() === 'checklist') ? 'checklist' : 'visao-geral';
+    mudarAba(abaAlvo);
     removerOverlayESair(true);
 
     google.script.run
@@ -21381,6 +21396,16 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
           });
         }
         selectFiltroOme.innerHTML = htmlOpts;
+        const omeUrl = (typeof obterParametroUrl === 'function') ? obterParametroUrl('ome') : '';
+        if (omeUrl && selectFiltroOme) {
+          const omeNorm = (typeof obterNomeOficialOme === 'function') ? obterNomeOficialOme(omeUrl) : omeUrl;
+          for (let i = 0; i < selectFiltroOme.options.length; i++) {
+            if (selectFiltroOme.options[i].value === omeUrl || selectFiltroOme.options[i].value === omeNorm) {
+              selectFiltroOme.selectedIndex = i;
+              break;
+            }
+          }
+        }
       }
     }
 
@@ -22584,6 +22609,97 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
 
     accordion.innerHTML = html;
     atualizarContadoresChecklist();
+    // Auto-foco imediato na Viatura/Setor indicada no QR Code ou link
+    const setorParamAlvo = (typeof obterParametroUrl === 'function') ? (obterParametroUrl('setor') || '') : '';
+    if (setorParamAlvo && !window._jaFocouSetorChecklist) {
+      window._jaFocouSetorChecklist = true;
+      setTimeout(function() {
+        focarSetorViaturaNoChecklist(setorParamAlvo);
+      }, 350);
+    }
+  }
+
+  function focarSetorViaturaNoChecklist(setorNome) {
+    if (!setorNome) return;
+    const sNorm = function(str) {
+      return String(str || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+    };
+    const alvoNorm = sNorm(setorNome);
+    if (!alvoNorm) return;
+
+    const itensAccordion = document.querySelectorAll('#accordionChecklistLocais .item-local-accordion');
+    let itemAlvo = null;
+
+    itensAccordion.forEach(item => {
+      if (itemAlvo) return;
+      const itemSetor = item.getAttribute('data-setor') || '';
+      const itemLoc = decodeURIComponent(item.getAttribute('data-loc') || '');
+      const nSet = sNorm(itemSetor);
+      const nLoc = sNorm(itemLoc);
+
+      if (nSet === alvoNorm || nLoc === alvoNorm || (nSet && alvoNorm.includes(nSet)) || (nSet && nSet.includes(alvoNorm))) {
+        itemAlvo = item;
+      }
+    });
+
+    if (itemAlvo) {
+      const unitIndex = itemAlvo.getAttribute('data-loc-index');
+
+      // 1. Expande todos os collapses ancestrais (Subunidade e OME)
+      let elPai = itemAlvo.parentElement;
+      while (elPai && elPai.id !== 'accordionChecklistLocais') {
+        if (elPai.classList.contains('collapse') || elPai.classList.contains('collapse-pai-checklist')) {
+          try {
+            bootstrap.Collapse.getOrCreateInstance(elPai, { toggle: false }).show();
+          } catch(e) {
+            elPai.classList.add('show');
+          }
+        }
+        elPai = elPai.parentElement;
+      }
+
+      // 2. Marca a divisao e habilita vistoria
+      const chk = document.getElementById('check-div-' + unitIndex);
+      if (chk && !chk.checked) {
+        chk.checked = true;
+        if (typeof toggleHabilitarDivisaoChecklist === 'function') {
+          toggleHabilitarDivisaoChecklist(unitIndex, true);
+        }
+      }
+
+      // 3. Expande o collapse da divisao
+      const colDiv = document.getElementById('collapseLoc' + unitIndex);
+      if (colDiv) {
+        try {
+          bootstrap.Collapse.getOrCreateInstance(colDiv, { toggle: false }).show();
+        } catch(e) {
+          colDiv.classList.add('show');
+        }
+      }
+
+      // 4. Scroll suave ate a viatura e efeito de destaque
+      setTimeout(function() {
+        itemAlvo.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        itemAlvo.style.transition = 'box-shadow 0.4s ease';
+        itemAlvo.style.boxShadow = '0 0 0 4px rgba(220, 38, 38, 0.5)';
+        setTimeout(function() {
+          itemAlvo.style.boxShadow = '';
+        }, 4000);
+      }, 400);
+
+      // 5. Notificacao amigavel
+      try {
+        Swal.fire({
+          toast: true,
+          position: 'top-end',
+          icon: 'success',
+          title: 'Viatura: ' + setorNome,
+          text: 'Viatura localizada e aberta pronta para vistoria!',
+          showConfirmButton: false,
+          timer: 3500
+        });
+      } catch(eSwal) {}
+    }
   }
 
   function aplicarTagAvaria(itemId, texto) {

@@ -103,13 +103,26 @@
 
 <script>
   let APP_URL = "<?= (typeof appUrl !== 'undefined' && appUrl) ? appUrl : '' ?>";
+  const PARAMETROS_INICIAIS = <?= JSON.stringify(typeof parametrosUrl !== 'undefined' ? parametrosUrl : {}) ?>;
+
+  function construirUrlLoginGoogle() {
+    var base = (APP_URL || window.location.href || '').split('?')[0].split('#')[0];
+    var params = new URLSearchParams(window.location.search);
+    for (var k in PARAMETROS_INICIAIS) {
+      if (!params.has(k) && PARAMETROS_INICIAIS[k]) {
+        params.set(k, PARAMETROS_INICIAIS[k]);
+      }
+    }
+    params.set('auth', 'true');
+    return base + '?' + params.toString();
+  }
   if (!APP_URL) {
     try {
       google.script.run.withSuccessHandler(function(url) {
         if (url) {
           APP_URL = url;
           var btn = document.getElementById('btnEntrarGoogle');
-          if (btn) btn.href = url.split('?')[0] + '?auth=true';
+          if (btn) btn.href = construirUrlLoginGoogle();
         }
       }).getAppUrl();
     } catch (e) {}
