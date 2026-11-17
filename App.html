@@ -3712,27 +3712,9 @@
               <input type="text" class="form-control" id="cint_modelo" list="listaSugestoesModeloCint" placeholder="Selecione ou digite o modelo...">
             </div>
 
-            <!-- Sugestões de Tipos -->
-            <datalist id="listaSugestoesTipoCint">
-              <option value="Operacional">
-              <option value="Administrativo">
-              <option value="EPI (Equipamento de Proteção Individual)">
-              <option value="EPR (Equipamento de Proteção Respiratória)">
-              <option value="Combate a Incêndio">
-              <option value="Salvamento e Resgate">
-              <option value="APH (Atendimento Pré-Hospitalar)">
-              <option value="Mergulho">
-              <option value="Ferramenta / Equipamento">
-              <option value="Viatura / Veículo">
-              <option value="Comunicação / Rádio">
-              <option value="TI / Informática">
-              <option value="Armamento / Balística">
-              <option value="Consumo">
-            </datalist>
-
             <div class="col-md-6">
               <label class="form-label fw-bold" for="cint_tipo">Tipo:</label>
-              <input type="text" class="form-control" id="cint_tipo" list="listaSugestoesTipoCint" placeholder="Selecione ou digite o tipo (ex: Operacional, EPI, Viatura...)">
+              <input type="text" class="form-control" id="cint_tipo" placeholder="Digite o tipo...">
             </div>
 
             <div class="col-md-6">
@@ -5012,8 +4994,8 @@
           <div class="table-responsive border rounded" style="max-height: 250px;">
             <table class="table table-sm table-striped small mb-0" id="tabelaPreviaExcel">
               <thead class="table-light sticky-top">
-                <!-- COLUNA 'Qtd' E 'Subunidade' ADICIONADAS AQUI -->
-                <tr><th>Material</th><th class="text-center">Qtd</th><th>Unidade</th><th>Subunidade</th><th>Nº Ordem / Série</th><th>Status</th><th>Local</th></tr>
+                <!-- COLUNAS ADICIONADAS AQUI -->
+                <tr><th>Material</th><th class="text-center">Qtd</th><th>Tipo</th><th>Cor</th><th>Unidade</th><th>Subunidade</th><th>Nº Ordem / Série</th><th>Status</th><th>Local</th></tr>
               </thead>
               <tbody></tbody>
             </table>
@@ -18829,7 +18811,9 @@ function ehSubunidadeEquivalenteOmeCliente(subNome, omeRef) {
       sei: buscar(["SEI", "PROCESSEI", "NSEI", "SEICOMPRA"], ""),
       efisco: buscar(["EFISCO", "CODEFISCO"], ""),
       permanente: buscar(["PERMANENTE", "BEMPERMANENTE"], ""),
-      observacao: buscar(["OBSERVACAO", "OBS", "DETALHES"], "")
+      observacao: buscar(["OBSERVACAO", "OBS", "DETALHES"], ""),
+      tipo: buscar(["TIPO", "TIPOMATERIAL", "CATEGORIA"], ""),
+      cor: buscar(["COR", "CORES"], "")
     };
   }
 
@@ -18933,6 +18917,8 @@ function ehSubunidadeEquivalenteOmeCliente(subNome, omeRef) {
       linhasNormalizadas.slice(0, 50).forEach(linha => {
         const mat = linha.material || '-';
         const qtd = linha.quantidade || '1';
+        const tipo = linha.tipo || '-';
+        const cor = linha.cor || '-';
         const und = linha.unidade || (usuarioSessaoAtual && usuarioSessaoAtual.ome) || 'DLOG';
         const sub = (!linha.subunidade || linha.subunidade === '-' || linha.subunidade.toUpperCase() === 'SEDE') ? 'SEDE' : linha.subunidade;
         const numSerie = linha.numSerie || '-';
@@ -18942,6 +18928,8 @@ function ehSubunidadeEquivalenteOmeCliente(subNome, omeRef) {
         htmlPrevia += `<tr>
                          <td class="text-truncate" style="max-width: 200px;" title="${mat}">${mat}</td>
                          <td class="text-center fw-bold text-primary">${qtd}</td>
+                         <td><span class="badge bg-light text-dark border">${tipo}</span></td>
+                         <td><span class="badge bg-light text-dark border">${cor}</span></td>
                          <td>${und}</td>
                          <td><span class="badge ${sub === 'SEDE' ? 'bg-secondary' : 'bg-primary'}">${sub}</span></td>
                          <td><span class="badge bg-light text-dark border">${numSerie}</span></td>
@@ -19044,6 +19032,17 @@ function ehSubunidadeEquivalenteOmeCliente(subNome, omeRef) {
       wsDados.getCell('C1').value = 'SELECIONE A UNIDADE (OME) PRIMEIRO';
       workbook.definedNames.add('Bases_Ocultas!$C$1', 'SUB_DEFAULT');
 
+      const listaCoresOficial = [
+        "Amarelo", "Azul", "Bege", "Branco", "Camuflado", "Cinza", "Dourado",
+        "Laranja", "Marrom", "Prata", "Preto", "Rosa", "Roxo", "Verde",
+        "Vermelho", "Multicor", "Não se aplica"
+      ];
+      for (let cIdx = 0; cIdx < listaCoresOficial.length; cIdx++) {
+        wsDados.getCell(`C${cIdx + 2}`).value = listaCoresOficial[cIdx];
+      }
+      const endRowCores = listaCoresOficial.length + 1;
+      workbook.definedNames.add(`Bases_Ocultas!$C$2:$C$${endRowCores}`, 'LISTA_CORES');
+
       // Colunas D em diante: Cada OME em uma coluna com suas respectivas Subunidades registradas como Intervalo Nomeado (SUB_1, SUB_2, ...)
       const startColIdx = 4; // Coluna D
       listaOficialOmes.forEach((ome, idx) => {
@@ -19074,10 +19073,12 @@ function ehSubunidadeEquivalenteOmeCliente(subNome, omeRef) {
 
       wsDados.state = 'hidden';
 
-      // COLUNAS ATUALIZADAS (INCLUINDO QUANTIDADE, SUBUNIDADE E N_ORDEM (N_SERIE))
+      // COLUNAS ATUALIZADAS (INCLUINDO QUANTIDADE, TIPO, COR, SUBUNIDADE E N_ORDEM (N_SERIE))
       ws.columns = [
         { header: 'MATERIAL', key: 'mat', width: 38 },
         { header: 'QUANTIDADE', key: 'qtd', width: 15 },
+        { header: 'TIPO', key: 'tipo', width: 22 },
+        { header: 'COR', key: 'cor', width: 18 },
         { header: 'UNIDADE', key: 'und', width: 22 },
         { header: 'SUBUNIDADE', key: 'sub', width: 30 },
         { header: 'SETOR', key: 'set', width: 20 },
@@ -19095,12 +19096,12 @@ function ehSubunidadeEquivalenteOmeCliente(subNome, omeRef) {
       ws.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF991B1B' } };
       ws.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' };
 
-      // LINHA DE EXEMPLO COM QTD, OME, SUBUNIDADE E N_ORDEM (N_SERIE)
+      // LINHA DE EXEMPLO COM QTD, TIPO, COR, OME, SUBUNIDADE E N_ORDEM (N_SERIE)
       const omeExemplo = omeAlvo || 'DLOG';
       const subsExemplo = (mapaSubunidades && mapaSubunidades[omeExemplo]) ? mapaSubunidades[omeExemplo] : ['SEDE'];
       const subExemplo = subsExemplo[0] || 'SEDE';
       ws.addRow({
-        mat: 'BALACLAVA (COMBATE A INCÊNDIO)', qtd: 50, und: omeExemplo, sub: subExemplo,
+        mat: 'BALACLAVA (COMBATE A INCÊNDIO)', qtd: 50, tipo: '', cor: 'Preto', und: omeExemplo, sub: subExemplo,
         set: 'PRATELEIRA A', loc: 'GAVETA 1', sts: 'ECD', pat: '123456',
         numSerie: '971',
         sei: '390000.0001/2026', efi: '112233', per: 'SIM', obs: 'Serão gerados 50 itens individuais deste no banco'
@@ -19115,28 +19116,34 @@ function ehSubunidadeEquivalenteOmeCliente(subNome, omeRef) {
           formulae: [`Bases_Ocultas!$B$1:$B$${qtdMateriais}`]
         };
 
-        // Coluna C (UNIDADE / OME)
-        ws.getCell(`C${i}`).dataValidation = {
+        // Coluna D (COR - Lista suspensa de cores padronizadas)
+        ws.getCell(`D${i}`).dataValidation = {
+          type: 'list', allowBlank: true, showErrorMessage: true,
+          formulae: [`Bases_Ocultas!$C$2:$C$${endRowCores}`]
+        };
+
+        // Coluna E (UNIDADE / OME)
+        ws.getCell(`E${i}`).dataValidation = {
           type: 'list', allowBlank: true, showErrorMessage: true,
           formulae: [`Bases_Ocultas!$A$1:$A$${listaOficialOmes.length}`]
         };
 
-        // Coluna D (SUBUNIDADE - VALIDAÇÃO CONDICIONAL À OME SELECIONADA NA COLUNA C)
-        const formulaSub = `INDIRECT(IF(C${i}="", "SUB_DEFAULT", "SUB_" & MATCH(C${i}, Bases_Ocultas!$A$1:$A$${listaOficialOmes.length}, 0)))`;
-        ws.getCell(`D${i}`).dataValidation = {
+        // Coluna F (SUBUNIDADE - VALIDAÇÃO CONDICIONAL À OME SELECIONADA NA COLUNA E)
+        const formulaSub = `INDIRECT(IF(E${i}="", "SUB_DEFAULT", "SUB_" & MATCH(E${i}, Bases_Ocultas!$A$1:$A$${listaOficialOmes.length}, 0)))`;
+        ws.getCell(`F${i}`).dataValidation = {
           type: 'list', allowBlank: true, showErrorMessage: true, errorStyle: 'warning',
           errorTitle: 'Subunidade Inválida', error: 'Selecione uma Subunidade válida da lista pré-definida para a UNIDADE selecionada.',
           formulae: [formulaSub]
         };
 
-        // Coluna G (STATUS)
-        ws.getCell(`G${i}`).dataValidation = {
+        // Coluna I (STATUS)
+        ws.getCell(`I${i}`).dataValidation = {
           type: 'list', allowBlank: true, showErrorMessage: true,
           formulae: ['"ECD,SCD,EXTRAVIADO,ACAUTELADO"']
         };
 
-        // Coluna L (PERMANENTE - ajustada após adição da coluna I N_ORDEM (N_SERIE))
-        ws.getCell(`L${i}`).dataValidation = {
+        // Coluna N (PERMANENTE)
+        ws.getCell(`N${i}`).dataValidation = {
           type: 'list', allowBlank: true, showErrorMessage: true,
           formulae: ['"SIM,NAO"']
         };

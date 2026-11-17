@@ -12089,7 +12089,9 @@ function normalizarLinhaImportacaoExcel_(linhaBruta) {
     sei: buscar(["SEI", "PROCESSEI", "NSEI", "SEICOMPRA"], ""),
     efisco: buscar(["EFISCO", "CODEFISCO"], ""),
     permanente: buscar(["PERMANENTE", "BEMPERMANENTE"], ""),
-    observacao: buscar(["OBSERVACAO", "OBS", "DETALHES"], "")
+    observacao: buscar(["OBSERVACAO", "OBS", "DETALHES"], ""),
+    tipo: buscar(["TIPO", "TIPOMATERIAL", "CATEGORIA"], ""),
+    cor: buscar(["COR", "CORES"], "")
   };
 }
 
@@ -12229,6 +12231,10 @@ function importarLoteExcelBigQuery(registros, proximoNumeroFornecido, registrarL
       var escPerm = permanente ? "'" + escSql(permanente) + "'" : "NULL";
       var numSerie = (itemNorm.numSerie || itemNorm.nSerie || "").trim();
       var escNumSerie = numSerie ? ("'" + escSql(numSerie) + "'") : "NULL";
+      var tipo = (itemNorm.tipo || "").trim();
+      var cor = (itemNorm.cor || "").trim();
+      var escTipo = tipo ? ("'" + escSql(tipo) + "'") : "NULL";
+      var escCor = cor ? ("'" + escSql(cor) + "'") : "NULL";
 
       var escPat = escSql(patrimonio);
       var escUnd = escSql(unidade);
@@ -12251,7 +12257,7 @@ function importarLoteExcelBigQuery(registros, proximoNumeroFornecido, registrarL
         
         var valStr = "('" + itemId + "', '" + escMaterial + "', '" + escEfisco + "', '" + escSei + "', " + 
                      escPerm + ", '" + 
-                     escPat + "', '" + escUnd + "', '" + escSub + "', '" + escSet + "', '" + escLoc + "', '" + escStatus + "', '', '', '', '', '', '', '" + escObsFinal + "', " + escNumSerie + ")";
+                     escPat + "', '" + escUnd + "', '" + escSub + "', '" + escSet + "', '" + escLoc + "', '" + escStatus + "', '', '', '', '', '', '', '" + escObsFinal + "', " + escNumSerie + ", " + escTipo + ", " + escCor + ")";
         todosItensAInserir.push(valStr);
 
         var idHist = "HIST-" + baseTimestamp + "-" + proximoNumero + "-" + (k + 1);
@@ -12273,7 +12279,7 @@ function importarLoteExcelBigQuery(registros, proximoNumeroFornecido, registrarL
       var chunk = todosItensAInserir.slice(m, m + tamanhoLote);
       var chunkHist = todosEventosAInserir.slice(m, m + tamanhoLote);
 
-      var sqlInsert = "INSERT INTO `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` (ITEM, OBJETO, COD_EFISCO, SEI_COMPRA_RECEBIMENTO, BEM_PERMANENTE_PATRIMONIAVEL_SIM_NAO, N_PATRIMONIO, UNIDADE, SUBUNIDADE, SETOR, LOCALIZACAO_ESPCIFICA_NA_OME_Se_Necessario, STATUS, SE_ACAUTELADO_POSTO_GRAD, SE_ACAUTELADO_NOME_COMPLETO, SE_ACAUTELADO_CPF, SE_ACAUTELADO_N_DOC_SEI, SE_EXTRAVIADO_OU_SCD_N_DOC_SEI, LINK_DE_FOTO_GOOGLE_DRIVE_Somente_Leitura, OBSERVACAO_Mais_detalhes_sobre_a_situacao_do_material, N_SERIE) VALUES " + chunk.join(", ");
+      var sqlInsert = "INSERT INTO `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` (ITEM, OBJETO, COD_EFISCO, SEI_COMPRA_RECEBIMENTO, BEM_PERMANENTE_PATRIMONIAVEL_SIM_NAO, N_PATRIMONIO, UNIDADE, SUBUNIDADE, SETOR, LOCALIZACAO_ESPCIFICA_NA_OME_Se_Necessario, STATUS, SE_ACAUTELADO_POSTO_GRAD, SE_ACAUTELADO_NOME_COMPLETO, SE_ACAUTELADO_CPF, SE_ACAUTELADO_N_DOC_SEI, SE_EXTRAVIADO_OU_SCD_N_DOC_SEI, LINK_DE_FOTO_GOOGLE_DRIVE_Somente_Leitura, OBSERVACAO_Mais_detalhes_sobre_a_situacao_do_material, N_SERIE, TIPO, COR) VALUES " + chunk.join(", ");
       
       var sqlInsertHist = "";
       if (chunkHist.length > 0) {
