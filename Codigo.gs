@@ -17356,64 +17356,10 @@ function validarCompatibilidadeEmailNome_(email, nome) {
   if (!emailLimpo.endsWith("bombeiros.pe.gov.br")) return false;
 
   var usuarioEmail = emailLimpo.split("@")[0].replace(/[^a-z0-9._-]/g, "");
-  if (!usuarioEmail) return false;
+  if (!usuarioEmail || usuarioEmail.length < 2) return false;
 
   var nomeNorm = normalizar(nome).replace(/[^a-z0-9\s._-]/g, "");
-
-  var stopWords = [
-    "sd", "cb", "sgt", "sub", "ten", "subten", "asp", "cap", "maj", "tc", "cel",
-    "bm", "de", "da", "do", "das", "dos", "e", "qobm", "qpcbm", "qocbm", "qabm",
-    "al", "ch", "cmt", "subcmt", "chefe", "bombeiro", "militar",
-    "aspirante", "aluno", "soldado", "cabo", "sargento", "subtenente", "tenente", "capitao", "major", "coronel",
-    "1o", "2o", "3o", "1", "2", "3", "primeiro", "segundo", "terceiro"
-  ];
-
-  var tokensNome = nomeNorm
-    .split(/[\s._-]+/)
-    .map(function(t) { return t.trim(); })
-    .filter(function(t) { return t.length >= 2 && stopWords.indexOf(t) === -1 && !/^\d+$/.test(t); });
-
-  if (tokensNome.length === 0) {
-    tokensNome = nomeNorm.split(/[\s._-]+/).filter(function(t) { return t.length >= 2; });
-  }
-  if (tokensNome.length === 0) return false;
-
-  var tokensEmail = usuarioEmail.split(/[^a-z]+/).filter(function(t) { return t.length >= 2; });
-  if (tokensEmail.length === 0) return false;
-
-  var tokensSigEmail = tokensEmail.filter(function(t) { return t.length >= 3; });
-  if (tokensSigEmail.length === 0) tokensSigEmail = tokensEmail;
-
-  // 1. Pelo menos um token significativo (>= 3 letras) do e-mail DEVE estar presente no nome
-  var achouAoMenosUm = false;
-  for (var i = 0; i < tokensSigEmail.length; i++) {
-    var te = tokensSigEmail[i];
-    for (var j = 0; j < tokensNome.length; j++) {
-      var tn = tokensNome[j];
-      if (tn === te || (tn.length >= 4 && te.length >= 4 && (tn.indexOf(te) !== -1 || te.indexOf(tn) !== -1))) {
-        achouAoMenosUm = true;
-        break;
-      }
-    }
-    if (achouAoMenosUm) break;
-  }
-  if (!achouAoMenosUm) return false;
-
-  // 2. Nenhum token com 3 ou mais letras no e-mail pode ser estranho ao nome (garante que não é e-mail de outro militar)
-  for (var k = 0; k < tokensSigEmail.length; k++) {
-    var tEmail = tokensSigEmail[k];
-    var pertenceAoNome = false;
-    for (var m = 0; m < tokensNome.length; m++) {
-      var tNome = tokensNome[m];
-      if (tNome === tEmail || (tNome.length >= 4 && tEmail.length >= 4 && (tNome.indexOf(tEmail) !== -1 || tEmail.indexOf(tNome) !== -1))) {
-        pertenceAoNome = true;
-        break;
-      }
-    }
-    if (!pertenceAoNome) {
-      return false;
-    }
-  }
+  if (!nomeNorm || nomeNorm.length < 3) return false;
 
   return true;
 }
@@ -20000,6 +19946,8 @@ function verificarUsuarioExistente(emailGoogle, cpf, emailInst) {
     return { existe: false };
   }
 }
+
+
 
 // Gera PIN temporário aleatório, define PRIMEIRO_ACESSO='SIM' e envia para o e-mail @bombeiros.pe.gov.br
 
