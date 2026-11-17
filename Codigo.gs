@@ -1115,6 +1115,10 @@ function registrarEntradaEstoque(dados) {
   var numerosPatrimonio = Array.isArray(dados.numerosPatrimonio) ? dados.numerosPatrimonio : [];
   var tipoValor = limpar(dados.tipo);
   var corValor = limpar(dados.cor);
+  var marcaValor = limpar(dados.marca);
+  var modeloValor = limpar(dados.modelo);
+  var fornecedorValor = limpar(dados.fornecedor);
+  var contatoFornecedorValor = limpar(dados.contato || dados.contatoFornecedor);
 
   for (var i = 0; i < quantidade; i++) {
     var codigoUnico = prefixo + (proximoNumero + i);
@@ -1131,7 +1135,12 @@ function registrarEntradaEstoque(dados) {
                    (bemPermanenteValor ? "'" + bemPermanenteValor + "'" : "NULL") + ", " + 
                    (patItem ? "'" + patItem + "'" : "NULL") + ", '" + limpar(unidadePadronizada) + "', '" + limpar(dados.subunidade) + "', '" + limpar(dados.setor) + "', '" + limpar(localArmazenamentoFinal) + "', '" + limpar(dados.statusConservacao) + "', '" + limpar(dados.postoGrad) + "', '" + limpar(dados.nomeAcautelado) + "', '" + limpar(dados.cpfAcautelado) + "', '" + limpar(dados.docSeiAcautelado) + "', '" + limpar(dados.docSeiExtraviado) + "', '" + limpar(dados.linkFoto) + "', '" + obsFinal + "'" + 
                    (temColSerie ? (", " + (numSerieItem ? "'" + limpar(numSerieItem) + "'" : "NULL")) : "") + 
-                   ", " + (tipoValor ? "'" + tipoValor + "'" : "NULL") + ", " + (corValor ? "'" + corValor + "'" : "NULL") + ")";
+                   ", " + (tipoValor ? "'" + tipoValor + "'" : "NULL") + 
+                   ", " + (corValor ? "'" + corValor + "'" : "NULL") + 
+                   ", " + (marcaValor ? "'" + marcaValor + "'" : "NULL") + 
+                   ", " + (modeloValor ? "'" + modeloValor + "'" : "NULL") + 
+                   ", " + (fornecedorValor ? "'" + fornecedorValor + "'" : "NULL") + 
+                   ", " + (contatoFornecedorValor ? "'" + contatoFornecedorValor + "'" : "NULL") + ")";
     sqlValues.push(linhaSql);
   }
 
@@ -1139,7 +1148,7 @@ function registrarEntradaEstoque(dados) {
   if (temColSerie) {
     camposSql += ", `" + colSerie + "`";
   }
-  camposSql += ", TIPO, COR";
+  camposSql += ", TIPO, COR, MARCA, MODELO, FORNECEDOR, `CONTATO FORNECEDOR`";
 
   var sql = "INSERT INTO `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` (" + camposSql + ") VALUES " + sqlValues.join(", ");
   
@@ -7944,6 +7953,9 @@ function confirmarRecebimentoCINT(dadosRecebimento) {
       responsavelCpf: usuario.cpf || "-",
       origemAcao: "INCLUSAO_RECEBIMENTO",
       fornecedor: dadosRecebimento.fornecedor || "",
+      contato: dadosRecebimento.contato || "",
+      marca: dadosRecebimento.marca || "",
+      modelo: dadosRecebimento.modelo || "",
       tipo: dadosRecebimento.tipo || "",
       cor: dadosRecebimento.cor || ""
     };
@@ -12091,7 +12103,11 @@ function normalizarLinhaImportacaoExcel_(linhaBruta) {
     permanente: buscar(["PERMANENTE", "BEMPERMANENTE"], ""),
     observacao: buscar(["OBSERVACAO", "OBS", "DETALHES"], ""),
     tipo: buscar(["TIPO", "TIPOMATERIAL", "CATEGORIA"], ""),
-    cor: buscar(["COR", "CORES"], "")
+    cor: buscar(["COR", "CORES"], ""),
+    marca: buscar(["MARCA", "FABRICANTE"], ""),
+    modelo: buscar(["MODELO", "VERSAO"], ""),
+    fornecedor: buscar(["FORNECEDOR", "EMPRESA"], ""),
+    contatoFornecedor: buscar(["CONTATO FORNECEDOR", "CONTATOFORNECEDOR", "CONTATO", "TELFORNECEDOR"], "")
   };
 }
 
@@ -12233,8 +12249,16 @@ function importarLoteExcelBigQuery(registros, proximoNumeroFornecido, registrarL
       var escNumSerie = numSerie ? ("'" + escSql(numSerie) + "'") : "NULL";
       var tipo = (itemNorm.tipo || "").trim();
       var cor = (itemNorm.cor || "").trim();
+      var marca = (itemNorm.marca || "").trim();
+      var modelo = (itemNorm.modelo || "").trim();
+      var fornecedor = (itemNorm.fornecedor || "").trim();
+      var contatoFornecedor = (itemNorm.contatoFornecedor || itemNorm.contato || "").trim();
       var escTipo = tipo ? ("'" + escSql(tipo) + "'") : "NULL";
       var escCor = cor ? ("'" + escSql(cor) + "'") : "NULL";
+      var escMarca = marca ? ("'" + escSql(marca) + "'") : "NULL";
+      var escModelo = modelo ? ("'" + escSql(modelo) + "'") : "NULL";
+      var escFornecedor = fornecedor ? ("'" + escSql(fornecedor) + "'") : "NULL";
+      var escContato = contatoFornecedor ? ("'" + escSql(contatoFornecedor) + "'") : "NULL";
 
       var escPat = escSql(patrimonio);
       var escUnd = escSql(unidade);
@@ -12257,7 +12281,7 @@ function importarLoteExcelBigQuery(registros, proximoNumeroFornecido, registrarL
         
         var valStr = "('" + itemId + "', '" + escMaterial + "', '" + escEfisco + "', '" + escSei + "', " + 
                      escPerm + ", '" + 
-                     escPat + "', '" + escUnd + "', '" + escSub + "', '" + escSet + "', '" + escLoc + "', '" + escStatus + "', '', '', '', '', '', '', '" + escObsFinal + "', " + escNumSerie + ", " + escTipo + ", " + escCor + ")";
+                     escPat + "', '" + escUnd + "', '" + escSub + "', '" + escSet + "', '" + escLoc + "', '" + escStatus + "', '', '', '', '', '', '', '" + escObsFinal + "', " + escNumSerie + ", " + escTipo + ", " + escCor + ", " + escMarca + ", " + escModelo + ", " + escFornecedor + ", " + escContato + ")";
         todosItensAInserir.push(valStr);
 
         var idHist = "HIST-" + baseTimestamp + "-" + proximoNumero + "-" + (k + 1);
@@ -12279,7 +12303,7 @@ function importarLoteExcelBigQuery(registros, proximoNumeroFornecido, registrarL
       var chunk = todosItensAInserir.slice(m, m + tamanhoLote);
       var chunkHist = todosEventosAInserir.slice(m, m + tamanhoLote);
 
-      var sqlInsert = "INSERT INTO `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` (ITEM, OBJETO, COD_EFISCO, SEI_COMPRA_RECEBIMENTO, BEM_PERMANENTE_PATRIMONIAVEL_SIM_NAO, N_PATRIMONIO, UNIDADE, SUBUNIDADE, SETOR, LOCALIZACAO_ESPCIFICA_NA_OME_Se_Necessario, STATUS, SE_ACAUTELADO_POSTO_GRAD, SE_ACAUTELADO_NOME_COMPLETO, SE_ACAUTELADO_CPF, SE_ACAUTELADO_N_DOC_SEI, SE_EXTRAVIADO_OU_SCD_N_DOC_SEI, LINK_DE_FOTO_GOOGLE_DRIVE_Somente_Leitura, OBSERVACAO_Mais_detalhes_sobre_a_situacao_do_material, N_SERIE, TIPO, COR) VALUES " + chunk.join(", ");
+      var sqlInsert = "INSERT INTO `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` (ITEM, OBJETO, COD_EFISCO, SEI_COMPRA_RECEBIMENTO, BEM_PERMANENTE_PATRIMONIAVEL_SIM_NAO, N_PATRIMONIO, UNIDADE, SUBUNIDADE, SETOR, LOCALIZACAO_ESPCIFICA_NA_OME_Se_Necessario, STATUS, SE_ACAUTELADO_POSTO_GRAD, SE_ACAUTELADO_NOME_COMPLETO, SE_ACAUTELADO_CPF, SE_ACAUTELADO_N_DOC_SEI, SE_EXTRAVIADO_OU_SCD_N_DOC_SEI, LINK_DE_FOTO_GOOGLE_DRIVE_Somente_Leitura, OBSERVACAO_Mais_detalhes_sobre_a_situacao_do_material, N_SERIE, TIPO, COR, MARCA, MODELO, FORNECEDOR, `CONTATO FORNECEDOR`) VALUES " + chunk.join(", ");
       
       var sqlInsertHist = "";
       if (chunkHist.length > 0) {
