@@ -4923,7 +4923,7 @@
             <table class="table table-sm table-striped small mb-0" id="tabelaPreviaExcel">
               <thead class="table-light sticky-top">
                 <!-- COLUNAS ADICIONADAS AQUI -->
-                <tr><th>Material</th><th class="text-center">Qtd</th><th>Tipo</th><th>Cor</th><th>Unidade</th><th>Subunidade</th><th>Nº Ordem / Série</th><th>Status</th><th>Local</th></tr>
+                <tr><th>Material</th><th class="text-center">Qtd</th><th>Tipo</th><th>Cor</th><th>Marca</th><th>Modelo</th><th>Unidade</th><th>Subunidade</th><th>Nº Ordem / Série</th><th>Status</th><th>Local</th></tr>
               </thead>
               <tbody></tbody>
             </table>
@@ -18741,7 +18741,9 @@ function ehSubunidadeEquivalenteOmeCliente(subNome, omeRef) {
       permanente: buscar(["PERMANENTE", "BEMPERMANENTE"], ""),
       observacao: buscar(["OBSERVACAO", "OBS", "DETALHES"], ""),
       tipo: buscar(["TIPO", "TIPOMATERIAL", "CATEGORIA"], ""),
-      cor: buscar(["COR", "CORES"], "")
+      cor: buscar(["COR", "CORES"], ""),
+      marca: buscar(["MARCA", "FABRICANTE"], ""),
+      modelo: buscar(["MODELO", "VERSAO"], "")
     };
   }
 
@@ -18847,6 +18849,8 @@ function ehSubunidadeEquivalenteOmeCliente(subNome, omeRef) {
         const qtd = linha.quantidade || '1';
         const tipo = linha.tipo || '-';
         const cor = linha.cor || '-';
+        const marca = linha.marca || '-';
+        const modelo = linha.modelo || '-';
         const und = linha.unidade || (usuarioSessaoAtual && usuarioSessaoAtual.ome) || 'DLOG';
         const sub = (!linha.subunidade || linha.subunidade === '-' || linha.subunidade.toUpperCase() === 'SEDE') ? 'SEDE' : linha.subunidade;
         const numSerie = linha.numSerie || '-';
@@ -18858,6 +18862,8 @@ function ehSubunidadeEquivalenteOmeCliente(subNome, omeRef) {
                          <td class="text-center fw-bold text-primary">${qtd}</td>
                          <td><span class="badge bg-light text-dark border">${tipo}</span></td>
                          <td><span class="badge bg-light text-dark border">${cor}</span></td>
+                         <td><span class="badge bg-light text-dark border">${marca}</span></td>
+                         <td><span class="badge bg-light text-dark border">${modelo}</span></td>
                          <td>${und}</td>
                          <td><span class="badge ${sub === 'SEDE' ? 'bg-secondary' : 'bg-primary'}">${sub}</span></td>
                          <td><span class="badge bg-light text-dark border">${numSerie}</span></td>
@@ -19001,12 +19007,14 @@ function ehSubunidadeEquivalenteOmeCliente(subNome, omeRef) {
 
       wsDados.state = 'hidden';
 
-      // COLUNAS ATUALIZADAS (INCLUINDO QUANTIDADE, TIPO, COR, SUBUNIDADE E N_ORDEM (N_SERIE))
+      // COLUNAS ATUALIZADAS (INCLUINDO QUANTIDADE, TIPO, COR, MARCA, MODELO, SUBUNIDADE E N_ORDEM (N_SERIE))
       ws.columns = [
         { header: 'MATERIAL', key: 'mat', width: 38 },
         { header: 'QUANTIDADE', key: 'qtd', width: 15 },
         { header: 'TIPO', key: 'tipo', width: 22 },
         { header: 'COR', key: 'cor', width: 18 },
+        { header: 'MARCA', key: 'marca', width: 22 },
+        { header: 'MODELO', key: 'modelo', width: 22 },
         { header: 'UNIDADE', key: 'und', width: 22 },
         { header: 'SUBUNIDADE', key: 'sub', width: 30 },
         { header: 'SETOR', key: 'set', width: 20 },
@@ -19024,12 +19032,12 @@ function ehSubunidadeEquivalenteOmeCliente(subNome, omeRef) {
       ws.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF991B1B' } };
       ws.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' };
 
-      // LINHA DE EXEMPLO COM QTD, TIPO, COR, OME, SUBUNIDADE E N_ORDEM (N_SERIE)
+      // LINHA DE EXEMPLO COM QTD, TIPO, COR, MARCA, MODELO, OME, SUBUNIDADE E N_ORDEM (N_SERIE)
       const omeExemplo = omeAlvo || 'DLOG';
       const subsExemplo = (mapaSubunidades && mapaSubunidades[omeExemplo]) ? mapaSubunidades[omeExemplo] : ['SEDE'];
       const subExemplo = subsExemplo[0] || 'SEDE';
       ws.addRow({
-        mat: 'BALACLAVA (COMBATE A INCÊNDIO)', qtd: 50, tipo: '', cor: 'Preto', und: omeExemplo, sub: subExemplo,
+        mat: 'BALACLAVA (COMBATE A INCÊNDIO)', qtd: 50, tipo: '', cor: 'Preto', marca: '', modelo: '', und: omeExemplo, sub: subExemplo,
         set: 'PRATELEIRA A', loc: 'GAVETA 1', sts: 'ECD', pat: '123456',
         numSerie: '971',
         sei: '390000.0001/2026', efi: '112233', per: 'SIM', obs: 'Serão gerados 50 itens individuais deste no banco'
@@ -19050,28 +19058,28 @@ function ehSubunidadeEquivalenteOmeCliente(subNome, omeRef) {
           formulae: [`Bases_Ocultas!$C$2:$C$${endRowCores}`]
         };
 
-        // Coluna E (UNIDADE / OME)
-        ws.getCell(`E${i}`).dataValidation = {
+        // Coluna G (UNIDADE / OME)
+        ws.getCell(`G${i}`).dataValidation = {
           type: 'list', allowBlank: true, showErrorMessage: true,
           formulae: [`Bases_Ocultas!$A$1:$A$${listaOficialOmes.length}`]
         };
 
-        // Coluna F (SUBUNIDADE - VALIDAÇÃO CONDICIONAL À OME SELECIONADA NA COLUNA E)
-        const formulaSub = `INDIRECT(IF(E${i}="", "SUB_DEFAULT", "SUB_" & MATCH(E${i}, Bases_Ocultas!$A$1:$A$${listaOficialOmes.length}, 0)))`;
-        ws.getCell(`F${i}`).dataValidation = {
+        // Coluna H (SUBUNIDADE - VALIDAÇÃO CONDICIONAL À OME SELECIONADA NA COLUNA G)
+        const formulaSub = `INDIRECT(IF(G${i}="", "SUB_DEFAULT", "SUB_" & MATCH(G${i}, Bases_Ocultas!$A$1:$A$${listaOficialOmes.length}, 0)))`;
+        ws.getCell(`H${i}`).dataValidation = {
           type: 'list', allowBlank: true, showErrorMessage: true, errorStyle: 'warning',
           errorTitle: 'Subunidade Inválida', error: 'Selecione uma Subunidade válida da lista pré-definida para a UNIDADE selecionada.',
           formulae: [formulaSub]
         };
 
-        // Coluna I (STATUS)
-        ws.getCell(`I${i}`).dataValidation = {
+        // Coluna K (STATUS)
+        ws.getCell(`K${i}`).dataValidation = {
           type: 'list', allowBlank: true, showErrorMessage: true,
           formulae: ['"ECD,SCD,EXTRAVIADO,ACAUTELADO"']
         };
 
-        // Coluna N (PERMANENTE)
-        ws.getCell(`N${i}`).dataValidation = {
+        // Coluna P (PERMANENTE)
+        ws.getCell(`P${i}`).dataValidation = {
           type: 'list', allowBlank: true, showErrorMessage: true,
           formulae: ['"SIM,NAO"']
         };
