@@ -278,6 +278,49 @@
     return true;
   }
 
+  function tratarErroEnvioCodigo(err) {
+    const rawMsg = err && err.message ? err.message : String(err || '');
+    if (rawMsg.indexOf('recusou o acesso') !== -1) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Validação Recusada',
+        text: 'O processo de validação recusou o acesso.',
+        confirmButtonColor: '#991b1b'
+      });
+      return;
+    }
+    
+    // Erro de autorização / permissão OAuth do Google (comum ao rodar em iframe no Vercel)
+    if (rawMsg.indexOf('MailApp') !== -1 || rawMsg.indexOf('send_mail') !== -1 || rawMsg.indexOf('permissão') !== -1 || rawMsg.indexOf('ScriptApp') !== -1) {
+      var directUrl = APP_URL || 'https://script.google.com/macros/s/AKfycby0n-qt5bVAp96LnHgdMuNoa2l-I70Sz_FzxgSnjJThxMtiIUoUOcn5OJLEfhzDudGR2Q/exec?auth=true';
+      Swal.fire({
+        icon: 'warning',
+        title: 'Autorização Google Necessária',
+        html: `
+          <p class="small text-muted mb-2">Para permitir o envio seguro de e-mails institucionais, o Google requer uma autorização única da sua conta.</p>
+          <div class="alert alert-warning small py-2 mb-3 text-start">
+            <i class="fa-solid fa-triangle-exclamation me-1"></i> Como você está acessando pelo portal web, o Google restringe caixas de autorização dentro de quadros. Clique abaixo para abrir o Google em tela cheia e conceder a permissão.
+          </div>
+          <a href="${directUrl}" target="_blank" class="btn btn-danger btn-sm w-100 fw-bold py-2 mb-2">
+            <i class="fa-solid fa-arrow-up-right-from-square me-1"></i> Abrir Google para Conceder Permissão
+          </a>
+        `,
+        showConfirmButton: false,
+        showCancelButton: true,
+        cancelButtonText: 'Fechar',
+        cancelButtonColor: '#64748b'
+      });
+      return;
+    }
+
+    Swal.fire({
+      icon: 'error',
+      title: 'Atenção',
+      text: rawMsg || 'Ocorreu um erro ao processar o envio do código.',
+      confirmButtonColor: '#991b1b'
+    });
+  }
+
   function enviarOtpEExibirModalConfirmacao(dadosForm) {
     if (!validarCompatibilidadeEmailNomeClient(dadosForm.emailInstitucional, dadosForm.nome)) {
       Swal.fire({
@@ -355,15 +398,7 @@
             exibirModalDigitarCodigoOtp(dadosForm);
           })
           .withFailureHandler(err => {
-            const msg = (err.message && err.message.indexOf('recusou o acesso') !== -1)
-              ? 'O processo de validação recusou o acesso.'
-              : (err.message || 'O processo de validação recusou o acesso.');
-            Swal.fire({
-              icon: 'error',
-              title: 'Validação Recusada',
-              text: msg,
-              confirmButtonColor: '#991b1b'
-            });
+            tratarErroEnvioCodigo(err);
           })
           .enviarCodigoVerificacaoInstitucional(dadosForm.emailInstitucional, dadosForm.nome);
       })
@@ -374,12 +409,7 @@
             exibirModalDigitarCodigoOtp(dadosForm);
           })
           .withFailureHandler(errOtp => {
-            Swal.fire({
-              icon: 'error',
-              title: 'Validação Recusada',
-              text: 'O processo de validação recusou o acesso.',
-              confirmButtonColor: '#991b1b'
-            });
+            tratarErroEnvioCodigo(errOtp);
           })
           .enviarCodigoVerificacaoInstitucional(dadosForm.emailInstitucional, dadosForm.nome);
       })
@@ -478,13 +508,7 @@
         });
       })
       .withFailureHandler(err => {
-        const ehRecusa = (err.message && err.message.indexOf('recusou o acesso') !== -1);
-        Swal.fire({
-          icon: 'error',
-          title: ehRecusa ? 'Validação Recusada' : 'Atenção',
-          text: ehRecusa ? 'O processo de validação recusou o acesso.' : (err.message || 'Erro ao processar solicitação de PIN.'),
-          confirmButtonColor: '#991b1b'
-        });
+        tratarErroEnvioCodigo(err);
       })
       .executarResetPinMilitar(identificador, emailInst);
   }
