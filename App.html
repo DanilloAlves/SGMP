@@ -5970,10 +5970,10 @@
         return;
       }
 
-      // Trava de segurança: Logs
-      const podeLogs = ehAdmin || (typeof temPermissao === 'function' && temPermissao('aba_logs'));
+      // Trava de segurança: Logs (Exclusivo Administrador)
+      const podeLogs = ehAdmin;
       if (aba === 'logs' && !podeLogs) {
-        Swal.fire('Acesso Restrito', 'Você não possui permissão para acessar os Logs do Sistema.', 'error');
+        Swal.fire('Acesso Restrito', 'Apenas Administradores possuem autorização para acessar os Logs de Auditoria do Sistema.', 'error');
         return;
       }
       // Usuários: Administrador e Comandante de Unidade
@@ -24929,9 +24929,9 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
         const menuUsuarios = document.getElementById("menu-gerenciar-usuarios");
         if (menuUsuarios) menuUsuarios.style.display = "block";
       }
-      if (typeof ehAdminGlobal === 'function' && ehAdminGlobal()) {
-        const menuLogs = document.getElementById("menu-logs");
-        if (menuLogs) menuLogs.style.display = "block";
+      const menuLogs = document.getElementById("menu-logs");
+      if (menuLogs) {
+        menuLogs.style.display = (typeof ehAdminGlobal === 'function' && ehAdminGlobal()) ? "block" : "none";
       }
     }, 1500); // Aguarda o perfil carregar
   });
@@ -25352,6 +25352,14 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
   }
 
   function carregarLogsAuditoriaAdmin(resetarPagina) {
+    if (typeof ehAdminGlobal === 'function' && !ehAdminGlobal()) {
+      const tbody = document.getElementById('tabelaLogsAuditoriaAdmin');
+      if (tbody) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger py-4"><i class="fa-solid fa-lock me-2"></i> Acesso Restrito: Apenas o Administrador possui autorização para consultar os Logs de Auditoria.</td></tr>';
+      }
+      return;
+    }
+
     if (resetarPagina) {
       PAGINA_ATUAL_LOGS = 1;
     }
@@ -25547,6 +25555,11 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
   }
 
   function exportarLogsAuditoriaExcel() {
+    if (typeof ehAdminGlobal === 'function' && !ehAdminGlobal()) {
+      Swal.fire('Acesso Restrito', 'Apenas o Administrador possui autorização para exportar os Logs de Auditoria.', 'error');
+      return;
+    }
+
     if (typeof XLSX === 'undefined') {
       Swal.fire('Erro', 'Biblioteca SheetJS (XLSX) não carregada no navegador.', 'error');
       return;
@@ -28767,10 +28780,10 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
         return;
       }
 
-      // Trava para Logs
-      const podeLogs = ehAdmin || (typeof temPermissao === 'function' && temPermissao('aba_logs'));
+      // Trava para Logs (Exclusivo Administrador)
+      const podeLogs = ehAdmin;
       if ((aba === 'logs' || aba === 'aba-logs') && !podeLogs) {
-        Swal.fire('Acesso Restrito', 'Você não possui permissão para acessar os Logs do Sistema.', 'error');
+        Swal.fire('Acesso Restrito', 'Apenas Administradores possuem autorização para acessar os Logs de Auditoria do Sistema.', 'error');
         return;
       }
 
@@ -28816,7 +28829,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       const menuChamados = document.getElementById('menu-chamados');
 
       const podeBase = ehAdmin || (typeof temPermissao === 'function' && temPermissao('base_dados'));
-      const podeLogs = ehAdmin || (typeof temPermissao === 'function' && temPermissao('aba_logs'));
+      const podeLogs = ehAdmin;
       const podeAberturaChamados = typeof temPermissao === 'function' ? temPermissao('abertura_chamados') : false;
     const podeVerDashboard = ehAdmin || (typeof ehChefeGlobal === 'function' && ehChefeGlobal()) || (typeof temPermissao === 'function' && temPermissao('visualizar_dashboard'));
 
@@ -28953,6 +28966,13 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     }
 
     let regrasCss = [];
+
+    if (!ehAdmin) {
+      regrasCss.push(`
+        #menu-logs,
+        #aba-logs { display: none !important; }
+      `);
+    }
 
     if (!podeAcautelamento) {
       regrasCss.push(`

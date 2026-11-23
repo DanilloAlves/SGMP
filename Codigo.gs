@@ -306,16 +306,17 @@ function padronizarPermissoesUsuario_(permRaw, perfil) {
     }
   }
 
-  // Comandante de Unidade mantém as suas permissões operacionais nativas + extras liberadas pelo administrador
+  // Comandante de Unidade mantém as suas permissões operacionais nativas (NUNCA incluindo aba_logs)
   if (pPadrao === "Comandante de Unidade") {
     var basePerms = LISTA_PERMISSOES_COMANDANTE.slice();
     extras.forEach(function(p) {
-      if (basePerms.indexOf(p) === -1) basePerms.push(p);
+      if (p !== "aba_logs" && basePerms.indexOf(p) === -1) basePerms.push(p);
     });
-    return basePerms;
+    return basePerms.filter(function(p) { return p !== "aba_logs"; });
   }
 
-  return extras;
+  // Qualquer outro perfil não-administrador também nunca recebe aba_logs
+  return extras.filter(function(p) { return p !== "aba_logs"; });
 }
 
 // Obtém dinamicamente os índices de todas as colunas da aba Logins
@@ -19037,6 +19038,18 @@ function getMapaTodasSubunidadesPorOme() {
 // =========================================================================
 function getLogsAuditoriaBigQuery(filtros) {
   try {
+    // Validação estrita de segurança: apenas perfil Administrador pode consultar Logs de Auditoria
+    var email = "";
+    try { email = Session.getActiveUser().getEmail().trim().toLowerCase(); } catch (e) {}
+    if (!email) {
+      try { email = Session.getEffectiveUser().getEmail().trim().toLowerCase(); } catch (e) {}
+    }
+    var userLog = email ? verificarPermissaoUsuario(email) : null;
+    var perfilLog = userLog ? padronizarPerfilUsuario_(userLog.perfil) : "";
+    if (perfilLog !== "Administrador") {
+      throw new Error("Acesso negado: apenas o Administrador possui permissão para consultar os Logs de Auditoria.");
+    }
+
     garantirTabelaLog_();
     filtros = filtros || {};
     var limite = parseInt(filtros.limite, 10) || 100;
