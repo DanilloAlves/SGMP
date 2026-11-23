@@ -144,14 +144,31 @@
     .visao-mobile-checklist { display: none; }
     .barra-fixa-envio-mobile { display: none; }
 
-    /* Estilos para Agrupamento de Materiais no Checklist */
+    /* Estilos para Agrupamento de Locais e Materiais no Checklist */
+    .tr-subnivel-header {
+      background-color: #e8edf5 !important;
+      border-top: 1px solid #cbd5e1 !important;
+      border-bottom: 1px solid #cbd5e1 !important;
+    }
+    .tr-subnivel-header td {
+      background-color: #e8edf5 !important;
+    }
+    .banner-subnivel-mobile {
+      background-color: #e8edf5 !important;
+      border: 1px solid #cbd5e1 !important;
+    }
     .tr-grupo-objeto {
       cursor: pointer;
       user-select: none;
+      background-color: #ffffff !important;
       transition: background-color 0.15s ease;
     }
-    .tr-grupo-objeto:hover {
-      background-color: #f1f5f9 !important;
+    .tr-grupo-objeto td {
+      background-color: #ffffff !important;
+    }
+    .tr-grupo-objeto:hover,
+    .tr-grupo-objeto:hover td {
+      background-color: #f8fafc !important;
     }
     .card-grupo-objeto-mobile {
       background-color: #ffffff;
@@ -21989,10 +22006,10 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
               </tr>
             </thead>
             <tbody>
-              <tr class="table-light border-top border-bottom tr-subnivel-header" data-subnivel-id="sub_${unitIndex}_0">
-                <td colspan="6" class="py-2 px-3 fw-bold bg-light-subtle text-dark" style="font-size: 0.95rem;">
+              <tr class="tr-subnivel-header" data-subnivel-id="sub_${unitIndex}_0">
+                <td colspan="6" class="py-1.5 px-3 fw-bold" style="font-size: 0.80rem; color: #334155; text-transform: uppercase; letter-spacing: 0.5px;">
                   <i class="fa-solid fa-layer-group text-secondary me-2"></i><span>${rotuloSub}</span>
-                  <span class="badge bg-secondary ms-2" style="font-size: 0.75rem;">0 item(ns)</span>
+                  <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle ms-2" style="font-size: 0.70rem;">0 item(ns)</span>
                 </td>
               </tr>
               <tr>
@@ -22006,9 +22023,9 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
 
         <!-- 2. VISÃO MOBILE (CARD VAZIO COM SUBGRUPO) -->
         <div class="visao-mobile-checklist">
-          <div class="banner-subnivel-mobile py-2 px-3 mb-2 rounded bg-light border fw-bold text-dark d-flex justify-content-between align-items-center" data-subnivel-id="sub_${unitIndex}_0">
+          <div class="banner-subnivel-mobile py-1.5 px-3 mb-2 rounded border fw-bold d-flex justify-content-between align-items-center" data-subnivel-id="sub_${unitIndex}_0" style="font-size: 0.80rem; color: #334155; text-transform: uppercase; letter-spacing: 0.5px;">
             <span><i class="fa-solid fa-layer-group text-secondary me-2"></i>${rotuloSub}</span>
-            <span class="badge bg-secondary ms-2" style="font-size: 0.72rem;">0 item(ns)</span>
+            <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle ms-2" style="font-size: 0.70rem;">0 item(ns)</span>
           </div>
           <div class="p-4 text-center text-muted small border rounded bg-light mb-2">
             <i class="fa-solid fa-box-open fa-2x mb-2 text-secondary opacity-50 d-block"></i>
@@ -22077,19 +22094,20 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       let subId = `sub_${unitIndex}_${subIdx}`;
 
       if (exibirHeaderSubnivel) {
-        let iconeSub = (subNome === "Geral") ? "fa-layer-group text-secondary" : "fa-map-pin text-primary";
+        let iconeSub = (subNome === "Geral") ? "fa-layer-group text-secondary" : "fa-map-pin text-danger";
         let rotuloSub = (subNome === "Geral") ? "Local: Geral do Setor" : ("Local: " + subNome);
 
         bodyHtml += `
-          <tr class="table-light border-top border-bottom tr-subnivel-header" data-subnivel-id="${subId}">
-            <td colspan="6" class="py-2 px-3 fw-bold bg-light-subtle text-dark" style="font-size: 0.95rem;">
+          <tr class="tr-subnivel-header" data-subnivel-id="${subId}">
+            <td colspan="6" class="py-1 px-3" style="font-size: 0.80rem;">
               <div class="d-flex align-items-center justify-content-between">
-                <div>
-                  <i class="fa-solid ${iconeSub} me-2"></i><span>${rotuloSub}</span>
-                  <span class="badge bg-secondary ms-2" style="font-size: 0.75rem;">${itensSub.length} item(ns)</span>
+                <div class="d-flex align-items-center">
+                  <i class="fa-solid ${iconeSub} me-2" style="font-size: 0.85rem;"></i>
+                  <span class="fw-bold" style="color: #334155; text-transform: uppercase; letter-spacing: 0.5px;">${rotuloSub}</span>
+                  <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle ms-2" style="font-size: 0.70rem;">${itensSub.length} item(ns)</span>
                 </div>
                 <div>
-                  <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2" style="font-size: 0.72rem;" onclick="toggleTodosGruposSubnivel('${subId}', this)">
+                  <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2" style="font-size: 0.70rem;" onclick="toggleTodosGruposSubnivel('${subId}', this)">
                     <i class="fa-solid fa-expand me-1"></i>Expandir
                   </button>
                 </div>
@@ -22121,12 +22139,12 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
         let qtdObj = itensObj.length;
 
         bodyHtml += `
-          <tr class="tr-grupo-objeto" data-grupo-id="${grupoId}" data-subnivel-parent="${subId}" data-div-index="${unitIndex}" data-expanded="false" onclick="toggleGrupoObjetoChecklist('${grupoId}')" style="cursor: pointer; background-color: #f8fafc; border-top: 1px solid #e2e8f0;">
+          <tr class="tr-grupo-objeto" data-grupo-id="${grupoId}" data-subnivel-parent="${subId}" data-div-index="${unitIndex}" data-expanded="false" onclick="toggleGrupoObjetoChecklist('${grupoId}')" style="cursor: pointer; border-top: 1px solid #e2e8f0;">
             <td colspan="6" class="py-2 px-3 border-bottom">
               <div class="d-flex align-items-center justify-content-between">
                 <div class="d-flex align-items-center flex-wrap gap-2">
-                  <i class="fa-solid fa-chevron-right text-secondary chevron-grupo-objeto" id="chevron-desk-${grupoId}" style="transition: transform 0.2s; font-size: 0.8rem; width: 14px;"></i>
-                  <span class="fw-bold text-dark" style="font-size: 0.88rem;">${nomeObj}</span>
+                  <i class="fa-solid fa-chevron-right text-secondary chevron-grupo-objeto" id="chevron-desk-${grupoId}" style="transition: transform 0.2s; font-size: 0.85rem; width: 14px;"></i>
+                  <span class="fw-bold text-dark" style="font-size: 0.94rem;">${nomeObj}</span>
                   <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-0.5" style="font-size: 0.75rem;">
                     ${qtdObj} ${qtdObj === 1 ? 'item' : 'itens'}
                   </span>
@@ -22203,17 +22221,17 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       let subId = `sub_${unitIndex}_${subIdx}`;
 
       if (exibirHeaderSubnivel) {
-        let iconeSub = (subNome === "Geral") ? "fa-layer-group text-secondary" : "fa-map-pin text-primary";
+        let iconeSub = (subNome === "Geral") ? "fa-layer-group text-secondary" : "fa-map-pin text-danger";
         let rotuloSub = (subNome === "Geral") ? "Local: Geral do Setor" : ("Local: " + subNome);
 
         bodyHtml += `
-          <div class="d-flex align-items-center justify-content-between p-2 mt-3 mb-2 bg-light border rounded shadow-xs banner-subnivel-mobile" data-subnivel-id="${subId}" style="font-size: 0.95rem; font-weight: 700;">
-            <span class="text-dark">
-              <i class="fa-solid ${iconeSub} me-2"></i>${rotuloSub}
+          <div class="d-flex align-items-center justify-content-between p-2 mt-2.5 mb-2 border rounded shadow-xs banner-subnivel-mobile" data-subnivel-id="${subId}" style="font-size: 0.80rem; font-weight: 700;">
+            <span style="color: #334155; text-transform: uppercase; letter-spacing: 0.5px;">
+              <i class="fa-solid ${iconeSub} me-2" style="font-size: 0.85rem;"></i>${rotuloSub}
             </span>
             <div class="d-flex align-items-center gap-1">
-              <span class="badge bg-secondary" style="font-size: 0.72rem;">${itensSub.length} item(ns)</span>
-              <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2" style="font-size: 0.7rem;" onclick="toggleTodosGruposSubnivelMobile('${subId}', this)">
+              <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle" style="font-size: 0.70rem;">${itensSub.length} item(ns)</span>
+              <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2" style="font-size: 0.70rem;" onclick="toggleTodosGruposSubnivelMobile('${subId}', this)">
                 <i class="fa-solid fa-expand me-1"></i>Expandir
               </button>
             </div>
@@ -22246,8 +22264,8 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
           <div class="card-grupo-objeto-mobile mb-2 border rounded shadow-xs overflow-hidden" data-grupo-id="${grupoId}" data-subnivel-parent="${subId}" data-div-index="${unitIndex}" data-expanded="false">
             <div class="p-2.5 bg-white d-flex align-items-center justify-content-between header-grupo-mob" onclick="toggleGrupoObjetoMobile('${grupoId}')" style="cursor: pointer;">
               <div class="d-flex align-items-center flex-grow-1 me-2">
-                <i class="fa-solid fa-chevron-right text-muted me-2 chevron-grupo-mob" id="chevron-mob-${grupoId}" style="transition: transform 0.2s; font-size: 0.8rem; width: 14px;"></i>
-                <span class="fw-bold text-dark" style="font-size: 0.88rem; line-height: 1.25;">${nomeObj}</span>
+                <i class="fa-solid fa-chevron-right text-muted me-2 chevron-grupo-mob" id="chevron-mob-${grupoId}" style="transition: transform 0.2s; font-size: 0.85rem; width: 14px;"></i>
+                <span class="fw-bold text-dark" style="font-size: 0.94rem; line-height: 1.25;">${nomeObj}</span>
                 <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle ms-2" style="font-size: 0.75rem;">${qtdObj} un.</span>
               </div>
               <div class="d-flex align-items-center">
