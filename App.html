@@ -1529,64 +1529,100 @@
           </div>
         </div>
 
-        <!-- BARRA DE FILTROS DO DASHBOARD (OME, MATERIAL MULTI-SELECT, STATUS, SUBUNIDADE, RESET) -->
-        <div class="row g-2 mb-3 p-2 bg-light bg-opacity-75 rounded border align-items-end" style="font-size: 0.8rem; border-color: #e2e8f0 !important;">
-          <!-- Filtro OME -->
-          <div class="col-lg-3 col-md-6 col-sm-12">
-            <label class="form-label fw-bold text-secondary mb-1" style="font-size: 0.73rem;">
-              <i class="fa-solid fa-building-shield me-1 text-danger"></i> Unidade / OME
-            </label>
-            <select id="filtroDashOme" class="form-select form-select-sm shadow-none" onchange="aoMudarOmeDashboard()" style="font-size: 0.78rem; height: 31px;">
-              <option value="TODAS">TODAS AS OMEs (CBMPE)</option>
-            </select>
-          </div>
-
-          <!-- Filtro Material (Multi-seleção com Select2 Estilizado) -->
-          <div class="col-lg-4 col-md-6 col-sm-12">
-            <div class="d-flex justify-content-between align-items-center mb-1">
-              <label class="form-label fw-bold text-secondary mb-0" style="font-size: 0.73rem;">
-                <i class="fa-solid fa-boxes-stacked me-1 text-primary"></i> Material(is)
-                <span id="badgeContadorMateriaisSelecionados" class="badge bg-danger bg-opacity-10 text-danger border border-danger-subtle ms-1" style="font-size: 0.65rem; display: none;"></span>
+        <!-- BARRA DE FILTROS DO DASHBOARD (OME, SUBUNIDADE, CLASSES, MATERIAL MULTI-SELECT, STATUS, RESET) -->
+        <div class="mb-3 p-2 bg-light bg-opacity-75 rounded border" style="font-size: 0.8rem; border-color: #e2e8f0 !important;">
+          <!-- Linha 1: OME, Subunidade, Classe 1, Classe 2 -->
+          <div class="row g-2 mb-2 align-items-end">
+            <!-- Filtro OME -->
+            <div class="col-lg-3 col-md-6 col-sm-12">
+              <label class="form-label fw-bold text-secondary mb-1" style="font-size: 0.73rem;">
+                <i class="fa-solid fa-building-shield me-1 text-danger"></i> Unidade / OME
               </label>
-              <div class="d-flex gap-1 align-items-center">
-                <a href="javascript:void(0)" class="text-primary small text-decoration-none fw-semibold" style="font-size: 0.68rem;" onclick="selecionarTodosMateriaisDash(true)">Todos</a>
-                <span class="text-muted" style="font-size: 0.65rem;">•</span>
-                <a href="javascript:void(0)" class="text-secondary small text-decoration-none" style="font-size: 0.68rem;" onclick="selecionarTodosMateriaisDash(false)">Limpar</a>
-              </div>
+              <select id="filtroDashOme" class="form-select form-select-sm shadow-none" onchange="aoMudarOmeDashboard()" style="font-size: 0.78rem; height: 31px;">
+                <option value="TODAS">TODAS AS OMEs (CBMPE)</option>
+              </select>
             </div>
-            <select id="filtroDashMaterial" class="form-select form-select-sm" multiple="multiple" style="width: 100%;">
-            </select>
+
+            <!-- Filtro Subunidade -->
+            <div class="col-lg-3 col-md-6 col-sm-12">
+              <label class="form-label fw-bold text-secondary mb-1" style="font-size: 0.73rem;">
+                <i class="fa-solid fa-sitemap me-1 text-danger"></i> Subunidade
+              </label>
+              <select id="filtroDashSubunidade" class="form-select form-select-sm shadow-none" onchange="aplicarFiltrosDashboard()" style="font-size: 0.78rem; height: 31px;">
+                <option value="TODAS">TODAS</option>
+              </select>
+            </div>
+
+            <!-- Filtro Classe 1 -->
+            <div class="col-lg-3 col-md-6 col-sm-12">
+              <label class="form-label fw-bold text-secondary mb-1" style="font-size: 0.73rem;">
+                <i class="fa-solid fa-layer-group me-1 text-primary"></i> Classe 1
+              </label>
+              <select id="filtroDashClasse1" class="form-select form-select-sm shadow-none" onchange="aoMudarClasse1Dashboard()" style="font-size: 0.78rem; height: 31px;">
+                <option value="TODAS">TODAS (Classe 1)</option>
+              </select>
+            </div>
+
+            <!-- Filtro Classe 2 -->
+            <div class="col-lg-3 col-md-6 col-sm-12">
+              <label class="form-label fw-bold text-secondary mb-1" style="font-size: 0.73rem;">
+                <i class="fa-solid fa-tags me-1 text-primary"></i> Classe 2
+              </label>
+              <select id="filtroDashClasse2" class="form-select form-select-sm shadow-none" onchange="aoMudarClasse2Dashboard()" style="font-size: 0.78rem; height: 31px;">
+                <option value="TODAS">TODAS (Classe 2)</option>
+              </select>
+            </div>
           </div>
 
-          <!-- Filtro Situação / Status -->
-          <div class="col-lg-2 col-md-6 col-sm-12">
-            <label class="form-label fw-bold text-secondary mb-1" style="font-size: 0.73rem;">
-              <i class="fa-solid fa-shield-halved me-1 text-success"></i> Situação / Status
-            </label>
-            <select id="filtroDashStatus" class="form-select form-select-sm shadow-none" onchange="aplicarFiltrosDashboard()" style="font-size: 0.78rem; height: 31px;">
-              <option value="TODOS">Todos os Status</option>
-              <option value="ECD">Em Uso (ECD)</option>
-              <option value="SCD">Sem Condições (SCD)</option>
-              <option value="ACAUTELADO">Acautelado</option>
-              <option value="EXTRAVIADO">Extraviado</option>
-            </select>
-          </div>
+          <!-- Linha 2: Classe 3, Material Multi-Select, Status, Botão Reset -->
+          <div class="row g-2 align-items-end">
+            <!-- Filtro Classe 3 -->
+            <div class="col-lg-3 col-md-6 col-sm-12">
+              <label class="form-label fw-bold text-secondary mb-1" style="font-size: 0.73rem;">
+                <i class="fa-solid fa-tag me-1 text-info"></i> Classe 3
+              </label>
+              <select id="filtroDashClasse3" class="form-select form-select-sm shadow-none" onchange="aplicarFiltrosDashboard()" style="font-size: 0.78rem; height: 31px;">
+                <option value="TODAS">TODAS (Classe 3)</option>
+              </select>
+            </div>
 
-          <!-- Filtro Subunidade -->
-          <div class="col-lg-2 col-md-6 col-sm-12">
-            <label class="form-label fw-bold text-secondary mb-1" style="font-size: 0.73rem;">
-              <i class="fa-solid fa-sitemap me-1 text-danger"></i> Subunidade
-            </label>
-            <select id="filtroDashSubunidade" class="form-select form-select-sm shadow-none" onchange="aplicarFiltrosDashboard()" style="font-size: 0.78rem; height: 31px;">
-              <option value="TODAS">TODAS</option>
-            </select>
-          </div>
+            <!-- Filtro Material (Multi-seleção com Select2 Estilizado) -->
+            <div class="col-lg-5 col-md-6 col-sm-12">
+              <div class="d-flex justify-content-between align-items-center mb-1">
+                <label class="form-label fw-bold text-secondary mb-0" style="font-size: 0.73rem;">
+                  <i class="fa-solid fa-boxes-stacked me-1 text-primary"></i> Material(is)
+                  <span id="badgeContadorMateriaisSelecionados" class="badge bg-danger bg-opacity-10 text-danger border border-danger-subtle ms-1" style="font-size: 0.65rem; display: none;"></span>
+                </label>
+                <div class="d-flex gap-1 align-items-center">
+                  <a href="javascript:void(0)" class="text-primary small text-decoration-none fw-semibold" style="font-size: 0.68rem;" onclick="selecionarTodosMateriaisDash(true)">Todos</a>
+                  <span class="text-muted" style="font-size: 0.65rem;">•</span>
+                  <a href="javascript:void(0)" class="text-secondary small text-decoration-none" style="font-size: 0.68rem;" onclick="selecionarTodosMateriaisDash(false)">Limpar</a>
+                </div>
+              </div>
+              <select id="filtroDashMaterial" class="form-select form-select-sm" multiple="multiple" style="width: 100%;">
+              </select>
+            </div>
 
-          <!-- Botão Reset -->
-          <div class="col-lg-1 col-md-6 col-sm-12">
-            <button class="btn btn-outline-secondary btn-sm w-100 fw-semibold" onclick="resetarFiltrosDashboard()" title="Restaurar todos os filtros para o padrão" style="font-size: 0.78rem; height: 31px; padding: 0.28rem 0.2rem;">
-              <i class="fa-solid fa-filter-circle-xmark me-1"></i> Limpar
-            </button>
+            <!-- Filtro Situação / Status -->
+            <div class="col-lg-3 col-md-6 col-sm-12">
+              <label class="form-label fw-bold text-secondary mb-1" style="font-size: 0.73rem;">
+                <i class="fa-solid fa-shield-halved me-1 text-success"></i> Situação / Status
+              </label>
+              <select id="filtroDashStatus" class="form-select form-select-sm shadow-none" onchange="aplicarFiltrosDashboard()" style="font-size: 0.78rem; height: 31px;">
+                <option value="TODOS">Todos os Status</option>
+                <option value="ECD">Em Uso (ECD)</option>
+                <option value="SCD">Sem Condições (SCD)</option>
+                <option value="ACAUTELADO">Acautelado</option>
+                <option value="EXTRAVIADO">Extraviado</option>
+              </select>
+            </div>
+
+            <!-- Botão Reset -->
+            <div class="col-lg-1 col-md-6 col-sm-12">
+              <button class="btn btn-outline-secondary btn-sm w-100 fw-semibold" onclick="resetarFiltrosDashboard()" title="Restaurar todos os filtros para o padrão" style="font-size: 0.78rem; height: 31px; padding: 0.28rem 0.2rem;">
+                <i class="fa-solid fa-filter-circle-xmark me-1"></i> Limpar
+              </button>
+            </div>
           </div>
         </div>
 
@@ -29857,7 +29893,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       .obterDadosDashboardVisaoGeral(forcar === true, (typeof OME_GLOBAL !== 'undefined' ? OME_GLOBAL : ''), (typeof PERFIL_GLOBAL !== 'undefined' ? PERFIL_GLOBAL : ''));
   }
 
-  // Preenche as opções de OME, Materiais (Multi-select) e Subunidades
+  // Preenche as opções de OME, Classes, Subunidades e Materiais
   function popularFiltrosDashboard(resp) {
     const selOme = document.getElementById('filtroDashOme');
     const selSub = document.getElementById('filtroDashSubunidade');
@@ -29906,8 +29942,178 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     // 2. Subunidades de acordo com a OME
     popularSubunidadesDashboard(selOme ? selOme.value : 'TODAS');
 
-    // 3. Materiais (Multi-select com Select2)
+    // 3. Classes do Catálogo
+    popularClasses1Dashboard();
+    popularClasses2Dashboard();
+    popularClasses3Dashboard();
+
+    // 4. Materiais (Multi-select com Select2)
     popularMateriaisDashboard();
+  }
+
+  // Preenche as opções de Classe 1
+  function popularClasses1Dashboard() {
+    const selCl1 = document.getElementById('filtroDashClasse1');
+    if (!selCl1 || !cacheDadosDashboard) return;
+
+    const valCl1Ant = selCl1.value;
+    const setCl1 = new Set();
+
+    if (cacheDadosDashboard.listaClasses1 && cacheDadosDashboard.listaClasses1.length > 0) {
+      cacheDadosDashboard.listaClasses1.forEach(function(c) {
+        if (c && c !== 'TODAS' && c !== 'OUTROS') setCl1.add(c);
+      });
+    }
+
+    if (cacheDadosDashboard.dados) {
+      cacheDadosDashboard.dados.forEach(function(d) {
+        if (d.classe1 && d.classe1 !== 'TODAS' && d.classe1 !== 'OUTROS') setCl1.add(d.classe1);
+        (d.materiais || []).forEach(function(m) {
+          if (m && m.classe1 && m.classe1 !== 'TODAS' && m.classe1 !== 'OUTROS') setCl1.add(m.classe1);
+        });
+      });
+    }
+
+    const listaOrdenada = Array.from(setCl1).sort(function(a, b) {
+      return a.localeCompare(b);
+    });
+
+    let html = '<option value="TODAS">TODAS (Classe 1)</option>';
+    listaOrdenada.forEach(function(c) {
+      html += '<option value="' + escapeHtmlResumo(c) + '">' + escapeHtmlResumo(c) + '</option>';
+    });
+    selCl1.innerHTML = html;
+
+    if (valCl1Ant && selCl1.querySelector('option[value="' + valCl1Ant + '"]')) {
+      selCl1.value = valCl1Ant;
+    } else {
+      selCl1.value = 'TODAS';
+    }
+  }
+
+  // Preenche as opções de Classe 2 (filtradas pela Classe 1 se selecionada)
+  function popularClasses2Dashboard() {
+    const selCl1 = document.getElementById('filtroDashClasse1');
+    const selCl2 = document.getElementById('filtroDashClasse2');
+    if (!selCl2 || !cacheDadosDashboard) return;
+
+    const cl1Val = selCl1 ? selCl1.value : 'TODAS';
+    const valCl2Ant = selCl2.value;
+    const setCl2 = new Set();
+
+    const normComp = function(s) {
+      return String(s || '').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    };
+
+    if (cacheDadosDashboard.dados) {
+      cacheDadosDashboard.dados.forEach(function(d) {
+        const matchC1 = (cl1Val === 'TODAS' || normComp(d.classe1) === normComp(cl1Val));
+        if (matchC1 && d.classe2 && d.classe2 !== 'TODAS' && d.classe2 !== 'OUTROS') {
+          setCl2.add(d.classe2);
+        }
+        (d.materiais || []).forEach(function(m) {
+          const mC1 = m.classe1 || d.classe1;
+          const matchMC1 = (cl1Val === 'TODAS' || normComp(mC1) === normComp(cl1Val));
+          if (matchMC1 && m.classe2 && m.classe2 !== 'TODAS' && m.classe2 !== 'OUTROS') {
+            setCl2.add(m.classe2);
+          }
+        });
+      });
+    }
+
+    if (setCl2.size === 0 && cl1Val === 'TODAS' && cacheDadosDashboard.listaClasses2) {
+      cacheDadosDashboard.listaClasses2.forEach(function(c) {
+        if (c && c !== 'TODAS' && c !== 'OUTROS') setCl2.add(c);
+      });
+    }
+
+    const listaOrdenada = Array.from(setCl2).sort(function(a, b) {
+      return a.localeCompare(b);
+    });
+
+    let html = '<option value="TODAS">TODAS (Classe 2)</option>';
+    listaOrdenada.forEach(function(c) {
+      html += '<option value="' + escapeHtmlResumo(c) + '">' + escapeHtmlResumo(c) + '</option>';
+    });
+    selCl2.innerHTML = html;
+
+    if (valCl2Ant && selCl2.querySelector('option[value="' + valCl2Ant + '"]')) {
+      selCl2.value = valCl2Ant;
+    } else {
+      selCl2.value = 'TODAS';
+    }
+  }
+
+  // Preenche as opções de Classe 3 (filtradas por Classe 1 e Classe 2 se selecionadas)
+  function popularClasses3Dashboard() {
+    const selCl1 = document.getElementById('filtroDashClasse1');
+    const selCl2 = document.getElementById('filtroDashClasse2');
+    const selCl3 = document.getElementById('filtroDashClasse3');
+    if (!selCl3 || !cacheDadosDashboard) return;
+
+    const cl1Val = selCl1 ? selCl1.value : 'TODAS';
+    const cl2Val = selCl2 ? selCl2.value : 'TODAS';
+    const valCl3Ant = selCl3.value;
+    const setCl3 = new Set();
+
+    const normComp = function(s) {
+      return String(s || '').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    };
+
+    if (cacheDadosDashboard.dados) {
+      cacheDadosDashboard.dados.forEach(function(d) {
+        const matchC1 = (cl1Val === 'TODAS' || normComp(d.classe1) === normComp(cl1Val));
+        const matchC2 = (cl2Val === 'TODAS' || normComp(d.classe2) === normComp(cl2Val));
+        if (matchC1 && matchC2 && d.classe3 && d.classe3 !== 'TODAS' && d.classe3 !== 'OUTROS') {
+          setCl3.add(d.classe3);
+        }
+        (d.materiais || []).forEach(function(m) {
+          const mC1 = m.classe1 || d.classe1;
+          const mC2 = m.classe2 || d.classe2;
+          const matchMC1 = (cl1Val === 'TODAS' || normComp(mC1) === normComp(cl1Val));
+          const matchMC2 = (cl2Val === 'TODAS' || normComp(mC2) === normComp(cl2Val));
+          if (matchMC1 && matchMC2 && m.classe3 && m.classe3 !== 'TODAS' && m.classe3 !== 'OUTROS') {
+            setCl3.add(m.classe3);
+          }
+        });
+      });
+    }
+
+    if (setCl3.size === 0 && cl1Val === 'TODAS' && cl2Val === 'TODAS' && cacheDadosDashboard.listaClasses3) {
+      cacheDadosDashboard.listaClasses3.forEach(function(c) {
+        if (c && c !== 'TODAS' && c !== 'OUTROS') setCl3.add(c);
+      });
+    }
+
+    const listaOrdenada = Array.from(setCl3).sort(function(a, b) {
+      return a.localeCompare(b);
+    });
+
+    let html = '<option value="TODAS">TODAS (Classe 3)</option>';
+    listaOrdenada.forEach(function(c) {
+      html += '<option value="' + escapeHtmlResumo(c) + '">' + escapeHtmlResumo(c) + '</option>';
+    });
+    selCl3.innerHTML = html;
+
+    if (valCl3Ant && selCl3.querySelector('option[value="' + valCl3Ant + '"]')) {
+      selCl3.value = valCl3Ant;
+    } else {
+      selCl3.value = 'TODAS';
+    }
+  }
+
+  // Handlers para eventos de alteração de classes
+  function aoMudarClasse1Dashboard() {
+    popularClasses2Dashboard();
+    popularClasses3Dashboard();
+    popularMateriaisDashboard();
+    aplicarFiltrosDashboard();
+  }
+
+  function aoMudarClasse2Dashboard() {
+    popularClasses3Dashboard();
+    popularMateriaisDashboard();
+    aplicarFiltrosDashboard();
   }
 
   // Preenche a lista de materiais disponíveis no select2 multi-select
@@ -29917,6 +30123,13 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
 
     const selOme = document.getElementById('filtroDashOme');
     const omeSelecionado = selOme ? selOme.value : 'TODAS';
+
+    const selCl1 = document.getElementById('filtroDashClasse1');
+    const selCl2 = document.getElementById('filtroDashClasse2');
+    const selCl3 = document.getElementById('filtroDashClasse3');
+    const cl1Val = selCl1 ? selCl1.value : 'TODAS';
+    const cl2Val = selCl2 ? selCl2.value : 'TODAS';
+    const cl3Val = selCl3 ? selCl3.value : 'TODAS';
 
     const normComp = function(s) {
       return String(s || '').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -29934,14 +30147,18 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
           if (!m || !m.nome) return;
           const cl1Norm = String(m.classe1 || item.classe1 || '').trim().toUpperCase();
           const cl2Norm = String(m.classe2 || item.classe2 || '').trim().toUpperCase();
+          const cl3Norm = String(m.classe3 || item.classe3 || '').trim().toUpperCase();
           if (cl1Norm.includes('CONSUMO') || cl2Norm.includes('CONSUMO')) return;
+          if (cl1Val !== 'TODAS' && normComp(cl1Norm) !== normComp(cl1Val)) return;
+          if (cl2Val !== 'TODAS' && normComp(cl2Norm) !== normComp(cl2Val)) return;
+          if (cl3Val !== 'TODAS' && normComp(cl3Norm) !== normComp(cl3Val)) return;
           setMats.add(m.nome);
         });
       });
     }
 
     // Se a OME não filtrou materiais diretamente, usa lista geral de materiais
-    if (setMats.size === 0 && cacheDadosDashboard.listaMateriais) {
+    if (setMats.size === 0 && cacheDadosDashboard.listaMateriais && cl1Val === 'TODAS' && cl2Val === 'TODAS' && cl3Val === 'TODAS') {
       cacheDadosDashboard.listaMateriais.forEach(function(m) {
         if (typeof ehViaturaMaterial === 'function' && ehViaturaMaterial(m)) return;
         setMats.add(m);
@@ -30106,8 +30323,12 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     subunidadeFiltroGrafico = null;
     const selOme = document.getElementById('filtroDashOme');
     const selSub = document.getElementById('filtroDashSubunidade');
+    const selCl1 = document.getElementById('filtroDashClasse1');
+    const selCl2 = document.getElementById('filtroDashClasse2');
+    const selCl3 = document.getElementById('filtroDashClasse3');
     const selStatus = document.getElementById('filtroDashStatus');
     const selMat = $('#filtroDashMaterial');
+    const inputBusca = document.getElementById('filtroTextoTabelaDash');
 
     const ehAdmin = cacheDadosDashboard ? cacheDadosDashboard.ehAdmin === true : false;
     const omeUsuario = (cacheDadosDashboard ? cacheDadosDashboard.omeUsuario : OME_GLOBAL) || "";
@@ -30119,7 +30340,11 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     }
 
     if (selSub) selSub.value = 'TODAS';
+    if (selCl1) selCl1.value = 'TODAS';
+    if (selCl2) selCl2.value = 'TODAS';
+    if (selCl3) selCl3.value = 'TODAS';
     if (selStatus) selStatus.value = 'TODOS';
+    if (inputBusca) inputBusca.value = '';
 
     if (selMat.length) {
       selMat.val([]);
@@ -30129,7 +30354,10 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     }
 
     popularSubunidadesDashboard(selOme ? selOme.value : 'TODAS', 'TODAS');
+    popularClasses2Dashboard();
+    popularClasses3Dashboard();
     popularMateriaisDashboard();
+    limparFiltroStatusTabelaDash(false);
     aplicarFiltrosDashboard();
   }
 
@@ -30139,8 +30367,16 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     if (selOme) selOme.value = 'TODAS';
     const selSub = document.getElementById('filtroDashSubunidade');
     if (selSub) selSub.value = 'TODAS';
+    const selCl1 = document.getElementById('filtroDashClasse1');
+    const selCl2 = document.getElementById('filtroDashClasse2');
+    const selCl3 = document.getElementById('filtroDashClasse3');
+    if (selCl1) selCl1.value = 'TODAS';
+    if (selCl2) selCl2.value = 'TODAS';
+    if (selCl3) selCl3.value = 'TODAS';
     subunidadeFiltroGrafico = null;
     popularSubunidadesDashboard('TODAS', 'TODAS');
+    popularClasses2Dashboard();
+    popularClasses3Dashboard();
     popularMateriaisDashboard();
     aplicarFiltrosDashboard();
   }
@@ -30151,11 +30387,17 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
 
     const selOme = document.getElementById('filtroDashOme');
     const selSub = document.getElementById('filtroDashSubunidade');
+    const selCl1 = document.getElementById('filtroDashClasse1');
+    const selCl2 = document.getElementById('filtroDashClasse2');
+    const selCl3 = document.getElementById('filtroDashClasse3');
     const selStatus = document.getElementById('filtroDashStatus');
     const selMat = $('#filtroDashMaterial');
 
     const omeFiltro = selOme ? selOme.value : 'TODAS';
     const subFiltro = selSub ? selSub.value : 'TODAS';
+    const cl1Filtro = selCl1 ? selCl1.value : 'TODAS';
+    const cl2Filtro = selCl2 ? selCl2.value : 'TODAS';
+    const cl3Filtro = selCl3 ? selCl3.value : 'TODAS';
     const statusFiltro = selStatus ? selStatus.value : 'TODOS'; // 'TODOS' | 'ECD' | 'SCD' | 'ACAUTELADO' | 'EXTRAVIADO'
     const matsSelecionados = (selMat.length && selMat.val()) ? selMat.val() : [];
 
@@ -30203,6 +30445,13 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
 
       (item.materiais || []).forEach(function(m) {
         if (!m || !m.nome) return;
+
+        const mCl1 = m.classe1 || item.classe1 || '';
+        const mCl2 = m.classe2 || item.classe2 || '';
+        const mCl3 = m.classe3 || item.classe3 || '';
+        if (cl1Filtro !== 'TODAS' && normComp(mCl1) !== normComp(cl1Filtro)) return;
+        if (cl2Filtro !== 'TODAS' && normComp(mCl2) !== normComp(cl2Filtro)) return;
+        if (cl3Filtro !== 'TODAS' && normComp(mCl3) !== normComp(cl3Filtro)) return;
 
         // Se houver materiais selecionados no filtro múltiplo, filtra estritamente por eles
         if (matsSelecionados.length > 0 && !matsSelecionados.includes(m.nome)) {
@@ -30344,6 +30593,9 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     const filtrosAtivos = [];
     if (omeFiltro !== 'TODAS') filtrosAtivos.push(omeFiltro);
     if (subFiltro !== 'TODAS') filtrosAtivos.push(subFiltro);
+    if (cl1Filtro !== 'TODAS') filtrosAtivos.push('Classe 1: ' + cl1Filtro);
+    if (cl2Filtro !== 'TODAS') filtrosAtivos.push('Classe 2: ' + cl2Filtro);
+    if (cl3Filtro !== 'TODAS') filtrosAtivos.push('Classe 3: ' + cl3Filtro);
     if (matsSelecionados.length === 1) {
       filtrosAtivos.push(matsSelecionados[0]);
     } else if (matsSelecionados.length > 1) {
@@ -31008,11 +31260,17 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
 
     const selOme = document.getElementById('filtroDashOme');
     const selSub = document.getElementById('filtroDashSubunidade');
+    const selCl1 = document.getElementById('filtroDashClasse1');
+    const selCl2 = document.getElementById('filtroDashClasse2');
+    const selCl3 = document.getElementById('filtroDashClasse3');
     const selStatus = document.getElementById('filtroDashStatus');
     const selMat = $('#filtroDashMaterial');
 
     const omeFiltro = selOme ? selOme.value : 'TODAS';
     const subFiltro = selSub ? selSub.value : 'TODAS';
+    const cl1Filtro = selCl1 ? selCl1.value : 'TODAS';
+    const cl2Filtro = selCl2 ? selCl2.value : 'TODAS';
+    const cl3Filtro = selCl3 ? selCl3.value : 'TODAS';
     const statusFiltro = selStatus ? selStatus.value : 'TODOS';
     const matsSel = (selMat.length && selMat.val()) ? selMat.val() : [];
 
@@ -31095,6 +31353,12 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
 
       (item.materiais || []).forEach(function(m) {
         if (!m || !m.nome) return;
+        const mCl1 = m.classe1 || item.classe1 || '';
+        const mCl2 = m.classe2 || item.classe2 || '';
+        const mCl3 = m.classe3 || item.classe3 || '';
+        if (cl1Filtro !== 'TODAS' && normComp(mCl1) !== normComp(cl1Filtro)) return;
+        if (cl2Filtro !== 'TODAS' && normComp(mCl2) !== normComp(cl2Filtro)) return;
+        if (cl3Filtro !== 'TODAS' && normComp(mCl3) !== normComp(cl3Filtro)) return;
         if (matsSel.length > 0 && !matsSel.includes(m.nome)) return;
 
         if (filtroTexto) {
@@ -31262,11 +31526,17 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
 
     const selOme = document.getElementById('filtroDashOme');
     const selSub = document.getElementById('filtroDashSubunidade');
+    const selCl1 = document.getElementById('filtroDashClasse1');
+    const selCl2 = document.getElementById('filtroDashClasse2');
+    const selCl3 = document.getElementById('filtroDashClasse3');
     const selStatus = document.getElementById('filtroDashStatus');
     const selMat = $('#filtroDashMaterial');
 
     const omeTexto = selOme ? (selOme.options[selOme.selectedIndex] ? selOme.options[selOme.selectedIndex].text : selOme.value) : 'TODAS';
     const subTexto = selSub ? (selSub.options[selSub.selectedIndex] ? selSub.options[selSub.selectedIndex].text : selSub.value) : 'TODAS';
+    const cl1Texto = selCl1 ? selCl1.value : 'TODAS';
+    const cl2Texto = selCl2 ? selCl2.value : 'TODAS';
+    const cl3Texto = selCl3 ? selCl3.value : 'TODAS';
     const statusTexto = selStatus ? selStatus.value : 'TODOS';
     const matsSel = (selMat.length && selMat.val()) ? selMat.val() : [];
     const matTexto = matsSel.length > 0 ? (matsSel.length === 1 ? matsSel[0] : matsSel.length + ' materiais selecionados') : 'Todos os materiais';
@@ -31361,7 +31631,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
         </div>
 
         <div class="box-filtros">
-          <strong>Filtros Aplicados:</strong> OME: <u>${escapeHtmlResumo(omeTexto)}</u> | Subunidade: <u>${escapeHtmlResumo(subTexto)}</u> | Material(is): <u>${escapeHtmlResumo(matTexto)}</u> | Status: <u>${escapeHtmlResumo(statusTexto)}</u> | Gerado em: ${agoraStr}
+          <strong>Filtros Aplicados:</strong> OME: <u>${escapeHtmlResumo(omeTexto)}</u> | Subunidade: <u>${escapeHtmlResumo(subTexto)}</u>${cl1Texto !== 'TODAS' ? ` | Classe 1: <u>${escapeHtmlResumo(cl1Texto)}</u>` : ''}${cl2Texto !== 'TODAS' ? ` | Classe 2: <u>${escapeHtmlResumo(cl2Texto)}</u>` : ''}${cl3Texto !== 'TODAS' ? ` | Classe 3: <u>${escapeHtmlResumo(cl3Texto)}</u>` : ''} | Material(is): <u>${escapeHtmlResumo(matTexto)}</u> | Status: <u>${escapeHtmlResumo(statusTexto)}</u> | Gerado em: ${agoraStr}
         </div>
 
         <div class="grid-kpis">
@@ -31911,37 +32181,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       .salvarCadastroMaterialCadItens(payload, (typeof usuarioSessaoAtual !== 'undefined') ? usuarioSessaoAtual : null);
   }
 
-  // Restaura os filtros para visão geral
-  function resetarFiltrosDashboard() {
-    const selOme = document.getElementById('filtroDashOme');
-    const selSub = document.getElementById('filtroDashSubunidade');
-    const selCl1 = document.getElementById('filtroDashClasse1');
-    const selCl2 = document.getElementById('filtroDashClasse2');
-    const selCl3 = document.getElementById('filtroDashClasse3');
-    const inputBusca = document.getElementById('filtroTextoTabelaDash');
 
-    const ehAdmin = cacheDadosDashboard ? cacheDadosDashboard.ehAdmin : true;
-    const omeUsuario = cacheDadosDashboard ? (cacheDadosDashboard.omeUsuario || OME_GLOBAL || "").trim().toUpperCase() : "";
-
-    if (selOme) {
-      if (!ehAdmin && omeUsuario) {
-        selOme.value = omeUsuario;
-      } else {
-        selOme.value = 'TODAS';
-      }
-    }
-    if (selSub) {
-      popularSubunidadesDashboard(selOme ? selOme.value : 'TODAS', 'TODAS');
-      selSub.value = 'TODAS';
-    }
-    if (selCl1) selCl1.value = 'TODAS';
-    if (selCl2) selCl2.value = 'TODAS';
-    if (selCl3) selCl3.value = 'TODAS';
-    if (inputBusca) inputBusca.value = '';
-
-    limparFiltroStatusTabelaDash(false);
-    aplicarFiltrosDashboard();
-  }
 
 
 // =========================================================================
