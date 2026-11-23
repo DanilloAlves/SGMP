@@ -1531,7 +1531,7 @@
 
         <!-- BARRA DE FILTROS DO DASHBOARD (OME, SUBUNIDADE, CLASSES, MATERIAL MULTI-SELECT, STATUS, RESET) -->
         <div class="mb-3 p-2 bg-light bg-opacity-75 rounded border" style="font-size: 0.8rem; border-color: #e2e8f0 !important;">
-          <!-- Linha 1: OME, Subunidade, Classe 1, Classe 2 -->
+          <!-- Linha 1: OME, Subunidade, Material Multi-Select, Botão Reset -->
           <div class="row g-2 mb-2 align-items-end">
             <!-- Filtro OME -->
             <div class="col-lg-3 col-md-6 col-sm-12">
@@ -1553,6 +1553,33 @@
               </select>
             </div>
 
+            <!-- Filtro Material (Multi-seleção com Select2 Estilizado) -->
+            <div class="col-lg-5 col-md-6 col-sm-12">
+              <div class="d-flex justify-content-between align-items-center mb-1">
+                <label class="form-label fw-bold text-secondary mb-0" style="font-size: 0.73rem;">
+                  <i class="fa-solid fa-boxes-stacked me-1 text-primary"></i> Material(is)
+                  <span id="badgeContadorMateriaisSelecionados" class="badge bg-danger bg-opacity-10 text-danger border border-danger-subtle ms-1" style="font-size: 0.65rem; display: none;"></span>
+                </label>
+                <div class="d-flex gap-1 align-items-center">
+                  <a href="javascript:void(0)" class="text-primary small text-decoration-none fw-semibold" style="font-size: 0.68rem;" onclick="selecionarTodosMateriaisDash(true)">Todos</a>
+                  <span class="text-muted" style="font-size: 0.65rem;">•</span>
+                  <a href="javascript:void(0)" class="text-secondary small text-decoration-none" style="font-size: 0.68rem;" onclick="selecionarTodosMateriaisDash(false)">Limpar</a>
+                </div>
+              </div>
+              <select id="filtroDashMaterial" class="form-select form-select-sm" multiple="multiple" style="width: 100%;">
+              </select>
+            </div>
+
+            <!-- Botão Reset -->
+            <div class="col-lg-1 col-md-6 col-sm-12">
+              <button class="btn btn-outline-secondary btn-sm w-100 fw-semibold" onclick="resetarFiltrosDashboard()" title="Restaurar todos os filtros para o padrão" style="font-size: 0.78rem; height: 31px; padding: 0.28rem 0.2rem;">
+                <i class="fa-solid fa-filter-circle-xmark me-1"></i> Limpar
+              </button>
+            </div>
+          </div>
+
+          <!-- Linha 2: Classe 1, Classe 2, Classe 3 na mesma linha + Situação / Status -->
+          <div class="row g-2 align-items-end">
             <!-- Filtro Classe 1 -->
             <div class="col-lg-3 col-md-6 col-sm-12">
               <label class="form-label fw-bold text-secondary mb-1" style="font-size: 0.73rem;">
@@ -1572,10 +1599,7 @@
                 <option value="TODAS">TODAS (Classe 2)</option>
               </select>
             </div>
-          </div>
 
-          <!-- Linha 2: Classe 3, Material Multi-Select, Status, Botão Reset -->
-          <div class="row g-2 align-items-end">
             <!-- Filtro Classe 3 -->
             <div class="col-lg-3 col-md-6 col-sm-12">
               <label class="form-label fw-bold text-secondary mb-1" style="font-size: 0.73rem;">
@@ -1583,23 +1607,6 @@
               </label>
               <select id="filtroDashClasse3" class="form-select form-select-sm shadow-none" onchange="aplicarFiltrosDashboard()" style="font-size: 0.78rem; height: 31px;">
                 <option value="TODAS">TODAS (Classe 3)</option>
-              </select>
-            </div>
-
-            <!-- Filtro Material (Multi-seleção com Select2 Estilizado) -->
-            <div class="col-lg-5 col-md-6 col-sm-12">
-              <div class="d-flex justify-content-between align-items-center mb-1">
-                <label class="form-label fw-bold text-secondary mb-0" style="font-size: 0.73rem;">
-                  <i class="fa-solid fa-boxes-stacked me-1 text-primary"></i> Material(is)
-                  <span id="badgeContadorMateriaisSelecionados" class="badge bg-danger bg-opacity-10 text-danger border border-danger-subtle ms-1" style="font-size: 0.65rem; display: none;"></span>
-                </label>
-                <div class="d-flex gap-1 align-items-center">
-                  <a href="javascript:void(0)" class="text-primary small text-decoration-none fw-semibold" style="font-size: 0.68rem;" onclick="selecionarTodosMateriaisDash(true)">Todos</a>
-                  <span class="text-muted" style="font-size: 0.65rem;">•</span>
-                  <a href="javascript:void(0)" class="text-secondary small text-decoration-none" style="font-size: 0.68rem;" onclick="selecionarTodosMateriaisDash(false)">Limpar</a>
-                </div>
-              </div>
-              <select id="filtroDashMaterial" class="form-select form-select-sm" multiple="multiple" style="width: 100%;">
               </select>
             </div>
 
@@ -1615,13 +1622,6 @@
                 <option value="ACAUTELADO">Acautelado</option>
                 <option value="EXTRAVIADO">Extraviado</option>
               </select>
-            </div>
-
-            <!-- Botão Reset -->
-            <div class="col-lg-1 col-md-6 col-sm-12">
-              <button class="btn btn-outline-secondary btn-sm w-100 fw-semibold" onclick="resetarFiltrosDashboard()" title="Restaurar todos os filtros para o padrão" style="font-size: 0.78rem; height: 31px; padding: 0.28rem 0.2rem;">
-                <i class="fa-solid fa-filter-circle-xmark me-1"></i> Limpar
-              </button>
             </div>
           </div>
         </div>
