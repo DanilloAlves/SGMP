@@ -2216,7 +2216,7 @@ function carregarDadosArmazenamentoCompleto(unidadeOmega, forcarAtualizacao) {
     if (!omePadrao) return { locais: [], materiais: [], vinculos: {} };
 
     // Prefixo V5 para descarte absoluto de qualquer cache antigo e sincronização estrita BigQuery
-    var chaveBase = "CACHE_ARM_COMPLETO_V23_" + omePadrao.toUpperCase().replace(/[^A-Z0-9]/g, "_");
+    var chaveBase = "CACHE_ARM_COMPLETO_V24_" + omePadrao.toUpperCase().replace(/[^A-Z0-9]/g, "_");
     var cached = (!forcarAtualizacao && typeof lerDeCacheChunked_ === 'function') ? lerDeCacheChunked_(chaveBase) : null;
 
     // Se houver algum setor não identificado ou genérico (ex: "BIS"), bypass no cache
@@ -2859,13 +2859,171 @@ function executarLimpezaReplicasArvore() {
   return "Limpeza e desduplicacao de locais concluida com sucesso!";
 }
 
+function desduplicarNosEquivalentesArvore_(omePadrao) {
+  try {
+    var ome = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(omePadrao) : String(omePadrao || "").trim();
+    if (!ome) return;
+    garantirTabelaArvore_();
+
+    // 1. Limpeza específica de nós duplicados legados conhecidos em GBI
+    try {
+      var sqlRepontarSMOGbi = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` " +
+                              "SET ID_Pai = 'loc_1794850774572' " +
+                              "WHERE ID_Pai = 'loc_1795459378144_732226'";
+      executarEscritaBigQuerySegura(sqlRepontarSMOGbi);
+
+      var sqlRepontarRootGbi = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` " +
+                               "SET ID_Pai = 'loc_1788362789441' " +
+                               "WHERE ID_Pai = 'loc_1795459378144_399201' AND ID_Local != 'loc_1795459378144_732226'";
+      executarEscritaBigQuerySegura(sqlRepontarRootGbi);
+
+      var sqlDelGbiDup = "DELETE FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` " +
+                         "WHERE ID_Local IN ('loc_1795459378144_732226', 'loc_1795459378144_399201')";
+      executarEscritaBigQuerySegura(sqlDelGbiDup);
+    } catch(eGbi) {
+      console.warn("Aviso ao limpar duplicatas GBI no BigQuery: " + eGbi.message);
+    }
+
+    // 2. Desduplicação genérica de raízes e setores equivalentes para a OME
+    var dados = (typeof obterLocaisArvoreGeral_ === 'function') ? obterLocaisArvoreGeral_(ome) : [];
+    if (!dados || dados.length === 0) return;
+
+    var norm = function(s) {
+      return String(s || "").normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[ªº]/g, function(m) { return m === "ª" ? "a" : "o"; }).toUpperCase().trim();
+    };
+    var cond = function(s) {
+      return norm(s).replace(/[^A-Z0-9]/g, "");
+    };
+
+    // Identifica raízes duplicadas
+    var raizes = dados.filter(function(d) { return !d.idPai && d.nome && d.nome.toUpperCase() !== "SEDE"; });
+    var repontarPai = {};
+    var idsParaExcluir = [];
+
+    for (var i = 0; i < raizes.length; i++) {
+      var rA = raizes[i];
+      if (idsParaExcluir.indexOf(rA.id) !== -1) continue;
+
+      for (var j = i + 1; j < raizes.length; j++) {
+        var rB = raizes[j];
+        if (idsParaExcluir.indexOf(rB.id) !== -1) continue;
+
+        var equiv = (typeof saoSubunidadesEquivalentes === 'function' && saoSubunidadesEquivalentes(rA.nome, rB.nome)) ||
+                    (cond(rA.nome) === cond(rB.nome));
+        if (equiv) {
+          // Mantém rA como canônico, rB como duplicado a ser eliminado
+          repontarPai[rB.id] = rA.id;
+          idsParaExcluir.push(rB.id);
+
+          // Verifica se rB possui filhos com mesmo nome que filhos de rA (ex: SMO)
+          var filhosA = dados.filter(function(d) { return String(d.idPai).trim() === rA.id; });
+          var filhosB = dados.filter(function(d) { return String(d.idPai).trim() === rB.id; });
+
+          filhosB.forEach(function(fB) {
+            var fMatch = filhosA.find(function(fA) {
+              return cond(fA.nome) === cond(fB.nome) || norm(fA.nome) === norm(fB.nome);
+            });
+            if (fMatch) {
+              repontarPai[fB.id] = fMatch.id;
+              idsParaExcluir.push(fB.id);
+            } else {
+              repontarPai[fB.id] = rA.id;
+            }
+          });
+        }
+      }
+    }
+
+    // Aplica repontamentos de ID_Pai e exclusões no BigQuery
+    for (var idOrig in repontarPai) {
+      var idDest = repontarPai[idOrig];
+      try {
+        var sqlUpPai = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` " +
+                       "SET ID_Pai = '" + limparSQLChamado_(idDest) + "' " +
+                       "WHERE ID_Pai = '" + limparSQLChamado_(idOrig) + "'";
+        executarEscritaBigQuerySegura(sqlUpPai);
+      } catch(eUpP) {}
+    }
+
+    if (idsParaExcluir.length > 0) {
+      try {
+        var inDel = idsParaExcluir.map(function(id) { return "'" + limparSQLChamado_(id) + "'"; }).join(", ");
+        var sqlDel = "DELETE FROM `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` WHERE ID_Local IN (" + inDel + ")";
+        executarEscritaBigQuerySegura(sqlDel);
+      } catch(eDel) {}
+    }
+
+    // 3. Aplica os repontamentos e exclusões na planilha auxiliar
+    try {
+      var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
+      var sheet = ss ? ss.getSheetByName(ABA_LOCAIS_ARMAZENAMENTO) : null;
+      if (sheet && sheet.getLastRow() > 1) {
+        var dadosSheet = sheet.getDataRange().getValues();
+        var cabecalho = dadosSheet[0];
+        var novasLinhas = [cabecalho];
+        var houveMudanca = false;
+
+        for (var k = 1; k < dadosSheet.length; k++) {
+          var rowId = String(dadosSheet[k][0] || "").trim();
+          var rowOme = String(dadosSheet[k][1] || "").trim();
+          var rowNome = String(dadosSheet[k][2] || "").trim();
+          var rowPai = String(dadosSheet[k][3] || "").trim();
+
+          // Reponta pai para duplicatas conhecidas
+          if (rowPai === 'loc_1795459378144_732226') {
+            rowPai = 'loc_1794850774572';
+            dadosSheet[k][3] = rowPai;
+            houveMudanca = true;
+          } else if (rowPai === 'loc_1795459378144_399201') {
+            rowPai = 'loc_1788362789441';
+            dadosSheet[k][3] = rowPai;
+            houveMudanca = true;
+          } else if (repontarPai[rowPai]) {
+            rowPai = repontarPai[rowPai];
+            dadosSheet[k][3] = rowPai;
+            houveMudanca = true;
+          }
+
+          // Se o próprio nó está marcado para exclusão
+          if (rowId === 'loc_1795459378144_399201' || rowId === 'loc_1795459378144_732226' || idsParaExcluir.indexOf(rowId) !== -1) {
+            houveMudanca = true;
+            continue;
+          }
+
+          novasLinhas.push([rowId, rowOme, rowNome, rowPai]);
+        }
+
+        if (houveMudanca) {
+          sheet.clearContents();
+          sheet.getRange(1, 1, novasLinhas.length, 4).setValues(novasLinhas);
+          SpreadsheetApp.flush();
+        }
+      }
+    } catch(ePlan) {
+      console.warn("Aviso ao sincronizar desduplicação na planilha: " + ePlan.message);
+    }
+
+  } catch(eGeral) {
+    console.warn("Aviso em desduplicarNosEquivalentesArvore_: " + eGeral.message);
+  }
+}
+
 function garantirConsistenciaArvoreLocais_(omePadrao) {
   try {
     var ome = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(omePadrao) : String(omePadrao || "").trim();
     if (!ome) return;
 
     // Desduplica tb_Arvore e planilha se ainda nao foi executado nesta versao
-    var flagDedup = "FLAG_DEDUP_TB_ARVORE_V532";
+    var flagDedup = "FLAG_DEDUP_TB_ARVORE_V583";
+    var jaDedup = PropertiesService.getScriptProperties().getProperty(flagDedup);
+    if (!jaDedup) {
+      limparReplicasTbArvore_();
+      limparReplicasPlanilhaArvore_();
+      PropertiesService.getScriptProperties().setProperty(flagDedup, "true");
+    }
+
+    // Desduplica nós equivalentes (subunidades raiz ou setores com mesmo nome/função sob a mesma OME)
+    desduplicarNosEquivalentesArvore_(ome);
     var jaDedup = PropertiesService.getScriptProperties().getProperty(flagDedup);
     if (!jaDedup) {
       limparReplicasTbArvore_();
@@ -12541,18 +12699,11 @@ function garantirLocaisArvoreInterno_(locaisUnicos, usuario) {
   var porOme = {};
   for (var i = 0; i < locaisUnicos.length; i++) {
     var item = locaisUnicos[i];
-    if (!item) continue;
-
-    var rawOme = String(item.ome || omeUsuario || "DLOG").trim();
-    var ome = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(rawOme) : rawOme;
-    if (!ome) ome = "DLOG";
-
-    var sub = String(item.subunidade || item.SUBUNIDADE || item.DUBUNIDADE || "").trim();
-    var set = String(item.setor || item.SETOR || "").trim();
-    var loc = String(item.local || item.LOCAL || "").trim();
-
+    var ome = (typeof obterOmePadronizada === 'function') 
+      ? obterOmePadronizada(item.ome || omeUsuario) 
+      : String(item.ome || omeUsuario || "DLOG").trim().toUpperCase();
     if (!porOme[ome]) porOme[ome] = [];
-    porOme[ome].push({ subunidade: sub, setor: set, local: loc });
+    porOme[ome].push(item);
   }
 
   var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
@@ -12571,40 +12722,111 @@ function garantirLocaisArvoreInterno_(locaisUnicos, usuario) {
     // Garante que a SEDE da OME exista
     var idSede = garantirSedePadraoOme(omeKey);
 
-    // Carrega todos os nós existentes na planilha para esta OME
-    var ultLinha = sheet.getLastRow();
-    var dadosSheet = ultLinha > 1 ? sheet.getRange(2, 1, ultLinha - 1, 4).getValues() : [];
-    
+    // Carrega todos os nós existentes na base centralizada e planilha para esta OME
+    var dadosBase = (typeof obterLocaisArvoreGeral_ === 'function') ? obterLocaisArvoreGeral_(omeKey) : [];
+    if (!dadosBase) dadosBase = [];
+
     var nodes = [];
-    for (var r = 0; r < dadosSheet.length; r++) {
-      var rowOme = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(dadosSheet[r][1]) : String(dadosSheet[r][1] || "").trim();
-      var rId = String(dadosSheet[r][0] || "").trim();
-      var rNome = String(dadosSheet[r][2] || "").trim();
-      var rIdPai = String(dadosSheet[r][3] || "").trim();
-      
-      if (rowOme.toUpperCase() === omeKey.toUpperCase() && rId && rNome) {
+    var mapaIdsVistos = {};
+    for (var r = 0; r < dadosBase.length; r++) {
+      var dOme = dadosBase[r].ome ? (typeof obterOmePadronizada === 'function' ? obterOmePadronizada(dadosBase[r].ome) : dadosBase[r].ome) : "";
+      var rId = String(dadosBase[r].id || "").trim();
+      var rNome = String(dadosBase[r].nome || "").trim();
+      var rIdPai = String(dadosBase[r].idPai || "").trim();
+      if ((!dOme || dOme.toUpperCase() === omeKey.toUpperCase()) && rId && rNome && !mapaIdsVistos[rId]) {
         nodes.push({ id: rId, nome: rNome, idPai: rIdPai });
+        mapaIdsVistos[rId] = true;
       }
     }
 
+    function normTexto(txt) {
+      if (!txt) return "";
+      return String(txt)
+        .normalize("NFKD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[ªº]/g, function(m) { return m === "ª" ? "a" : "o"; })
+        .toUpperCase()
+        .trim();
+    }
+
+    function condTexto(txt) {
+      return normTexto(txt).replace(/[^A-Z0-9]/g, "");
+    }
+
+    function condTextoSemStopwords(txt) {
+      return normTexto(txt)
+        .replace(/\b(DE|DA|DO|DAS|DOS|E)\b/g, " ")
+        .replace(/[^A-Z0-9]/g, "");
+    }
+
+    function saoLocaisEquivalentesInterno(nomeA, nomeB) {
+      if (!nomeA && !nomeB) return true;
+      if (!nomeA || !nomeB) return false;
+      if (nomeA.toUpperCase().trim() === nomeB.toUpperCase().trim()) return true;
+      if (normTexto(nomeA) === normTexto(nomeB)) return true;
+      if (condTexto(nomeA) === condTexto(nomeB)) return true;
+      if (condTextoSemStopwords(nomeA) === condTextoSemStopwords(nomeB)) return true;
+      var cA = condTextoSemStopwords(nomeA);
+      var cB = condTextoSemStopwords(nomeB);
+      if (cA && cB && cA.replace(/S$/, "") === cB.replace(/S$/, "")) return true;
+      return false;
+    }
+
     function findRoot(nome) {
-      var nNorm = String(nome || "").trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      var nomeSub = (typeof padronizarNomeSubunidade === 'function') 
+        ? padronizarNomeSubunidade(nome, omeKey) 
+        : String(nome || "").trim();
+      var nNorm = normTexto(nomeSub);
+      var nCond = condTexto(nomeSub);
+      if (!nCond) return null;
+
+      // 1. Procura match exato, condensado ou canônico
       for (var n = 0; n < nodes.length; n++) {
-        var itemNorm = String(nodes[n].nome || "").trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-        if ((!nodes[n].idPai || nodes[n].idPai === "") && itemNorm === nNorm) {
-          return nodes[n];
+        if (!nodes[n].idPai || nodes[n].idPai === "") {
+          var itemNome = nodes[n].nome;
+          var itemNorm = normTexto(itemNome);
+          var itemCond = condTexto(itemNome);
+
+          if (itemCond === nCond || itemNorm === nNorm) {
+            return nodes[n];
+          }
+          if (typeof saoSubunidadesEquivalentes === 'function' && saoSubunidadesEquivalentes(itemNome, nomeSub)) {
+            return nodes[n];
+          }
+          if (saoLocaisEquivalentesInterno(itemNome, nomeSub)) {
+            return nodes[n];
+          }
+        }
+      }
+
+      // 2. Procura match por correspondência de abreviação / seção numérica
+      for (var n = 0; n < nodes.length; n++) {
+        if (!nodes[n].idPai || nodes[n].idPai === "") {
+          var itemCond = condTexto(nodes[n].nome);
+          var mNumTarget = nCond.match(/^(\d+)/);
+          var mNumItem = itemCond.match(/^(\d+)/);
+          if (mNumTarget && mNumItem && mNumTarget[1] === mNumItem[1]) {
+            if ((nCond.indexOf("SBI") !== -1 || nCond.indexOf("SECAO") !== -1 || nCond.indexOf("SB") !== -1) &&
+                (itemCond.indexOf("SBI") !== -1 || itemCond.indexOf("SECAO") !== -1 || itemCond.indexOf("SB") !== -1)) {
+              return nodes[n];
+            }
+          }
+          if ((nCond.indexOf("NORONHA") !== -1 || nCond.indexOf("SBFN") !== -1) &&
+              (itemCond.indexOf("NORONHA") !== -1 || itemCond.indexOf("SBFN") !== -1)) {
+            return nodes[n];
+          }
         }
       }
       return null;
     }
 
     function findChild(nome, idPai) {
-      var nNorm = String(nome || "").trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
       var pTrim = String(idPai || "").trim();
       for (var n = 0; n < nodes.length; n++) {
-        var itemNorm = String(nodes[n].nome || "").trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-        if (String(nodes[n].idPai).trim() === pTrim && itemNorm === nNorm) {
-          return nodes[n];
+        if (String(nodes[n].idPai).trim() === pTrim) {
+          if (saoLocaisEquivalentesInterno(nodes[n].nome, nome)) {
+            return nodes[n];
+          }
         }
       }
       return null;
@@ -12614,7 +12836,8 @@ function garantirLocaisArvoreInterno_(locaisUnicos, usuario) {
 
     for (var j = 0; j < listaLocais.length; j++) {
       var locItem = listaLocais[j];
-      var subNome = (locItem.subunidade || "").trim();
+      var rawSubNome = (locItem.subunidade || "").trim();
+      var subNome = (typeof padronizarNomeSubunidade === 'function') ? padronizarNomeSubunidade(rawSubNome, omeKey) : rawSubNome;
       var setNome = (locItem.setor || "").trim();
       var locNome = (locItem.local || "").trim();
 
@@ -12696,7 +12919,6 @@ function garantirLocaisArvoreInterno_(locaisUnicos, usuario) {
   return { sucesso: true, novosCriados: totalNovosCriados };
 }
 
-// Higieniza toda a árvore de armazenamento, eliminando nós inválidos onde o nome da subunidade repete a OME
 function sanitizarTodasSubunidadesArvore() {
   try {
     var ss = abrirPlanilhaSegura_(ID_PLANILHA_AUXILIAR);
