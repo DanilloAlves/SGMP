@@ -4903,8 +4903,9 @@
         <!-- Bloco de instruções com o botão de DOWNLOAD DO ARQUIVO .XLSX -->
         <div class="alert alert-light border small text-muted mb-4">
           <p class="mb-1 fw-bold text-dark"><i class="fa-solid fa-circle-info text-primary me-1"></i> Padrão de Colunas Exigido na 1ª linha do Excel:</p>
-          <code class="text-dark bg-light d-block p-2 rounded border">MATERIAL | QUANTIDADE | UNIDADE | SUBUNIDADE | SETOR | LOCAL | STATUS | PATRIMONIO | N_ORDEM (N_SERIE) | SEI | EFISCO | PERMANENTE | OBSERVACAO</code>
-          <p class="mb-3 mt-2 text-danger">* MATERIAL | QUANTIDADE | UNIDADE | STATUS são ítens obrigatórios de preenchimento.</p>
+          <code class="text-dark bg-light d-block p-2 rounded border">MATERIAL | QUANTIDADE | TIPO | COR | MARCA | MODELO | UNIDADE | SUBUNIDADE | SETOR | LOCAL | STATUS | PATRIMONIO | N_ORDEM (N_SERIE) | SEI | EFISCO | PERMANENTE | OBSERVACAO</code>
+          <p class="mb-2 mt-2 text-danger">* MATERIAL | QUANTIDADE | UNIDADE | STATUS são itens obrigatórios de preenchimento.</p>
+          <p class="mb-3 text-dark small"><i class="fa-solid fa-lightbulb text-warning me-1"></i> <strong>Preenchimento de Material:</strong> Você pode selecionar itens do catálogo na lista suspensa ou digitar livremente materiais avulsos que ainda não foram mapeados (eles serão encaminhados automaticamente para aprovação do Administrador no painel de Materiais Provisórios).</p>
           
           <!-- NOVO BOTÃO DE DOWNLOAD DO EXCEL -->
           <button type="button" class="btn btn-success btn-sm fw-bold px-3 py-2 shadow-sm" onclick="baixarModeloExcel()">
@@ -4919,6 +4920,7 @@
 
         <div id="blocoPreviaExcel" style="display: none;">
           <p class="fw-bold text-success mb-1">Pré-visualização dos dados (<span id="qtdLinhasExcel">0</span> itens encontrados):</p>
+          <div id="alertaMateriaisProvisoriosPrevia" class="alert alert-warning py-2 px-3 small mb-2" style="display: none;"></div>
           <div class="table-responsive border rounded" style="max-height: 250px;">
             <table class="table table-sm table-striped small mb-0" id="tabelaPreviaExcel">
               <thead class="table-light sticky-top">
@@ -18842,10 +18844,24 @@ function ehSubunidadeEquivalenteOmeCliente(subNome, omeRef) {
 
       registrosExcelLote = linhasNormalizadas;
       
+      // Identifica materiais provisórios (não catalogados)
+      const setCatalogoOficial = new Set((dadosMateriaisGlobais || []).map(m => String(m || '').trim().toUpperCase()));
+      const materiaisProvisoriosUnicos = new Set();
+      linhasNormalizadas.forEach(linha => {
+        const m = String(linha.material || '').trim().toUpperCase();
+        if (m && m !== '-' && !m.startsWith('ITEM TOMBADO') && m !== 'ITEM' && !m.startsWith('ITEM ') && setCatalogoOficial.size > 0 && !setCatalogoOficial.has(m)) {
+          materiaisProvisoriosUnicos.add(m);
+        }
+      });
+
       // Monta a prévia
       let htmlPrevia = "";
       linhasNormalizadas.slice(0, 50).forEach(linha => {
         const mat = linha.material || '-';
+        const matUpper = String(mat || '').trim().toUpperCase();
+        const ehProvisorio = mat && mat !== '-' && !matUpper.startsWith('ITEM TOMBADO') && matUpper !== 'ITEM' && !matUpper.startsWith('ITEM ') && setCatalogoOficial.size > 0 && !setCatalogoOficial.has(matUpper);
+        const badgeMat = ehProvisorio ? ` <span class="badge bg-warning text-dark ms-1" style="font-size: 0.65rem;" title="Material avulso: será enviado para aprovação do Administrador"><i class="fa-solid fa-clock me-1"></i>Provisório</span>` : '';
+
         const qtd = linha.quantidade || '1';
         const tipo = linha.tipo || '-';
         const cor = linha.cor || '-';
@@ -18858,7 +18874,7 @@ function ehSubunidadeEquivalenteOmeCliente(subNome, omeRef) {
         const loc = linha.local || '-';
         
         htmlPrevia += `<tr>
-                         <td class="text-truncate" style="max-width: 200px;" title="${mat}">${mat}</td>
+                         <td class="text-truncate" style="max-width: 220px;" title="${mat}">${mat}${badgeMat}</td>
                          <td class="text-center fw-bold text-primary">${qtd}</td>
                          <td><span class="badge bg-light text-dark border">${tipo}</span></td>
                          <td><span class="badge bg-light text-dark border">${cor}</span></td>
@@ -18880,7 +18896,23 @@ function ehSubunidadeEquivalenteOmeCliente(subNome, omeRef) {
       });
 
       document.querySelector('#tabelaPreviaExcel tbody').innerHTML = htmlPrevia;
-      document.getElementById('qtdLinhasExcel').innerText = `${linhasNormalizadas.length.toLocaleString('pt-BR')} linhas / ${totalUnidadesPrevia.toLocaleString('pt-BR')} unidades`;
+      
+      let textoQtd = `${linhasNormalizadas.length.toLocaleString('pt-BR')} linhas / ${totalUnidadesPrevia.toLocaleString('pt-BR')} unidades`;
+      if (materiaisProvisoriosUnicos.size > 0) {
+        textoQtd += ` (${materiaisProvisoriosUnicos.size} material(is) provisório(s) novo(s))`;
+      }
+      document.getElementById('qtdLinhasExcel').innerText = textoQtd;
+
+      const alertaProvEl = document.getElementById('alertaMateriaisProvisoriosPrevia');
+      if (alertaProvEl) {
+        if (materiaisProvisoriosUnicos.size > 0) {
+          alertaProvEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-warning me-1"></i> Foram identificados <strong>${materiaisProvisoriosUnicos.size} material(is) avulso(s)</strong> que não constam no catálogo oficial. Ao confirmar a importação, eles serão cadastrados automaticamente na base de <strong>Materiais Provisórios</strong> para validação e classificação do Administrador.`;
+          alertaProvEl.style.display = "block";
+        } else {
+          alertaProvEl.style.display = "none";
+        }
+      }
+
       document.getElementById('blocoPreviaExcel').style.display = "block";
       document.getElementById('btnConfirmarImportacao').style.display = "inline-block";
     };
@@ -19045,10 +19077,14 @@ function ehSubunidadeEquivalenteOmeCliente(subNome, omeRef) {
 
       // APLICAR AS LISTAS SUSPENSAS (VALIDAÇÃO DE DADOS CONDICIONAL PARA SUBUNIDADE)
       for (let i = 2; i <= 2000; i++) {
-        // Coluna A (MATERIAL)
+        // Coluna A (MATERIAL - Lista suspensa do catálogo oficial com permissão para preenchimento avulso livre)
         ws.getCell(`A${i}`).dataValidation = {
-          type: 'list', allowBlank: true, showErrorMessage: true, errorStyle: 'warning',
-          errorTitle: 'Atenção', error: 'O material sugerido não está no catálogo. É recomendado usar a lista.',
+          type: 'list',
+          allowBlank: true,
+          showErrorMessage: false, // Permite digitação livre de novos materiais avulsos sem bloqueio do Excel
+          showInputMessage: true,
+          promptTitle: 'Catálogo de Materiais',
+          prompt: 'Selecione um item do catálogo ou digite livremente o nome de um material avulso.',
           formulae: [`Bases_Ocultas!$B$1:$B$${qtdMateriais}`]
         };
 
@@ -19270,6 +19306,28 @@ function ehSubunidadeEquivalenteOmeCliente(subNome, omeRef) {
       console.warn("Aviso ao sincronizar estrutura de locais:", eLoc);
     }
 
+    // Registra preventivamente quaisquer materiais avulsos que não constem no catálogo oficial
+    let qtdNovosProvisorios = 0;
+    try {
+      const elStatusProv = document.getElementById('txtStatusLote');
+      if (elStatusProv) elStatusProv.innerText = 'Verificando materiais avulsos para aprovação do Administrador...';
+
+      const resProv = await new Promise((resolve) => {
+        google.script.run
+          .withSuccessHandler(res => resolve(res))
+          .withFailureHandler(err => {
+            console.warn("Aviso ao registrar materiais provisórios:", err);
+            resolve(null);
+          })
+          .identificarERegistrarMateriaisProvisoriosLote(registrosExcelLote, usuarioSessaoAtual);
+      });
+      if (resProv && resProv.novos) {
+        qtdNovosProvisorios = resProv.novos;
+      }
+    } catch (eProv) {
+      console.warn("Aviso ao processar provisórios:", eProv);
+    }
+
     try {
       while (loteIdx < totalLotes) {
         if (cancelarImportacaoExcel) {
@@ -19356,9 +19414,14 @@ function ehSubunidadeEquivalenteOmeCliente(subNome, omeRef) {
           google.script.run.registrarLogConclusaoImportacaoExcel(itensInseridosTotal);
         } catch (eLogFin) {}
 
+        let msgConclusao = `Todos os <b>${itensInseridosTotal.toLocaleString('pt-BR')}</b> registros foram gravados com sucesso no inventário do sistema!`;
+        if (qtdNovosProvisorios > 0) {
+          msgConclusao += `<br><br><div class="alert alert-warning py-2 px-3 small text-start mb-0"><i class="fa-solid fa-triangle-exclamation text-warning me-1"></i> <strong>Atenção:</strong> Foram identificados <b>${qtdNovosProvisorios} material(is) avulso(s)</b> não cadastrados no catálogo oficial. Eles foram enviados automaticamente para o painel de <b>Cadastro de Materiais Provisórios</b> para validação e homologação do Administrador.</div>`;
+        }
+
         Swal.fire({
           title: 'Importação Concluída com Sucesso!',
-          html: `Todos os <b>${itensInseridosTotal.toLocaleString('pt-BR')}</b> registros foram gravados com sucesso no inventário do sistema!`,
+          html: msgConclusao,
           icon: 'success'
         });
 
@@ -19369,7 +19432,9 @@ function ehSubunidadeEquivalenteOmeCliente(subNome, omeRef) {
         }
       }
 
-      // Atualiza imediatamente a árvore de locais, base de dados e abas relacionadas
+      // Atualiza imediatamente a árvore de locais, base de dados, materiais provisórios e abas relacionadas
+      if (typeof carregarListaTicketsMateriaisPendentes === 'function') carregarListaTicketsMateriaisPendentes();
+      if (typeof verificarNotificacoesTicketsProvisorios === 'function') verificarNotificacoesTicketsProvisorios();
       if (typeof carregarLocaisArvoreGeral === 'function') carregarLocaisArvoreGeral();
       if (typeof carregarDadosTabelaBaseAdmin === 'function') carregarDadosTabelaBaseAdmin();
       if (typeof carregarProcessosCint === 'function') carregarProcessosCint();

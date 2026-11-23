@@ -11681,27 +11681,138 @@ function cadastrarMaterialProvisorio(dadosNovoMaterial) {
     // Adiciona as classes nas colunas seguintes mantendo o index de status na posição [4] intacto
 
     abaProvisoria.appendRow([idTicket, dataHora, nomeProvisorio, omeSolicitante, "PENDENTE", c1, c2, c3]);
+    invalidarCacheTicketsMateriais_();
 
     try {
       registrarLogAuditoria("MATERIAL_PROVISORIO", "Cadastrou material provisório " + nomeProvisorio + " para a OME " + omeSolicitante);
     } catch(eLogProv) {}
 
     return {
-
       sucesso: true,
-
       nomeCadastrado: nomeProvisorio,
-
       mensagem: "Material cadastrado provisoriamente com sucesso!"
-
     };
-
   } catch (err) {
-
     throw new Error("Erro ao cadastrar material provisório: " + err.message);
-
   }
+}
 
+function invalidarCacheTicketsMateriais_() {
+  try {
+    var cache = CacheService.getScriptCache();
+    if (cache) cache.remove("CACHE_TKTS_MATERIAIS_PEND");
+  } catch (e) {}
+}
+
+// Identifica materiais não cadastrados no catálogo oficial e gera tickets provisórios em lote
+function processarMateriaisProvisoriosLote_(registros, usuario) {
+  try {
+    if (!registros || !Array.isArray(registros) || registros.length === 0) {
+      return { novos: 0, lista: [] };
+    }
+
+    // 1. Catálogo oficial de materiais
+    var catalogoOficial = getMateriaisPlanilhaCompras() || [];
+    var setCatalogo = {};
+    for (var c = 0; c < catalogoOficial.length; c++) {
+      var mOficial = String(catalogoOficial[c] || "").trim().toUpperCase();
+      if (mOficial) setCatalogo[mOficial] = true;
+    }
+
+    // 2. Extrai nomes únicos de materiais dos registros importados que não estejam no catálogo oficial
+    var materiaisNaoCatalogados = {};
+    for (var r = 0; r < registros.length; r++) {
+      var item = registros[r];
+      var mat = String(item.material || item.OBJETO || item.objeto || "").trim();
+      if (!mat) continue;
+
+      var matUpper = mat.toUpperCase();
+      // Ignora nomes de contingência do sistema
+      if (matUpper.indexOf("ITEM TOMBADO") === 0 || matUpper === "ITEM" || matUpper.indexOf("ITEM ") === 0) {
+        continue;
+      }
+
+      if (!setCatalogo[matUpper]) {
+        if (!materiaisNaoCatalogados[matUpper]) {
+          var omeItem = String(item.unidade || item.UNIDADE || (usuario && usuario.ome) || "DLOG").trim();
+          var omePadrao = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(omeItem) : omeItem;
+          materiaisNaoCatalogados[matUpper] = {
+            nome: matUpper,
+            ome: omePadrao || "DLOG"
+          };
+        }
+      }
+    }
+
+    var chavesNaoCatalogadas = Object.keys(materiaisNaoCatalogados);
+    if (chavesNaoCatalogadas.length === 0) {
+      return { novos: 0, lista: [] };
+    }
+
+    // 3. Consulta a base de Materiais_Provisorios para não criar tickets duplicados
+    var ssProv = abrirPlanilhaSegura_("1VJ6dEc2K1bKt9qUTpBnqf2n6qE_bVHpgW3Ojn7_bvjY");
+    var abaProv = ssProv.getSheetByName("Materiais_Provisorios") || ssProv.getSheetByName("Materiais Provisorios");
+    if (!abaProv) {
+      abaProv = ssProv.insertSheet("Materiais_Provisorios");
+      abaProv.appendRow(["ID_Ticket", "Data", "NomeProvisorio", "Solicitante_OME", "Status", "Classe_1", "Classe_2", "Classe_3"]);
+    }
+
+    var dadosProv = abaProv.getDataRange().getValues();
+    var setProvExistentes = {};
+    for (var p = 1; p < dadosProv.length; p++) {
+      var pNome = String(dadosProv[p][2] || "").trim().toUpperCase();
+      if (pNome) setProvExistentes[pNome] = true;
+    }
+
+    var novasLinhasProv = [];
+    var nomesNovos = [];
+    var agora = new Date();
+
+    for (var k = 0; k < chavesNaoCatalogadas.length; k++) {
+      var itemProv = materiaisNaoCatalogados[chavesNaoCatalogadas[k]];
+      if (!setProvExistentes[itemProv.nome]) {
+        var idTicket = "TICK_IMP_" + agora.getTime() + "_" + (k + 1);
+        novasLinhasProv.push([
+          idTicket,
+          agora,
+          itemProv.nome,
+          itemProv.ome,
+          "PENDENTE",
+          "", // Classe 1 (atribuída pelo Admin na aprovação)
+          "", // Classe 2
+          ""  // Classe 3
+        ]);
+        nomesNovos.push(itemProv.nome);
+        setProvExistentes[itemProv.nome] = true;
+      }
+    }
+
+    if (novasLinhasProv.length > 0) {
+      var startRow = abaProv.getLastRow() + 1;
+      abaProv.getRange(startRow, 1, novasLinhasProv.length, 8).setValues(novasLinhasProv);
+      invalidarCacheTicketsMateriais_();
+
+      try {
+        registrarLogAuditoria("MATERIAL_PROVISORIO_LOTE", "Importação em lote cadastrou " + novasLinhasProv.length + " materiais avulsos para aprovação do Administrador: " + nomesNovos.join(", "));
+      } catch (eLog) {}
+    }
+
+    return { novos: novasLinhasProv.length, lista: nomesNovos };
+  } catch (errProv) {
+    console.error("Erro em processarMateriaisProvisoriosLote_: " + errProv.message);
+    return { novos: 0, lista: [], erro: errProv.message };
+  }
+}
+
+// Ponto de entrada público para verificar e registrar provisórios na importação
+function identificarERegistrarMateriaisProvisoriosLote(registros, usuarioCliente) {
+  var usuario = usuarioCliente;
+  if (!usuario || !usuario.ome) {
+    var email = "";
+    try { email = Session.getActiveUser().getEmail(); } catch (e) {}
+    usuario = verificarPermissaoUsuario(email) || { ome: "DLOG", nome: "Usuário" };
+  }
+  return processarMateriaisProvisoriosLote_(registros, usuario);
 }
 
 
@@ -11997,6 +12108,7 @@ function avaliarTicketMaterialProvisorio(dadosAvaliacao) {
       registrarLogAuditoria("AVALIACAO_MATERIAL_PROVISORIO", "Aprovou material provisório " + nomeProvisorioAntigo + " como " + nomeDefinitivo + " (" + acaoMsg + ") por CPF " + cpfAv);
     } catch(eLogAvProv) {}
 
+    invalidarCacheTicketsMateriais_();
     return { sucesso: true, mensagem: acaoMsg + " com sucesso!" };
 
   } catch (err) {
@@ -12241,6 +12353,13 @@ function importarLoteExcelBigQuery(registros, proximoNumeroFornecido, registrarL
           }
         }
       }
+    }
+
+    // Registra preventivamente materiais avulsos que não constem no catálogo oficial (#CAD_ITENS)
+    try {
+      processarMateriaisProvisoriosLote_(registrosNormalizados, usuario);
+    } catch (eProvLote) {
+      console.warn("Aviso ao processar materiais provisórios no lote: " + eProvLote.message);
     }
 
     var todosItensAInserir = [];
@@ -18854,6 +18973,7 @@ function rejeitarTicketMaterialProvisorio(idTicket, motivo) {
       "Ticket " + idTicket + " (" + nomeSugerido + ") recusado por CPF " + cpfUsuario + ". Motivo: " + motivo
     );
 
+    invalidarCacheTicketsMateriais_();
     return { sucesso: true, mensagem: "Sugestão de material recusada com sucesso." };
   } catch (err) {
     console.error("Erro em rejeitarTicketMaterialProvisorio: " + err.message);
