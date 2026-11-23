@@ -432,16 +432,16 @@
                 ?>
                   <!-- CABEÇALHO DO LOCAL / COMPARTIMENTO -->
                   <tr class="tr-grupo-local border-bottom" data-local-id="<?= localId ?>" data-setor-parent="<?= setorId ?>" style="background-color: #e8edf5; border-top: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1;">
-                    <td colspan="6" class="py-1 px-3 fw-bold ps-4" style="font-size: 0.80rem;">
+                    <td colspan="6" class="py-1 px-3 fw-bold ps-4" style="font-size: 0.58rem;">
                       <div class="d-flex justify-content-between align-items-center">
-                        <span style="color: #334155; text-transform: uppercase; letter-spacing: 0.5px;">
-                          <i class="fa-solid fa-map-pin text-danger me-2" style="font-size: 0.85rem;"></i>
+                        <span style="color: #475569; text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.58rem;">
+                          <i class="fa-solid fa-map-pin text-danger me-1.5" style="font-size: 0.65rem;"></i>
                           <span class="fw-bold">Local: <?= nomeLocal ?></span>
                         </span>
                         <div class="d-flex align-items-center gap-2">
-                          <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle rounded-pill px-2 py-0.5" style="font-size: 0.70rem;"><?= localObj.itens.length ?> ite(ns)</span>
-                          <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2 no-print" style="font-size: 0.70rem;" onclick="toggleTodosLocalPublico('<?= localId ?>', this)">
-                            <i class="fa-solid fa-expand me-1"></i>Expandir
+                          <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle rounded-pill px-2 py-0.5" style="font-size: 0.55rem; padding: 1px 5px;"><?= localObj.itens.length ?> ite(ns)</span>
+                          <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-1.5 no-print" style="font-size: 0.55rem; line-height: 1.2;" onclick="toggleTodosLocalPublico('<?= localId ?>', this)">
+                            <i class="fa-solid fa-expand me-1" style="font-size: 0.52rem;"></i>Expandir
                           </button>
                         </div>
                       </div>
@@ -469,11 +469,11 @@
                   ?>
                     <!-- CABEÇALHO DO GRUPO DE MATERIAIS (DESKTOP) -->
                     <tr class="tr-grupo-objeto-publico" data-grupo-id="<?= grpPubId ?>" data-local-parent="<?= localId ?>" data-setor-parent="<?= setorId ?>" data-expanded="false" onclick="toggleGrupoPublico('<?= grpPubId ?>')" style="cursor: pointer; background-color: #ffffff; border-top: 1px solid #e2e8f0;">
-                      <td colspan="6" class="py-2 px-3 border-bottom ps-4">
+                      <td colspan="6" class="py-2.5 px-3 border-bottom ps-4">
                         <div class="d-flex align-items-center justify-content-between">
                           <div class="d-flex align-items-center flex-wrap gap-2">
-                            <i class="fa-solid fa-chevron-right text-secondary chevron-pub" id="chev_pub_<?= grpPubId ?>" style="transition: transform 0.2s; font-size: 0.85rem; width: 14px;"></i>
-                            <span class="fw-bold text-dark" style="font-size: 0.94rem;"><?= nomeObjPub ?></span>
+                            <i class="fa-solid fa-chevron-right text-secondary chevron-pub" id="chev_pub_<?= grpPubId ?>" style="transition: transform 0.2s; font-size: 0.90rem; width: 14px;"></i>
+                            <span class="fw-bold text-dark" style="font-size: 1.05rem;"><?= nomeObjPub ?></span>
                             <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-0.5" style="font-size: 0.75rem;">
                               <?= itensGrpPub.length ?> <?= itensGrpPub.length === 1 ? 'item' : 'itens' ?>
                             </span>
@@ -549,12 +549,12 @@
                var mLocalId = mSetorId + '_loc_' + lm;
           ?>
             <!-- BANNER DO LOCAL MOBILE -->
-            <div class="banner-local-mobile py-1 px-3 mb-2 rounded border fw-bold d-flex justify-content-between align-items-center" data-local-id="<?= mLocalId ?>" data-setor-parent="<?= mSetorId ?>" style="background-color: #e8edf5; border-color: #cbd5e1 !important; font-size: 0.80rem; color: #334155; text-transform: uppercase; letter-spacing: 0.5px;">
-              <span><i class="fa-solid fa-map-pin text-danger me-2" style="font-size: 0.85rem;"></i>Local: <?= mLocalNome ?></span>
+            <div class="banner-local-mobile py-1 px-2.5 mb-1.5 rounded border fw-bold d-flex justify-content-between align-items-center" data-local-id="<?= mLocalId ?>" data-setor-parent="<?= mSetorId ?>" style="background-color: #e8edf5; border-color: #cbd5e1 !important; font-size: 0.58rem; color: #475569; text-transform: uppercase; letter-spacing: 0.5px;">
+              <span><i class="fa-solid fa-map-pin text-danger me-1" style="font-size: 0.65rem;"></i>Local: <?= mLocalNome ?></span>
               <div class="d-flex align-items-center gap-1">
-                <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle rounded-pill" style="font-size: 0.70rem;"><?= mLocalObj.itens.length ?></span>
-                <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-1.5 no-print" style="font-size: 0.68rem;" onclick="toggleTodosLocalPublicoMob('<?= mLocalId ?>', this)">
-                  <i class="fa-solid fa-expand"></i>
+                <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle rounded-pill" style="font-size: 0.55rem; padding: 1px 5px;"><?= mLocalObj.itens.length ?></span>
+                <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-1.5 no-print" style="font-size: 0.55rem; line-height: 1.2;" onclick="toggleTodosLocalPublicoMob('<?= mLocalId ?>', this)">
+                  <i class="fa-solid fa-expand" style="font-size: 0.52rem;"></i>
                 </button>
               </div>
             </div>
@@ -582,7 +582,7 @@
                 <div class="p-2.5 bg-white d-flex align-items-center justify-content-between header-grupo-pub-mob" onclick="toggleGrupoPublicoMob('<?= mGrpPubId ?>')" style="cursor: pointer;">
                   <div class="d-flex align-items-center flex-grow-1 me-2">
                     <i class="fa-solid fa-chevron-right text-muted me-2 chevron-pub-mob" id="chev_pub_mob_<?= mGrpPubId ?>" style="transition: transform 0.2s; font-size: 0.85rem; width: 14px;"></i>
-                    <span class="fw-bold text-dark" style="font-size: 0.94rem; line-height: 1.25;"><?= mNomeObjPub ?></span>
+                    <span class="fw-bold text-dark" style="font-size: 1.0rem; line-height: 1.25;"><?= mNomeObjPub ?></span>
                     <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle ms-2" style="font-size: 0.75rem;"><?= mItensGrpPub.length ?> un.</span>
                   </div>
                   <div class="d-flex align-items-center">
