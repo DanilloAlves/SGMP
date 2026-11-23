@@ -156,40 +156,6 @@ function doGet(e) {
     return ContentService.createTextOutput(JSON.stringify({ sucesso: true, mensagem: "Árvore consistida com sucesso para " + omeP })).setMimeType(ContentService.MimeType.JSON);
   }
 
-  // ROTA ADMINISTRATIVA: Consultar e reparar cadastro de Danillo Alves de Souza
-  if (e && e.parameter && (e.parameter.status_danillo === "true" || e.parameter.corrigir_danillo === "true")) {
-    var ssFix = abrirPlanilhaSegura_(ID_PLANILHA_USUARIOS);
-    var shFix = ssFix.getSheetByName(ABA_USUARIOS);
-    var dadosFix = shFix.getDataRange().getValues();
-    var idxFix = obterIndicesLogins_(shFix);
-    var info = [];
-    var corrigiu = false;
-    for (var f = 1; f < dadosFix.length; f++) {
-      var rowStr = dadosFix[f].join(" | ");
-      if (rowStr.toLowerCase().indexOf("danillo") !== -1 || rowStr.toLowerCase().indexOf("bateria") !== -1 || rowStr.indexOf("08854596442") !== -1) {
-        var emAtual = String(dadosFix[f][idxFix.email] || "").trim().toLowerCase();
-        if (emAtual === "bateriascomdanillo@gmail.com") {
-          shFix.getRange(f + 1, idxFix.email + 1).setValue("bateriacomdanillo@gmail.com");
-          corrigiu = true;
-          emAtual = "bateriacomdanillo@gmail.com";
-        }
-        info.push({
-          linha: f + 1,
-          nome: dadosFix[f][idxFix.nome],
-          email: emAtual,
-          cpf: dadosFix[f][idxFix.cpf],
-          pin: dadosFix[f][idxFix.pin],
-          status: dadosFix[f][idxFix.status],
-          primeiroAcesso: dadosFix[f][idxFix.primeiroAcesso]
-        });
-      }
-    }
-    if (corrigiu) {
-      invalidarCacheLoginsEUsuarios_();
-    }
-    return ContentService.createTextOutput(JSON.stringify({ info: info, corrigiu: corrigiu })).setMimeType(ContentService.MimeType.JSON);
-  }
-
   var paramLogin = e && e.parameter && e.parameter.auth === "true";
 
   if (!paramLogin) {
@@ -214,25 +180,6 @@ function doGet(e) {
     } catch (errEff) {
       email = "";
     }
-  }
-
-  // Auto-correção para e-mail com divergência de digitação (bateriascomdanillo -> bateriacomdanillo)
-  try {
-    var ssFixAuto = abrirPlanilhaSegura_(ID_PLANILHA_USUARIOS);
-    var shFixAuto = ssFixAuto.getSheetByName(ABA_USUARIOS);
-    if (shFixAuto) {
-      var dadosFixAuto = shFixAuto.getDataRange().getValues();
-      var idxFixAuto = obterIndicesLogins_(shFixAuto);
-      for (var fAuto = 1; fAuto < dadosFixAuto.length; fAuto++) {
-        var emailFAuto = String(dadosFixAuto[fAuto][idxFixAuto.email] || "").trim().toLowerCase();
-        if (emailFAuto === "bateriascomdanillo@gmail.com") {
-          shFixAuto.getRange(fAuto + 1, idxFixAuto.email + 1).setValue("bateriacomdanillo@gmail.com");
-          console.log("Auto-corrigido e-mail bateriascomdanillo para bateriacomdanillo na linha " + (fAuto + 1));
-        }
-      }
-    }
-  } catch (eFixAuto) {
-    console.warn("Aviso ao verificar auto-correção: " + eFixAuto.message);
   }
 
   // Força atualização instantânea da base de usuários no carregamento/login
@@ -561,9 +508,7 @@ function verificarPermissaoUsuario(emailOuCpfInformado, forcarAtualizacao) {
       if (rowCpfLimpo.length === 10) rowCpfLimpo = "0" + rowCpfLimpo;
       var rowNomeNorm = rowNome.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
       
-      var emailNormalizadoRow = rowEmail.replace("bateriascomdanillo", "bateriacomdanillo");
-      var emailNormalizadoBusca = buscaAlvo.replace("bateriascomdanillo", "bateriacomdanillo");
-      var bateuEmail = (rowEmail && (rowEmail === buscaAlvo || emailNormalizadoRow === emailNormalizadoBusca));
+      var bateuEmail = (rowEmail && rowEmail === buscaAlvo);
       var bateuCpf = (buscaAlvoLimpo && rowCpfLimpo && buscaAlvoLimpo === rowCpfLimpo) || (buscaAlvo && rowCpf.toLowerCase() === buscaAlvo);
       
       // Bate por nome APENAS se a busca NÃO for e-mail nem CPF numérico, e com correspondência exata
@@ -20118,9 +20063,7 @@ function verificarUsuarioExistente(emailGoogle, cpf, emailInst) {
           status: rowStatus
         };
       }
-      var emailNormalizadoRow = rowEmail.replace("bateriascomdanillo", "bateriacomdanillo");
-      var emailNormalizadoGoogle = emailGoogleLimpo.replace("bateriascomdanillo", "bateriacomdanillo");
-      if (emailGoogleLimpo && (rowEmail === emailGoogleLimpo || emailNormalizadoRow === emailNormalizadoGoogle)) {
+      if (emailGoogleLimpo && rowEmail === emailGoogleLimpo) {
         usuarioPorEmailGoogle = {
           linha: i + 1,
           nome: rowNome,
@@ -20133,13 +20076,7 @@ function verificarUsuarioExistente(emailGoogle, cpf, emailInst) {
 
     // Se o CPF já existe na base de dados de Logins
     if (usuarioPorCpf) {
-      if (usuarioPorCpf.emailGoogle === "bateriascomdanillo@gmail.com" && emailGoogleLimpo === "bateriacomdanillo@gmail.com") {
-        sheetLogins.getRange(usuarioPorCpf.linha, idx.email + 1).setValue("bateriacomdanillo@gmail.com");
-        usuarioPorCpf.emailGoogle = "bateriacomdanillo@gmail.com";
-      }
-      var emailNormCad = (usuarioPorCpf.emailGoogle || "").toLowerCase().replace("bateriascomdanillo", "bateriacomdanillo");
-      var emailNormGoo = emailGoogleLimpo.replace("bateriascomdanillo", "bateriacomdanillo");
-      if (emailGoogleLimpo && usuarioPorCpf.emailGoogle && emailNormCad !== emailNormGoo) {
+      if (emailGoogleLimpo && usuarioPorCpf.emailGoogle && usuarioPorCpf.emailGoogle !== emailGoogleLimpo) {
         return {
           conflito: true,
           mensagem: "Este CPF já possui cadastro no SGMP vinculado a outro e-mail Google (" + usuarioPorCpf.emailGoogle + "). Para recuperar seu PIN, utilize o botão 'Esqueci minha Senha / PIN' informando seu CPF e e-mail institucional."
