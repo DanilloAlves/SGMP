@@ -280,7 +280,8 @@ var LISTA_PERMISSOES_COMANDANTE = [
   "checklist_toda_ome",
   "importar_exportar_excel",
   "abertura_chamados",
-  "visualizar_dashboard"
+  "visualizar_dashboard",
+  "base_dados"
 ];
 
 function padronizarPermissoesUsuario_(permRaw, perfil) {
@@ -627,7 +628,7 @@ function verificarPermissaoBaseDados(usuario) {
   if (!usuario) return false;
   
   var perfil = padronizarPerfilUsuario_(usuario.perfil);
-  if (perfil === "Administrador") return true;
+  if (perfil === "Administrador" || perfil === "Comandante de Unidade") return true;
   
   // Verifica se o usuário recebeu permissão específica para a Base de Dados
   var perms = padronizarPermissoesUsuario_(usuario.permissoes, perfil);
@@ -1256,6 +1257,8 @@ function pesquisarNoBigQuery(filtros) {
       var omeUser = (usuario && usuario.ome) ? (typeof obterOmePadronizada === 'function' ? obterOmePadronizada(usuario.ome) : usuario.ome) : "";
       if (omeUser) {
         baseSqlWhere += " AND UPPER(TRIM(UNIDADE)) = '" + String(obterOmePadronizada(omeUser)).trim().toUpperCase().replace(/'/g, "\\'") + "'";
+      } else {
+        throw new Error("Acesso negado: Perfil de Comandante/Usuário sem OME vinculada.");
       }
     }
     function limpaSQL(t) { return String(t || '').trim().replace(/'/g, "\\'"); }
@@ -1279,7 +1282,7 @@ function pesquisarNoBigQuery(filtros) {
         }
       }
       if (filtros.codEfisco && filtros.codEfisco.trim() !== "") baseSqlWhere += " AND COD_EFISCO = '" + limpaSQL(filtros.codEfisco) + "'";
-      if (filtros.unidade && filtros.unidade !== "") baseSqlWhere += " AND UPPER(TRIM(UNIDADE)) = '" + limpaSQL(obterOmePadronizada(filtros.unidade)).toUpperCase() + "'";
+      if (ehAdmin && filtros.unidade && filtros.unidade !== "") baseSqlWhere += " AND UPPER(TRIM(UNIDADE)) = '" + limpaSQL(obterOmePadronizada(filtros.unidade)).toUpperCase() + "'";
       if (filtros.subunidade && filtros.subunidade !== "") baseSqlWhere += (typeof obterClausulaSqlSubunidade_ === 'function') ? obterClausulaSqlSubunidade_(filtros.subunidade) : (" AND TRIM(SUBUNIDADE) = '" + limpaSQL(filtros.subunidade) + "'");
       if (filtros.setor && filtros.setor !== "") baseSqlWhere += " AND TRIM(SETOR) = '" + limpaSQL(filtros.setor) + "'";
       if (filtros.localArmazenamento && filtros.localArmazenamento.trim() !== "") baseSqlWhere += " AND TRIM(LOCALIZACAO_ESPCIFICA_NA_OME_Se_Necessario) = '" + limpaSQL(filtros.localArmazenamento) + "'";

@@ -619,11 +619,16 @@
             });
           })
           .withFailureHandler(err => {
-            const ehRecusa = (err.message && err.message.indexOf('recusou o acesso') !== -1);
+            const raw = err && err.message ? err.message : String(err || '');
+            if (raw.indexOf('MailApp') !== -1 || raw.indexOf('send_mail') !== -1 || raw.indexOf('permissão') !== -1) {
+              tratarErroEnvioCodigo(err);
+              return;
+            }
+            const ehRecusa = (raw.indexOf('recusou o acesso') !== -1);
             Swal.fire({
               icon: 'error',
-              title: ehRecusa ? 'Validação Recusada' : 'Código Inválido',
-              text: err.message,
+              title: ehRecusa ? 'Validação Recusada' : 'Atenção',
+              text: raw,
               confirmButtonText: 'Tentar Novamente',
               confirmButtonColor: '#991b1b'
             }).then(() => {

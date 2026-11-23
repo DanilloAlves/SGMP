@@ -5547,9 +5547,10 @@
       menuInventarioEl.style.display = temPermissao('movimentacao_estoque') ? 'flex' : 'none';
     }
 
+    const ehComandante = typeof ehChefeGlobal === 'function' ? ehChefeGlobal() : false;
     const menuBaseEl = document.getElementById('menu-base');
     if (menuBaseEl) {
-      menuBaseEl.style.display = ehAdmin ? 'flex' : 'none';
+      menuBaseEl.style.display = (ehAdmin || ehComandante || (typeof temPermissao === 'function' && temPermissao('base_dados'))) ? 'flex' : 'none';
     }
     const menuUsuariosEl = document.getElementById('menu-gerenciar-usuarios');
     if (menuUsuariosEl) {
@@ -5964,7 +5965,8 @@
       const podeGerenciar = typeof podeGerenciarUsuariosGlobal === 'function' ? podeGerenciarUsuariosGlobal() : false;
       
       // Trava de segurança: Base de Dados
-      const podeBase = ehAdmin || (typeof temPermissao === 'function' && temPermissao('base_dados'));
+      const ehComandante = typeof ehChefeGlobal === 'function' ? ehChefeGlobal() : false;
+      const podeBase = ehAdmin || ehComandante || (typeof temPermissao === 'function' && temPermissao('base_dados'));
       if (aba === 'base' && !podeBase) {
         Swal.fire('Acesso Restrito', 'Você não possui permissão para acessar a Base de Dados.', 'error');
         return;
@@ -15035,6 +15037,11 @@ function renderizarTimelineEmElemento(dados, ids) {
   }
 
   function excluirMaterialDoLocal(idsString, nomeMaterial) {
+    const ehAdmin = typeof ehAdminGlobal === 'function' ? ehAdminGlobal() : false;
+    if (!ehAdmin) {
+      Swal.fire('Acesso Restrito', 'Apenas o Administrador possui autorização para apagar ou excluir materiais do sistema.', 'warning');
+      return;
+    }
     if (!idsString) return;
     const idsArray = idsString.split(",");
     Swal.fire({
@@ -17208,6 +17215,11 @@ function renderizarTimelineEmElemento(dados, ids) {
   }
 
   function excluirItemUnitario(itemId) {
+    const ehAdmin = typeof ehAdminGlobal === 'function' ? ehAdminGlobal() : false;
+    if (!ehAdmin) {
+      Swal.fire('Acesso Restrito', 'Apenas o Administrador possui autorização para apagar ou excluir materiais do sistema.', 'warning');
+      return;
+    }
     Swal.fire({
       title: 'Excluir Item?',
       text: `Deseja remover permanentemente o registro ${itemId}?`,
@@ -17270,6 +17282,11 @@ function renderizarTimelineEmElemento(dados, ids) {
   }
 
   function excluirLoteDetalhes() {
+    const ehAdmin = typeof ehAdminGlobal === 'function' ? ehAdminGlobal() : false;
+    if (!ehAdmin) {
+      Swal.fire('Acesso Restrito', 'Apenas o Administrador possui autorização para apagar ou excluir materiais do sistema.', 'warning');
+      return;
+    }
     const marcados = Array.from(document.querySelectorAll('.check-item-detalhe:checked')).map(cb => cb.value);
     if (marcados.length === 0) {
       Swal.fire('Atenção', 'Selecione ao menos um item na tabela.', 'warning');
@@ -28774,7 +28791,8 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       const podeCint = typeof temPermissao === 'function' ? temPermissao('recebimento_cint') : false;
       
       // Trava para Base de Dados
-      const podeBase = ehAdmin || (typeof temPermissao === 'function' && temPermissao('base_dados'));
+      const ehComandante = typeof ehChefeGlobal === 'function' ? ehChefeGlobal() : false;
+      const podeBase = ehAdmin || ehComandante || (typeof temPermissao === 'function' && temPermissao('base_dados'));
       if ((aba === 'base' || aba === 'aba-base') && !podeBase) {
         Swal.fire('Acesso Restrito', 'Você não possui permissão para acessar a Base de Dados.', 'error');
         return;
@@ -28828,7 +28846,8 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       const menuLogs = document.getElementById('menu-logs');
       const menuChamados = document.getElementById('menu-chamados');
 
-      const podeBase = ehAdmin || (typeof temPermissao === 'function' && temPermissao('base_dados'));
+      const ehComandante = typeof ehChefeGlobal === 'function' ? ehChefeGlobal() : false;
+      const podeBase = ehAdmin || ehComandante || (typeof temPermissao === 'function' && temPermissao('base_dados'));
       const podeLogs = ehAdmin;
       const podeAberturaChamados = typeof temPermissao === 'function' ? temPermissao('abertura_chamados') : false;
     const podeVerDashboard = ehAdmin || (typeof ehChefeGlobal === 'function' && ehChefeGlobal()) || (typeof temPermissao === 'function' && temPermissao('visualizar_dashboard'));
@@ -28939,7 +28958,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     if (menuAcautelamento) menuAcautelamento.style.display = 'flex';
     if (menuInventario) menuInventario.style.display = podeMovimentacaoEstoque ? 'flex' : 'none';
     if (menuCint) menuCint.style.display = podeRecebimentoCint ? 'flex' : 'none';
-    if (menuBase) menuBase.style.display = ehAdmin ? 'flex' : 'none';
+    if (menuBase) menuBase.style.display = (ehAdmin || (typeof ehChefeGlobal === 'function' && ehChefeGlobal()) || (typeof temPermissao === 'function' && temPermissao('base_dados'))) ? 'flex' : 'none';
     if (menuUsuarios) menuUsuarios.style.display = podeGerenciarUsuarios ? 'flex' : 'none';
     if (menuLogs) menuLogs.style.display = ehAdmin ? 'flex' : 'none';
     if (menuChamados) menuChamados.style.display = podeAberturaChamados ? 'flex' : 'none';
