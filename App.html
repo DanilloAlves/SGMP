@@ -36,19 +36,87 @@
       border-left: 4px solid #dc3545 !important;
     }
 
-    /* BARRA DE ABAS SUPERIOR */
+    /* BARRA DE ABAS SUPERIOR DINÂMICA */
     .top-nav-bar {
-      background: #ffffff; border-bottom: 1px solid #e2e8f0; padding: 12px 24px;
-      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;
+      background: #ffffff;
+      border-bottom: 1px solid #e2e8f0;
+      padding: 6px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 6px;
       box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+      transition: padding 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease;
     }
-    .top-tabs { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+    .top-nav-bar:hover {
+      padding: 10px 24px;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.05);
+    }
+    .top-tabs {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+      align-items: center;
+      transition: gap 0.3s ease;
+    }
+    .top-nav-bar:hover .top-tabs {
+      gap: 8px;
+    }
     .top-tab-btn {
-      display: flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 6px;
-      font-size: 0.9rem; font-weight: 500; text-decoration: none; color: #475569; background: transparent; border: none; transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 0.88rem;
+      font-weight: 500;
+      text-decoration: none;
+      color: #475569;
+      background: transparent;
+      border: none;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      cursor: pointer;
     }
-    .top-tab-btn:hover { background-color: #f1f5f9; color: #991b1b; }
-    .top-tab-btn.active { background-color: #991b1b; color: white; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+    .top-tab-btn i {
+      font-size: 0.82rem;
+      transition: font-size 0.25s ease, transform 0.2s ease;
+    }
+    .top-tab-btn .tab-label {
+      max-width: 0;
+      opacity: 0;
+      overflow: hidden;
+      white-space: nowrap;
+      display: inline-block;
+      margin-left: 0;
+      transition: max-width 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease, margin-left 0.2s ease;
+    }
+    .top-nav-bar:hover .top-tab-btn {
+      gap: 8px;
+      padding: 8px 16px;
+    }
+    .top-nav-bar:hover .top-tab-btn i {
+      font-size: 0.95rem;
+    }
+    .top-nav-bar:hover .top-tab-btn .tab-label {
+      max-width: 200px;
+      opacity: 1;
+      margin-left: 0;
+    }
+    .top-tab-btn:hover {
+      background-color: #f1f5f9;
+      color: #991b1b;
+    }
+    .top-tab-btn.active {
+      background-color: #991b1b;
+      color: white;
+      box-shadow: 0 1px 3px rgba(153, 27, 27, 0.25);
+    }
+    .top-tab-btn.active:hover {
+      background-color: #7f1d1d;
+      color: white;
+    }
 
     /* LAYOUT DE CONTEÚDO E SUB-SIDEBAR (SELEÇÃO LATERAL) */
     .main-layout { display: flex; min-height: calc(100vh - 130px); }
@@ -491,6 +559,11 @@
       }
       .top-tab-btn i {
         font-size: 0.82rem !important;
+      }
+      .top-tab-btn .tab-label {
+        max-width: none !important;
+        opacity: 1 !important;
+        display: inline-block !important;
       }
       .top-tab-btn.active {
         background-color: #991b1b !important;
@@ -1288,42 +1361,42 @@
 <!-- BARRA DE ABAS SUPERIOR -->
 <nav class="top-nav-bar">
   <div class="top-tabs">
-    <button class="top-tab-btn active" id="menu-visao-geral" onclick="mudarAba('visao-geral')">
-      <i class="fa-solid fa-chart-line"></i> Visão Geral
+    <button class="top-tab-btn active" id="menu-visao-geral" onclick="mudarAba('visao-geral')" title="Visão Geral">
+      <i class="fa-solid fa-chart-line"></i><span class="tab-label">Visão Geral</span>
     </button>
-    <button class="top-tab-btn" id="menu-cint" onclick="mudarAba('cint')" style="display: none;">
-      <i class="fa-solid fa-circle-plus"></i> Inclusão
+    <button class="top-tab-btn" id="menu-cint" onclick="mudarAba('cint')" style="display: none;" title="Inclusão">
+      <i class="fa-solid fa-circle-plus"></i><span class="tab-label">Inclusão</span>
     </button>
-    <button class="top-tab-btn" id="menu-inventario" onclick="mudarAba('inventario')">
-      <i class="fa-solid fa-box"></i> Movimentação
+    <button class="top-tab-btn" id="menu-inventario" onclick="mudarAba('inventario')" title="Movimentação">
+      <i class="fa-solid fa-box"></i><span class="tab-label">Movimentação</span>
     </button>
-    <button class="top-tab-btn" id="menu-locais" onclick="mudarAba('locais')">
-      <i class="fa-solid fa-warehouse"></i> Armazenamento
+    <button class="top-tab-btn" id="menu-locais" onclick="mudarAba('locais')" title="Armazenamento">
+      <i class="fa-solid fa-warehouse"></i><span class="tab-label">Armazenamento</span>
     </button>
-    <button class="top-tab-btn" id="menu-acautelamento" onclick="mudarAba('acautelamento')">
-      <i class="fa-solid fa-file-signature"></i> Acautelamento
+    <button class="top-tab-btn" id="menu-acautelamento" onclick="mudarAba('acautelamento')" title="Acautelamento">
+      <i class="fa-solid fa-file-signature"></i><span class="tab-label">Acautelamento</span>
     </button>
-    <button class="top-tab-btn" id="menu-checklist" onclick="mudarAba('checklist')">
-      <i class="fa-solid fa-clipboard-check"></i> Checklist & Inspeção
+    <button class="top-tab-btn" id="menu-checklist" onclick="mudarAba('checklist')" title="Checklist & Inspeção">
+      <i class="fa-solid fa-clipboard-check"></i><span class="tab-label">Checklist & Inspeção</span>
     </button>
-    <button class="top-tab-btn" id="menu-frotas" onclick="mudarAba('frotas')">
-      <i class="fa-solid fa-car-side"></i> Gestão de Frotas
+    <button class="top-tab-btn" id="menu-frotas" onclick="mudarAba('frotas')" title="Gestão de Frotas">
+      <i class="fa-solid fa-car-side"></i><span class="tab-label">Gestão de Frotas</span>
     </button>
     
     <!-- NOVO BOTÃO DE USUÁRIOS AQUI -->
-    <button class="top-tab-btn" id="menu-gerenciar-usuarios" onclick="mudarAba('gerenciar-usuarios'); carregarListaUsuarios();" style="display: none;">
-      <i class="fa-solid fa-users-gear"></i> Usuários
+    <button class="top-tab-btn" id="menu-gerenciar-usuarios" onclick="mudarAba('gerenciar-usuarios'); carregarListaUsuarios();" style="display: none;" title="Usuários">
+      <i class="fa-solid fa-users-gear"></i><span class="tab-label">Usuários</span>
     </button>
 
-    <button class="top-tab-btn" id="menu-base" onclick="mudarAba('base')" style="display: none;">
-      <i class="fa-solid fa-database"></i> Base de Dados
+    <button class="top-tab-btn" id="menu-base" onclick="mudarAba('base')" style="display: none;" title="Base de Dados">
+      <i class="fa-solid fa-database"></i><span class="tab-label">Base de Dados</span>
     </button>
 
-    <button class="top-tab-btn" id="menu-logs" onclick="mudarAba('logs')" style="display: none;">
-      <i class="fa-solid fa-clock-rotate-left"></i> Logs de Auditoria
+    <button class="top-tab-btn" id="menu-logs" onclick="mudarAba('logs')" style="display: none;" title="Logs de Auditoria">
+      <i class="fa-solid fa-clock-rotate-left"></i><span class="tab-label">Logs de Auditoria</span>
     </button>
-    <button class="top-tab-btn" id="menu-chamados" onclick="mudarAba('chamados'); carregarChamados();" style="display: none;">
-      <i class="fa-solid fa-headset"></i> Suporte / Chamados
+    <button class="top-tab-btn" id="menu-chamados" onclick="mudarAba('chamados'); carregarChamados();" style="display: none;" title="Suporte / Chamados">
+      <i class="fa-solid fa-headset"></i><span class="tab-label">Suporte / Chamados</span>
     </button>
   </div>
 </nav>
