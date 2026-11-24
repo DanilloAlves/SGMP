@@ -12699,7 +12699,7 @@ function extrairInfoGooglePlanilha_(urlOuId) {
 
 // Carrega os dados de uma Planilha Google (Google Sheets) para a Importação em Lote
 
-// Cria uma Planilha Modelo formatada diretamente no Google Drive para importação no SGMP
+// Cria uma Planilha Modelo formatada diretamente no Google Drive para importação no SGMP com Listas Suspensas (Data Validation)
 function gerarModeloGooglePlanilha(omeAlvo) {
   try {
     var email = "";
@@ -12740,10 +12740,90 @@ function gerarModeloGooglePlanilha(omeAlvo) {
     headerRange.setVerticalAlignment("middle");
     sheet.setRowHeight(1, 35);
 
-    // Linha de exemplo orientativa
+    // Garante que a planilha principal tenha 2000 linhas para preenchimento
+    var numLinhasTotal = 2000;
+    if (sheet.getMaxRows() < numLinhasTotal) {
+      sheet.insertRowsAfter(sheet.getMaxRows(), numLinhasTotal - sheet.getMaxRows());
+    }
+
+    // Congela a primeira linha para facilitar navegação
+    sheet.setFrozenRows(1);
+
+    // Ajusta larguras das colunas
+    var larguras = [300, 120, 150, 130, 150, 150, 160, 260, 160, 160, 130, 140, 180, 180, 130, 130, 280];
+    for (var c = 0; c < larguras.length; c++) {
+      sheet.setColumnWidth(c + 1, larguras[c]);
+    }
+
+    // 1. Obter Bases para Listas Suspensas
+    var listaOficialOmes = [
+      "1º GB Vitoria Stº Antão", 
+      "2º GB Caruaru", 
+      "3º GB Serra Talhada", 
+      "4º GB Petrolina", 
+      "5º GB Salgueiro", 
+      "6º GB Garanhuns", 
+      "7º GB Carpina", 
+      "9º GB Arcoverde", 
+      "ABMG", "AECI", "AjG", "CAT/AG", "CAT/RMR", "CAT/SE", "CAT/ZM", 
+      "CCS", "CEAO", "CEFD", "CI", "CINT", "CMAN", "CPO", "CPPA", "CPP", 
+      "DAS", "DEIP", "DF", "DGO", "DIESP", "DIM", "DINTER I", "DINTER II", 
+      "DJD", "DLOG", "DGP", "DPLAG", "DTIC", "DVP", "GBAPH", "GBI", 
+      "GBMAR", "GBS", "GCG", "GSG"
+    ];
+
+    var listaCoresOficial = [
+      "Amarelo", "Azul", "Bege", "Branco", "Camuflado", "Cinza", "Dourado",
+      "Laranja", "Marrom", "Prata", "Preto", "Rosa", "Roxo", "Verde",
+      "Vermelho", "Multicor", "Não se aplica"
+    ];
+
+    var listaStatus = ["ECD", "SCD", "EXTRAVIADO", "ACAUTELADO"];
+    var listaPermanente = ["SIM", "NAO"];
+
+    var listaMateriais = [];
+    try {
+      listaMateriais = getMateriaisPlanilhaCompras() || [];
+    } catch (eMat) {
+      console.warn("Aviso ao obter catálogo de materiais: " + eMat.message);
+    }
+    if (!Array.isArray(listaMateriais) || listaMateriais.length === 0) {
+      listaMateriais = ["EXTINTOR PQS 4KG", "BALACLAVA (COMBATE A INCÊNDIO)", "CAPACETE DE COMBATE A INCÊNDIO", "LUVA DE PROCEDIMENTO", "MANGUEIRA 1 1/2", "MANGUEIRA 2 1/2"];
+    }
+
+    var mapaSubs = {};
+    try {
+      mapaSubs = getMapaTodasSubunidadesPorOme();
+    } catch (eSub) {
+      console.warn("Aviso ao obter mapa de subunidades: " + eSub.message);
+    }
+
+    var setSubs = [];
+    var subsOme = (mapaSubs && mapaSubs[ome] && mapaSubs[ome].length > 0) ? mapaSubs[ome] : ["SEDE"];
+    for (var s = 0; s < subsOme.length; s++) {
+      var sPad = typeof padronizarNomeSubunidade === 'function' ? padronizarNomeSubunidade(subsOme[s], ome) : subsOme[s];
+      if (sPad && setSubs.indexOf(sPad) === -1) {
+        setSubs.push(sPad);
+      }
+    }
+    // Adiciona demais subunidades do mapa caso haja itens de outras OMEs
+    for (var outOme in mapaSubs) {
+      if (outOme !== ome && Array.isArray(mapaSubs[outOme])) {
+        for (var os = 0; os < mapaSubs[outOme].length; os++) {
+          var oSubPad = typeof padronizarNomeSubunidade === 'function' ? padronizarNomeSubunidade(mapaSubs[outOme][os], outOme) : mapaSubs[outOme][os];
+          if (oSubPad && setSubs.indexOf(oSubPad) === -1) {
+            setSubs.push(oSubPad);
+          }
+        }
+      }
+    }
+    if (setSubs.length === 0) setSubs = ["SEDE"];
+    var subExemplo = setSubs[0] || "SEDE";
+
+    // Linha de exemplo orientativa (Linha 2)
     var linhaExemplo = [
-      "EXTINTOR PQS 4KG", "1", "EQUIPAMENTO", "VERMELHO", "RESGATE", "PADRÃO",
-      ome, "SEDE", "RESERVA TÉCNICA", "PRATELEIRA 01", "ECD",
+      "EXTINTOR PQS 4KG", "1", "EQUIPAMENTO", "Vermelho", "RESGATE", "PADRÃO",
+      ome, subExemplo, "RESERVA TÉCNICA", "PRATELEIRA 01", "ECD",
       "999888", "EX-2026-01", "00000.000000/2026-00", "", "SIM", "Item de exemplo - substitua ou adicione suas linhas abaixo"
     ];
     sheet.getRange(2, 1, 1, linhaExemplo.length).setValues([linhaExemplo]);
@@ -12752,13 +12832,108 @@ function gerarModeloGooglePlanilha(omeAlvo) {
     rowExemplo.setFontColor("#555555");
     rowExemplo.setBackground("#F8F9FA");
 
-    // Congela a primeira linha para facilitar navegação
-    sheet.setFrozenRows(1);
+    // 2. Criação da Aba Oculta para Validação de Dados
+    var wsDados = ss.insertSheet("Bases_Ocultas");
 
-    // Ajusta larguras das colunas
-    for (var c = 1; c <= cabecalho.length; c++) {
-      sheet.autoResizeColumn(c);
+    var maxLinhasDados = Math.max(
+      listaMateriais.length,
+      listaOficialOmes.length,
+      listaCoresOficial.length,
+      setSubs.length,
+      listaStatus.length,
+      listaPermanente.length,
+      50
+    );
+    if (wsDados.getMaxRows() < maxLinhasDados) {
+      wsDados.insertRowsAfter(wsDados.getMaxRows(), maxLinhasDados - wsDados.getMaxRows() + 10);
     }
+
+    // Preenche Coluna A: OMEs Oficiais
+    var omeMatrix = listaOficialOmes.map(function(o) { return [o]; });
+    wsDados.getRange(1, 1, omeMatrix.length, 1).setValues(omeMatrix);
+    var rangeOme = wsDados.getRange(1, 1, omeMatrix.length, 1);
+
+    // Preenche Coluna B: Catálogo de Materiais
+    var matMatrix = listaMateriais.map(function(m) { return [m]; });
+    wsDados.getRange(1, 2, matMatrix.length, 1).setValues(matMatrix);
+    var rangeMaterial = wsDados.getRange(1, 2, matMatrix.length, 1);
+
+    // Preenche Coluna C: Cores Oficiais
+    var corMatrix = listaCoresOficial.map(function(c) { return [c]; });
+    wsDados.getRange(1, 3, corMatrix.length, 1).setValues(corMatrix);
+    var rangeCor = wsDados.getRange(1, 3, corMatrix.length, 1);
+
+    // Preenche Coluna D: Subunidades
+    var subMatrix = setSubs.map(function(s) { return [s]; });
+    wsDados.getRange(1, 4, subMatrix.length, 1).setValues(subMatrix);
+    var rangeSub = wsDados.getRange(1, 4, subMatrix.length, 1);
+
+    // Preenche Coluna E: Status
+    var statusMatrix = listaStatus.map(function(st) { return [st]; });
+    wsDados.getRange(1, 5, statusMatrix.length, 1).setValues(statusMatrix);
+    var rangeStatus = wsDados.getRange(1, 5, statusMatrix.length, 1);
+
+    // Preenche Coluna F: Permanente
+    var permMatrix = listaPermanente.map(function(p) { return [p]; });
+    wsDados.getRange(1, 6, permMatrix.length, 1).setValues(permMatrix);
+    var rangePerm = wsDados.getRange(1, 6, permMatrix.length, 1);
+
+    // Oculta a aba Bases_Ocultas
+    wsDados.hideSheet();
+
+    // 3. Aplica as Listas Suspensas (Data Validation) nas linhas 2 a 2000
+    var qtdLinhasVal = numLinhasTotal - 1; // 1999 linhas (da 2 até 2000)
+
+    // Coluna 1 (A): MATERIAL (Lista suspensa permitindo digitação livre de material avulso)
+    var ruleMaterial = SpreadsheetApp.newDataValidation()
+      .requireValueInRange(rangeMaterial, true)
+      .setAllowInvalid(true)
+      .setHelpText("Selecione um item do catálogo oficial ou digite o nome de um material avulso.")
+      .build();
+    sheet.getRange(2, 1, qtdLinhasVal, 1).setDataValidation(ruleMaterial);
+
+    // Coluna 4 (D): COR (Lista suspensa de cores padronizadas)
+    var ruleCor = SpreadsheetApp.newDataValidation()
+      .requireValueInRange(rangeCor, true)
+      .setAllowInvalid(true)
+      .setHelpText("Selecione uma cor da lista padrão.")
+      .build();
+    sheet.getRange(2, 4, qtdLinhasVal, 1).setDataValidation(ruleCor);
+
+    // Coluna 7 (G): UNIDADE (Lista suspensa das OMEs oficiais)
+    var ruleOme = SpreadsheetApp.newDataValidation()
+      .requireValueInRange(rangeOme, true)
+      .setAllowInvalid(false)
+      .setHelpText("Selecione a UNIDADE (OME) oficial.")
+      .build();
+    sheet.getRange(2, 7, qtdLinhasVal, 1).setDataValidation(ruleOme);
+
+    // Coluna 8 (H): SUBUNIDADE (Lista suspensa com as subunidades oficiais)
+    var ruleSub = SpreadsheetApp.newDataValidation()
+      .requireValueInRange(rangeSub, true)
+      .setAllowInvalid(true)
+      .setHelpText("Selecione uma Subunidade oficial.")
+      .build();
+    sheet.getRange(2, 8, qtdLinhasVal, 1).setDataValidation(ruleSub);
+
+    // Coluna 11 (K): STATUS (ECD, SCD, EXTRAVIADO, ACAUTELADO)
+    var ruleStatus = SpreadsheetApp.newDataValidation()
+      .requireValueInRange(rangeStatus, true)
+      .setAllowInvalid(false)
+      .setHelpText("Selecione um Status válido: ECD, SCD, EXTRAVIADO ou ACAUTELADO.")
+      .build();
+    sheet.getRange(2, 11, qtdLinhasVal, 1).setDataValidation(ruleStatus);
+
+    // Coluna 16 (P): PERMANENTE (SIM, NAO)
+    var rulePerm = SpreadsheetApp.newDataValidation()
+      .requireValueInRange(rangePerm, true)
+      .setAllowInvalid(false)
+      .setHelpText("Selecione SIM ou NAO.")
+      .build();
+    sheet.getRange(2, 16, qtdLinhasVal, 1).setDataValidation(rulePerm);
+
+    // Garante que a aba visível seja a Importacao_SGMP
+    ss.setActiveSheet(sheet);
 
     // Configura permissão de edição para qualquer pessoa com o link
     try {

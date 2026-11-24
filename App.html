@@ -19278,7 +19278,7 @@ function ehSubunidadeEquivalenteOmeCliente(subNome, omeRef) {
 
     Swal.fire({
       title: 'Abrindo Google Planilhas...',
-      text: 'Criando modelo oficial formatado com cabeçalhos padrão...',
+      text: 'Criando modelo oficial formatado com listas suspensas (Materiais, Cores, OME, Subunidades, Status)...',
       allowOutsideClick: false,
       didOpen: () => Swal.showLoading()
     });
@@ -19305,12 +19305,12 @@ function ehSubunidadeEquivalenteOmeCliente(subNome, omeRef) {
             title: 'Modelo Aberto no Google Planilhas!',
             html: `
               <div class="text-start small">
-                <p class="mb-2">Uma planilha oficial do <strong>Modelo de Importação</strong> foi criada e aberta em uma nova aba do navegador.</p>
+                <p class="mb-2">Uma planilha oficial do <strong>Modelo de Importação</strong> foi criada e aberta com <strong>listas suspensas</strong> (Materiais, Cores, UNIDADE, SUBUNIDADE, STATUS e PERMANENTE).</p>
                 <div class="alert alert-light border p-2 mb-2">
                   <i class="fa-solid fa-link text-primary me-1"></i> <strong>Link gerado:</strong><br>
                   <a href="${res.url}" target="_blank" class="text-break">${res.url}</a>
                 </div>
-                <p class="text-muted mb-0">Preencha ou cole os dados lá. Quando concluir, basta voltar a esta tela e clicar em <strong>"Carregar Planilha"</strong>!</p>
+                <p class="text-muted mb-0">Preencha ou selecione os dados pelas listas suspensas. Ao concluir, volte aqui e clique em <strong>"Carregar Planilha"</strong>!</p>
               </div>
             `,
             confirmButtonText: 'Entendido'
