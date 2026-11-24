@@ -5390,13 +5390,29 @@
 
   function temPermissao(chavePermissao) {
     if (ehAdminGlobal()) return true;
-    if (ehComandanteGlobal()) return true;
+
+    const chave = String(chavePermissao || '').trim().toLowerCase();
+
+    // Permissões EXCLUSIVAS de Administrador (nunca concedidas a Comandante ou outros perfis)
+    const adminOnlyPerms = ['aba_logs', 'materiais_provisorios', 'tickets_distribuicao', 'aprovar_doacoes', 'selecionar_todas_omes'];
+    if (adminOnlyPerms.includes(chave) && !ehAdminGlobal()) {
+      return false;
+    }
+
+    if (ehComandanteGlobal()) {
+      const permsComandante = [
+        "movimentar_arvore", "gerenciar_locais", "alterar_status", "descarregar_material", 
+        "acautelamento", "transferir_ome", "recebimento_cint", "movimentacao_estoque", 
+        "validar_checklist", "checklist_toda_ome", "importar_exportar_excel", 
+        "abertura_chamados", "visualizar_dashboard", "base_dados"
+      ];
+      if (permsComandante.includes(chave)) return true;
+    }
 
     const u = (typeof usuarioSessaoAtual !== 'undefined' && usuarioSessaoAtual) ? usuarioSessaoAtual : ((typeof USUARIO_INJETADO !== 'undefined') ? USUARIO_INJETADO : null);
     if (!u) return false;
     const perms = u.permissoes;
     if (!perms) return false;
-    const chave = String(chavePermissao || '').trim().toLowerCase();
     if (Array.isArray(perms)) {
       return perms.some(p => String(p).trim().toLowerCase() === chave);
     }
@@ -6412,7 +6428,7 @@
     const ehAdmin = perfilNorm === "administrador" || perfilNorm.includes("admin");
     const ehChefe = perfilNorm === "chefe de setor" || perfilNorm.includes("chefe") || perfilNorm.includes("comandante");
 
-    const podeVerDistribuicao = ehAdmin || (typeof temPermissao === 'function' && temPermissao('tickets_distribuicao'));
+    const podeVerDistribuicao = ehAdmin;
     const podeVerDashboard = ehAdmin || ehChefe || (typeof temPermissao === 'function' && temPermissao('visualizar_dashboard'));
 
     // Posiciona o Dashboard sempre abaixo do Banner do Perfil (Administrador, Chefe ou Usuário autorizado)
@@ -18219,6 +18235,10 @@ function renderizarTimelineEmElemento(dados, ids) {
   }
 
   function corrigirEAProvarTicket(idTicket, nomeProvisorioAtual, c1Atual, c2Atual, c3Atual) {
+    if (!ehAdminGlobal()) {
+      Swal.fire('Acesso Restrito', 'O perfil de Comandante da Unidade não possui permissão para validar cadastros pendentes de materiais.', 'error');
+      return;
+    }
     const optC1 = `
       <option value="" disabled>Selecione...</option>
       <option value="OPERACIONAL">OPERACIONAL</option>
@@ -18491,6 +18511,12 @@ function renderizarTimelineEmElemento(dados, ids) {
     
     if (!bloco || !corpo) return;
 
+    // Apenas Administrador pode visualizar e validar materiais provisórios pendentes
+    if (!ehAdminGlobal()) {
+      bloco.style.display = 'none';
+      return;
+    }
+
     google.script.run
       .withSuccessHandler(tickets => {
         if (!tickets || tickets.length === 0) {
@@ -18546,6 +18572,10 @@ function renderizarTimelineEmElemento(dados, ids) {
   }
 
   function aprovarTicketDireto(idTicket, nomeProvisorio, c1, c2, c3) {
+    if (!ehAdminGlobal()) {
+      Swal.fire('Acesso Restrito', 'O perfil de Comandante da Unidade não possui permissão para validar cadastros pendentes de materiais.', 'error');
+      return;
+    }
     processarAvaliacaoTicket(idTicket, nomeProvisorio, nomeProvisorio, c1, c2, c3);
   }
 
@@ -18722,6 +18752,10 @@ function renderizarTimelineEmElemento(dados, ids) {
   }
 
   function rejeitarTicketMaterial(idTicket, nomeProvisorio) {
+    if (!ehAdminGlobal()) {
+      Swal.fire('Acesso Restrito', 'O perfil de Comandante da Unidade não possui permissão para rejeitar cadastros pendentes de materiais.', 'error');
+      return;
+    }
     Swal.fire({
       title: 'Recusar Sugestão de Material',
       html: `
@@ -25416,9 +25450,15 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
               usuarioSessaoAtual.perfil = perfilPadrao;
               usuarioSessaoAtual.ome = res.value.novaOme;
               usuarioSessaoAtual.subunidade = res.value.novaSubunidade || "GERAL";
-              usuarioSessaoAtual.permissoes = (perfilPadrao === 'Administrador' || perfilPadrao === 'Comandante de Unidade')
+              const permsComandantePadrao = [
+                "movimentar_arvore", "gerenciar_locais", "alterar_status", "descarregar_material", 
+                "acautelamento", "transferir_ome", "recebimento_cint", "movimentacao_estoque", 
+                "validar_checklist", "checklist_toda_ome", "importar_exportar_excel", 
+                "abertura_chamados", "visualizar_dashboard", "base_dados"
+              ];
+              usuarioSessaoAtual.permissoes = (perfilPadrao === 'Administrador')
                 ? DEFINICAO_PERMISSOES.map(d => d.id)
-                : res.value.novasPermissoes;
+                : (perfilPadrao === 'Comandante de Unidade' ? permsComandantePadrao : res.value.novasPermissoes);
 
               PERFIL_GLOBAL = perfilPadrao;
               OME_GLOBAL = res.value.novaOme;
@@ -25453,11 +25493,30 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     const botoes = document.getElementById('botoesAcaoChecks');
     const checkboxes = document.querySelectorAll('.check-permissao-custom');
 
-    if (perfilEscolhido === 'Administrador' || perfilEscolhido === 'Comandante de Unidade') {
-      if (aviso) aviso.style.display = 'block';
+    if (perfilEscolhido === 'Administrador') {
+      if (aviso) {
+        aviso.style.display = 'block';
+        aviso.innerHTML = '<i class="fa-solid fa-crown text-danger me-1"></i> <strong>Administrador:</strong> Acesso total irrestrito a todas as funcionalidades do sistema.';
+      }
       if (botoes) botoes.style.display = 'none';
       checkboxes.forEach(c => {
         c.checked = true;
+        c.disabled = true;
+      });
+    } else if (perfilEscolhido === 'Comandante de Unidade') {
+      if (aviso) {
+        aviso.style.display = 'block';
+        aviso.innerHTML = '<i class="fa-solid fa-shield-halved text-warning me-1"></i> <strong>Comandante de Unidade:</strong> Gestão operacional da sua OME (sem validação de novos materiais corporativos, logs de auditoria ou distribuição CINT).';
+      }
+      if (botoes) botoes.style.display = 'none';
+      const permsComandante = [
+        "movimentar_arvore", "gerenciar_locais", "alterar_status", "descarregar_material", 
+        "acautelamento", "transferir_ome", "recebimento_cint", "movimentacao_estoque", 
+        "validar_checklist", "checklist_toda_ome", "importar_exportar_excel", 
+        "abertura_chamados", "visualizar_dashboard", "base_dados"
+      ];
+      checkboxes.forEach(c => {
+        c.checked = permsComandante.includes(c.value);
         c.disabled = true;
       });
     } else {

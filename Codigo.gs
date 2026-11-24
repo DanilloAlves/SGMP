@@ -307,17 +307,18 @@ function padronizarPermissoesUsuario_(permRaw, perfil) {
     }
   }
 
-  // Comandante de Unidade mantém as suas permissões operacionais nativas (NUNCA incluindo aba_logs)
+  // Comandante de Unidade mantém as suas permissões operacionais nativas (NUNCA incluindo permissões restritas da administração)
+  var bloqueadasAdmin = ["aba_logs", "materiais_provisorios", "tickets_distribuicao", "aprovar_doacoes", "selecionar_todas_omes"];
   if (pPadrao === "Comandante de Unidade") {
     var basePerms = LISTA_PERMISSOES_COMANDANTE.slice();
     extras.forEach(function(p) {
-      if (p !== "aba_logs" && basePerms.indexOf(p) === -1) basePerms.push(p);
+      if (bloqueadasAdmin.indexOf(p) === -1 && basePerms.indexOf(p) === -1) basePerms.push(p);
     });
-    return basePerms.filter(function(p) { return p !== "aba_logs"; });
+    return basePerms.filter(function(p) { return bloqueadasAdmin.indexOf(p) === -1; });
   }
 
-  // Qualquer outro perfil não-administrador também nunca recebe aba_logs
-  return extras.filter(function(p) { return p !== "aba_logs"; });
+  // Qualquer outro perfil não-administrador também nunca recebe permissões restritas
+  return extras.filter(function(p) { return bloqueadasAdmin.indexOf(p) === -1; });
 }
 
 // Obtém dinamicamente os índices de todas as colunas da aba Logins
@@ -11941,6 +11942,16 @@ function identificarERegistrarMateriaisProvisoriosLote(registros, usuarioCliente
 
 function getTicketsMateriaisPendentes() {
   try {
+    var email = "";
+    try { email = Session.getActiveUser().getEmail().trim().toLowerCase(); } catch (e) {}
+    if (!email) {
+      try { email = Session.getEffectiveUser().getEmail().trim().toLowerCase(); } catch (e) {}
+    }
+    var userLogado = email ? verificarPermissaoUsuario(email) : null;
+    var perfilLogado = userLogado ? padronizarPerfilUsuario_(userLogado.perfil) : "";
+    if (perfilLogado !== "Administrador") {
+      return [];
+    }
     var cacheKey = "CACHE_TKTS_MATERIAIS_PEND";
     var cache = CacheService.getScriptCache();
     if (cache) {
@@ -12082,8 +12093,12 @@ function avaliarTicketMaterialProvisorio(dadosAvaliacao) {
 
     
 
-    var emailAv = Session.getActiveUser().getEmail();
+    var emailAv = Session.getActiveUser().getEmail().trim().toLowerCase();
     var userAv = verificarPermissaoUsuario(emailAv);
+    var perfilAv = userAv ? padronizarPerfilUsuario_(userAv.perfil) : "";
+    if (perfilAv !== "Administrador") {
+      throw new Error("Acesso negado: O perfil de Comandante da Unidade não possui permissão para validar cadastros pendentes de materiais.");
+    }
     var cpfAv = (userAv && userAv.cpf) ? userAv.cpf : "DLOG";
     var dataHoraAv = Utilities.formatDate(new Date(), "America/Recife", "dd/MM/yyyy HH:mm");
 
@@ -12244,8 +12259,17 @@ function avaliarTicketMaterialProvisorio(dadosAvaliacao) {
 
 
 function getContagemETicketsPendentes() {
-
   try {
+    var email = "";
+    try { email = Session.getActiveUser().getEmail().trim().toLowerCase(); } catch (e) {}
+    if (!email) {
+      try { email = Session.getEffectiveUser().getEmail().trim().toLowerCase(); } catch (e) {}
+    }
+    var userLogado = email ? verificarPermissaoUsuario(email) : null;
+    var perfilLogado = userLogado ? padronizarPerfilUsuario_(userLogado.perfil) : "";
+    if (perfilLogado !== "Administrador") {
+      return { total: 0, lista: [] };
+    }
 
     var ss = abrirPlanilhaSegura_("1VJ6dEc2K1bKt9qUTpBnqf2n6qE_bVHpgW3Ojn7_bvjY");
 
@@ -18437,8 +18461,10 @@ function atualizarUsuario(linha, novaOme, novoPerfil, novoStatus, novaSubunidade
 
     // Normaliza permissões para armazenamento em string unificada
     var permissoesStr = "";
-    if (perfilPadronizado === "Administrador" || perfilPadronizado === "Comandante de Unidade") {
+    if (perfilPadronizado === "Administrador") {
       permissoesStr = LISTA_CHAVES_PERMISSOES.join(",");
+    } else if (perfilPadronizado === "Comandante de Unidade") {
+      permissoesStr = LISTA_PERMISSOES_COMANDANTE.join(",");
     } else if (Array.isArray(novasPermissoes)) {
       permissoesStr = novasPermissoes.join(",");
     } else if (novasPermissoes) {
@@ -19152,8 +19178,12 @@ function rejeitarTicketMaterialProvisorio(idTicket, motivo) {
       throw new Error("Ticket " + idTicket + " não encontrado.");
     }
 
-    var email = Session.getActiveUser().getEmail();
+    var email = Session.getActiveUser().getEmail().trim().toLowerCase();
     var usuarioValido = verificarPermissaoUsuario(email);
+    var perfilVal = usuarioValido ? padronizarPerfilUsuario_(usuarioValido.perfil) : "";
+    if (perfilVal !== "Administrador") {
+      throw new Error("Acesso negado: O perfil de Comandante da Unidade não possui permissão para validar ou rejeitar cadastros pendentes de materiais.");
+    }
     var cpfUsuario = (usuarioValido && usuarioValido.cpf) ? usuarioValido.cpf : "DLOG";
     var dataHora = Utilities.formatDate(new Date(), "America/Recife", "dd/MM/yyyy HH:mm");
 
