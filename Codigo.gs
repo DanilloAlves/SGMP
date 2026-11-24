@@ -14651,6 +14651,13 @@ function transferirItensDiretoPorIds(dados) {
     var itensIds = dados.itensIds || [];
     var idDestino = dados.idDestino ? String(dados.idDestino).trim() : "";
     var unidade = (typeof obterOmePadronizada === 'function') ? obterOmePadronizada(dados.unidade || "").toUpperCase() : String(dados.unidade || "").trim().toUpperCase();
+    if (!unidade) {
+      try {
+        var emailSessaoDir = Session.getActiveUser().getEmail();
+        var userSessaoDir = emailSessaoDir ? verificarPermissaoUsuario(emailSessaoDir) : null;
+        if (userSessaoDir && userSessaoDir.ome) unidade = String(userSessaoDir.ome).trim().toUpperCase();
+      } catch(eUDir) {}
+    }
 
     if (itensIds.length === 0) return "Nenhum item selecionado.";
     if (!caminhoTexto && !idDestino) throw new Error("Caminho de destino não informado.");
@@ -18310,20 +18317,37 @@ function validarPinTransacao(cpfOrEmail, pinInformado) {
   var usuario = verificarPermissaoUsuario(cpfOrEmail);
   if (!usuario) throw new Error("Usuário não identificado.");
   
-  // Lê PIN armazenado na base de Logins (coluna G / índice corresp.)
   var ss = abrirPlanilhaSegura_(ID_PLANILHA_USUARIOS);
   var sheet = ss.getSheetByName(ABA_USUARIOS);
   var dados = sheet.getDataRange().getValues();
-  
+  var idx = (typeof obterIndicesLogins_ === 'function') ? obterIndicesLogins_(sheet) : { email: 0, cpf: 1, pin: 6 };
+  var idxPin = idx.pin !== -1 ? idx.pin : 6;
+  var idxCpf = idx.cpf !== -1 ? idx.cpf : 1;
+  var idxEmail = idx.email !== -1 ? idx.email : 0;
+
+  var cpfAlvoLimpo = String(usuario.cpf || cpfOrEmail || "").replace(/\D/g, "");
+  if (cpfAlvoLimpo.length === 10) cpfAlvoLimpo = "0" + cpfAlvoLimpo;
+  var emailAlvo = String(usuario.email || cpfOrEmail || "").trim().toLowerCase();
+  var pinInf = String(pinInformado || "").trim();
+
   for (var i = 1; i < dados.length; i++) {
-    if (String(dados[i][1]) === String(usuario.cpf) || String(dados[i][0]).toLowerCase() === String(usuario.email).toLowerCase()) {
-      var pinCadastrado = String(dados[i][6] || "").trim(); // Coluna G com o PIN
-      if (pinCadastrado === String(pinInformado).trim()) {
+    var rowCpfLimpo = String(dados[i][idxCpf] || "").replace(/\D/g, "");
+    if (rowCpfLimpo.length === 10) rowCpfLimpo = "0" + rowCpfLimpo;
+    var rowEmail = String(dados[i][idxEmail] || "").trim().toLowerCase();
+
+    if ((cpfAlvoLimpo && rowCpfLimpo && cpfAlvoLimpo === rowCpfLimpo) || (emailAlvo && rowEmail === emailAlvo)) {
+      var pinCadastrado = String(dados[i][idxPin] || "").trim();
+      if (pinCadastrado && pinCadastrado === pinInf) {
         return { valido: true };
+      }
+      // Se não houver PIN cadastrado na planilha e o usuário for Administrador ou Comandante de Unidade
+      var perfilUsuario = padronizarPerfilUsuario_(usuario.perfil);
+      if (!pinCadastrado && (perfilUsuario === "Administrador" || perfilUsuario === "Comandante de Unidade")) {
+        return { valido: true, aviso: "Autorizado por perfil de comando" };
       }
     }
   }
-  return { valido: false, mensagem: "PIN de transação incorreto." };
+  return { valido: false, mensagem: "PIN de transação incorreto ou não cadastrado." };
 }
 
 // Busca todos os usuários da base para o painel do Admin, consolidando duplicatas pela linha mais recente

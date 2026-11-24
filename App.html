@@ -11308,6 +11308,8 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
             matsDoLocal.forEach((m) => {
               const idsJson = encodeURIComponent(JSON.stringify(m.ids || []));
               const idsDescJson = encodeURIComponent(JSON.stringify(m.idsDescarregados || []));
+              const nomeLocalEnc = encodeURIComponent(f.nome || '');
+              const nomeMatEnc = encodeURIComponent(m.nome || '');
               
               // DIVISÃO DE TAGS (ECD, SCD, ACAUTELADO e EXTRAVIADO) alinhadas na árvore
               if ((parseInt(m.qtd) || 0) <= 0) return;
@@ -11317,18 +11319,18 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
               if (m.acautelado > 0) badgesHtml += `<span class="badge bg-warning text-dark ms-1">ACAUTELADO: ${m.acautelado}</span>`;
               if (m.extraviado > 0) badgesHtml += `<span class="badge bg-secondary ms-1">EXTRAVIADO: ${m.extraviado}</span>`;
 
-              const botaoMover = podeMoverArvore ? `<button class="btn btn-sm btn-outline-primary py-0 px-2 me-1" onclick="abrirModalMoverMaterial('${f.id}', '${f.nome}', ${m.qtd}, '${m.nome}', '${idsJson}')"><i class="fa-solid fa-arrows-split-up-and-left"></i> Mover Qtd</button>` : '';
+              const botaoMover = podeMoverArvore ? `<button class="btn btn-sm btn-outline-primary py-0 px-2 me-1" onclick="abrirModalMoverMaterial('${f.id}', '${nomeLocalEnc}', ${m.qtd}, '${nomeMatEnc}', '${idsJson}')"><i class="fa-solid fa-arrows-split-up-and-left"></i> Mover Qtd</button>` : '';
 
               subHtml += `
                 <li class="list-group-item d-flex justify-content-between align-items-center p-2 bg-light rounded mb-1 border">
-                  <a href="javascript:void(0);" class="fw-bold text-primary text-decoration-none text-truncate" style="max-width: 45%;" onclick="abrirModalDetalhesMaterialComIds('${idsJson}', '${m.nome}', '${idsDescJson}')" title="Clique para abrir lista individual de itens">
+                  <a href="javascript:void(0);" class="fw-bold text-primary text-decoration-none text-truncate" style="max-width: 45%;" onclick="abrirModalDetalhesMaterialComIds('${idsJson}', '${nomeMatEnc}', '${idsDescJson}')" title="Clique para abrir lista individual de itens">
                     <i class="fa-solid fa-list-ul me-1"></i> ${m.nome}
                   </a>
                   <div class="d-flex align-items-center justify-content-end flex-wrap gap-2" style="max-width: 55%;">
                     <div class="text-end text-nowrap">${badgesHtml}</div>
                     <div class="text-nowrap">
                       ${botaoMover}
-                      ${PERFIL_GLOBAL === "Administrador" ? `<button class="btn btn-sm btn-outline-danger py-0 px-2" onclick="excluirMaterialDoLocal('${(m.ids || []).join(",")}', '${m.nome}')"><i class="fa-solid fa-trash"></i></button>` : ''}
+                      ${PERFIL_GLOBAL === "Administrador" ? `<button class="btn btn-sm btn-outline-danger py-0 px-2" onclick="excluirMaterialDoLocal('${(m.ids || []).join(",")}', '${nomeMatEnc}')"><i class="fa-solid fa-trash"></i></button>` : ''}
                     </div>
                   </div>
                 </li>`;
@@ -11413,6 +11415,8 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
           matsDoLocal.forEach((m) => {
             const idsJson = encodeURIComponent(JSON.stringify(m.ids || []));
             const idsDescJson = encodeURIComponent(JSON.stringify(m.idsDescarregados || []));
+            const nomeLocalEnc = encodeURIComponent(l.nome || '');
+            const nomeMatEnc = encodeURIComponent(m.nome || '');
             
             if ((parseInt(m.qtd) || 0) <= 0) return;
             let badgesHtml = `<span class="badge bg-info text-dark ms-1">${m.qtd} un(s)</span>`;
@@ -11421,18 +11425,18 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
             if (m.acautelado > 0) badgesHtml += `<span class="badge bg-warning text-dark ms-1">ACAUTELADO: ${m.acautelado}</span>`;
             if (m.extraviado > 0) badgesHtml += `<span class="badge bg-secondary ms-1">EXTRAVIADO: ${m.extraviado}</span>`;
 
-            const botaoMover = podeMoverArvore ? `<button class="btn btn-sm btn-outline-primary py-0 px-2 me-1" onclick="abrirModalMoverMaterial('${l.id}', '${l.nome}', ${m.qtd}, '${m.nome}', '${idsJson}')"><i class="fa-solid fa-arrows-split-up-and-left"></i> Mover Qtd</button>` : '';
+            const botaoMover = podeMoverArvore ? `<button class="btn btn-sm btn-outline-primary py-0 px-2 me-1" onclick="abrirModalMoverMaterial('${l.id}', '${nomeLocalEnc}', ${m.qtd}, '${nomeMatEnc}', '${idsJson}')"><i class="fa-solid fa-arrows-split-up-and-left"></i> Mover Qtd</button>` : '';
 
             html += `
               <li class="list-group-item d-flex justify-content-between align-items-center p-2 bg-light rounded mb-1 border">
-                <a href="javascript:void(0);" class="fw-bold text-primary text-decoration-none text-truncate" style="max-width: 45%;" onclick="abrirModalDetalhesMaterialComIds('${idsJson}', '${m.nome}', '${idsDescJson}')" title="Clique para abrir lista individual de itens">
+                <a href="javascript:void(0);" class="fw-bold text-primary text-decoration-none text-truncate" style="max-width: 45%;" onclick="abrirModalDetalhesMaterialComIds('${idsJson}', '${nomeMatEnc}', '${idsDescJson}')" title="Clique para abrir lista individual de itens">
                   <i class="fa-solid fa-list-ul me-1"></i> ${m.nome}
                 </a>
                 <div class="d-flex align-items-center justify-content-end flex-wrap gap-2" style="max-width: 55%;">
                   <div class="text-end text-nowrap">${badgesHtml}</div>
                   <div class="text-nowrap">
                     ${botaoMover}
-                    ${PERFIL_GLOBAL === "Administrador" ? `<button class="btn btn-sm btn-outline-danger py-0 px-2" onclick="excluirMaterialDoLocal('${(m.ids || []).join(",")}', '${m.nome}')"><i class="fa-solid fa-trash"></i></button>` : ''}
+                    ${PERFIL_GLOBAL === "Administrador" ? `<button class="btn btn-sm btn-outline-danger py-0 px-2" onclick="excluirMaterialDoLocal('${(m.ids || []).join(",")}', '${nomeMatEnc}')"><i class="fa-solid fa-trash"></i></button>` : ''}
                   </div>
                 </div>
               </li>`;
@@ -12494,7 +12498,9 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
   }
 
 
-  function abrirModalDetalhesMaterialComIds(idsEncoded, nomeMaterial, idsDescEncoded) {
+  function abrirModalDetalhesMaterialComIds(idsEncoded, nomeMaterialParam, idsDescEncoded) {
+    let nomeMaterial = String(nomeMaterialParam || '');
+    try { nomeMaterial = decodeURIComponent(nomeMaterial); } catch(e) {}
     let idsAtivos = [];
     try {
       idsAtivos = JSON.parse(decodeURIComponent(idsEncoded || ''));
@@ -15217,7 +15223,9 @@ function renderizarTimelineEmElemento(dados, ids) {
     });
   }
 
-  function excluirMaterialDoLocal(idsString, nomeMaterial) {
+  function excluirMaterialDoLocal(idsString, nomeMaterialParam) {
+    let nomeMaterial = String(nomeMaterialParam || '');
+    try { nomeMaterial = decodeURIComponent(nomeMaterial); } catch(e) {}
     const ehAdmin = typeof ehAdminGlobal === 'function' ? ehAdminGlobal() : false;
     if (!ehAdmin) {
       Swal.fire('Acesso Restrito', 'Apenas o Administrador possui autorização para apagar ou excluir materiais do sistema.', 'warning');
@@ -28512,8 +28520,14 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
   // ATUALIZAÇÃO: MOVIMENTAÇÃO INTERNA DIRETA (SEM REMESSA) COM CPF E PIN
   // ========================================================================
 
-  function abrirModalMoverMaterial(idLocalOrigem, nomeLocalOrigem, qtdDisponivel, nomeMaterial, idsJsonParam) {
-    if (typeof temPermissao === 'function' && !temPermissao('movimentar_arvore')) {
+  function abrirModalMoverMaterial(idLocalOrigem, nomeLocalOrigemParam, qtdDisponivel, nomeMaterialParam, idsJsonParam) {
+    let nomeLocalOrigem = String(nomeLocalOrigemParam || '');
+    try { nomeLocalOrigem = decodeURIComponent(nomeLocalOrigem); } catch(e) {}
+    let nomeMaterial = String(nomeMaterialParam || '');
+    try { nomeMaterial = decodeURIComponent(nomeMaterial); } catch(e) {}
+
+    const podeMover = (typeof temPermissao === 'function' && temPermissao('movimentar_arvore')) || (typeof ehAdminOuChefeGlobal === 'function' && ehAdminOuChefeGlobal());
+    if (!podeMover) {
       Swal.fire('Acesso Restrito', 'Você não possui permissão para mover materiais de local na árvore.', 'error');
       return;
     }
@@ -28521,7 +28535,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     let optionsLocais = '<option value="" disabled selected>Selecione o local de destino...</option>';
     let mapaLocaisObj = {};
     const selOme = document.getElementById('selectOmeArvore');
-    const omeAtual = selOme ? (selOme.value || selOme.getAttribute('data-value') || OME_GLOBAL) : OME_GLOBAL;
+    const omeAtual = (selOme ? (selOme.value || selOme.getAttribute('data-value')) : null) || OME_GLOBAL || (usuarioSessaoAtual ? usuarioSessaoAtual.ome : "");
 
     function obterCaminhoCompletoLocal(locId) {
       if (!cacheLocaisArvore || cacheLocaisArvore.length === 0) return "";
@@ -28575,7 +28589,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
         listaItensFisicos.forEach(it => {
           htmlItensCheckboxes += `
             <div class="form-check text-start mb-1 border-bottom pb-1">
-              <input class="form-check-input check-item-mover-arvore" type="checkbox" value="${it.item}" id="chk_item_${it.item}">
+              <input class="form-check-input check-item-mover-arvore" type="checkbox" value="${it.item}" id="chk_item_${it.item}" checked>
               <label class="form-check-label small font-monospace" for="chk_item_${it.item}">
                 <strong>ID: ${it.item}</strong> | <span class="text-primary">Status: ${it.status || 'N/I'}</span>
               </label>
@@ -28584,6 +28598,8 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
       } else {
         htmlItensCheckboxes = '<p class="small text-muted">Nenhum item individualizado encontrado.</p>';
       }
+
+      const cpfPreenchido = (typeof usuarioSessaoAtual !== 'undefined' && usuarioSessaoAtual && usuarioSessaoAtual.cpf) ? String(usuarioSessaoAtual.cpf).replace(/\D/g, '') : '';
 
       Swal.fire({
         title: 'Mover Itens na Árvore',
@@ -28609,7 +28625,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
             </div>
 
             <div class="row g-2 mt-3 border-top pt-3">
-              <div class="col-md-6"><label class="form-label small fw-bold">Seu CPF:</label><input type="text" id="swalCpf" class="form-control form-control-sm" placeholder="Apenas números"></div>
+              <div class="col-md-6"><label class="form-label small fw-bold">Seu CPF:</label><input type="text" id="swalCpf" class="form-control form-control-sm" placeholder="Apenas números" value="${cpfPreenchido}"></div>
               <div class="col-md-6"><label class="form-label small fw-bold">PIN (Senha):</label><input type="password" id="swalPin" class="form-control form-control-sm" placeholder="****"></div>
             </div>
           </div>
@@ -28633,11 +28649,21 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
           const pin = document.getElementById('swalPin').value.trim();
 
           if (!destinoId || itensIds.length === 0) { Swal.showValidationMessage('Selecione destino e ao menos um item.'); return false; }
-          if (!cpf || !pin) { Swal.showValidationMessage('Preencha o CPF e o PIN.'); return false; }
+          if (!cpf) { Swal.showValidationMessage('Preencha seu CPF.'); return false; }
+
+          const ehAdminOuCmd = (typeof ehAdminGlobal === 'function' && ehAdminGlobal()) || (typeof ehComandanteGlobal === 'function' && ehComandanteGlobal());
+          if (!pin && !ehAdminOuCmd) { Swal.showValidationMessage('Preencha o PIN (Senha).'); return false; }
 
           Swal.showLoading();
           const resPin = await validarPinAssinatura(cpf, pin);
-          if (!resPin.valido) { Swal.showValidationMessage(resPin.mensagem || 'PIN Inválido'); return false; }
+          if (!resPin.valido) {
+            if (ehAdminOuCmd && (resPin.mensagem || '').includes('não cadastrado')) {
+              // Liberado para perfil com atribuição de comando
+            } else {
+              Swal.showValidationMessage(resPin.mensagem || 'PIN Inválido');
+              return false;
+            }
+          }
 
           return { caminhoTexto, destinoId, itensIds };
         }
@@ -29162,7 +29188,7 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
   function aplicarRestricoesVisuaisPorPerfil() {
     const ehAdmin = typeof ehAdminGlobal === 'function' ? ehAdminGlobal() : false;
     const podeGerenciarUsuarios = typeof podeGerenciarUsuariosGlobal === 'function' ? podeGerenciarUsuariosGlobal() : false;
-    const podeMovimentarArvore = typeof temPermissao === 'function' ? temPermissao('movimentar_arvore') : false;
+    const podeMovimentarArvore = (typeof temPermissao === 'function' && temPermissao('movimentar_arvore')) || (typeof ehAdminOuChefeGlobal === 'function' && ehAdminOuChefeGlobal());
     const podeGerenciarLocais = typeof temPermissao === 'function' ? temPermissao('gerenciar_locais') : false;
     const podeAcautelamento = typeof temPermissao === 'function' ? temPermissao('acautelamento') : false;
     const podeTransferirOme = typeof temPermissao === 'function' ? temPermissao('transferir_ome') : false;
