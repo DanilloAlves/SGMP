@@ -5568,7 +5568,7 @@
     "ABMG", "AECI", "AjG", "CAT/AG", "CAT/RMR", "CAT/SE", "CAT/ZM", 
     "CCS", "CEAO", "CEFD", "CI", "CINT", "CMAN", "CPO", "CPPA", "CPP", 
     "DAS", "DEIP", "DF", "DGO", "DIESP", "DIM", "DINTER I", "DINTER II", 
-    "DJD", "DLOG", "DGP", "DPLAG", "DTIC", "DVP", "GBAPH", "GBI", "GBI - SBFN", 
+    "DJD", "DLOG", "DGP", "DPLAG", "DTIC", "DVP", "GBAPH", "GBI", 
     "GBMAR", "GBS", "GCG", "GSG"
   ];
 
@@ -5599,7 +5599,7 @@
     if (condensado.indexOf("GBAPH") !== -1 || condensado.indexOf("BAPH") !== -1 || semPont.indexOf("PRE HOSPITALAR") !== -1 || semPont.indexOf("PREHOSPITALAR") !== -1 || semPont.indexOf("APH") !== -1 || semPont.indexOf("RESGATE") !== -1) return "GBAPH";
     if (condensado.indexOf("GBMAR") !== -1 || condensado.indexOf("BMAR") !== -1 || semPont.indexOf("MARITIMO") !== -1 || semPont.indexOf("SALVAMAR") !== -1 || semPont.indexOf("GUARDA VIDAS") !== -1 || semPont.indexOf("PRAIAS") !== -1) return "GBMAR";
     if (condensado === "GBS" || condensado === "BS" || condensado === "BBS" || semPont.indexOf("BATALHAO DE SALVAMENTO") !== -1 || semPont.indexOf("GRUPAMENTO DE SALVAMENTO") !== -1 || /\b(GBS|BS|SALVAMENTO)\b/.test(semPont)) return "GBS";
-    if (condensado.indexOf("GBISBFN") !== -1 || condensado === "SBFN" || semPont.indexOf("SBFN") !== -1 || semPont.indexOf("NORONHA") !== -1) return "GBI - SBFN";
+    if (condensado.indexOf("GBISBFN") !== -1 || condensado === "SBFN" || semPont.indexOf("SBFN") !== -1 || semPont.indexOf("NORONHA") !== -1) return "GBI";
     if (condensado === "GBI" || condensado === "BI" || condensado === "BBI" || semPont.indexOf("BATALHAO DE INCENDIO") !== -1 || semPont.indexOf("GRUPAMENTO DE INCENDIO") !== -1 || /\b(GBI|BI|INCENDIO)\b/.test(semPont)) return "GBI";
 
     // 4. Centros de Atividades Técnicas (CAT)
@@ -18904,9 +18904,18 @@ function ehSubunidadeEquivalenteOmeCliente(subNome, omeRef) {
     const rawUnidade = buscar(["UNIDADE", "OME", "UNIDADEOME", "UND"], "", ["SUB", "DUB"]);
     const rawSubunidade = buscar(["SUBUNIDADE", "DUBUNIDADE", "SUBUNID", "SUB_UNIDADE", "SUB UNIDADE", "SUB-UNIDADE", "SUB"], "");
 
-    // Se subunidade não foi preenchida, for '-', 'SEDE', 'N/A' ou for equivalente à OME, limpa para cair na SEDE
+    // Se a UNIDADE contiver SBFN ou NORONHA (ex: GBI - SBFN), a OME é GBI e a subunidade é Fernando de Noronha
+    let uniFinal = rawUnidade;
     let subFinal = rawSubunidade;
-    if (ehSubunidadeEquivalenteOmeCliente(subFinal, rawUnidade)) {
+    const uUpper = String(rawUnidade || "").toUpperCase();
+    if (uUpper.includes("SBFN") || uUpper.includes("NORONHA")) {
+      uniFinal = "GBI";
+      if (!subFinal || subFinal.toUpperCase() === "SEDE" || ehSubunidadeEquivalenteOmeCliente(subFinal, "GBI")) {
+        subFinal = "Seção de Bombeiros de Fernando de Noronha - SBFN/GBI";
+      }
+    }
+
+    if (ehSubunidadeEquivalenteOmeCliente(subFinal, uniFinal)) {
       subFinal = "";
     }
 

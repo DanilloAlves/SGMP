@@ -2216,7 +2216,7 @@ function carregarDadosArmazenamentoCompleto(unidadeOmega, forcarAtualizacao) {
     if (!omePadrao) return { locais: [], materiais: [], vinculos: {} };
 
     // Prefixo V5 para descarte absoluto de qualquer cache antigo e sincronização estrita BigQuery
-    var chaveBase = "CACHE_ARM_COMPLETO_V24_" + omePadrao.toUpperCase().replace(/[^A-Z0-9]/g, "_");
+    var chaveBase = "CACHE_ARM_COMPLETO_V25_" + omePadrao.toUpperCase().replace(/[^A-Z0-9]/g, "_");
     var cached = (!forcarAtualizacao && typeof lerDeCacheChunked_ === 'function') ? lerDeCacheChunked_(chaveBase) : null;
 
     // Se houver algum setor não identificado ou genérico (ex: "BIS"), bypass no cache
@@ -2865,7 +2865,23 @@ function desduplicarNosEquivalentesArvore_(omePadrao) {
     if (!ome) return;
     garantirTabelaArvore_();
 
-    // 1. Limpeza específica de nós duplicados legados conhecidos em GBI
+    // 1. Limpeza específica de nós duplicados legados conhecidos em GBI e correção GBI - SBFN
+    try {
+      var sqlUpSbfnInv = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ID + "` " +
+                         "SET UNIDADE = 'GBI', " +
+                         "    SUBUNIDADE = 'Seção de Bombeiros de Fernando de Noronha - SBFN/GBI' " +
+                         "WHERE UPPER(TRIM(UNIDADE)) IN ('GBI - SBFN', 'GBI-SBFN', 'SBFN', 'GBISBFN') " +
+                         "   OR (UPPER(TRIM(UNIDADE)) LIKE '%SBFN%' AND UPPER(TRIM(UNIDADE)) LIKE '%GBI%')";
+      executarEscritaBigQuerySegura(sqlUpSbfnInv);
+
+      var sqlUpSbfnArv = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` " +
+                         "SET Unidade_OME = 'GBI' " +
+                         "WHERE UPPER(TRIM(Unidade_OME)) IN ('GBI - SBFN', 'GBI-SBFN', 'SBFN', 'GBISBFN')";
+      executarEscritaBigQuerySegura(sqlUpSbfnArv);
+    } catch(eSbfnFix) {
+      console.warn("Aviso ao garantir correção GBI - SBFN: " + eSbfnFix.message);
+    }
+
     try {
       var sqlRepontarSMOGbi = "UPDATE `" + PROJECT_ID + "." + DATASET_ID + "." + TABELA_ARVORE + "` " +
                               "SET ID_Pai = 'loc_1794850774572' " +
@@ -9442,7 +9458,7 @@ function extrairChaveCanonicaOme(str) {
   if ((s.indexOf("9") !== -1 && s.indexOf("GB") !== -1) || s.indexOf("ARCOVERDE") !== -1) return "9_GB";
 
   // 2. Grupamentos Especiais
-  if (s.indexOf("SBFN") !== -1 || s.indexOf("NORONHA") !== -1 || s === "GBI SBFN") return "GBI_SBFN";
+  if (s.indexOf("SBFN") !== -1 || s.indexOf("NORONHA") !== -1 || s === "GBI SBFN") return "GBI";
   if (s === "GBAPH" || s.indexOf("GBAPH") !== -1) return "GBAPH";
   if (s === "GBMAR" || s.indexOf("GBMAR") !== -1) return "GBMAR";
   if (s === "GBI" || s.indexOf("GBI") !== -1) return "GBI";
@@ -10472,7 +10488,6 @@ function getOpcoesOrgDataPorOme(ome) {
     "DIESP": ["Diretoria","Secretaria e Apoio Administrativo - SAAdm","Núcleo de Assistência Social - NAS","Núcleo de Educação Física e Desportos - NEFD","Núcleo de Comunicação Social - NCS","Núcleo de Justiça e Disciplina - NJD","Secretaria da Comissão Interna de Atividades Técnicas - SCIATec","Divisão de Planejamento de Operações - DPO","Seção de Planejamento e Articulação Operacional - SPAO","Seção de Auditoria e Monitoramento - SAM","Seção de Estatística Operacional - SEO","Divisão de Normatização e Doutrina - DND","Divisão de Atendimento ao Público - DAP","Seçao de Isenção e Restituição - SIR","Divisão de Projetos Contra Incêndio e Pânico - DPCIP","Seção de Apoio"],
 
     "DAS": ["Diretoria","Secretaria e Apoio Administrativo - SAAdm","Núcleo de Assistência Social NAS","Núcleo de Educação Física e Desportos - NEFD","Núcleo de Comunicação Social - NCS","Núcleo de Justiça e Disciplina - NJD","Divisão de Programas Sociais - DPS","Seção de Orientação e Encaminhamento - SOE","Seção de Serviços Assistênciais - SSA","Seção de Administração da Casa de Trânsito - SACT","Seção de Projetos, Parcerias e Convênios","Divisão Administrativa","Seção de Pessoal","Seção de Tesouraria","Seção de Almoxarifado","Seção de Transportes, Serviços Gerais e Telemática"],
-    "GBI - SBFN": ["Comando","Subcomando","Secretaria e Apoio - SAC","1ª Seção de Bombeiros de Fernando de Noronha - 1ª SBFN","Seção de Bombeiros de Fernando de Noronha - SBFN/GBI","Divisão Administrativa - DA","Seção de Pessoal - SP","Seção de Almoxarifado - Almox","Seção de Material Operacional - SMO"],
 
     "DGP": ["Diretoria","Secretaria e Apoio Administrativo - SAAdm","Núcleo de Assistência Social - NAS","Núcleo de Educação Física e Desportos - NEFD","Núcleo de Comunicação Social - NCS","Núcleo de Justiça e Disciplina - NJD","Divisão de Ativos - DA","Seção de Planejamento e Desenvolvimento - SPD","Divisão de Direitos - DDIr","Seção de Legislação e Requerimento - SLR","Seção de Identificação - SI","Divisão de Movimentação e Controle de Pessoal - DMCP","Seção de Movimentação - SM","Seção de Cadastro - SCad","Seção de Controle de Pessoal - SCP","Divisão de Normatização e Programas - DNP"],
 
@@ -10647,7 +10662,7 @@ function getListaOmesOficiais() {
 
     "DAS", "DEIP", "DF", "DGO", "DIESP", "DIM", "DINTER I", "DINTER II", 
 
-    "DJD", "DLOG", "DGP", "DPLAG", "DTIC", "DVP", "GBAPH", "GBI", "GBI - SBFN", 
+    "DJD", "DLOG", "DGP", "DPLAG", "DTIC", "DVP", "GBAPH", "GBI", 
 
     "GBMAR", "GBS", "GCG", "GSG"
 
@@ -12355,7 +12370,15 @@ function normalizarLinhaImportacaoExcel_(linhaBruta) {
   var rawUnidade = buscar(["UNIDADE", "OME", "UNIDADEOME", "UND"], "", ["SUB", "DUB"]);
   var rawSubunidade = buscar(["SUBUNIDADE", "DUBUNIDADE", "SUBUNID", "SUB_UNIDADE", "SUB UNIDADE", "SUB-UNIDADE", "SUB"], "");
 
-  // Se subunidade não foi preenchida, for '-', 'SEDE', 'N/A' ou for equivalente à OME, limpa para cair na SEDE
+  // Se a UNIDADE contiver SBFN ou NORONHA (ex: GBI - SBFN), a OME é GBI e a subunidade é Fernando de Noronha
+  var uUpper = String(rawUnidade || "").toUpperCase();
+  if (uUpper.indexOf("SBFN") !== -1 || uUpper.indexOf("NORONHA") !== -1) {
+    rawUnidade = "GBI";
+    if (!rawSubunidade || rawSubunidade.toUpperCase() === "SEDE" || ehSubunidadeEquivalenteOme_(rawSubunidade, "GBI")) {
+      rawSubunidade = "Seção de Bombeiros de Fernando de Noronha - SBFN/GBI";
+    }
+  }
+
   var subFinal = rawSubunidade;
   if (ehSubunidadeEquivalenteOme_(subFinal, rawUnidade)) {
     subFinal = "";
@@ -12981,7 +13004,7 @@ function obterOmePadronizada(ome) {
   if (condensado.indexOf("GBAPH") !== -1 || condensado.indexOf("BAPH") !== -1 || semPont.indexOf("PRE HOSPITALAR") !== -1 || semPont.indexOf("PREHOSPITALAR") !== -1 || semPont.indexOf("APH") !== -1 || semPont.indexOf("RESGATE") !== -1) return "GBAPH";
   if (condensado.indexOf("GBMAR") !== -1 || condensado.indexOf("BMAR") !== -1 || semPont.indexOf("MARITIMO") !== -1 || semPont.indexOf("SALVAMAR") !== -1 || semPont.indexOf("GUARDA VIDAS") !== -1 || semPont.indexOf("PRAIAS") !== -1) return "GBMAR";
   if (condensado === "GBS" || condensado === "BS" || condensado === "BBS" || semPont.indexOf("BATALHAO DE SALVAMENTO") !== -1 || semPont.indexOf("GRUPAMENTO DE SALVAMENTO") !== -1 || /\b(GBS|BS|SALVAMENTO)\b/.test(semPont)) return "GBS";
-  if (condensado.indexOf("GBISBFN") !== -1 || condensado === "SBFN" || semPont.indexOf("SBFN") !== -1 || semPont.indexOf("NORONHA") !== -1) return "GBI - SBFN";
+  if (condensado.indexOf("GBISBFN") !== -1 || condensado === "SBFN" || semPont.indexOf("SBFN") !== -1 || semPont.indexOf("NORONHA") !== -1) return "GBI";
   if (condensado === "GBI" || condensado === "BI" || condensado === "BBI" || semPont.indexOf("BATALHAO DE INCENDIO") !== -1 || semPont.indexOf("GRUPAMENTO DE INCENDIO") !== -1 || /\b(GBI|BI|INCENDIO)\b/.test(semPont)) return "GBI";
 
   // 4. Centros de Atividades Técnicas (CAT)
@@ -13028,7 +13051,7 @@ function obterOmePadronizada(ome) {
     "ABMG", "AECI", "AjG", "CAT/AG", "CAT/RMR", "CAT/SE", "CAT/ZM",
     "CCS", "CEAO", "CEFD", "CI", "CINT", "CMAN", "CPO", "CPPA", "CPP",
     "DAS", "DEIP", "DF", "DGO", "DIESP", "DIM", "DINTER I", "DINTER II",
-    "DJD", "DLOG", "DGP", "DPLAG", "DTIC", "DVP", "GBAPH", "GBI", "GBI - SBFN",
+    "DJD", "DLOG", "DGP", "DPLAG", "DTIC", "DVP", "GBAPH", "GBI",
     "GBMAR", "GBS", "GCG", "GSG"
   ];
 
