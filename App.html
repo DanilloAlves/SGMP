@@ -2252,7 +2252,7 @@
             <!-- BOTÕES DE IMPORTAÇÃO EXCEL -->
             <div id="botoesExcelArmazenamento" class="gap-2" style="display: none;">
               <button class="btn btn-success btn-sm fw-bold px-3 py-2 shadow-sm" onclick="abrirModalImportarExcel()">
-                <i class="fa-solid fa-file-excel me-1"></i> Importar Lote
+                <i class="fa-solid fa-file-import me-1"></i> Importar Lote (Excel / Planilhas)
               </button>
             </div>
 
@@ -3771,7 +3771,7 @@
               <i class="fa-solid fa-boxes-packing me-1"></i> Gerenciamento de Cadastro
             </button>
             <button type="button" class="btn btn-success btn-sm fw-bold px-3 py-2 shadow-sm" onclick="abrirModalImportarExcel()">
-              <i class="fa-solid fa-file-excel me-1"></i> Inclusão em Lote (Excel)
+              <i class="fa-solid fa-file-import me-1"></i> Inclusão em Lote (Excel / Planilhas)
             </button>
           </div>
         </div>
@@ -5060,27 +5060,63 @@
   <div class="modal-dialog modal-lg">
     <div class="modal-content">
       <div class="modal-header bg-success text-white">
-        <h5 class="modal-title fw-bold"><i class="fa-solid fa-file-excel me-2"></i> Importar Lote via Excel</h5>
+        <h5 class="modal-title fw-bold"><i class="fa-solid fa-file-import me-2"></i> Importar Lote de Materiais (Excel / Google Planilhas)</h5>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
         
         <!-- Bloco de instruções com o botão de DOWNLOAD DO ARQUIVO .XLSX -->
-        <div class="alert alert-light border small text-muted mb-4">
-          <p class="mb-1 fw-bold text-dark"><i class="fa-solid fa-circle-info text-primary me-1"></i> Padrão de Colunas Exigido na 1ª linha do Excel:</p>
+        <div class="alert alert-light border small text-muted mb-3">
+          <p class="mb-1 fw-bold text-dark"><i class="fa-solid fa-circle-info text-primary me-1"></i> Padrão de Colunas Exigido na 1ª linha (Excel ou Google Planilhas):</p>
           <code class="text-dark bg-light d-block p-2 rounded border">MATERIAL | QUANTIDADE | TIPO | COR | MARCA | MODELO | UNIDADE | SUBUNIDADE | SETOR | LOCAL | STATUS | PATRIMONIO | N_ORDEM (N_SERIE) | SEI | EFISCO | PERMANENTE | OBSERVACAO</code>
           <p class="mb-2 mt-2 text-danger">* MATERIAL | QUANTIDADE | UNIDADE | STATUS são itens obrigatórios de preenchimento.</p>
-          <p class="mb-3 text-dark small"><i class="fa-solid fa-lightbulb text-warning me-1"></i> <strong>Preenchimento de Material:</strong> Você pode selecionar itens do catálogo na lista suspensa ou digitar livremente materiais avulsos que ainda não foram mapeados (eles serão encaminhados automaticamente para aprovação do Administrador no painel de Materiais Provisórios).</p>
+          <p class="mb-3 text-dark small"><i class="fa-solid fa-lightbulb text-warning me-1"></i> <strong>Preenchimento de Material:</strong> Você pode selecionar itens do catálogo oficial ou digitar materiais avulsos que ainda não foram homologados (eles serão direcionados para validação do Administrador).</p>
           
-          <!-- NOVO BOTÃO DE DOWNLOAD DO EXCEL -->
           <button type="button" class="btn btn-success btn-sm fw-bold px-3 py-2 shadow-sm" onclick="baixarModeloExcel()">
             <i class="fa-solid fa-download me-1"></i> Baixar Planilha Modelo (.xlsx)
           </button>
         </div>
 
-        <div class="mb-4">
-          <label class="form-label fw-bold">Selecione o arquivo preenchido (.xlsx ou .csv):</label>
-          <input class="form-control" type="file" id="inputArquivoExcel" accept=".xlsx, .xls, .csv">
+        <!-- Seleção do Método de Importação -->
+        <div class="mb-3">
+          <label class="form-label fw-bold text-dark mb-2"><i class="fa-solid fa-cloud-arrow-up text-success me-1"></i> Escolha a origem da planilha:</label>
+          <ul class="nav nav-pills nav-fill bg-light p-1 rounded border" id="pills-tab-importar" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active fw-bold py-2" id="pill-arquivo-tab" data-bs-toggle="pill" data-bs-target="#tab-conteudo-arquivo" type="button" role="tab">
+                <i class="fa-solid fa-file-excel text-success me-1"></i> Arquivo do Computador (.xlsx, .csv, .gsheet)
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link fw-bold py-2" id="pill-google-tab" data-bs-toggle="pill" data-bs-target="#tab-conteudo-google" type="button" role="tab">
+                <i class="fa-solid fa-table text-primary me-1"></i> Link do Google Planilhas
+              </button>
+            </li>
+          </ul>
+        </div>
+
+        <div class="tab-content mb-4" id="pills-tabContent-importar">
+          <!-- ABA 1: ARQUIVO -->
+          <div class="tab-pane fade show active" id="tab-conteudo-arquivo" role="tabpanel">
+            <label class="form-label fw-bold small text-muted">Selecione o arquivo preenchido (.xlsx, .xls, .csv ou atalho .gsheet):</label>
+            <input class="form-control" type="file" id="inputArquivoExcel" accept=".xlsx, .xls, .csv, .gsheet">
+          </div>
+
+          <!-- ABA 2: GOOGLE PLANILHAS -->
+          <div class="tab-pane fade" id="tab-conteudo-google" role="tabpanel">
+            <label class="form-label fw-bold small text-muted">Cole o Link (URL) ou ID da Planilha Google compartilhada:</label>
+            <div class="input-group mb-2">
+              <span class="input-group-text bg-white"><i class="fa-solid fa-link text-primary"></i></span>
+              <input type="text" class="form-control" id="inputUrlGooglePlanilha" placeholder="https://docs.google.com/spreadsheets/d/.../edit#gid=0" onkeydown="if(event.key==='Enter'){event.preventDefault();carregarGooglePlanilhaImportacao();}">
+              <button class="btn btn-primary fw-bold px-3" type="button" id="btnCarregarGooglePlanilha" onclick="carregarGooglePlanilhaImportacao()">
+                <i class="fa-solid fa-magnifying-glass me-1"></i> Carregar Planilha
+              </button>
+            </div>
+            <div class="d-flex justify-content-between align-items-center">
+              <small class="text-muted">
+                <i class="fa-solid fa-circle-info text-primary me-1"></i> A planilha deve estar compartilhada com permissão de visualização. Se o link possuir <code>#gid=...</code>, a aba correspondente será selecionada automaticamente.
+              </small>
+            </div>
+          </div>
         </div>
 
         <div id="blocoPreviaExcel" style="display: none;">
@@ -18813,10 +18849,20 @@ function renderizarTimelineEmElemento(dados, ids) {
       }
       return;
     }
-    document.getElementById('inputArquivoExcel').value = "";
+    const inputArq = document.getElementById('inputArquivoExcel');
+    if (inputArq) inputArq.value = "";
+    const inputGsh = document.getElementById('inputUrlGooglePlanilha');
+    if (inputGsh) inputGsh.value = "";
     document.getElementById('blocoPreviaExcel').style.display = "none";
     document.getElementById('btnConfirmarImportacao').style.display = "none";
     registrosExcelLote = [];
+
+    const pillArq = document.getElementById('pill-arquivo-tab');
+    if (pillArq && typeof bootstrap !== 'undefined' && bootstrap.Tab) {
+      const tab = new bootstrap.Tab(pillArq);
+      tab.show();
+    }
+
     new bootstrap.Modal(document.getElementById('modalImportarExcel')).show();
   }
 
@@ -18982,10 +19028,222 @@ function ehSubunidadeEquivalenteOmeCliente(subNome, omeRef) {
     };
   }
 
+  // Processa dados JSON provenientes de Excel, CSV ou Google Planilhas
+  function processarLinhasImportacao(jsonDados, nomeOrigem) {
+    if (!jsonDados || jsonDados.length === 0) {
+      Swal.fire('Vazio', 'A fonte selecionada (' + (nomeOrigem || 'planilha') + ') não contém dados.', 'warning');
+      return;
+    }
+
+    const linhasNormalizadas = [];
+    jsonDados.forEach(linha => {
+      const norm = normalizarLinhaImportacaoExcelCliente(linha);
+      // Aceita a linha se tiver material, unidade, subunidade, patrimônio ou documento
+      if (norm.material || norm.unidade || norm.subunidade || norm.patrimonio || norm.numSerie || norm.sei) {
+        linhasNormalizadas.push(norm);
+      }
+    });
+
+    if (linhasNormalizadas.length === 0) {
+      Swal.fire('Vazio', 'Nenhuma linha com dados válidos encontrada na planilha (' + (nomeOrigem || 'selecionada') + ').', 'warning');
+      return;
+    }
+
+    // Validação estrita do campo UNIDADE para Chefe de Setor no momento do Upload
+    const perfilUser = String((typeof PERFIL_GLOBAL !== 'undefined' && PERFIL_GLOBAL) || (usuarioSessaoAtual ? usuarioSessaoAtual.perfil : "")).trim();
+    const perfilNorm = perfilUser.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const ehAdmin = perfilNorm.includes("admin");
+    const ehChefeSetor = perfilNorm.includes("chefe");
+
+    const omeLoginBruta = String((typeof OME_GLOBAL !== 'undefined' && OME_GLOBAL) || (usuarioSessaoAtual ? usuarioSessaoAtual.ome : "")).trim();
+    const omeLoginOficial = (typeof obterNomeOficialOme === 'function') ? obterNomeOficialOme(omeLoginBruta) : omeLoginBruta;
+
+    if (ehChefeSetor && !ehAdmin) {
+      const omesDivergentes = new Set();
+      let temOmeDivergente = false;
+
+      for (let i = 0; i < linhasNormalizadas.length; i++) {
+        const uBruta = String(linhasNormalizadas[i].unidade || '').trim();
+        if (uBruta) {
+          const uOficial = (typeof obterNomeOficialOme === 'function') ? obterNomeOficialOme(uBruta) : uBruta;
+          if (uOficial && omeLoginOficial && uOficial.toUpperCase() !== omeLoginOficial.toUpperCase()) {
+            temOmeDivergente = true;
+            omesDivergentes.add(uOficial || uBruta);
+          } else {
+            linhasNormalizadas[i].unidade = omeLoginOficial;
+          }
+        } else {
+          linhasNormalizadas[i].unidade = omeLoginOficial;
+        }
+      }
+
+      if (temOmeDivergente) {
+        const listaDivergentes = Array.from(omesDivergentes).join(', ');
+        const inpArq = document.getElementById('inputArquivoExcel');
+        if (inpArq) inpArq.value = "";
+        document.getElementById('blocoPreviaExcel').style.display = "none";
+        document.getElementById('btnConfirmarImportacao').style.display = "none";
+        registrosExcelLote = [];
+
+        Swal.fire({
+          icon: 'error',
+          title: 'Upload Não Autorizado',
+          html: `
+            <div class="text-start">
+              <p class="text-danger fw-bold mb-3">
+                <i class="fa-solid fa-triangle-exclamation me-1"></i> Você está tentando subir materiais para uma OME diferente do seu cadastro!
+              </p>
+              <div class="alert alert-light border p-3 mb-3 small">
+                <div><strong>Sua OME de Login:</strong> <span class="badge bg-primary text-white ms-1">${omeLoginOficial}</span></div>
+                <div class="mt-2"><strong>OME identificada na planilha:</strong> <span class="badge bg-danger text-white ms-1">${listaDivergentes}</span></div>
+              </div>
+              <p class="text-muted small mb-0">
+                O <strong>Chefe de Setor</strong> apenas tem autorização para inputar materiais da <strong>UNIDADE igual à sua OME de Login (${omeLoginOficial})</strong>.<br><br>
+                Por favor, verifique a coluna <strong>UNIDADE</strong> da planilha e corrija o valor para sua unidade antes de realizar o upload.
+              </p>
+            </div>
+          `
+        });
+        return;
+      }
+    }
+
+    registrosExcelLote = linhasNormalizadas;
+    
+    // Identifica materiais provisórios (não catalogados)
+    const setCatalogoOficial = new Set((dadosMateriaisGlobais || []).map(m => String(m || '').trim().toUpperCase()));
+    const materiaisProvisoriosUnicos = new Set();
+    linhasNormalizadas.forEach(linha => {
+      const m = String(linha.material || '').trim().toUpperCase();
+      if (m && m !== '-' && !m.startsWith('ITEM TOMBADO') && m !== 'ITEM' && !m.startsWith('ITEM ') && setCatalogoOficial.size > 0 && !setCatalogoOficial.has(m)) {
+        materiaisProvisoriosUnicos.add(m);
+      }
+    });
+
+    // Monta a prévia
+    let htmlPrevia = "";
+    linhasNormalizadas.slice(0, 50).forEach(linha => {
+      const mat = linha.material || '-';
+      const matUpper = String(mat || '').trim().toUpperCase();
+      const ehProvisorio = mat && mat !== '-' && !matUpper.startsWith('ITEM TOMBADO') && matUpper !== 'ITEM' && !matUpper.startsWith('ITEM ') && setCatalogoOficial.size > 0 && !setCatalogoOficial.has(matUpper);
+      const badgeMat = ehProvisorio ? ` <span class="badge bg-warning text-dark ms-1" style="font-size: 0.65rem;" title="Material avulso: será enviado para aprovação do Administrador"><i class="fa-solid fa-clock me-1"></i>Provisório</span>` : '';
+
+      const qtd = linha.quantidade || '1';
+      const tipo = linha.tipo || '-';
+      const cor = linha.cor || '-';
+      const marca = linha.marca || '-';
+      const modelo = linha.modelo || '-';
+      const und = linha.unidade || (usuarioSessaoAtual && usuarioSessaoAtual.ome) || 'DLOG';
+      const sub = (!linha.subunidade || linha.subunidade === '-' || linha.subunidade.toUpperCase() === 'SEDE') ? 'SEDE' : linha.subunidade;
+      const numSerie = linha.numSerie || '-';
+      const sts = linha.status || 'ECD';
+      const loc = linha.local || '-';
+      
+      htmlPrevia += `<tr>
+                       <td class="text-truncate" style="max-width: 220px;" title="${mat}">${mat}${badgeMat}</td>
+                       <td class="text-center fw-bold text-primary">${qtd}</td>
+                       <td><span class="badge bg-light text-dark border">${tipo}</span></td>
+                       <td><span class="badge bg-light text-dark border">${cor}</span></td>
+                       <td><span class="badge bg-light text-dark border">${marca}</span></td>
+                       <td><span class="badge bg-light text-dark border">${modelo}</span></td>
+                       <td>${und}</td>
+                       <td><span class="badge ${sub === 'SEDE' ? 'bg-secondary' : 'bg-primary'}">${sub}</span></td>
+                       <td><span class="badge bg-light text-dark border">${numSerie}</span></td>
+                       <td><span class="badge bg-secondary">${sts}</span></td>
+                       <td>${loc}</td>
+                     </tr>`;
+    });
+
+    let totalUnidadesPrevia = 0;
+    linhasNormalizadas.forEach(linha => {
+      let q = parseInt(linha.quantidade, 10);
+      if (isNaN(q) || q <= 0) q = 1;
+      totalUnidadesPrevia += q;
+    });
+
+    document.querySelector('#tabelaPreviaExcel tbody').innerHTML = htmlPrevia;
+    
+    let textoQtd = `${linhasNormalizadas.length.toLocaleString('pt-BR')} linhas / ${totalUnidadesPrevia.toLocaleString('pt-BR')} unidades`;
+    if (materiaisProvisoriosUnicos.size > 0) {
+      textoQtd += ` (${materiaisProvisoriosUnicos.size} material(is) provisório(s) novo(s))`;
+    }
+    document.getElementById('qtdLinhasExcel').innerText = textoQtd;
+
+    const alertaProvEl = document.getElementById('alertaMateriaisProvisoriosPrevia');
+    if (alertaProvEl) {
+      if (materiaisProvisoriosUnicos.size > 0) {
+        alertaProvEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-warning me-1"></i> Foram identificados <strong>${materiaisProvisoriosUnicos.size} material(is) avulso(s)</strong> que não constam no catálogo oficial. Ao confirmar a importação, eles serão cadastrados automaticamente na base de <strong>Materiais Provisórios</strong> para validação e classificação do Administrador.`;
+        alertaProvEl.style.display = "block";
+      } else {
+        alertaProvEl.style.display = "none";
+      }
+    }
+
+    document.getElementById('blocoPreviaExcel').style.display = "block";
+    document.getElementById('btnConfirmarImportacao').style.display = "inline-block";
+  }
+
+  // Importação direta via Google Planilhas (URL / ID)
+  function carregarGooglePlanilhaImportacao() {
+    const inputEl = document.getElementById('inputUrlGooglePlanilha');
+    const valor = inputEl ? inputEl.value.trim() : '';
+    if (!valor) {
+      Swal.fire('Atenção', 'Por favor, cole o link (URL) ou ID da sua Planilha Google.', 'warning');
+      return;
+    }
+
+    Swal.fire({
+      title: 'Acessando Google Planilhas...',
+      text: 'Conectando à planilha e lendo os registros...',
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading()
+    });
+
+    google.script.run
+      .withSuccessHandler(res => {
+        Swal.close();
+        if (!res || !res.sucesso || !res.dados || res.dados.length === 0) {
+          Swal.fire('Vazio', 'A planilha Google foi acessada, mas não contém registros ou cabeçalhos reconhecíveis.', 'warning');
+          return;
+        }
+        processarLinhasImportacao(res.dados, res.nomePlanilha + ' (' + res.nomeAba + ')');
+      })
+      .withFailureHandler(err => {
+        Swal.fire('Erro ao Acessar Planilha', err.message || 'Falha ao conectar com o Google Planilhas.', 'error');
+      })
+      .carregarDadosGooglePlanilhaImportacao(valor);
+  }
+
   // Escuta a seleção do arquivo para ler e gerar a prévia na mesma hora
   document.getElementById('inputArquivoExcel').addEventListener('change', function(e) {
     const file = e.target.files[0];
     if (!file) return;
+
+    // Suporte a arquivos de atalho do Google Drive Desktop (.gsheet)
+    if (file.name.toLowerCase().endsWith('.gsheet')) {
+      const textReader = new FileReader();
+      textReader.onload = function(ev) {
+        try {
+          const gsheetJson = JSON.parse(ev.target.result);
+          const docIdOrUrl = gsheetJson.doc_id || gsheetJson.url;
+          if (docIdOrUrl) {
+            document.getElementById('inputUrlGooglePlanilha').value = docIdOrUrl;
+            const pillGoogle = document.getElementById('pill-google-tab');
+            if (pillGoogle && typeof bootstrap !== 'undefined' && bootstrap.Tab) {
+              const tab = new bootstrap.Tab(pillGoogle);
+              tab.show();
+            }
+            carregarGooglePlanilhaImportacao();
+          } else {
+            Swal.fire('Erro', 'Arquivo .gsheet inválido ou sem identificador de documento.', 'error');
+          }
+        } catch(errGsh) {
+          Swal.fire('Erro', 'Não foi possível ler o arquivo .gsheet: ' + errGsh.message, 'error');
+        }
+      };
+      textReader.readAsText(file);
+      return;
+    }
 
     const reader = new FileReader();
     reader.onload = function(e) {
@@ -18995,159 +19253,7 @@ function ehSubunidadeEquivalenteOmeCliente(subNome, omeRef) {
       
       // Converte o Excel para um Array de Objetos em formato JSON
       const jsonDados = XLSX.utils.sheet_to_json(primeiraAba, { defval: "" });
-      
-      if (jsonDados.length === 0) {
-        Swal.fire('Vazio', 'O arquivo selecionado não contém dados.', 'warning');
-        return;
-      }
-
-      const linhasNormalizadas = [];
-      jsonDados.forEach(linha => {
-        const norm = normalizarLinhaImportacaoExcelCliente(linha);
-        // Aceita a linha se tiver material, unidade, subunidade, patrimônio ou documento
-        if (norm.material || norm.unidade || norm.subunidade || norm.patrimonio || norm.numSerie || norm.sei) {
-          linhasNormalizadas.push(norm);
-        }
-      });
-
-      if (linhasNormalizadas.length === 0) {
-        Swal.fire('Vazio', 'Nenhuma linha com dados válidos encontrada no arquivo.', 'warning');
-        return;
-      }
-
-      // Validação estrita do campo UNIDADE para Chefe de Setor no momento do Upload
-      const perfilUser = String((typeof PERFIL_GLOBAL !== 'undefined' && PERFIL_GLOBAL) || (usuarioSessaoAtual ? usuarioSessaoAtual.perfil : "")).trim();
-      const perfilNorm = perfilUser.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-      const ehAdmin = perfilNorm.includes("admin");
-      const ehChefeSetor = perfilNorm.includes("chefe");
-
-      const omeLoginBruta = String((typeof OME_GLOBAL !== 'undefined' && OME_GLOBAL) || (usuarioSessaoAtual ? usuarioSessaoAtual.ome : "")).trim();
-      const omeLoginOficial = (typeof obterNomeOficialOme === 'function') ? obterNomeOficialOme(omeLoginBruta) : omeLoginBruta;
-
-      if (ehChefeSetor && !ehAdmin) {
-        const omesDivergentes = new Set();
-        let temOmeDivergente = false;
-
-        for (let i = 0; i < linhasNormalizadas.length; i++) {
-          const uBruta = String(linhasNormalizadas[i].unidade || '').trim();
-          if (uBruta) {
-            const uOficial = (typeof obterNomeOficialOme === 'function') ? obterNomeOficialOme(uBruta) : uBruta;
-            if (uOficial && omeLoginOficial && uOficial.toUpperCase() !== omeLoginOficial.toUpperCase()) {
-              temOmeDivergente = true;
-              omesDivergentes.add(uOficial || uBruta);
-            } else {
-              linhasNormalizadas[i].unidade = omeLoginOficial;
-            }
-          } else {
-            // Se a linha não tiver a coluna UNIDADE preenchida, assume a OME de login do Chefe
-            linhasNormalizadas[i].unidade = omeLoginOficial;
-          }
-        }
-
-        if (temOmeDivergente) {
-          const listaDivergentes = Array.from(omesDivergentes).join(', ');
-          e.target.value = "";
-          document.getElementById('inputArquivoExcel').value = "";
-          document.getElementById('blocoPreviaExcel').style.display = "none";
-          document.getElementById('btnConfirmarImportacao').style.display = "none";
-          registrosExcelLote = [];
-
-          Swal.fire({
-            icon: 'error',
-            title: 'Upload Não Autorizado',
-            html: `
-              <div class="text-start">
-                <p class="text-danger fw-bold mb-3">
-                  <i class="fa-solid fa-triangle-exclamation me-1"></i> Você está tentando subir materiais para uma OME diferente do seu cadastro!
-                </p>
-                <div class="alert alert-light border p-3 mb-3 small">
-                  <div><strong>Sua OME de Login:</strong> <span class="badge bg-primary text-white ms-1">${omeLoginOficial}</span></div>
-                  <div class="mt-2"><strong>OME identificada na planilha:</strong> <span class="badge bg-danger text-white ms-1">${listaDivergentes}</span></div>
-                </div>
-                <p class="text-muted small mb-0">
-                  O <strong>Chefe de Setor</strong> apenas tem autorização para inputar materiais da <strong>UNIDADE igual à sua OME de Login (${omeLoginOficial})</strong>.<br><br>
-                  Por favor, verifique a coluna <strong>UNIDADE</strong> da planilha e corrija o valor para sua unidade antes de realizar o upload.
-                </p>
-              </div>
-            `
-          });
-          return;
-        }
-      }
-
-      registrosExcelLote = linhasNormalizadas;
-      
-      // Identifica materiais provisórios (não catalogados)
-      const setCatalogoOficial = new Set((dadosMateriaisGlobais || []).map(m => String(m || '').trim().toUpperCase()));
-      const materiaisProvisoriosUnicos = new Set();
-      linhasNormalizadas.forEach(linha => {
-        const m = String(linha.material || '').trim().toUpperCase();
-        if (m && m !== '-' && !m.startsWith('ITEM TOMBADO') && m !== 'ITEM' && !m.startsWith('ITEM ') && setCatalogoOficial.size > 0 && !setCatalogoOficial.has(m)) {
-          materiaisProvisoriosUnicos.add(m);
-        }
-      });
-
-      // Monta a prévia
-      let htmlPrevia = "";
-      linhasNormalizadas.slice(0, 50).forEach(linha => {
-        const mat = linha.material || '-';
-        const matUpper = String(mat || '').trim().toUpperCase();
-        const ehProvisorio = mat && mat !== '-' && !matUpper.startsWith('ITEM TOMBADO') && matUpper !== 'ITEM' && !matUpper.startsWith('ITEM ') && setCatalogoOficial.size > 0 && !setCatalogoOficial.has(matUpper);
-        const badgeMat = ehProvisorio ? ` <span class="badge bg-warning text-dark ms-1" style="font-size: 0.65rem;" title="Material avulso: será enviado para aprovação do Administrador"><i class="fa-solid fa-clock me-1"></i>Provisório</span>` : '';
-
-        const qtd = linha.quantidade || '1';
-        const tipo = linha.tipo || '-';
-        const cor = linha.cor || '-';
-        const marca = linha.marca || '-';
-        const modelo = linha.modelo || '-';
-        const und = linha.unidade || (usuarioSessaoAtual && usuarioSessaoAtual.ome) || 'DLOG';
-        const sub = (!linha.subunidade || linha.subunidade === '-' || linha.subunidade.toUpperCase() === 'SEDE') ? 'SEDE' : linha.subunidade;
-        const numSerie = linha.numSerie || '-';
-        const sts = linha.status || 'ECD';
-        const loc = linha.local || '-';
-        
-        htmlPrevia += `<tr>
-                         <td class="text-truncate" style="max-width: 220px;" title="${mat}">${mat}${badgeMat}</td>
-                         <td class="text-center fw-bold text-primary">${qtd}</td>
-                         <td><span class="badge bg-light text-dark border">${tipo}</span></td>
-                         <td><span class="badge bg-light text-dark border">${cor}</span></td>
-                         <td><span class="badge bg-light text-dark border">${marca}</span></td>
-                         <td><span class="badge bg-light text-dark border">${modelo}</span></td>
-                         <td>${und}</td>
-                         <td><span class="badge ${sub === 'SEDE' ? 'bg-secondary' : 'bg-primary'}">${sub}</span></td>
-                         <td><span class="badge bg-light text-dark border">${numSerie}</span></td>
-                         <td><span class="badge bg-secondary">${sts}</span></td>
-                         <td>${loc}</td>
-                       </tr>`;
-      });
-
-      let totalUnidadesPrevia = 0;
-      linhasNormalizadas.forEach(linha => {
-        let q = parseInt(linha.quantidade, 10);
-        if (isNaN(q) || q <= 0) q = 1;
-        totalUnidadesPrevia += q;
-      });
-
-      document.querySelector('#tabelaPreviaExcel tbody').innerHTML = htmlPrevia;
-      
-      let textoQtd = `${linhasNormalizadas.length.toLocaleString('pt-BR')} linhas / ${totalUnidadesPrevia.toLocaleString('pt-BR')} unidades`;
-      if (materiaisProvisoriosUnicos.size > 0) {
-        textoQtd += ` (${materiaisProvisoriosUnicos.size} material(is) provisório(s) novo(s))`;
-      }
-      document.getElementById('qtdLinhasExcel').innerText = textoQtd;
-
-      const alertaProvEl = document.getElementById('alertaMateriaisProvisoriosPrevia');
-      if (alertaProvEl) {
-        if (materiaisProvisoriosUnicos.size > 0) {
-          alertaProvEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-warning me-1"></i> Foram identificados <strong>${materiaisProvisoriosUnicos.size} material(is) avulso(s)</strong> que não constam no catálogo oficial. Ao confirmar a importação, eles serão cadastrados automaticamente na base de <strong>Materiais Provisórios</strong> para validação e classificação do Administrador.`;
-          alertaProvEl.style.display = "block";
-        } else {
-          alertaProvEl.style.display = "none";
-        }
-      }
-
-      document.getElementById('blocoPreviaExcel').style.display = "block";
-      document.getElementById('btnConfirmarImportacao').style.display = "inline-block";
+      processarLinhasImportacao(jsonDados, file.name);
     };
     reader.readAsArrayBuffer(file);
   });

@@ -12674,6 +12674,122 @@ function importarLoteExcelBigQuery(registros, proximoNumeroFornecido, registrarL
   }
 }
 
+
+// Extrai ID e GID (aba) de uma URL ou ID do Google Planilhas
+function extrairInfoGooglePlanilha_(urlOuId) {
+  if (!urlOuId) return { id: "", gid: null };
+  var str = String(urlOuId).trim();
+  var id = "";
+  var gid = null;
+
+  var matchId = str.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+  if (matchId && matchId[1]) {
+    id = matchId[1];
+  } else if (/^[a-zA-Z0-9-_]{20,60}$/.test(str)) {
+    id = str;
+  }
+
+  var matchGid = str.match(/[#&?]gid=([0-9]+)/);
+  if (matchGid && matchGid[1]) {
+    gid = parseInt(matchGid[1], 10);
+  }
+
+  return { id: id, gid: gid };
+}
+
+// Carrega os dados de uma Planilha Google (Google Sheets) para a Importação em Lote
+function carregarDadosGooglePlanilhaImportacao(urlOuId, nomeAba) {
+  try {
+    var email = "";
+    try { email = Session.getActiveUser().getEmail(); } catch (e) {}
+    var usuario = verificarPermissaoUsuario(email);
+    if (!usuario) {
+      usuario = { nome: "Usuário Logado", email: "", cpf: "-", ome: "DLOG", perfil: "Usuário" };
+    }
+    var perfilUser = String((usuario && usuario.perfil) || "").trim().toLowerCase();
+    var ehChefe = perfilUser.indexOf("chefe") !== -1 || perfilUser.indexOf("comandante") !== -1;
+    var ehAdmin = perfilUser.indexOf("admin") !== -1;
+    var podeExcel = (usuario && usuario.permissoes && (Array.isArray(usuario.permissoes) ? usuario.permissoes.indexOf("importar_exportar_excel") !== -1 : String(usuario.permissoes).indexOf("importar_exportar_excel") !== -1));
+
+    if (!ehAdmin && !ehChefe && !podeExcel) {
+      throw new Error("Permissão negada: o seu usuário não possui a permissão de Importação de Materiais.");
+    }
+
+    var info = extrairInfoGooglePlanilha_(urlOuId);
+    if (!info.id) throw new Error("Link ou ID do Google Planilhas inválido. Cole a URL completa da planilha (ex: https://docs.google.com/spreadsheets/d/...) ou o ID.");
+
+    var ss = null;
+    try {
+      ss = SpreadsheetApp.openById(info.id);
+    } catch(eOpen) {
+      var msgErr = String(eOpen && eOpen.message ? eOpen.message : eOpen);
+      if (msgErr.indexOf("permission") !== -1 || msgErr.indexOf("permissão") !== -1 || msgErr.indexOf("access") !== -1) {
+        throw new Error("Acesso negado à Planilha Google. Certifique-se de compartilhar a planilha com permissão de visualização para 'Qualquer pessoa com o link' ou diretamente com seu e-mail institucional.");
+      }
+      throw new Error("Não foi possível abrir o Google Planilhas: " + msgErr);
+    }
+
+    var sheet = null;
+    if (nomeAba) {
+      sheet = ss.getSheetByName(String(nomeAba).trim());
+    } else if (info.gid !== null) {
+      var sheets = ss.getSheets();
+      for (var s = 0; s < sheets.length; s++) {
+        if (sheets[s].getSheetId() === info.gid) {
+          sheet = sheets[s];
+          break;
+        }
+      }
+    }
+
+    if (!sheet) {
+      sheet = ss.getSheets()[0]; // Primeira aba por padrão
+    }
+    if (!sheet) throw new Error("A planilha informada não possui nenhuma aba.");
+
+    var lastRow = sheet.getLastRow();
+    var lastCol = sheet.getLastColumn();
+    if (lastRow < 2 || lastCol < 1) {
+      throw new Error("A aba '" + sheet.getName() + "' da planilha do Google está vazia ou não possui cabeçalho e dados.");
+    }
+
+    var dados = sheet.getRange(1, 1, lastRow, lastCol).getValues();
+    var cabecalho = dados[0];
+    var listaObjetos = [];
+
+    for (var r = 1; r < dados.length; r++) {
+      var row = dados[r];
+      var obj = {};
+      var temValor = false;
+      for (var c = 0; c < cabecalho.length; c++) {
+        var key = String(cabecalho[c] || "").trim();
+        if (key) {
+          var val = row[c];
+          if (val instanceof Date) {
+            val = Utilities.formatDate(val, "America/Recife", "dd/MM/yyyy");
+          }
+          val = (val !== null && val !== undefined) ? String(val).trim() : "";
+          if (val) temValor = true;
+          obj[key] = val;
+        }
+      }
+      if (temValor) {
+        listaObjetos.push(obj);
+      }
+    }
+
+    return {
+      sucesso: true,
+      nomePlanilha: ss.getName(),
+      nomeAba: sheet.getName(),
+      totalLinhas: listaObjetos.length,
+      dados: listaObjetos
+    };
+  } catch(err) {
+    throw new Error(err.message);
+  }
+}
+
 function registrarLogConclusaoImportacaoExcel(totalItens) {
   try {
     var email = "";
