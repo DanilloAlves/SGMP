@@ -12698,6 +12698,87 @@ function extrairInfoGooglePlanilha_(urlOuId) {
 }
 
 // Carrega os dados de uma Planilha Google (Google Sheets) para a Importação em Lote
+
+// Cria uma Planilha Modelo formatada diretamente no Google Drive para importação no SGMP
+function gerarModeloGooglePlanilha(omeAlvo) {
+  try {
+    var email = "";
+    try { email = Session.getActiveUser().getEmail(); } catch (e) {}
+    var usuario = verificarPermissaoUsuario(email);
+    if (!usuario) {
+      usuario = { nome: "Usuário Logado", email: "", cpf: "-", ome: "DLOG", perfil: "Usuário" };
+    }
+    var perfilUser = String((usuario && usuario.perfil) || "").trim().toLowerCase();
+    var ehChefe = perfilUser.indexOf("chefe") !== -1 || perfilUser.indexOf("comandante") !== -1;
+    var ehAdmin = perfilUser.indexOf("admin") !== -1;
+    var podeExcel = (usuario && usuario.permissoes && (Array.isArray(usuario.permissoes) ? usuario.permissoes.indexOf("importar_exportar_excel") !== -1 : String(usuario.permissoes).indexOf("importar_exportar_excel") !== -1));
+
+    if (!ehAdmin && !ehChefe && !podeExcel) {
+      throw new Error("Permissão negada: seu usuário não possui a permissão de Importação de Materiais.");
+    }
+
+    var ome = String(omeAlvo || (usuario && usuario.ome) || "").trim() || "CBMPE";
+    var nomeArquivo = "Modelo de Importação SGMP - " + ome;
+    var ss = SpreadsheetApp.create(nomeArquivo);
+    var sheet = ss.getActiveSheet();
+    sheet.setName("Importacao_SGMP");
+
+    var cabecalho = [
+      "MATERIAL", "QUANTIDADE", "TIPO", "COR", "MARCA", "MODELO", 
+      "UNIDADE", "SUBUNIDADE", "SETOR", "LOCAL", "STATUS", 
+      "PATRIMONIO", "N_ORDEM (N_SERIE)", "SEI", "EFISCO", "PERMANENTE", "OBSERVACAO"
+    ];
+
+    sheet.getRange(1, 1, 1, cabecalho.length).setValues([cabecalho]);
+    
+    // Formatação visual do cabeçalho
+    var headerRange = sheet.getRange(1, 1, 1, cabecalho.length);
+    headerRange.setBackground("#198754"); // Verde corporativo
+    headerRange.setFontColor("#FFFFFF");
+    headerRange.setFontWeight("bold");
+    headerRange.setHorizontalAlignment("center");
+    headerRange.setVerticalAlignment("middle");
+    sheet.setRowHeight(1, 35);
+
+    // Linha de exemplo orientativa
+    var linhaExemplo = [
+      "EXTINTOR PQS 4KG", "1", "EQUIPAMENTO", "VERMELHO", "RESGATE", "PADRÃO",
+      ome, "SEDE", "RESERVA TÉCNICA", "PRATELEIRA 01", "ECD",
+      "999888", "EX-2026-01", "00000.000000/2026-00", "", "SIM", "Item de exemplo - substitua ou adicione suas linhas abaixo"
+    ];
+    sheet.getRange(2, 1, 1, linhaExemplo.length).setValues([linhaExemplo]);
+    var rowExemplo = sheet.getRange(2, 1, 1, linhaExemplo.length);
+    rowExemplo.setFontStyle("italic");
+    rowExemplo.setFontColor("#555555");
+    rowExemplo.setBackground("#F8F9FA");
+
+    // Congela a primeira linha para facilitar navegação
+    sheet.setFrozenRows(1);
+
+    // Ajusta larguras das colunas
+    for (var c = 1; c <= cabecalho.length; c++) {
+      sheet.autoResizeColumn(c);
+    }
+
+    // Configura permissão de edição para qualquer pessoa com o link
+    try {
+      var file = DriveApp.getFileById(ss.getId());
+      file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.EDIT);
+    } catch(eShare) {
+      console.warn("Aviso ao definir compartilhamento da planilha modelo: " + eShare.message);
+    }
+
+    return {
+      sucesso: true,
+      url: ss.getUrl(),
+      id: ss.getId(),
+      nome: nomeArquivo
+    };
+  } catch(err) {
+    throw new Error("Erro ao gerar modelo no Google Planilhas: " + err.message);
+  }
+}
+
 function carregarDadosGooglePlanilhaImportacao(urlOuId, nomeAba) {
   try {
     var email = "";

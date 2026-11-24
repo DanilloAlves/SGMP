@@ -5072,9 +5072,14 @@
           <p class="mb-2 mt-2 text-danger">* MATERIAL | QUANTIDADE | UNIDADE | STATUS são itens obrigatórios de preenchimento.</p>
           <p class="mb-3 text-dark small"><i class="fa-solid fa-lightbulb text-warning me-1"></i> <strong>Preenchimento de Material:</strong> Você pode selecionar itens do catálogo oficial ou digitar materiais avulsos que ainda não foram homologados (eles serão direcionados para validação do Administrador).</p>
           
-          <button type="button" class="btn btn-success btn-sm fw-bold px-3 py-2 shadow-sm" onclick="baixarModeloExcel()">
-            <i class="fa-solid fa-download me-1"></i> Baixar Planilha Modelo (.xlsx)
-          </button>
+          <div class="d-flex flex-wrap gap-2">
+            <button type="button" class="btn btn-success btn-sm fw-bold px-3 py-2 shadow-sm" onclick="baixarModeloExcel()">
+              <i class="fa-solid fa-download me-1"></i> Baixar Planilha Modelo (.xlsx)
+            </button>
+            <button type="button" class="btn btn-outline-success btn-sm fw-bold px-3 py-2 shadow-sm" onclick="abrirModeloGooglePlanilhas()">
+              <i class="fa-solid fa-table me-1"></i> Abrir Modelo no Google Planilhas
+            </button>
+          </div>
         </div>
 
         <!-- Seleção do Método de Importação -->
@@ -19257,6 +19262,68 @@ function ehSubunidadeEquivalenteOmeCliente(subNome, omeRef) {
     };
     reader.readAsArrayBuffer(file);
   });
+
+  // Cria e abre a Planilha Modelo diretamente no Google Planilhas em nova aba
+  function abrirModeloGooglePlanilhas() {
+    const selOme = document.getElementById('selectOmeArvore');
+    let omeAlvo = "";
+    if (typeof PERFIL_GLOBAL !== 'undefined' && PERFIL_GLOBAL === "Administrador") {
+      omeAlvo = selOme ? (selOme.value || selOme.getAttribute('data-value') || "") : "";
+      if (!omeAlvo && typeof OME_GLOBAL !== 'undefined' && OME_GLOBAL) {
+        omeAlvo = OME_GLOBAL;
+      }
+    } else {
+      omeAlvo = (typeof OME_GLOBAL !== 'undefined' && OME_GLOBAL) ? OME_GLOBAL : "";
+    }
+
+    Swal.fire({
+      title: 'Abrindo Google Planilhas...',
+      text: 'Criando modelo oficial formatado com cabeçalhos padrão...',
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading()
+    });
+
+    google.script.run
+      .withSuccessHandler(res => {
+        Swal.close();
+        if (res && res.url) {
+          window.open(res.url, '_blank');
+
+          const inputGsheet = document.getElementById('inputUrlGooglePlanilha');
+          if (inputGsheet) {
+            inputGsheet.value = res.url;
+          }
+
+          const pillGoogle = document.getElementById('pill-google-tab');
+          if (pillGoogle && typeof bootstrap !== 'undefined' && bootstrap.Tab) {
+            const tab = new bootstrap.Tab(pillGoogle);
+            tab.show();
+          }
+
+          Swal.fire({
+            icon: 'success',
+            title: 'Modelo Aberto no Google Planilhas!',
+            html: `
+              <div class="text-start small">
+                <p class="mb-2">Uma planilha oficial do <strong>Modelo de Importação</strong> foi criada e aberta em uma nova aba do navegador.</p>
+                <div class="alert alert-light border p-2 mb-2">
+                  <i class="fa-solid fa-link text-primary me-1"></i> <strong>Link gerado:</strong><br>
+                  <a href="${res.url}" target="_blank" class="text-break">${res.url}</a>
+                </div>
+                <p class="text-muted mb-0">Preencha ou cole os dados lá. Quando concluir, basta voltar a esta tela e clicar em <strong>"Carregar Planilha"</strong>!</p>
+              </div>
+            `,
+            confirmButtonText: 'Entendido'
+          });
+        } else {
+          Swal.fire('Erro', 'Não foi possível obter o link do Google Planilhas.', 'error');
+        }
+      })
+      .withFailureHandler(err => {
+        Swal.fire('Erro ao Gerar Modelo', err.message || 'Falha ao criar modelo no Google Planilhas.', 'error');
+      })
+      .gerarModeloGooglePlanilha(omeAlvo);
+  }
 
   // Gera o arquivo de modelo do Excel (.xlsx) com Validação de Dados Condicional (Menus Suspensos Dinâmicos)
   async function baixarModeloExcel() {
