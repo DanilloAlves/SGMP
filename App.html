@@ -14067,7 +14067,36 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
     });
     numLimpo = numLimpo.replace(/^\/+|\/+$/g, '').trim();
 
-    // 1. Tenta comunicar via Servidor Local Silencioso (Porta 18888)
+    // Copia imediatamente para a área de transferência como garantia em qualquer plataforma
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      try { navigator.clipboard.writeText(numLimpo); } catch(e) {}
+    }
+
+    // 1. TRATAMENTO PARA DISPOSITIVOS MÓVEIS (SMARTPHONE / TABLET)
+    const ehMobile = /android|iphone|ipad|ipod|blackberry|iemobile|opera mini|mobile/i.test(navigator.userAgent || '') || (window.innerWidth <= 768 && 'ontouchstart' in window);
+    if (ehMobile) {
+      Swal.fire({
+        icon: 'info',
+        title: 'Processo SEI Copiado!',
+        html: '<div class="text-center" style="font-size: 0.95rem;">' +
+          '<p class="mb-2">O número do processo foi copiado para a sua área de transferência:</p>' +
+          '<div class="p-2 border rounded bg-light mb-3 font-monospace fw-bold text-primary fs-5">' + numLimpo + '</div>' +
+          '<p class="text-muted small mb-0">Em smartphones e tablets, a automação via robô local não se aplica. Clique abaixo para abrir o SEI e cole o número no campo de pesquisa rápida.</p>' +
+        '</div>',
+        showCancelButton: true,
+        confirmButtonText: '<i class="fa-solid fa-arrow-up-right-from-square me-1"></i> Abrir o SEI',
+        cancelButtonText: 'Fechar',
+        confirmButtonColor: '#059669',
+        cancelButtonColor: '#64748b'
+      }).then(function(res) {
+        if (res.isConfirmed) {
+          window.open('https://sei.pe.gov.br', '_blank');
+        }
+      });
+      return;
+    }
+
+    // 2. DISPOSITIVO DESKTOP: Tenta comunicar via Servidor Local Silencioso (Porta 18888)
     let ctrl = null;
     try {
       if (window.AbortController) {
@@ -14094,20 +14123,12 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
         });
       })
       .catch(function(err) {
-        // Servidor local offline: tenta protocolo nativo sgmp-sei://
+        // Servidor local offline: dispara o protocolo nativo sgmp-sei://
         tentarProtocoloOuAvisarInstalacao(numLimpo);
       });
   }
 
   function tentarProtocoloOuAvisarInstalacao(numLimpo) {
-    let appDisparou = false;
-
-    function onBlurDetector() {
-      appDisparou = true;
-      window.removeEventListener('blur', onBlurDetector);
-    }
-    window.addEventListener('blur', onBlurDetector);
-
     let iframe = document.getElementById('iframe_disparador_sei');
     if (!iframe) {
       iframe = document.createElement('iframe');
@@ -14117,60 +14138,24 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
     }
     iframe.src = 'sgmp-sei:' + encodeURIComponent(numLimpo);
 
-    setTimeout(function() {
-      window.removeEventListener('blur', onBlurDetector);
-      if (!appDisparou) {
-        exibirModalAvisoRecursosSei(numLimpo);
-      }
-    }, 1400);
-  }
-
-  function exibirModalAvisoRecursosSei(numLimpo) {
     Swal.fire({
-      icon: 'warning',
-      title: 'Automação SEI Não Detectada',
-      html: '<div class="text-start" style="font-size: 0.92rem; line-height: 1.5;">' +
-        '<p class="mb-2">Este computador ainda não possui os <b>recursos de integração necessários</b> para que o Robô abra e pesquise o processo automaticamente.</p>' +
-        '<div class="alert alert-light border py-2 px-3 mb-3 bg-light">' +
-          '<div class="fw-bold text-dark mb-1"><i class="fa-solid fa-list-check text-primary me-2"></i>Recursos Necessários:</div>' +
-          '<ul class="mb-0 ps-3 text-secondary" style="font-size: 0.85rem;">' +
-            '<li><b>Python 3.10+</b> (disponível com 1 clique na Microsoft Store)</li>' +
-            '<li><b>Módulo Playwright & Chromium</b> (automação do navegador)</li>' +
-            '<li><b>Registro de Protocolo SGMP-SEI</b> no Windows</li>' +
-          '</ul>' +
+      icon: 'info',
+      title: 'Abrindo no SEI...',
+      html: '<div class="text-center" style="font-size: 0.92rem;">' +
+        '<p class="mb-2">O Robô de Automação foi acionado para abrir o processo:</p>' +
+        '<div class="p-2 border rounded bg-light mb-3 font-monospace fw-bold text-primary fs-6">' + numLimpo + '</div>' +
+        '<p class="text-muted small mb-3">O número também foi <b>copiado para a área de transferência</b>.<br>Se for seu primeiro acesso nesta máquina e o robô não abrir, utilize as opções abaixo:</p>' +
+        '<div class="d-flex justify-content-center gap-2 flex-wrap">' +
+          '<a href="https://sei.pe.gov.br" target="_blank" class="btn btn-sm btn-outline-success fw-bold" onclick="Swal.close()"><i class="fa-solid fa-arrow-up-right-from-square me-1"></i> Abrir SEI Manualmente</a>' +
+          '<button type="button" class="btn btn-sm btn-outline-primary fw-bold" onclick="baixarInstaladorRoboSei()"><i class="fa-solid fa-download me-1"></i> Baixar Instalador (.bat)</button>' +
         '</div>' +
-        '<div class="p-2 border rounded bg-white text-center mb-3">' +
-          '<span class="text-muted d-block small">Número do Processo SEI:</span>' +
-          '<span class="font-monospace fw-bold text-primary fs-6">' + numLimpo + '</span>' +
-        '</div>' +
-        '<p class="text-muted small mb-0">Você pode <b>baixar o instalador automático</b> para configurar esta máquina ou copiar o número para abrir o SEI manualmente agora.</p>' +
       '</div>',
+      timer: 4500,
+      timerProgressBar: true,
+      showConfirmButton: false,
       showCancelButton: true,
-      showDenyButton: true,
-      confirmButtonText: '<i class="fa-solid fa-download me-1"></i> Baixar Instalador (.bat)',
-      denyButtonText: '<i class="fa-solid fa-arrow-up-right-from-square me-1"></i> Copiar e Abrir SEI',
       cancelButtonText: 'Fechar',
-      confirmButtonColor: '#1d4ed8',
-      denyButtonColor: '#059669',
       cancelButtonColor: '#64748b'
-    }).then(function(result) {
-      if (result.isConfirmed) {
-        baixarInstaladorRoboSei();
-      } else if (result.isDenied) {
-        if (navigator.clipboard) {
-          navigator.clipboard.writeText(numLimpo);
-        }
-        window.open('https://sei.pe.gov.br', '_blank');
-        Swal.fire({
-          toast: true,
-          position: 'top-end',
-          icon: 'info',
-          title: 'Processo copiado!',
-          text: 'Pressione Ctrl+V na Pesquisa Rápida do SEI.',
-          showConfirmButton: false,
-          timer: 4000
-        });
-      }
     });
   }
 
