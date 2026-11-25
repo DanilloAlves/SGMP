@@ -13936,7 +13936,16 @@ window.carregarLocaisArvoreGeral = function(forcarAtualizacao, omeManual) {
       if (dados) {
         if (dados.materiais) {
           window._todosMateriaisBase = dados.materiais || [];
-          selMat.innerHTML = '<option value="">Todos os Materiais</option>' + dados.materiais.map(m => `<option value="${m.nome || m}">${m.nome || m}</option>`).join('');
+          selMat.innerHTML = '<option value="">Todos os Materiais</option>';
+          (dados.materiais || []).forEach(m => {
+            const nomeMat = String(m.nome || m || '').trim();
+            if (nomeMat) {
+              const opt = document.createElement('option');
+              opt.value = nomeMat;
+              opt.textContent = nomeMat;
+              selMat.appendChild(opt);
+            }
+          });
         }
         window._listaClasses1Base = dados.listaClasses1 || [];
         window._listaClasses2Base = dados.listaClasses2 || [];
@@ -20593,8 +20602,24 @@ window.carregarRemessasPendentesOme = function(exibirAlerta) {
     let materiaisUnicos = [...new Set(itens.map(i => i.objeto))].sort();
     let subunidadesUnicas = [...new Set(itens.map(i => String(i.subunidade || 'SEDE').trim()))].sort();
 
-    selMat.innerHTML = '<option value="">Todos os Materiais</option>' + materiaisUnicos.map(m => `<option value="${m}">${m}</option>`).join('');
-    selSub.innerHTML = '<option value="">Todas as Subunidades</option>' + subunidadesUnicas.map(s => `<option value="${s}">${s}</option>`).join('');
+    selMat.innerHTML = '<option value="">Todos os Materiais</option>';
+    materiaisUnicos.forEach(m => {
+      if (m) {
+        const opt = document.createElement('option');
+        opt.value = m;
+        opt.textContent = m;
+        selMat.appendChild(opt);
+      }
+    });
+    selSub.innerHTML = '<option value="">Todas as Subunidades</option>';
+    subunidadesUnicas.forEach(s => {
+      if (s) {
+        const opt = document.createElement('option');
+        opt.value = s;
+        opt.textContent = s;
+        selSub.appendChild(opt);
+      }
+    });
   }
 
   function filtrarTabelaCautela() {

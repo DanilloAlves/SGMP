@@ -1268,11 +1268,22 @@ function pesquisarNoBigQuery(filtros) {
       if (filtros.itemCodigo && filtros.itemCodigo.trim() !== "") baseSqlWhere += " AND ITEM LIKE '%" + limpaSQL(filtros.itemCodigo) + "%'";
       if (filtros.termoGeral && filtros.termoGeral.trim() !== "") {
         var t = limpaSQL(filtros.termoGeral);
+        var tSemAspas = t.replace(/["“”'']/g, "");
+        var condObjeto = "LOWER(OBJETO) LIKE LOWER('%" + t + "%')";
+        if (tSemAspas !== t && tSemAspas.trim() !== "") {
+          condObjeto += " OR LOWER(REPLACE(REPLACE(OBJETO, '\"', ''), \"'\", '')) LIKE LOWER('%" + tSemAspas + "%')";
+        } else if (t.trim() !== "") {
+          condObjeto += " OR LOWER(REPLACE(REPLACE(OBJETO, '\"', ''), \"'\", '')) LIKE LOWER('%" + t + "%')";
+        }
         var condSerieTermo = colSerie ? (" OR `" + colSerie + "` LIKE '%" + t + "%'") : "";
-        baseSqlWhere += " AND (LOWER(OBJETO) LIKE LOWER('%" + t + "%') OR ITEM LIKE '%" + t + "%' OR COD_EFISCO LIKE '%" + t + "%' OR N_PATRIMONIO LIKE '%" + t + "%' OR SEI_COMPRA_RECEBIMENTO LIKE '%" + t + "%'" + condSerieTermo + ")";
+        baseSqlWhere += " AND (" + condObjeto + " OR ITEM LIKE '%" + t + "%' OR COD_EFISCO LIKE '%" + t + "%' OR N_PATRIMONIO LIKE '%" + t + "%' OR SEI_COMPRA_RECEBIMENTO LIKE '%" + t + "%'" + condSerieTermo + ")";
       }
       if (filtros.seiCompra && filtros.seiCompra.trim() !== "") baseSqlWhere += " AND SEI_COMPRA_RECEBIMENTO = '" + limpaSQL(filtros.seiCompra) + "'";
-      if (filtros.selectMaterial && filtros.selectMaterial.trim() !== "") baseSqlWhere += " AND OBJETO = '" + limpaSQL(filtros.selectMaterial) + "'";
+      if (filtros.selectMaterial && filtros.selectMaterial.trim() !== "") {
+        var matFiltro = limpaSQL(filtros.selectMaterial);
+        var matSemAspas = matFiltro.replace(/["“”'']/g, "");
+        baseSqlWhere += " AND (OBJETO = '" + matFiltro + "' OR REPLACE(REPLACE(OBJETO, '\"', ''), \"'\", '') = '" + matSemAspas + "')";
+      }
       if (filtros.bemPermanente && filtros.bemPermanente !== "") baseSqlWhere += " AND BEM_PERMANENTE_PATRIMONIAVEL_SIM_NAO = '" + limpaSQL(filtros.bemPermanente) + "'";
       if (filtros.nPatrimonio && filtros.nPatrimonio.trim() !== "") baseSqlWhere += " AND N_PATRIMONIO = '" + limpaSQL(filtros.nPatrimonio) + "'";
       if (filtros.nSerie && filtros.nSerie.trim() !== "") {
