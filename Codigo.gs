@@ -1618,7 +1618,14 @@ function atualizarLotePorIds(itensIds, novosDados, usuarioCliente) {
 
   if (novosDados.codEfisco) sets.push("COD_EFISCO = '" + limpar(novosDados.codEfisco) + "'");
 
-  if (novosDados.seiCompra) sets.push("SEI_COMPRA_RECEBIMENTO = '" + limpar(novosDados.seiCompra) + "'");
+  var valSeiLote = (novosDados.seiCompra !== undefined && novosDados.seiCompra !== "") ? novosDados.seiCompra : novosDados.sei;
+  if (valSeiLote !== undefined && valSeiLote !== "") {
+    if (valSeiLote === "__LIMPAR__" || valSeiLote === "LIMPAR") {
+      sets.push("SEI_COMPRA_RECEBIMENTO = NULL");
+    } else {
+      sets.push("SEI_COMPRA_RECEBIMENTO = '" + limpar(valSeiLote) + "'");
+    }
+  }
 
   if (novosDados.bemPermanente) sets.push("BEM_PERMANENTE_PATRIMONIAVEL_SIM_NAO = '" + limpar(novosDados.bemPermanente) + "'");
 
@@ -1749,7 +1756,7 @@ function atualizarLotePorIds(itensIds, novosDados, usuarioCliente) {
         statusNovo: novosDados.statusConservacao || "-",
         responsavelNome: respNomeLote,
         responsavelCpf: respCpfLote,
-        documentoRef: novosDados.seiCompra || "-",
+        documentoRef: (valSeiLote && valSeiLote !== "__LIMPAR__" && valSeiLote !== "LIMPAR") ? valSeiLote : (valSeiLote === "__LIMPAR__" ? "SEI_REMOVIDO" : "-"),
         observacao: "Edição cadastral em lote: " + descMudancas
       });
     }

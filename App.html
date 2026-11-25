@@ -4821,6 +4821,11 @@
                 <option value="SIM">SIM</option><option value="NAO">NÃO</option>
               </select>
             </div>
+            <div class="col-md-6">
+              <label class="form-label small fw-bold">Novo Processo SEI</label>
+              <input type="text" class="form-control form-control-sm" id="lote_sei" placeholder="(Deixe em branco para não alterar)">
+              <div class="form-text text-muted" style="font-size: 0.72rem;">Preencha para atualizar o SEI dos itens marcados, ou digite <code>__LIMPAR__</code> para apagar.</div>
+            </div>
           </div>
           <div class="modal-footer px-0 pb-0 mt-4 border-0">
             <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
@@ -15143,6 +15148,7 @@ function renderizarTimelineEmElemento(dados, ids) {
     
     document.getElementById('qtdLoteBaseBadge').innerText = marcados.length;
     document.getElementById('formEdicaoLoteBase').reset();
+    if (document.getElementById('lote_sei')) document.getElementById('lote_sei').value = '';
 
     let omeDosItens = "";
     marcados.forEach(idItem => {
@@ -15215,6 +15221,7 @@ function renderizarTimelineEmElemento(dados, ids) {
   function salvarEdicaoLoteBase(e) {
     e.preventDefault();
     const marcados = Array.from(document.querySelectorAll('.check-item-base:checked')).map(cb => cb.value);
+    const valSei = document.getElementById('lote_sei') ? document.getElementById('lote_sei').value.trim() : '';
     const novosDados = {
       statusConservacao: document.getElementById('lote_status').value,
       unidade: document.getElementById('lote_unidade').value,
@@ -15222,8 +15229,15 @@ function renderizarTimelineEmElemento(dados, ids) {
       setor: document.getElementById('lote_setor').value,
       localArmazenamento: document.getElementById('lote_local').value,
       bemPermanente: document.getElementById('lote_bemPermanente').value,
+      seiCompra: valSei,
       usuario: (typeof usuarioSessaoAtual !== 'undefined' && usuarioSessaoAtual) ? usuarioSessaoAtual : null
     };
+
+    const camposPreenchidos = Object.keys(novosDados).some(k => k !== 'usuario' && novosDados[k] !== '');
+    if (!camposPreenchidos) {
+      Swal.fire('Atenção', 'Preencha ao menos um campo que deseja alterar nos itens selecionados.', 'info');
+      return;
+    }
 
     Swal.fire({ title: 'Atualizando lote...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
     google.script.run
