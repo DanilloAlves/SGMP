@@ -17646,17 +17646,17 @@ function renderizarTimelineEmElemento(dados, ids) {
 
     Swal.fire({
       title: 'Sair do Sistema?',
-      html: `
-        <p class="text-muted mb-4">Você será desconectado da sessão com segurança.</p>
-        <div class="d-flex justify-content-center gap-2">
-          <a href="${urlLogout}" target="_top" class="btn btn-danger fw-bold px-4 py-2 text-decoration-none shadow-sm" onclick="try{sessionStorage.clear();localStorage.clear();}catch(e){}">
-            <i class="fa-solid fa-right-from-bracket me-2"></i> Sim, Sair
-          </a>
-          <button type="button" class="btn btn-secondary fw-bold px-4 py-2" onclick="Swal.close()">
-            Cancelar
-          </button>
-        </div>
-      `,
+      html: '<div class="text-center">' +
+        '<p class="text-muted mb-4">Você será desconectado da sessão com segurança.</p>' +
+        '<div class="d-flex justify-content-center gap-2">' +
+          '<a href="' + urlLogout + '" target="_top" class="btn btn-danger fw-bold px-4 py-2 text-decoration-none shadow-sm" onclick="try{sessionStorage.clear();localStorage.clear();}catch(e){}">' +
+            '<i class="fa-solid fa-right-from-bracket me-2"></i> Sim, Sair' +
+          '</a>' +
+          '<button type="button" class="btn btn-secondary fw-bold px-4 py-2" onclick="Swal.close()">' +
+            'Cancelar' +
+          '</button>' +
+        '</div>' +
+      '</div>',
       icon: 'question',
       showConfirmButton: false,
       showCancelButton: false,
@@ -17675,35 +17675,33 @@ function renderizarTimelineEmElemento(dados, ids) {
           return;
         }
 
-        let html = `
-          <h5 class="fw-bold text-success mb-3"><i class="fa-solid fa-circle-check me-2"></i> Materiais Liberados pelo Recebimento (Livres para Distribuição)</h5>
-          <div class="table-responsive">
-            <table class="table table-bordered table-sm align-middle small">
-              <thead class="table-light">
-                <tr>
-                  <th>Data Liberação</th>
-                  <th>Processo SEI</th>
-                  <th>Material</th>
-                  <th>Quantidade</th>
-                  <th>Fornecedor</th>
-                  <th class="text-center">Status</th>
-                </tr>
-              </thead>
-              <tbody>`;
+        let html = '<h5 class="fw-bold text-success mb-3"><i class="fa-solid fa-circle-check me-2"></i> Materiais Liberados pelo Recebimento (Livres para Distribuição)</h5>' +
+          '<div class="table-responsive">' +
+            '<table class="table table-bordered table-sm align-middle small">' +
+              '<thead class="table-light">' +
+                '<tr>' +
+                  '<th>Data Liberação</th>' +
+                  '<th>Processo SEI</th>' +
+                  '<th>Material</th>' +
+                  '<th>Quantidade</th>' +
+                  '<th>Fornecedor</th>' +
+                  '<th class="text-center">Status</th>' +
+                '</tr>' +
+              '</thead>' +
+              '<tbody>';
 
         tickets.forEach(t => {
-          html += `
-            <tr>
-              <td>${formatarDataHoraBrasil(t.data)}</td>
-              <td class="fw-bold text-primary">${t.sei}</td>
-              <td>${t.material}</td>
-              <td><span class="badge bg-secondary">${t.quantidade} un(s)</span></td>
-              <td>${t.fornecedor}</td>
-              <td class="text-center"><span class="badge bg-success">Livre para Distribuição</span></td>
-            </tr>`;
+          html += '<tr>' +
+            '<td>' + formatarDataHoraBrasil(t.data) + '</td>' +
+            '<td class="fw-bold text-primary">' + (t.sei || '-') + '</td>' +
+            '<td>' + (t.material || '-') + '</td>' +
+            '<td><span class="badge bg-secondary">' + (t.quantidade || 0) + ' un(s)</span></td>' +
+            '<td>' + (t.fornecedor || '-') + '</td>' +
+            '<td class="text-center"><span class="badge bg-success">Livre para Distribuição</span></td>' +
+          '</tr>';
         });
 
-        html += `</tbody></table></div>`;
+        html += '</tbody></table></div>';
         container.innerHTML = html;
       })
       .getTicketsLiberacaoDpl();
@@ -17716,20 +17714,20 @@ function renderizarTimelineEmElemento(dados, ids) {
 
   function adicionarLinhaDestino() {
     const container = document.getElementById('containerDestinosFracionados');
+    if (!container) return;
     const div = document.createElement('div');
     div.className = 'row g-2 mb-2 linha-destino-item align-items-center';
-    div.innerHTML = `
-      <div class="col-7">
-        <select class="form-select form-select-sm select-ome-destino-fracao">
-          ${optionsOmesGlobalCache}
-        </select>
-      </div>
-      <div class="col-4">
-        <input type="number" class="form-control form-control-sm input-qtd-fracao" min="1" placeholder="Qtd" oninput="recalcularSaldoFracionadoGlobal()">
-      </div>
-      <div class="col-1 text-center">
-        <button type="button" class="btn btn-sm text-danger p-0" onclick="removerLinhaDestinoGlobal(this)" title="Remover"><i class="fa-solid fa-trash"></i></button>
-      </div>`;
+    div.innerHTML = '<div class="col-7">' +
+      '<select class="form-select form-select-sm select-ome-destino-fracao">' +
+        (optionsOmesGlobalCache || '') +
+      '</select>' +
+    '</div>' +
+    '<div class="col-4">' +
+      '<input type="number" class="form-control form-control-sm input-qtd-fracao" min="1" placeholder="Qtd" oninput="recalcularSaldoFracionadoGlobal()">' +
+    '</div>' +
+    '<div class="col-1 text-center">' +
+      '<button type="button" class="btn btn-sm text-danger p-0" onclick="removerLinhaDestinoGlobal(this)" title="Remover"><i class="fa-solid fa-trash"></i></button>' +
+    '</div>';
     container.appendChild(div);
   }
 
